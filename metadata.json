@@ -1,0 +1,5 @@
+{
+  "name": "Neon Command: Sector 7",
+  "description": "A 3D interactive RTS-style map view of a futuristic American city. Navigate the neon-lit skyline with drone controls.",
+  "requestFramePermissions": []
+}
