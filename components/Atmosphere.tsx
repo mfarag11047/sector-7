@@ -17,7 +17,7 @@ const Atmosphere: React.FC = () => {
         intensity={1.2} 
         color="#a5f3fc" 
         castShadow 
-        shadow-mapSize={[4096, 4096]}
+        shadow-mapSize={[2048, 2048]}
         shadow-camera-left={-800}
         shadow-camera-right={800}
         shadow-camera-top={800}

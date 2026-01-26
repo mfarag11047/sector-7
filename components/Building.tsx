@@ -175,7 +175,7 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
       {/* Capture Ring Indicator */}
       {data.capturingTeam && (
           <mesh position={[0, (data.captureProgress / 100) * data.scale[1], 0]} rotation={[-Math.PI/2, 0, 0]}>
-              <ringGeometry args={[data.scale[0] * 0.6, data.scale[0] * 0.7, 32]} />
+              <ringGeometry args={[data.scale[0] * 0.6, data.scale[0] * 0.7, 16]} />
               <meshBasicMaterial color={TEAM_COLORS[data.capturingTeam]} transparent opacity={0.6} side={THREE.DoubleSide} />
           </mesh>
       )}

@@ -34,6 +34,85 @@ const MANUAL_DATA: ManualSection[] = [
   }
 ];
 
+const EditableStat: React.FC<{
+  value: number;
+  icon?: React.ReactNode;
+  label?: string;
+  onSave: (val: number) => void;
+  className?: string;
+  baseColor?: string;
+}> = ({ value, icon, label, onSave, className, baseColor }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [tempVal, setTempVal] = useState(value.toString());
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+      inputRef.current.select();
+    }
+  }, [isEditing]);
+
+  useEffect(() => {
+      if (!isEditing) setTempVal(value.toString());
+  }, [value, isEditing]);
+
+  const handleCommit = () => {
+    setIsEditing(false);
+    const num = parseInt(tempVal);
+    if (!isNaN(num)) {
+      onSave(num);
+    } else {
+        setTempVal(value.toString());
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') handleCommit();
+    if (e.key === 'Escape') {
+        setIsEditing(false);
+        setTempVal(value.toString());
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <div 
+        className={`flex items-center gap-1 bg-slate-800 rounded p-1 ${className} pointer-events-auto border border-cyan-500/50 shadow-lg min-w-[80px]`}
+        onClick={(e) => e.stopPropagation()}
+      >
+        {icon && <span className="text-lg opacity-50">{icon}</span>}
+        <input 
+            ref={inputRef}
+            type="number" 
+            value={tempVal}
+            onChange={(e) => setTempVal(e.target.value)}
+            onBlur={handleCommit}
+            onKeyDown={handleKeyDown}
+            className="w-full bg-transparent text-white font-mono text-lg font-bold border-none outline-none focus:ring-0 p-0"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div 
+        className={`flex items-center gap-1 cursor-pointer hover:bg-white/10 transition-all p-1 rounded border border-transparent hover:border-white/20 ${className} pointer-events-auto`}
+        onClick={(e) => { 
+            e.preventDefault(); 
+            e.stopPropagation(); 
+            setIsEditing(true); 
+        }}
+        title="Click to Edit Value"
+    >
+        {icon && <span className="text-lg">{icon}</span>}
+        <span className="text-white font-bold text-xl font-mono">{value}</span>
+        {label && <span className={`${baseColor || 'text-slate-400'} text-[10px] font-mono`}>{label}</span>}
+    </div>
+  );
+};
+
 const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left' | 'right'; isVisible: boolean }> = ({ team, stats, align, isVisible }) => {
   const isBlue = team === 'blue';
   const baseColor = isBlue ? 'text-blue-400' : 'text-red-400';
@@ -42,7 +121,7 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
   
   return (
     <div className={`
-      bg-slate-900/90 backdrop-blur-md border-t-2 ${borderColor} p-3 rounded-b-lg shadow-xl pointer-events-auto min-w-[300px]
+      bg-slate-900/90 backdrop-blur-md border-t-2 ${borderColor} p-3 rounded-b-lg shadow-xl pointer-events-auto min-w-[300px] z-50
       flex flex-col gap-2 relative overflow-hidden transition-all duration-300
       ${!isVisible ? 'opacity-80 grayscale-[0.8]' : 'opacity-100'}
     `}>
@@ -53,32 +132,23 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
         <h2 className={`text-xl font-bold font-mono uppercase tracking-widest ${baseColor}`}>
           {team} TEAM
         </h2>
-        <div className="flex items-baseline gap-4">
+        <div className="flex items-baseline gap-4 pointer-events-auto">
           {isVisible ? (
             <>
                 {/* Compute Stat */}
-                <div 
-                    className="flex items-center gap-1 cursor-pointer hover:brightness-125 transition-all" 
-                    title="Compute Nodes Held (Click to Cheat)"
-                    onClick={() => {
-                        const val = prompt(`Set Compute Bonus for ${team} (Current Base: ${stats.compute})`, "0");
-                        if (val !== null) (window as any).GAME_CHEATS?.setCompute(team, parseInt(val) || 0);
-                    }}
-                >
-                    <span className="text-blue-400 text-lg">📶</span>
-                    <span className="text-white font-bold text-xl font-mono">{stats.compute || 0}</span>
-                </div>
+                <EditableStat 
+                    value={stats.compute || 0}
+                    icon={<span className="text-blue-400">📶</span>}
+                    onSave={(val) => (window as any).GAME_CHEATS?.setCompute(team, val)}
+                />
                 
-                <div 
-                    className="flex items-baseline gap-1 cursor-pointer hover:brightness-125 transition-all"
-                    onClick={() => {
-                        const val = prompt(`Set Resources for ${team}`, Math.floor(stats.resources).toString());
-                        if (val !== null) (window as any).GAME_CHEATS?.setResources(team, parseInt(val) || 0);
-                    }}
-                >
-                    <span className="text-white font-bold text-2xl tracking-tighter">{Math.floor(stats.resources).toLocaleString()}</span>
-                    <span className={`${baseColor} text-[10px] font-mono`}>CORES</span>
-                </div>
+                {/* Resource Stat */}
+                <EditableStat 
+                    value={Math.floor(stats.resources)}
+                    label="CORES"
+                    baseColor={baseColor}
+                    onSave={(val) => (window as any).GAME_CHEATS?.setResources(team, val)}
+                />
             </>
           ) : (
              <span className="text-slate-500 font-mono text-sm animate-pulse">ENCRYPTED</span>
@@ -250,9 +320,9 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
   }, [minimapData.selectedUnitIds, minimapData.units]);
 
   return (
-    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4">
+    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 z-50">
       {/* Top HUD: Team Stats */}
-      <div className="flex justify-between items-start w-full relative">
+      <div className="flex justify-between items-start w-full relative z-50">
         
         {/* Admin Toggle (Hidden-ish) */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-2 pointer-events-auto z-50">
@@ -267,7 +337,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
 
         <TeamPanel team="blue" stats={stats.blue} align="left" isVisible={playerTeam === 'blue'} />
         
-        <div className="mt-8 flex flex-col items-center gap-2">
+        <div className="mt-8 flex flex-col items-center gap-2 pointer-events-auto">
             <h1 className="text-slate-500 font-mono text-[10px] tracking-[0.3em] uppercase opacity-50">Sector 7 Conflict</h1>
             <button 
                 onClick={() => setIsIntelOpen(!isIntelOpen)}
@@ -285,7 +355,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
       </div>
 
       {isIntelOpen && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-50">
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[100]">
           <div className="w-full max-w-2xl bg-slate-900/95 backdrop-blur-xl border border-cyan-500/50 p-8 rounded-2xl pointer-events-auto shadow-[0_0_50px_rgba(6,182,212,0.2)] animate-in fade-in zoom-in duration-200">
             <div className="flex justify-between items-center mb-6 border-b border-cyan-500/20 pb-4">
               <h2 className="text-2xl font-bold text-cyan-400 font-mono tracking-widest uppercase flex items-center gap-3">
@@ -324,7 +394,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
       )}
 
       {/* Bottom Interface */}
-      <div className="flex justify-between items-end">
+      <div className="flex justify-between items-end z-50">
         <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700 p-3 rounded-lg pointer-events-auto max-w-sm shadow-2xl">
           <h3 className="text-slate-400 text-[10px] font-mono uppercase mb-2 border-b border-slate-700 pb-1 flex justify-between">
             System Message

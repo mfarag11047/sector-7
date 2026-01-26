@@ -178,39 +178,140 @@ const DestinationMarker: React.FC<{ x: number, z: number, tileSize: number, offs
   );
 };
 
-// Projectile Component
-const ProjectileMesh: React.FC<{ projectile: Projectile }> = ({ projectile }) => {
-    const meshRef = useRef<THREE.Group>(null);
-
-    useFrame(() => {
-        if (meshRef.current) {
-            // Update position
-            meshRef.current.position.set(projectile.position.x, projectile.position.y, projectile.position.z);
-            
-            // Look at direction of travel (velocity)
-            if (Math.abs(projectile.velocity.x) > 0.01 || Math.abs(projectile.velocity.y) > 0.01 || Math.abs(projectile.velocity.z) > 0.01) {
-                // LookAt requires a target position, so add velocity to current pos
-                const target = new THREE.Vector3(
-                    projectile.position.x + projectile.velocity.x,
-                    projectile.position.y + projectile.velocity.y,
-                    projectile.position.z + projectile.velocity.z
-                );
-                meshRef.current.lookAt(target);
-            }
+// Detailed Missile Model
+const DetailedMissileModel = ({ color }: { color: string }) => {
+    const lightRef = useRef<THREE.PointLight>(null);
+    useFrame(({clock}) => {
+        if (lightRef.current) {
+            // Blinking effect
+            lightRef.current.intensity = Math.sin(clock.elapsedTime * 15) > 0 ? 3 : 0;
         }
     });
 
     return (
+        <group rotation={[Math.PI/2, 0, 0]}>
+            {/* Main Body - Z-forward is Up in local Y, so rotate 90 X to face Z */}
+            {/* We build it along +Z axis for lookAt compatibility */}
+            <group rotation={[-Math.PI/2, 0, 0]}>
+                 {/* Fuselage */}
+                 <mesh position={[0, 1.5, 0]}>
+                     <cylinderGeometry args={[0.3, 0.3, 3, 16]} />
+                     <meshStandardMaterial color="#e2e8f0" metalness={0.6} roughness={0.3} />
+                 </mesh>
+                 {/* Warhead */}
+                 <mesh position={[0, 3.4, 0]}>
+                     <coneGeometry args={[0.31, 0.8, 16]} />
+                     <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} />
+                 </mesh>
+                 {/* Collar Ring */}
+                 <mesh position={[0, 3.0, 0]}>
+                     <cylinderGeometry args={[0.32, 0.32, 0.1, 16]} />
+                     <meshBasicMaterial color="#f97316" />
+                 </mesh>
+                 {/* Fins */}
+                 {[0, Math.PI/2, Math.PI, -Math.PI/2].map((r, i) => (
+                     <mesh key={i} position={[0, 0.5, 0]} rotation={[0, r, 0]}>
+                         <boxGeometry args={[0.05, 1.0, 0.8]} />
+                         <meshStandardMaterial color="#475569" metalness={0.5} />
+                     </mesh>
+                 ))}
+                 {/* Engine Nozzle */}
+                 <mesh position={[0, -0.2, 0]}>
+                     <cylinderGeometry args={[0.2, 0.15, 0.4, 16]} />
+                     <meshStandardMaterial color="#334155" />
+                 </mesh>
+                 {/* Engine Glow */}
+                 <mesh position={[0, -0.5, 0]} rotation={[Math.PI, 0, 0]}>
+                     <coneGeometry args={[0.15, 0.6, 8, 1, true]} />
+                     <meshBasicMaterial color="#f97316" transparent opacity={0.8} depthWrite={false} blending={THREE.AdditiveBlending} />
+                 </mesh>
+                 <pointLight position={[0, -1.0, 0]} color="#f97316" intensity={3} distance={8} />
+
+                 {/* Navigation/Strobe Light - Blinking */}
+                 <mesh position={[0, 2.0, 0.32]}>
+                     <sphereGeometry args={[0.08]} />
+                     <meshBasicMaterial color="#ff0000" />
+                 </mesh>
+                 <pointLight ref={lightRef} position={[0, 2.0, 0.4]} color="#ff0000" distance={2} decay={1} />
+            </group>
+        </group>
+    );
+};
+
+// Projectile Component
+const ProjectileMesh: React.FC<{ projectile: Projectile }> = ({ projectile }) => {
+    const meshRef = useRef<THREE.Group>(null);
+    const targetRef = useRef<THREE.Vector3>(new THREE.Vector3());
+
+    useFrame((state, delta) => {
+        if (meshRef.current) {
+            // Update position directly
+            meshRef.current.position.set(projectile.position.x, projectile.position.y, projectile.position.z);
+            
+            if ((projectile.trajectory === 'ballistic' || projectile.trajectory === 'swarm') && projectile.velocity) {
+                 // Calculate forward vector based on velocity for proper orientation
+                 if (Math.abs(projectile.velocity.x) > 0.001 || Math.abs(projectile.velocity.y) > 0.001 || Math.abs(projectile.velocity.z) > 0.001) {
+                     const velocityVec = new THREE.Vector3(projectile.velocity.x, projectile.velocity.y, projectile.velocity.z);
+                     const lookTarget = new THREE.Vector3().copy(meshRef.current.position).add(velocityVec);
+                     
+                     // Smooth rotation using slerp for ballistics, instant for swarm to avoid jitters
+                     const dummy = new THREE.Object3D();
+                     dummy.position.copy(meshRef.current.position);
+                     dummy.lookAt(lookTarget);
+                     
+                     if (projectile.trajectory === 'ballistic') {
+                         meshRef.current.quaternion.slerp(dummy.quaternion, delta * 8);
+                     } else {
+                         meshRef.current.quaternion.copy(dummy.quaternion);
+                     }
+                 }
+            } else {
+                 // Standard Direct Projectile
+                 if (Math.abs(projectile.velocity.x) > 0.01 || Math.abs(projectile.velocity.y) > 0.01 || Math.abs(projectile.velocity.z) > 0.01) {
+                    const target = new THREE.Vector3(
+                        projectile.position.x + projectile.velocity.x,
+                        projectile.position.y + projectile.velocity.y,
+                        projectile.position.z + projectile.velocity.z
+                    );
+                    meshRef.current.lookAt(target);
+                }
+            }
+        }
+    });
+
+    if (projectile.trajectory === 'ballistic') {
+        const payloadColor = projectile.payload === 'eclipse' ? '#c084fc' : '#ef4444';
+        return (
+            <group ref={meshRef}>
+                 <DetailedMissileModel color={payloadColor} />
+            </group>
+        );
+    }
+
+    if (projectile.trajectory === 'swarm') {
+        return (
+            <group ref={meshRef}>
+                <mesh rotation={[-Math.PI/2, 0, 0]}>
+                    <coneGeometry args={[0.15, 0.6, 8]} />
+                    <meshBasicMaterial color="#facc15" />
+                </mesh>
+                {/* Trail */}
+                <mesh position={[0, 0, 0.4]} rotation={[-Math.PI/2, 0, 0]}>
+                    <coneGeometry args={[0.1, 0.8, 8, 1, true]} />
+                    <meshBasicMaterial color="#fbbf24" transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} />
+                </mesh>
+            </group>
+        );
+    }
+
+    return (
         <group ref={meshRef}>
-             {/* The projectile body - oriented along Z axis natively, so rotate X to align with LookAt forward (-Z) if needed, 
-                 but cylinder is usually Y-up. Let's make it Z-forward. 
-                 Cylinder geometry is Y-up. We rotate it 90deg on X to make it Z-forward.
-             */}
+             {/* The projectile body - oriented along Z axis natively, so rotate X to align with LookAt forward (-Z) */}
              <mesh rotation={[Math.PI/2, 0, 0]}>
                  <cylinderGeometry args={[0.2, 0.2, 1.5, 8]} />
-                 <meshBasicMaterial color={projectile.trajectory === 'ballistic' ? "#a855f7" : "#fca5a5"} />
+                 <meshBasicMaterial color="#fca5a5" />
              </mesh>
-             <pointLight color={projectile.trajectory === 'ballistic' ? "#d8b4fe" : "#ef4444"} intensity={3} distance={5} />
+             <pointLight color="#ef4444" intensity={3} distance={5} />
         </group>
     );
 };
@@ -403,12 +504,12 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
     { id: 'u12', type: 'mason', unitClass: 'builder', team: 'blue', gridPos: { x: 3, z: 6 }, path: [], visionRange: UNIT_STATS.mason.visionRange, health: UNIT_STATS.mason.maxHealth, maxHealth: UNIT_STATS.mason.maxHealth, cooldowns: {}, cargo: 0, constructionTargetId: null, battery: 100, maxBattery: 100 },
     { id: 'u13', type: 'helios', unitClass: 'support', team: 'blue', gridPos: { x: 2, z: 6 }, path: [], visionRange: UNIT_STATS.helios.visionRange, health: UNIT_STATS.helios.maxHealth, maxHealth: UNIT_STATS.helios.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100 },
     { id: 'u14', type: 'sun_plate', unitClass: 'armor', team: 'blue', gridPos: { x: 4, z: 5 }, path: [], visionRange: UNIT_STATS.sun_plate.visionRange, health: UNIT_STATS.sun_plate.maxHealth, maxHealth: UNIT_STATS.sun_plate.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, isDeployed: false },
-    { id: 'u15', type: 'ballista', unitClass: 'support', team: 'blue', gridPos: { x: 5, z: 5 }, path: [], visionRange: UNIT_STATS.ballista.visionRange, health: UNIT_STATS.ballista.maxHealth, maxHealth: UNIT_STATS.ballista.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, ammoState: 'empty', loadedAmmo: null, loadingProgress: 0 },
+    { id: 'u15', type: 'ballista', unitClass: 'support', team: 'blue', gridPos: { x: 5, z: 5 }, path: [], visionRange: UNIT_STATS.ballista.visionRange, health: UNIT_STATS.ballista.maxHealth, maxHealth: UNIT_STATS.ballista.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, ammoState: 'empty', loadedAmmo: null, missileInventory: { eclipse: 1, wp: 1 }, loadingProgress: 0 },
     { id: 'u16', type: 'wasp', unitClass: 'air', team: 'red', gridPos: { x: gridSize - 6, z: gridSize - 8 }, path: [], visionRange: UNIT_STATS.wasp.visionRange, health: UNIT_STATS.wasp.maxHealth, maxHealth: UNIT_STATS.wasp.maxHealth, cooldowns: { swarmLaunch: 0 }, charges: { swarm: ABILITY_CONFIG.WASP_MAX_CHARGES }, battery: 100, maxBattery: 100 },
     { id: 'u17', type: 'mason', unitClass: 'builder', team: 'red', gridPos: { x: gridSize - 4, z: gridSize - 7 }, path: [], visionRange: UNIT_STATS.mason.visionRange, health: UNIT_STATS.mason.maxHealth, maxHealth: UNIT_STATS.mason.maxHealth, cooldowns: {}, cargo: 0, constructionTargetId: null, battery: 100, maxBattery: 100 },
     { id: 'u18', type: 'helios', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 3, z: gridSize - 7 }, path: [], visionRange: UNIT_STATS.helios.visionRange, health: UNIT_STATS.helios.maxHealth, maxHealth: UNIT_STATS.helios.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100 },
     { id: 'u19', type: 'sun_plate', unitClass: 'armor', team: 'red', gridPos: { x: gridSize - 5, z: gridSize - 6 }, path: [], visionRange: UNIT_STATS.sun_plate.visionRange, health: UNIT_STATS.sun_plate.maxHealth, maxHealth: UNIT_STATS.sun_plate.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, isDeployed: false },
-    { id: 'u20', type: 'ballista', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 6, z: gridSize - 6 }, path: [], visionRange: UNIT_STATS.ballista.visionRange, health: UNIT_STATS.ballista.maxHealth, maxHealth: UNIT_STATS.ballista.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, ammoState: 'empty', loadedAmmo: null, loadingProgress: 0 },
+    { id: 'u20', type: 'ballista', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 6, z: gridSize - 6 }, path: [], visionRange: UNIT_STATS.ballista.visionRange, health: UNIT_STATS.ballista.maxHealth, maxHealth: UNIT_STATS.ballista.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, ammoState: 'empty', loadedAmmo: null, missileInventory: { eclipse: 1, wp: 1 }, loadingProgress: 0 },
     { id: 'u21', type: 'banshee', unitClass: 'support', team: 'blue', gridPos: { x: 6, z: 6 }, path: [], visionRange: UNIT_STATS.banshee.visionRange, health: UNIT_STATS.banshee.maxHealth, maxHealth: UNIT_STATS.banshee.maxHealth, cooldowns: {}, battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, jammerActive: false },
     { id: 'u22', type: 'banshee', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 7, z: gridSize - 7 }, path: [], visionRange: UNIT_STATS.banshee.visionRange, health: UNIT_STATS.banshee.maxHealth, maxHealth: UNIT_STATS.banshee.maxHealth, cooldowns: {}, battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, jammerActive: false },
     ...initialDrones
@@ -425,7 +526,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   const [dragSelection, setDragSelection] = useState<{start: THREE.Vector3, current: THREE.Vector3, active: boolean} | null>(null);
   
   const [targetingSourceId, setTargetingSourceId] = useState<string | null>(null);
-  const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'CANNON' | 'SURVEILLANCE' | 'MISSILE' | null>(null);
+  const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'CANNON' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'SWARM' | null>(null);
 
   const [baseMenuOpen, setBaseMenuOpen] = useState<'blue' | 'red' | null>(null);
   const [placementMode, setPlacementMode] = useState<{type: StructureType, cost: number} | null>(null);
@@ -688,12 +789,29 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           if (u.path.length === 0) return u;
           const nextKey = u.path[0];
           const [nx, nz] = nextKey.split(',').map(Number);
-          return { ...u, gridPos: { x: nx, z: nz }, path: u.path.slice(1) };
+          
+          let newSurveillance = u.surveillance;
+          
+          // Check if arrived at surveillance center (Transition traveling -> active)
+          if (u.surveillance && u.surveillance.status === 'traveling') {
+              if (nx === u.surveillance.center.x && nz === u.surveillance.center.z) {
+                  newSurveillance = { ...u.surveillance, status: 'active', startTime: Date.now() };
+              }
+          }
+          
+          // Check if returned to base (Transition returning -> done)
+          if (u.surveillance && u.surveillance.status === 'returning') {
+              if (u.surveillance.returnPos && nx === u.surveillance.returnPos.x && nz === u.surveillance.returnPos.z) {
+                  newSurveillance = undefined;
+              }
+          }
+
+          return { ...u, gridPos: { x: nx, z: nz }, path: u.path.slice(1), surveillance: newSurveillance };
       }));
   };
 
   const handleTileClick = (x: number, z: number) => {
-      // If we just dragged, ignore any click events generated
+      // If we just dragged, ignore click events generated
       if (didDragRef.current) return;
 
       if (placementMode) {
@@ -707,10 +825,22 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           const unit = units.find(u => u.id === targetingSourceId);
           if (unit) {
               const path = findPath(unit.gridPos, { x, z });
-              if (path.length > 0) {
+              // Allow activating surveillance if path found OR if already at target location
+              if (path.length > 0 || (unit.gridPos.x === x && unit.gridPos.z === z)) {
                   setUnits(prev => prev.map(u => {
                       if (u.id === unit.id) {
-                          return { ...u, path, surveillance: { active: true, status: 'traveling', center: { x, z }, returnPos: { x: unit.gridPos.x, z: unit.gridPos.z }, startTime: 0 } };
+                          const isAlreadyThere = unit.gridPos.x === x && unit.gridPos.z === z;
+                          return { 
+                              ...u, 
+                              path, 
+                              surveillance: { 
+                                  active: true, 
+                                  status: isAlreadyThere ? 'active' : 'traveling', 
+                                  center: { x, z }, 
+                                  returnPos: { x: unit.gridPos.x, z: unit.gridPos.z }, 
+                                  startTime: isAlreadyThere ? Date.now() : 0 
+                              } 
+                          };
                       }
                       return u;
                   }));
@@ -742,12 +872,17 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
            setTargetingSourceId(null);
            setTargetingAbility(null);
       } else if (targetingSourceId && targetingAbility === 'MISSILE') {
-          // Ballistic Missile Logic (Launch -> Cruise -> Terminal)
+          // Ballistic Missile Logic (Launch -> Parabolic Arc -> Impact)
           const sourceUnit = unitsRef.current.find(u => u.id === targetingSourceId);
           if (sourceUnit && sourceUnit.ammoState === 'armed' && sourceUnit.loadedAmmo) {
               const startPos = { x: (sourceUnit.gridPos.x * CITY_CONFIG.tileSize) - offset, y: 2.0, z: (sourceUnit.gridPos.z * CITY_CONFIG.tileSize) - offset };
               const targetPos = { x: (x * CITY_CONFIG.tileSize) - offset, y: 1.0, z: (z * CITY_CONFIG.tileSize) - offset };
               
+              const distance = Math.sqrt(Math.pow(targetPos.x - startPos.x, 2) + Math.pow(targetPos.z - startPos.z, 2));
+              const duration = (distance / ABILITY_CONFIG.MISSILE_CRUISE_SPEED) * 1000; // ms
+
+              const payload = sourceUnit.loadedAmmo;
+
               // Consume Ammo
               setUnits(prev => prev.map(u => {
                   if (u.id === sourceUnit.id) {
@@ -756,21 +891,100 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   return u;
               }));
 
-              // Spawn Projectile in Ascent Phase (Moving straight UP)
+              // Spawn Projectile in Parabolic Ballistic Mode
               setProjectiles(prev => [...prev, { 
                   id: `missile-${Date.now()}`, 
                   ownerId: sourceUnit.id, 
                   team: sourceUnit.team, 
                   position: startPos, 
-                  velocity: { x: 0, y: ABILITY_CONFIG.MISSILE_ASCENT_SPEED, z: 0 }, 
-                  damage: 0, // Damage dealt by cloud creation upon impact
+                  velocity: { x: 0, y: 0, z: 0 }, // Calculated dynamically in frame loop
+                  damage: 0, 
                   radius: 1.0, 
-                  maxDistance: 9999, // Distance handled by phase logic
+                  maxDistance: distance,
                   distanceTraveled: 0, 
                   targetPos: targetPos,
                   trajectory: 'ballistic',
-                  phase: 'ascent'
+                  payload: payload,
+                  startPos: startPos,
+                  startTime: Date.now()
               }]);
+          }
+          setTargetingSourceId(null);
+          setTargetingAbility(null);
+      } else if (targetingSourceId && targetingAbility === 'SWARM') {
+          // Wasp Swarm Logic
+          const sourceUnit = unitsRef.current.find(u => u.id === targetingSourceId);
+          if (sourceUnit && sourceUnit.charges?.swarm && sourceUnit.charges.swarm > 0) {
+              // Wasp visual is an air unit hovering at height 75.0
+              const startPos = { x: (sourceUnit.gridPos.x * CITY_CONFIG.tileSize) - offset, y: 75.0, z: (sourceUnit.gridPos.z * CITY_CONFIG.tileSize) - offset };
+              // Target is the ground (y=0.5) to ensure impact, unless guided later
+              const targetPos = { x: (x * CITY_CONFIG.tileSize) - offset, y: 0.5, z: (z * CITY_CONFIG.tileSize) - offset };
+              
+              // Calculate Base Angle to Target
+              const dx = targetPos.x - startPos.x;
+              const dz = targetPos.z - startPos.z;
+              const baseAngle = Math.atan2(dz, dx);
+              
+              const newSwarm: Projectile[] = [];
+              const speed = ABILITY_CONFIG.WASP_MISSILE_SPEED;
+
+              // Deduct charge and set cooldown
+              setUnits(prev => prev.map(u => {
+                  if (u.id === sourceUnit.id) {
+                      return { 
+                          ...u, 
+                          charges: { ...u.charges, swarm: (u.charges?.swarm || 1) - 1 },
+                          cooldowns: { ...u.cooldowns, swarmLaunch: ABILITY_CONFIG.WASP_SWARM_COOLDOWN } 
+                      };
+                  }
+                  return u;
+              }));
+
+              // Spawn Microdrones
+              for (let i = 0; i < ABILITY_CONFIG.WASP_MISSILES_PER_VOLLEY; i++) {
+                  // Cone Spread: Wider for area denial (approx +/- 80 degrees)
+                  const spread = (Math.random() - 0.5) * 2.8; 
+                  const angle = baseAngle + spread;
+                  
+                  const vx = Math.cos(angle) * speed;
+                  const vz = Math.sin(angle) * speed;
+                  // Higher upward trajectory for wider arc
+                  const vy = Math.random() * 3 + 2; 
+
+                  newSwarm.push({
+                      id: `microdrone-${Date.now()}-${i}`,
+                      ownerId: sourceUnit.id,
+                      team: sourceUnit.team,
+                      position: { ...startPos },
+                      velocity: { x: vx, y: vy, z: vz },
+                      damage: ABILITY_CONFIG.WASP_DAMAGE_PER_MISSILE,
+                      radius: 0.5,
+                      maxDistance: 200, // Safety limit
+                      distanceTraveled: 0,
+                      targetPos: targetPos, // Fallback target if no enemy
+                      trajectory: 'swarm',
+                      startPos: startPos,
+                      startTime: Date.now(),
+                      phase: 'ascent' // Used to spread out initially
+                  });
+              }
+              setProjectiles(prev => [...prev, ...newSwarm]);
+          }
+          setTargetingSourceId(null);
+          setTargetingAbility(null);
+      } else if (targetingSourceId && targetingAbility === 'DECOY') {
+          // Phantom Decoy Logic
+          const sourceUnit = unitsRef.current.find(u => u.id === targetingSourceId);
+          if (sourceUnit) {
+              const dist = Math.sqrt(Math.pow(sourceUnit.gridPos.x - x, 2) + Math.pow(sourceUnit.gridPos.z - z, 2));
+              if (dist <= ABILITY_CONFIG.GHOST_DECOY_RANGE) {
+                  setDecoys(prev => [...prev, { 
+                      id: `decoy-${Date.now()}`, 
+                      team: sourceUnit.team as 'blue'|'red', 
+                      gridPos: { x, z }, 
+                      createdAt: Date.now() 
+                  }]);
+              }
           }
           setTargetingSourceId(null);
           setTargetingAbility(null);
@@ -891,6 +1105,89 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       
       const compute = teamCompute[unit.team as 'blue' | 'red'];
       
+      // Ballista Load Logic (Inventory -> Armed)
+      if (action.startsWith('LOAD_AMMO_')) {
+          const type = action.replace('LOAD_AMMO_', '').toLowerCase() as 'eclipse' | 'wp';
+          if (unit.missileInventory && unit.missileInventory[type] > 0) {
+              setUnits(prev => prev.map(u => {
+                  if (u.id === unit.id) {
+                      return { 
+                          ...u, 
+                          missileInventory: { ...u.missileInventory!, [type]: u.missileInventory![type] - 1 },
+                          ammoState: 'loading',
+                          loadedAmmo: type,
+                          loadingProgress: 0
+                      };
+                  }
+                  return u;
+              }));
+              // Simulate load time
+              setTimeout(() => {
+                  setUnits(prev => prev.map(u => {
+                      if (u.id === unit.id) return { ...u, ammoState: 'armed', loadingProgress: 100 };
+                      return u;
+                  }));
+              }, ABILITY_CONFIG.BALLISTA_LOAD_TIME);
+          }
+          return;
+      }
+
+      // Ballista Order Logic (Spawn Courier)
+      if (action.startsWith('REQUEST_DELIVERY_')) {
+          const type = action.replace('REQUEST_DELIVERY_', '').toLowerCase() as 'eclipse' | 'wp';
+          const cost = type === 'eclipse' ? ABILITY_CONFIG.WARHEAD_COST_ECLIPSE : ABILITY_CONFIG.WARHEAD_COST_WP;
+          
+          if (teamResources[unit.team as 'blue' | 'red'] >= cost) {
+              // Find nearest Ordnance Fab
+              const fabs = structuresRef.current.filter(s => s.type === 'ordnance_fab' && s.team === unit.team && !s.isBlueprint);
+              if (fabs.length > 0) {
+                  let nearestFab = fabs[0];
+                  let minD = 9999;
+                  fabs.forEach(f => {
+                      const d = Math.sqrt(Math.pow(f.gridPos.x - unit.gridPos.x, 2) + Math.pow(f.gridPos.z - unit.gridPos.z, 2));
+                      if (d < minD) { minD = d; nearestFab = f; }
+                  });
+
+                  // Pay Cost
+                  setTeamResources(prev => ({...prev, [unit.team]: prev[unit.team as 'blue' | 'red'] - cost}));
+
+                  // Spawn Courier
+                  const newCourier: UnitData = {
+                      id: `courier-${Date.now()}`,
+                      type: 'courier',
+                      unitClass: 'support',
+                      team: unit.team,
+                      gridPos: { ...nearestFab.gridPos },
+                      path: [], // Will set below
+                      visionRange: UNIT_STATS.courier.visionRange,
+                      health: UNIT_STATS.courier.maxHealth,
+                      maxHealth: UNIT_STATS.courier.maxHealth,
+                      battery: 100,
+                      maxBattery: 100,
+                      cooldowns: {},
+                      courierTargetId: unit.id,
+                      courierPayload: type
+                  };
+
+                  // Calculate path to Ballista
+                  const path = findPath(newCourier.gridPos, unit.gridPos);
+                  newCourier.path = path;
+
+                  setUnits(prev => [...prev, newCourier]);
+                  
+                  // Update Ballista State to indicate inbound
+                  setUnits(prev => prev.map(u => {
+                      if (u.id === unit.id && u.ammoState === 'empty') return { ...u, ammoState: 'awaiting_delivery' };
+                      return u;
+                  }));
+
+              } else {
+                  console.warn("No Ordnance Fab available!");
+              }
+          }
+          return;
+      }
+
       if (action === 'HARDLINE_TETHER') {
           setTargetingSourceId(primaryUnitId);
           setTargetingAbility('TETHER');
@@ -912,9 +1209,16 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           setTargetingAbility('MISSILE');
           return;
       }
+      // Wasp Swarm Targeting
+      if (action === 'FIRE_SWARM') {
+          setTargetingSourceId(primaryUnitId);
+          setTargetingAbility('SWARM');
+          return;
+      }
 
-      if (action === 'PHANTOM DECOY' && compute >= COMPUTE_GATES.PHANTOM_DECOY) {
-           setDecoys(prev => [...prev, { id: `decoy-${Date.now()}`, team: unit.team as 'blue'|'red', gridPos: { ...unit.gridPos }, createdAt: Date.now() }]);
+      if (action === 'PHANTOM_DECOY_INIT' && compute >= COMPUTE_GATES.PHANTOM_DECOY) {
+           setTargetingSourceId(primaryUnitId);
+           setTargetingAbility('DECOY');
            return;
       }
 
@@ -933,7 +1237,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
   // --- Depot / Mason Logic ---
   const handleStructureClick = (id: string) => {
-      // If we dragged, don't open menu
+      // If we just dragged, don't open menu
       if (didDragRef.current) return;
 
       const struct = structuresState.find(s => s.id === id);
@@ -960,6 +1264,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   ...(type === 'banshee' ? { battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY } : {}),
                   ...(type === 'wasp' ? { charges: { swarm: ABILITY_CONFIG.WASP_MAX_CHARGES } } : {}),
                   ...(type === 'tank' ? { charges: { smoke: ABILITY_CONFIG.MAX_CHARGES_SMOKE, aps: ABILITY_CONFIG.MAX_CHARGES_APS } } : {}),
+                  ...(type === 'ballista' ? { missileInventory: { eclipse: 1, wp: 1 }, ammoState: 'empty' } : {}), // New Ballistas start with 1 of each
               };
               setUnits(prev => [...prev, newUnit]);
               setDepotMenuOpenId(null);
@@ -1098,83 +1403,202 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           const dT = TICK_RATE / 1000;
           const activeProjs = projectilesRef.current;
           let newExplosions: Explosion[] = [];
-          let damageEvents: {id: string, damage: number, position: {x: number, y: number, z: number}, team: 'blue' | 'red' | 'neutral' }[] = [];
+          let damageEvents: {id: string, damage: number, position: {x: number, y: number, z: number}, team: UnitData['team'] }[] = [];
           const nextProjs: Projectile[] = [];
           let projsChanged = false;
           const currentBuildings = buildingsRef.current;
           const currentStructures = structuresRef.current;
           const currentUnitsRef = unitsRef.current; 
 
+          // Helper to get unit target height
+          const getTargetY = (u: UnitData) => {
+              if (['wasp', 'drone', 'helios'].includes(u.type)) return 75.0;
+              if (u.type === 'defense_drone') return 12.0;
+              return 1.5;
+          };
+
           activeProjs.forEach(p => {
               let nextP: Projectile = { ...p, position: { ...p.position } }; 
               
               // Handle Ballistic Missile Logic
-              if (p.trajectory === 'ballistic' && p.phase && p.targetPos) {
-                  const { phase } = p;
-                  let hit = false;
+              if (p.trajectory === 'ballistic' && p.startPos && p.startTime && p.targetPos) {
+                  const duration = ABILITY_CONFIG.MISSILE_CRUISE_SPEED * 100; // Simplified travel time base for math consistency
+                  const elapsed = now - p.startTime;
+                  const totalDuration = (p.maxDistance / ABILITY_CONFIG.MISSILE_CRUISE_SPEED) * 1000;
+                  const t = Math.min(1, elapsed / totalDuration);
+                  
+                  if (t >= 1) {
+                      // Impact
+                       projsChanged = true;
+                       newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: p.targetPos, radius: 8, duration: 1200, createdAt: now });
+                       
+                       // Create Cloud
+                       const cloudType = p.payload || 'wp';
+                       setClouds(prev => [...prev, {
+                           id: `cloud-${Date.now()}`,
+                           type: cloudType,
+                           gridPos: { x: Math.round((p.targetPos!.x + offset) / CITY_CONFIG.tileSize), z: Math.round((p.targetPos!.z + offset) / CITY_CONFIG.tileSize) },
+                           radius: cloudType === 'eclipse' ? ABILITY_CONFIG.ECLIPSE_RADIUS : ABILITY_CONFIG.WP_RADIUS,
+                           duration: cloudType === 'eclipse' ? ABILITY_CONFIG.ECLIPSE_DURATION : ABILITY_CONFIG.WP_DURATION,
+                           createdAt: Date.now(),
+                           team: p.team as CloudData['team']
+                       }]);
+                  } else {
+                      // Calculate Parabolic Position
+                      // Linear X/Z
+                      const lx = p.startPos.x + (p.targetPos.x - p.startPos.x) * t;
+                      const lz = p.startPos.z + (p.targetPos.z - p.startPos.z) * t;
+                      
+                      // Parabolic Y
+                      // Peak height relative to distance, but capped
+                      const peakHeight = Math.min(120, p.maxDistance * 0.5); 
+                      // Parabola eq: y(t) = -4 * (peak - midpoint_height) * (t - 0.5)^2 + peak
+                      // Simplified: 4 * peak * t * (1 - t) + startY * (1-t) + endY * t
+                      // This gives a nice arc from startY to endY peaking in middle
+                      const py = 4 * peakHeight * t * (1 - t) + p.startPos.y * (1 - t) + p.targetPos.y * t;
 
-                  if (phase === 'ascent') {
-                      nextP.position.y += p.velocity.y * dT;
-                      // Ensure velocity vector points UP for correct orientation
-                      nextP.velocity = { x: 0, y: ABILITY_CONFIG.MISSILE_ASCENT_SPEED, z: 0 };
-                      if (nextP.position.y >= ABILITY_CONFIG.MISSILE_LAUNCH_HEIGHT) {
-                          nextP.phase = 'cruise';
-                          nextP.position.y = ABILITY_CONFIG.MISSILE_LAUNCH_HEIGHT;
-                      }
-                  } else if (phase === 'cruise') {
-                      // Calculate vector to target X/Z
-                      const dx = p.targetPos.x - p.position.x;
-                      const dz = p.targetPos.z - p.position.z;
-                      const dist = Math.sqrt(dx*dx + dz*dz);
-                      const speed = ABILITY_CONFIG.MISSILE_CRUISE_SPEED;
+                      // Calculate Velocity for rotation (derivative approximation)
+                      const dt = 0.01;
+                      const tNext = t + dt;
+                      const lxNext = p.startPos.x + (p.targetPos.x - p.startPos.x) * tNext;
+                      const lzNext = p.startPos.z + (p.targetPos.z - p.startPos.z) * tNext;
+                      const pyNext = 4 * peakHeight * tNext * (1 - tNext) + p.startPos.y * (1 - tNext) + p.targetPos.y * tNext;
                       
-                      // Check if within 'drop' distance (e.g., 2 frames worth of movement)
-                      if (dist < speed * dT * 1.5) {
-                          // Reached drop zone
-                          nextP.phase = 'terminal';
-                          // Snap to exact X/Z target to ensure straight down drop
-                          nextP.position.x = p.targetPos.x;
-                          nextP.position.z = p.targetPos.z;
-                          nextP.velocity = { x: 0, y: -ABILITY_CONFIG.MISSILE_TERMINAL_SPEED, z: 0 };
+                      nextP.velocity = { 
+                          x: lxNext - lx, 
+                          y: pyNext - py, 
+                          z: lzNext - lz 
+                      };
+
+                      nextP.position = { x: lx, y: py, z: lz };
+                      nextProjs.push(nextP);
+                      projsChanged = true;
+                  }
+              } else if (p.trajectory === 'swarm' && p.targetPos) {
+                  // === WASP SWARM MICRODRONE BEHAVIOR ===
+                  
+                  // 1. Determine Target (Locked Unit OR Ground Location)
+                  let targetLocation = p.targetPos;
+                  let hasUnitTarget = false;
+
+                  // If we already locked onto a unit, check if it's still alive/visible
+                  if (p.lockedTargetId) {
+                      const lockedUnit = currentUnitsRef.find(u => u.id === p.lockedTargetId && u.health > 0);
+                      if (lockedUnit) {
+                          targetLocation = { 
+                              x: (lockedUnit.gridPos.x * CITY_CONFIG.tileSize) - offset, 
+                              y: getTargetY(lockedUnit), 
+                              z: (lockedUnit.gridPos.z * CITY_CONFIG.tileSize) - offset 
+                          };
+                          hasUnitTarget = true;
                       } else {
-                          // Move towards target
-                          const vx = (dx / dist) * speed;
-                          const vz = (dz / dist) * speed;
-                          nextP.velocity = { x: vx, y: 0, z: vz };
-                          nextP.position.x += vx * dT;
-                          nextP.position.z += vz * dT;
+                          // Target lost, revert to ground target
+                          nextP.lockedTargetId = null;
                       }
-                  } else if (phase === 'terminal') {
-                      const speed = ABILITY_CONFIG.MISSILE_TERMINAL_SPEED;
-                      nextP.velocity = { x: 0, y: -speed, z: 0 };
-                      nextP.position.y -= speed * dT;
+                  } 
+                  
+                  // If no lock, scan for closest enemy within wider range (6 tiles)
+                  if (!hasUnitTarget) {
+                      let closestDist = 6 * CITY_CONFIG.tileSize; // Scan range
+                      let bestCandidateId = null;
                       
-                      // Check impact with ground/target height
-                      if (nextP.position.y <= p.targetPos.y) {
-                          hit = true;
-                          // Handle Cloud Generation based on Unit Type (Assuming cloud logic exists elsewhere or we simplify)
-                          const cloudType = 'wp'; // Default or based on unit metadata
-                          setClouds(prev => [...prev, {
-                              id: `cloud-${Date.now()}`,
-                              type: cloudType,
-                              gridPos: { x: Math.round((p.targetPos!.x + offset) / CITY_CONFIG.tileSize), z: Math.round((p.targetPos!.z + offset) / CITY_CONFIG.tileSize) },
-                              radius: ABILITY_CONFIG.WP_RADIUS,
-                              duration: ABILITY_CONFIG.WP_DURATION,
-                              createdAt: Date.now(),
-                              team: p.team as 'blue' | 'red'
-                          }]);
+                      for (const u of currentUnitsRef) {
+                          if (u.team === p.team || u.team === 'neutral' || u.health <= 0) continue;
+                          
+                          const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
+                          const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
+                          const dist = Math.sqrt((p.position.x - uX)**2 + (p.position.z - uZ)**2);
+                          
+                          if (dist < closestDist) {
+                              closestDist = dist;
+                              bestCandidateId = u.id;
+                          }
+                      }
+                      
+                      if (bestCandidateId) {
+                          nextP.lockedTargetId = bestCandidateId;
+                          hasUnitTarget = true;
+                          // Don't update targetLocation yet, momentum carries it this frame, steers next frame
                       }
                   }
 
+                  // 2. Movement Logic (Steering)
+                  // Phase check: First 0.5s is 'ascent' (dumb fire direction), then 'cruise' (homing)
+                  const timeAlive = now - (p.startTime || 0);
+                  const isHomingPhase = timeAlive > 500;
+
+                  if (isHomingPhase) {
+                      // Desired Velocity Vector towards target
+                      const dx = targetLocation.x - p.position.x;
+                      const dy = targetLocation.y - p.position.y;
+                      const dz = targetLocation.z - p.position.z;
+                      const distToTarget = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                      
+                      // Normalize desired
+                      const speed = ABILITY_CONFIG.WASP_MISSILE_SPEED;
+                      const desiredVx = (dx / distToTarget) * speed;
+                      const desiredVy = (dy / distToTarget) * speed;
+                      const desiredVz = (dz / distToTarget) * speed;
+
+                      // Steering Force (Desired - Current)
+                      const turnRate = hasUnitTarget ? 8.0 : 2.0; // Turn faster if locked
+                      const steerX = (desiredVx - p.velocity.x) * turnRate * dT;
+                      const steerY = (desiredVy - p.velocity.y) * turnRate * dT;
+                      const steerZ = (desiredVz - p.velocity.z) * turnRate * dT;
+
+                      nextP.velocity.x += steerX;
+                      nextP.velocity.y += steerY;
+                      nextP.velocity.z += steerZ;
+                  } else {
+                      // Apply slight gravity/arc during ascent
+                      nextP.velocity.y -= 5 * dT;
+                  }
+
+                  // Update Position
+                  nextP.position.x += nextP.velocity.x * dT;
+                  nextP.position.y += nextP.velocity.y * dT;
+                  nextP.position.z += nextP.velocity.z * dT;
+
+                  // 3. Collision Detection
+                  let hit = false;
+                  
+                  // Proximity Detonation Check (Fixes infinite circling)
+                  const distToTarget = Math.sqrt((nextP.position.x - targetLocation.x)**2 + (nextP.position.y - targetLocation.y)**2 + (nextP.position.z - targetLocation.z)**2);
+                  if (distToTarget < 2.0) hit = true;
+
+                  // Ground/Building Collision
+                  const gx = Math.round((nextP.position.x + offset) / CITY_CONFIG.tileSize);
+                  const gz = Math.round((nextP.position.z + offset) / CITY_CONFIG.tileSize);
+                  if (nextP.position.y <= 0.5) hit = true; // Hit floor
+                  
+                  // Unit Collision
+                  if (!hit) {
+                      for (const u of currentUnitsRef) {
+                          if (u.team === p.team) continue;
+                          if (u.health <= 0) continue;
+                          const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
+                          const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
+                          const uY = getTargetY(u);
+                          // 3D Distance check
+                          const dist = Math.sqrt((nextP.position.x - uX)**2 + (nextP.position.y - uY)**2 + (nextP.position.z - uZ)**2);
+                          if (dist < 1.5) { hit = true; break; }
+                      }
+                  }
+
+                  // Distance limit
+                  const dTraveled = Math.sqrt((nextP.position.x - p.startPos!.x)**2 + (nextP.position.z - p.startPos!.z)**2);
+                  if (dTraveled > 100) hit = true;
+
                   if (hit) {
                       projsChanged = true;
-                      newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: nextP.position, radius: 5, duration: 800, createdAt: now });
-                      damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: 50, position: nextP.position, team: nextP.team as 'blue' | 'red' | 'neutral' }); // Impact damage
+                      newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: nextP.position, radius: 1.5, duration: 300, createdAt: now });
+                      // Deal Area Damage (small)
+                      damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: p.damage, position: nextP.position, team: p.team as any });
                   } else {
                       projsChanged = true;
                       nextProjs.push(nextP);
                   }
-                  
+
               } else {
                   // Standard Direct Fire Logic
                   const moveAmount = Math.sqrt(p.velocity.x**2 + p.velocity.y**2 + p.velocity.z**2) * dT;
@@ -1214,7 +1638,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   if (hit) {
                       projsChanged = true;
                       newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: nextP.position, radius: 3, duration: 500, createdAt: now });
-                      damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: nextP.damage, position: nextP.position, team: nextP.team as 'blue' | 'red' | 'neutral' });
+                      damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: nextP.damage, position: nextP.position, team: nextP.team as any });
                   } else {
                       if (steps > 0) projsChanged = true;
                       nextProjs.push(nextP);
@@ -1311,6 +1735,10 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   const droneTargets = new Map<string, string>();
                   const externalChargeMap = new Map<string, { amount: number, sourceId?: string }>();
                   const tetherSources = new Map<string, UnitData>();
+                  
+                  // Courier Delivery Events to be processed after map
+                  const deliveries: { targetId: string, payload: 'eclipse' | 'wp' }[] = [];
+
                   prevUnits.forEach(u => { if (u.tetherTargetId) tetherSources.set(u.tetherTargetId, u); });
 
                   damageEvents.forEach(evt => {
@@ -1349,9 +1777,74 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
                   const chargers = activeUnits.filter(u => (u.type === 'helios') || (u.type === 'sun_plate' && u.isDeployed));
 
-                  const nextUnits = activeUnits.map(u => {
+                  let nextUnits = activeUnits.map(u => {
                       let newUnit = { ...u };
                       let uChanged = false;
+                      
+                      // --- COURIER LOGIC ---
+                      if (u.type === 'courier') {
+                          // Delivery Phase
+                          if (u.courierTargetId && u.courierPayload) {
+                              const target = activeUnits.find(t => t.id === u.courierTargetId);
+                              if (target) {
+                                  const dist = Math.sqrt(Math.pow(u.gridPos.x - target.gridPos.x, 2) + Math.pow(u.gridPos.z - target.gridPos.z, 2));
+                                  // Arrived adjacent
+                                  if (dist < 1.5) {
+                                      // Trigger Delivery
+                                      deliveries.push({ targetId: target.id, payload: u.courierPayload });
+                                      
+                                      // Reset Courier to Return Phase
+                                      newUnit.courierTargetId = undefined;
+                                      newUnit.courierPayload = undefined;
+                                      
+                                      // Find Nearest Fab to return to
+                                      const fabs = structuresRef.current.filter(s => s.type === 'ordnance_fab' && s.team === u.team);
+                                      if (fabs.length > 0) {
+                                          let closest = fabs[0];
+                                          let minD = 9999;
+                                          fabs.forEach(f => {
+                                              const d = Math.sqrt(Math.pow(f.gridPos.x - u.gridPos.x, 2) + Math.pow(f.gridPos.z - u.gridPos.z, 2));
+                                              if (d < minD) { minD = d; closest = f; }
+                                          });
+                                          newUnit.path = findPath(u.gridPos, closest.gridPos);
+                                      } else {
+                                          // No fab? Just die.
+                                          newUnit.health = 0;
+                                      }
+                                      uChanged = true;
+                                  } else if (u.path.length === 0) {
+                                      // Recalculate path if stuck
+                                      newUnit.path = findPath(u.gridPos, target.gridPos);
+                                      uChanged = true;
+                                  }
+                              } else {
+                                  // Target dead? Return to fab logic or idle.
+                                  // Simplified: Just die if target lost.
+                                  newUnit.health = 0;
+                                  uChanged = true;
+                              }
+                          } 
+                          // Return Phase
+                          else if (!u.courierPayload && u.path.length === 0) {
+                              // Arrived back at fab (path exhausted)
+                              newUnit.health = 0; // Despawn
+                              uChanged = true;
+                          }
+                      }
+
+                      // Surveillance Expiry Logic
+                      if (newUnit.surveillance && newUnit.surveillance.status === 'active') {
+                          if (newUnit.surveillance.startTime && (Date.now() - newUnit.surveillance.startTime > ABILITY_CONFIG.SURVEILLANCE_DURATION)) {
+                               const returnPath = findPath(newUnit.gridPos, newUnit.surveillance.returnPos);
+                               if (returnPath.length > 0) {
+                                   newUnit.surveillance = { ...newUnit.surveillance, status: 'returning' };
+                                   newUnit.path = returnPath;
+                               } else {
+                                   newUnit.surveillance = undefined;
+                               }
+                               uChanged = true;
+                          }
+                      }
 
                       // Apply accumulated damage
                       const dmg = (damageMap.get(u.id) || 0) + (unitRetaliationMap.get(u.id) || 0);
@@ -1441,6 +1934,20 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       }
                       return u;
                   });
+
+                  // Process Deliveries to update inventory
+                  if (deliveries.length > 0) {
+                      nextUnits = nextUnits.map(u => {
+                          const delivery = deliveries.find(d => d.targetId === u.id);
+                          if (delivery && u.missileInventory) {
+                              const newInv = { ...u.missileInventory };
+                              newInv[delivery.payload] = (newInv[delivery.payload] || 0) + 1;
+                              unitsChanged = true;
+                              return { ...u, missileInventory: newInv, ammoState: u.ammoState === 'awaiting_delivery' ? 'empty' : u.ammoState };
+                          }
+                          return u;
+                      });
+                  }
                   
                   const autoAttackDamage = new Map<string, number>();
                   const finalUnitsWithAttacks = nextUnits.map(attacker => {
@@ -1610,34 +2117,91 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         ))}
 
         {/* Targeting Cursor (Red for Cannon, Green for Surveillance, Orange for Missile) */}
-        {hoverGridPos && (targetingAbility === 'CANNON' || targetingAbility === 'SURVEILLANCE' || targetingAbility === 'MISSILE') && (
+        {hoverGridPos && (targetingAbility === 'CANNON' || targetingAbility === 'SURVEILLANCE' || targetingAbility === 'MISSILE' || targetingAbility === 'DECOY' || targetingAbility === 'SWARM') && (
             <group position={[(hoverGridPos.x * tileSize) - offset, 0.5, (hoverGridPos.z * tileSize) - offset]}>
-                <mesh>
-                    <boxGeometry args={[tileSize, 1, tileSize]} />
-                    <meshBasicMaterial 
-                        color={targetingAbility === 'CANNON' ? "#ef4444" : (targetingAbility === 'MISSILE' ? "#f97316" : "#10b981")} 
-                        wireframe 
-                    />
-                </mesh>
-                <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.05, 0]}>
-                    <ringGeometry args={[tileSize * 0.3, tileSize * 0.35, 4]} rotation={[0,0,Math.PI/4]} />
-                    <meshBasicMaterial 
-                        color={targetingAbility === 'CANNON' ? "#ef4444" : (targetingAbility === 'MISSILE' ? "#f97316" : "#10b981")} 
-                        side={THREE.DoubleSide} 
-                    />
-                </mesh>
-                <mesh rotation={[-Math.PI/2, 0, 0]}>
-                     <planeGeometry args={[tileSize * 0.9, 0.2]} />
-                     <meshBasicMaterial 
-                        color={targetingAbility === 'CANNON' ? "#ef4444" : (targetingAbility === 'MISSILE' ? "#f97316" : "#10b981")} 
-                     />
-                </mesh>
-                <mesh rotation={[-Math.PI/2, 0, Math.PI/2]}>
-                     <planeGeometry args={[tileSize * 0.9, 0.2]} />
-                     <meshBasicMaterial 
-                        color={targetingAbility === 'CANNON' ? "#ef4444" : (targetingAbility === 'MISSILE' ? "#f97316" : "#10b981")} 
-                     />
-                </mesh>
+                {targetingAbility === 'MISSILE' ? (
+                     // Nuke / Missile Targeting Reticle
+                     <group>
+                         {/* Spinning Ring Outer */}
+                         <mesh rotation={[-Math.PI/2, 0, Date.now() * 0.005]}>
+                             <ringGeometry args={[tileSize * 0.8, tileSize * 0.9, 32]} />
+                             <meshBasicMaterial color="#ef4444" transparent opacity={0.6} side={THREE.DoubleSide} />
+                         </mesh>
+                         {/* Spinning Ring Inner */}
+                         <mesh rotation={[-Math.PI/2, 0, -Date.now() * 0.005]}>
+                             <ringGeometry args={[tileSize * 0.4, tileSize * 0.5, 32]} />
+                             <meshBasicMaterial color="#f97316" transparent opacity={0.8} side={THREE.DoubleSide} />
+                         </mesh>
+                         {/* Crosshair Lines */}
+                         <mesh rotation={[-Math.PI/2, 0, 0]}>
+                             <planeGeometry args={[tileSize * 2.2, 0.1]} />
+                             <meshBasicMaterial color="#ef4444" />
+                         </mesh>
+                         <mesh rotation={[-Math.PI/2, 0, Math.PI/2]}>
+                             <planeGeometry args={[tileSize * 2.2, 0.1]} />
+                             <meshBasicMaterial color="#ef4444" />
+                         </mesh>
+                         {/* Central Dot */}
+                         <mesh>
+                             <sphereGeometry args={[0.3]} />
+                             <meshBasicMaterial color="#ef4444" />
+                         </mesh>
+                         {/* Impact Radius Warning */}
+                         <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, -0.4, 0]}>
+                              <circleGeometry args={[ABILITY_CONFIG.WP_RADIUS * tileSize, 32]} />
+                              <meshBasicMaterial color="#fca5a5" transparent opacity={0.15} depthWrite={false} />
+                         </mesh>
+                         <pointLight color="#ef4444" intensity={2} distance={10} animate-pulse />
+                     </group>
+                ) : targetingAbility === 'SWARM' ? (
+                    // Wasp Swarm Reticle (Orange, 2 radius)
+                    <group>
+                        {/* Outer Ring */}
+                        <mesh rotation={[-Math.PI/2, 0, Date.now() * 0.005]}>
+                            <ringGeometry args={[ABILITY_CONFIG.WASP_SWARM_RADIUS * tileSize, ABILITY_CONFIG.WASP_SWARM_RADIUS * tileSize + 0.5, 32]} />
+                            <meshBasicMaterial color="#f97316" transparent opacity={0.6} side={THREE.DoubleSide} />
+                        </mesh>
+                        {/* Inner Spinner */}
+                        <mesh rotation={[-Math.PI/2, 0, -Date.now() * 0.01]}>
+                            <ringGeometry args={[tileSize * 0.5, tileSize * 0.6, 8]} />
+                            <meshBasicMaterial color="#facc15" transparent opacity={0.8} side={THREE.DoubleSide} />
+                        </mesh>
+                        {/* Area Highlight */}
+                        <mesh rotation={[-Math.PI/2, 0, 0]}>
+                            <circleGeometry args={[ABILITY_CONFIG.WASP_SWARM_RADIUS * tileSize, 32]} />
+                            <meshBasicMaterial color="#f97316" transparent opacity={0.1} depthWrite={false} />
+                        </mesh>
+                        {/* Target Marker */}
+                        <mesh position={[0, 1, 0]} rotation={[Math.PI, 0, 0]}>
+                            <coneGeometry args={[0.5, 1, 4]} />
+                            <meshBasicMaterial color="#facc15" wireframe />
+                        </mesh>
+                    </group>
+                ) : (
+                    // Standard Reticle
+                    <group>
+                        <mesh>
+                            <boxGeometry args={[tileSize, 1, tileSize]} />
+                            <meshBasicMaterial 
+                                color={targetingAbility === 'DECOY' ? '#c084fc' : (targetingAbility === 'CANNON' ? "#ef4444" : "#10b981")} 
+                                wireframe 
+                            />
+                        </mesh>
+                        <mesh rotation={[-Math.PI/2, 0, Math.PI/4]} position={[0, 0.05, 0]}>
+                            <ringGeometry args={[tileSize * 0.3, tileSize * 0.35, 4]} />
+                            <meshBasicMaterial 
+                                color={targetingAbility === 'DECOY' ? '#c084fc' : (targetingAbility === 'CANNON' ? "#ef4444" : "#10b981")} 
+                                side={THREE.DoubleSide} 
+                            />
+                        </mesh>
+                        {targetingAbility === 'DECOY' && (
+                            <mesh position={[0, 1, 0]}>
+                                <boxGeometry args={[1, 1, 1]} />
+                                <meshBasicMaterial color="#c084fc" wireframe transparent opacity={0.5} />
+                            </mesh>
+                        )}
+                    </group>
+                )}
             </group>
         )}
 
@@ -1650,16 +2214,17 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         )}
 
         {/* Active Projectile Target Markers (Dark Red until impact) */}
-        {projectiles.map(p => p.targetPos && (
+        {projectiles.map(p => p.targetPos && p.trajectory === 'ballistic' && (
             <group key={`target-${p.id}`} position={[p.targetPos.x, 0.5, p.targetPos.z]}>
-                <mesh>
-                    <boxGeometry args={[tileSize, 1, tileSize]} />
-                    <meshBasicMaterial color="#7f1d1d" transparent opacity={0.6} />
+                <mesh rotation={[0, Date.now() * 0.01, 0]}>
+                    <ringGeometry args={[tileSize * 0.5, tileSize * 0.6, 16]} />
+                    <meshBasicMaterial color="#7f1d1d" transparent opacity={0.8} side={THREE.DoubleSide} />
                 </mesh>
-                <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.6, 0]}>
-                     <ringGeometry args={[tileSize * 0.4, tileSize * 0.45, 32]} />
-                     <meshBasicMaterial color="#ef4444" />
+                <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.2, 0]}>
+                     <circleGeometry args={[tileSize * 0.4, 32]} />
+                     <meshBasicMaterial color="#ef4444" transparent opacity={0.3} />
                 </mesh>
+                <pointLight color="#ef4444" intensity={3} distance={5} decay={2} />
             </group>
         ))}
 

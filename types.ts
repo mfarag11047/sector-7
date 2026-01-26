@@ -132,6 +132,7 @@ export interface UnitData {
   isJammed?: boolean;
   ammoState?: 'empty' | 'loading' | 'armed' | 'awaiting_delivery';
   loadedAmmo?: 'eclipse' | 'wp' | null;
+  missileInventory?: { eclipse: number; wp: number }; // Added inventory
   loadingProgress?: number;
   courierTargetId?: string;
   courierPayload?: 'eclipse' | 'wp';
@@ -237,8 +238,12 @@ export interface Projectile {
   maxDistance: number;
   distanceTraveled: number;
   targetPos?: { x: number, y: number, z: number }; // Target visual position
-  trajectory?: 'direct' | 'ballistic';
+  trajectory?: 'direct' | 'ballistic' | 'swarm';
   phase?: 'ascent' | 'cruise' | 'terminal';
+  payload?: 'eclipse' | 'wp';
+  startPos?: { x: number, y: number, z: number }; // For ballistic calculation
+  startTime?: number;
+  lockedTargetId?: string | null; // For swarm homing
 }
 
 export interface Explosion {
