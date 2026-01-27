@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { GameStats, TeamStats, MinimapData, DoctrineState } from '../types';
+import { GameStats, TeamStats, MinimapData } from '../types';
 import { BUILDING_COLORS, TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG } from '../constants';
 
 interface ManualSection {
@@ -247,11 +247,9 @@ interface UIOverlayProps {
     playerTeam: 'blue' | 'red';
     setPlayerTeam: (t: 'blue' | 'red') => void;
     cameraStateRef?: React.MutableRefObject<{ x: number, y: number, z: number, yaw: number }>;
-    doctrine: DoctrineState;
-    setDoctrine: (d: DoctrineState) => void;
 }
 
-const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef, doctrine, setDoctrine }) => {
+const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef }) => {
   const [isIntelOpen, setIsIntelOpen] = useState(false);
 
   // Minimap Scale / Viewbox

@@ -6,7 +6,7 @@ import CityMap from './components/CityMap';
 import DroneCamera from './components/DroneCamera';
 import Atmosphere from './components/Atmosphere';
 import UIOverlay from './components/UIOverlay';
-import { GameStats, UnitData, BuildingData, RoadTileData, MinimapData, StructureData, DoctrineState } from './types';
+import { GameStats, UnitData, BuildingData, RoadTileData, MinimapData, StructureData } from './types';
 
 const INITIAL_STATS: GameStats = {
   blue: { 
@@ -30,8 +30,6 @@ const INITIAL_STATS: GameStats = {
 function App() {
   const [stats, setStats] = useState<GameStats>(INITIAL_STATS);
   const [playerTeam, setPlayerTeam] = useState<'blue' | 'red'>('blue');
-  const [doctrine, setDoctrine] = useState<DoctrineState>({ selected: null, unlockedTiers: 1, cooldowns: { tier2: 0, tier3: 0 } });
-  
   const [minimapData, setMinimapData] = useState<MinimapData>({
       units: [],
       buildings: [],
@@ -69,7 +67,6 @@ function App() {
               onMapInit={handleMapInit}
               onMinimapUpdate={handleMinimapUpdate}
               playerTeam={playerTeam}
-              doctrine={doctrine}
           />
           <DroneCamera cameraStateRef={cameraStateRef} />
         </Suspense>
@@ -81,8 +78,6 @@ function App() {
         playerTeam={playerTeam} 
         setPlayerTeam={setPlayerTeam}
         cameraStateRef={cameraStateRef}
-        doctrine={doctrine}
-        setDoctrine={setDoctrine}
       />
       <Loader 
         containerStyles={{ backgroundColor: '#050505' }}
