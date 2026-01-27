@@ -209,3 +209,34 @@ export const CAMERA_SPEED = 1.2;
 export const CAMERA_ZOOM_SPEED = 2.0;
 export const MIN_ZOOM = 20;
 export const MAX_ZOOM = 600;
+
+// --- DOCTRINE CONFIGURATION ---
+
+export const DOCTRINE_CONFIG = {
+  heavy_metal: {
+    label: "Heavy Metal",
+    tier1_regen_rate: 2, // HP per second
+    tier1_regen_delay: 5000, // ms out of combat
+    tier2_cost: 500,
+    tier2_cooldown: 120000,
+    tier3_cost: 1200,
+    tier3_cooldown: 300000,
+  },
+  shadow_ops: {
+    label: "Shadow Ops",
+    tier2_cost: 400,
+    tier2_cooldown: 60000,
+    tier3_cost: 1000,
+    tier3_cooldown: 240000,
+    stun_duration: 8000,
+  },
+  skunkworks: {
+    label: "Skunkworks",
+    tier2_cost: 600,
+    tier2_cooldown: 90000,
+    tier3_cost: 1100,
+    tier3_cooldown: 300000,
+    overclock_duration: 10000,
+    overclock_speed_mult: 1.5,
+  }
+};

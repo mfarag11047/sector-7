@@ -168,6 +168,11 @@ export interface UnitData {
     returnPos: { x: number, z: number };
     startTime?: number;
   };
+  
+  // Doctrine specific fields
+  isStunned?: boolean;
+  isStealthed?: boolean;
+  activeBuffs?: ('overclock' | 'stealth_field')[];
 }
 
 export interface TeamStats {
@@ -186,6 +191,7 @@ export interface TeamStats {
     eclipse: number;
     wp: number;
   };
+  doctrine?: DoctrineState;
 }
 
 export interface GameStats {
@@ -252,4 +258,17 @@ export interface Explosion {
   radius: number;
   duration: number;
   createdAt: number;
+}
+
+// --- DOCTRINE SYSTEM TYPES ---
+
+export type DoctrineType = 'heavy_metal' | 'shadow_ops' | 'skunkworks';
+
+export interface DoctrineState {
+  selected: DoctrineType | null;
+  unlockedTiers: number; // 1, 2, or 3
+  cooldowns: {
+    tier2: number; // Timestamp when ready
+    tier3: number; // Timestamp when ready
+  };
 }

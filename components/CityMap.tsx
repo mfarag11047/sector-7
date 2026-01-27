@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
-import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, BUILDING_VALUES, BLOCK_BONUS, UNIT_STATS, ABILITY_CONFIG, STRUCTURE_COST, BUILD_RADIUS, STRUCTURE_INFO, COMPUTE_GATES } from '../constants';
-import { BuildingData, UnitData, BuildingBlock, GameStats, TeamStats, RoadType, RoadTileData, StructureData, UnitClass, DecoyData, UnitType, StructureType, CloudData, Projectile, Explosion } from '../types';
+import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, BUILDING_VALUES, BLOCK_BONUS, UNIT_STATS, ABILITY_CONFIG, STRUCTURE_COST, BUILD_RADIUS, STRUCTURE_INFO, COMPUTE_GATES, DOCTRINE_CONFIG } from '../constants';
+import { BuildingData, UnitData, BuildingBlock, GameStats, TeamStats, RoadType, RoadTileData, StructureData, UnitClass, DecoyData, UnitType, StructureType, CloudData, Projectile, Explosion, DoctrineState } from '../types';
 import Building from './Building';
 import Structure from './Structure';
 import Base from './Base';
@@ -381,9 +381,10 @@ interface CityMapProps {
   onMapInit?: (data: { roadTiles: RoadTileData[], gridSize: number }) => void;
   onMinimapUpdate?: (data: { units: UnitData[], buildings: BuildingData[], structures: StructureData[], selectedUnitIds?: string[] }) => void;
   playerTeam?: 'blue' | 'red';
+  doctrine: DoctrineState;
 }
 
-const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue' }) => {
+const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', doctrine }) => {
   const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
   const offset = (gridSize * tileSize) / 2;
   const baseA_Coord = useMemo(() => ({ x: 4, z: 4 }), []);
@@ -558,6 +559,78 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   useEffect(() => { structuresRef.current = structuresState; }, [structuresState]);
   useEffect(() => { selectedUnitIdsRef.current = selectedUnitIds; }, [selectedUnitIds]);
   useEffect(() => { projectilesRef.current = projectiles; }, [projectiles]);
+
+  // Handle Doctrine Actions
+  const handleDoctrineAction = useCallback((tier: 2 | 3, targetGridPos?: {x: number, z: number}) => {
+    if (!doctrine.selected) return;
+    
+    // HEAVY METAL
+    if (doctrine.selected === 'heavy_metal') {
+        if (tier === 2 && targetGridPos) {
+            // Steel Rain: Spawn Veteran Titan
+            const newUnit: UnitData = {
+                id: `titan-vet-${Date.now()}`,
+                type: 'tank',
+                unitClass: 'armor',
+                team: playerTeam,
+                gridPos: { x: targetGridPos.x, z: targetGridPos.z },
+                path: [],
+                visionRange: UNIT_STATS.tank.visionRange,
+                health: UNIT_STATS.tank.maxHealth * 1.2, // Veteran HP
+                maxHealth: UNIT_STATS.tank.maxHealth * 1.2,
+                battery: 100, maxBattery: 100, cooldowns: {}
+            };
+            setUnits(prev => [...prev, newUnit]);
+            // Create impact effect
+            setExplosions(prev => [...prev, { id: `drop-${Date.now()}`, position: {x: (targetGridPos.x * tileSize) - offset, y: 0, z: (targetGridPos.z * tileSize) - offset}, radius: 4, duration: 1000, createdAt: Date.now() }]);
+        }
+        else if (tier === 3 && targetGridPos) {
+             // Rod from God
+             setExplosions(prev => [...prev, { id: `orbital-${Date.now()}`, position: {x: (targetGridPos.x * tileSize) - offset, y: 0, z: (targetGridPos.z * tileSize) - offset}, radius: 15, duration: 2000, createdAt: Date.now() }]);
+             // Kill everything in 3x3 radius
+             setUnits(prev => prev.map(u => {
+                 const dx = Math.abs(u.gridPos.x - targetGridPos.x);
+                 const dz = Math.abs(u.gridPos.z - targetGridPos.z);
+                 if (dx <= 1.5 && dz <= 1.5) return { ...u, health: 0 };
+                 return u;
+             }));
+        }
+    }
+    
+    // SKUNKWORKS
+    if (doctrine.selected === 'skunkworks') {
+        if (tier === 2 && targetGridPos) { 
+             // Overclock Logic: Find units in radius and apply buff
+             setUnits(prev => prev.map(u => {
+                 if (u.team !== playerTeam) return u;
+                 const dist = Math.sqrt(Math.pow(u.gridPos.x - targetGridPos.x, 2) + Math.pow(u.gridPos.z - targetGridPos.z, 2));
+                 if (dist < 5) {
+                     return { ...u, activeBuffs: [...(u.activeBuffs || []), 'overclock'] };
+                 }
+                 return u;
+             }));
+        }
+    }
+    
+    // SHADOW OPS
+    if (doctrine.selected === 'shadow_ops') {
+        if (tier === 3) {
+            // Logic Bomb: Stun all enemies
+            setUnits(prev => prev.map(u => {
+                if (u.team !== playerTeam && ['armor', 'air', 'support'].includes(u.unitClass)) {
+                    return { ...u, isStunned: true }; 
+                }
+                return u;
+            }));
+        }
+    }
+  }, [doctrine.selected, playerTeam, tileSize, offset]);
+
+  // Expose Doctrine Trigger
+  useEffect(() => {
+    (window as any).TRIGGER_DOCTRINE = handleDoctrineAction;
+    return () => { (window as any).TRIGGER_DOCTRINE = undefined; };
+  }, [handleDoctrineAction]);
 
   // Expose Cheats
   useEffect(() => {
@@ -1780,6 +1853,17 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   let nextUnits = activeUnits.map(u => {
                       let newUnit = { ...u };
                       let uChanged = false;
+
+                      // --- DOCTRINE PASSIVE: HEAVY METAL REPAIR ---
+                      if (doctrine.selected === 'heavy_metal' && ['armor', 'ordnance', 'support'].includes(u.unitClass)) {
+                          const timeSinceCombat = Date.now() - (u.lastAttackTime || 0);
+                          // If damaged and out of combat
+                          if (u.health < u.maxHealth && timeSinceCombat > DOCTRINE_CONFIG.heavy_metal.tier1_regen_delay) {
+                              // Heal 1/10th of the per-second rate (since tick is 100ms)
+                              newUnit.health = Math.min(u.maxHealth, u.health + (DOCTRINE_CONFIG.heavy_metal.tier1_regen_rate / 10));
+                              uChanged = true;
+                          }
+                      }
                       
                       // --- COURIER LOGIC ---
                       if (u.type === 'courier') {
@@ -1981,7 +2065,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           });
       }, TICK_RATE);
       return () => clearInterval(timer);
-  }, [findPath]);
+  }, [findPath, doctrine.selected]);
 
   const hasMason = useMemo(() => units.some(u => u.type === 'mason' && u.team === playerTeam), [units, playerTeam]);
 
