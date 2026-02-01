@@ -7,6 +7,7 @@ import DroneCamera from './components/DroneCamera';
 import Atmosphere from './components/Atmosphere';
 import UIOverlay from './components/UIOverlay';
 import { GameStats, UnitData, BuildingData, RoadTileData, MinimapData, StructureData, DoctrineState, DoctrineType } from './types';
+import { DOCTRINE_CONFIG } from './constants';
 
 const INITIAL_STATS: GameStats = {
   blue: { 
@@ -40,23 +41,28 @@ function App() {
       gridSize: 40
   });
 
-  // App-Level State for Doctrines (Source of Truth)
-  // This state exists outside the simulation loop to persist selection
+  // Doctrine & Interaction State
   const [doctrines, setDoctrines] = useState<{ blue: DoctrineState, red: DoctrineState }>({
     blue: { selected: null, unlockedTiers: 0, cooldowns: { tier2: 0, tier3: 0 } },
     red: { selected: null, unlockedTiers: 0, cooldowns: { tier2: 0, tier3: 0 } }
   });
 
+  const [interactionMode, setInteractionMode] = useState<'select' | 'target'>('select');
+  const [pendingDoctrineAction, setPendingDoctrineAction] = useState<{ type: string, target: {x: number, z: number}, team: 'blue'|'red' } | null>(null);
+  const [targetingDoctrine, setTargetingDoctrine] = useState<{ type: string, team: 'blue'|'red', cost: number } | null>(null);
+
   // Mutable ref to track camera state efficiently without re-rendering the App tree
   const cameraStateRef = useRef({ x: 0, y: 80, z: 80, yaw: 0 });
 
-  // Update local stats from CityMap, but preserve App-level doctrine state
-  // We ignore the doctrine state coming *from* CityMap initially, as we manage it here
+  // Update local stats from CityMap, but preserve App-level doctrine selection state
+  // We sync unlockedTiers from the simulation (CityMap) to our App state
   const handleStatsUpdate = useCallback((newStats: GameStats) => {
-    setStats(prev => ({
-        blue: { ...newStats.blue, doctrine: prev.blue.doctrine }, 
-        red: { ...newStats.red, doctrine: prev.red.doctrine }
+    setDoctrines(prev => ({
+        blue: { ...prev.blue, unlockedTiers: newStats.blue.doctrine?.unlockedTiers || prev.blue.unlockedTiers },
+        red: { ...prev.red, unlockedTiers: newStats.red.doctrine?.unlockedTiers || prev.red.unlockedTiers }
     }));
+
+    setStats(newStats); 
   }, []);
 
   const handleMapInit = useCallback((data: { roadTiles: RoadTileData[], gridSize: number }) => {
@@ -70,14 +76,92 @@ function App() {
   const handleSelectDoctrine = useCallback((team: 'blue' | 'red', doctrine: DoctrineType) => {
       setDoctrines(prev => ({
           ...prev,
-          [team]: { ...prev[team], selected: doctrine, unlockedTiers: 1 } // Unlock Tier 1 immediately on selection
+          [team]: { ...prev[team], selected: doctrine } // Selection is managed by UI
       }));
   }, []);
 
+  const handleTriggerDoctrine = useCallback((team: 'blue' | 'red', type: string, tier: 2 | 3, cost: number) => {
+    // 1. Check Resources
+    if (stats[team].resources < cost) {
+        console.warn("Insufficient resources for doctrine.");
+        return;
+    }
+
+    // 2. Identify Targeting Mode
+    // Mapping specific doctrine types to their behavior
+    // heavy_metal_tier2: Drop (Target)
+    // heavy_metal_tier3: Nuke (Target)
+    // shadow_ops_tier2: Decoy (Target)
+    // shadow_ops_tier3: Stun (Global)
+    // skunkworks_tier2: Smoke (Target)
+    // skunkworks_tier3: Host (Target)
+
+    const fullType = type.toUpperCase();
+    const needsTarget = fullType !== 'SHADOW_OPS_TIER3';
+
+    if (needsTarget) {
+        setInteractionMode('target');
+        setTargetingDoctrine({ type: fullType, team, cost });
+    } else {
+        // Global Ability - Execute Immediately
+        const cheatApi = (window as any).GAME_CHEATS;
+        if (cheatApi) {
+            cheatApi.setResources(team, stats[team].resources - cost);
+        }
+        
+        setPendingDoctrineAction({
+            type: fullType,
+            target: { x: 0, z: 0 }, // Global ignores target
+            team
+        });
+
+        // Clear action after a tick to prevent loops
+        setTimeout(() => setPendingDoctrineAction(null), 100);
+    }
+  }, [stats]);
+
+  const handleMapTarget = useCallback((location: { x: number, z: number }) => {
+      if (interactionMode === 'target' && targetingDoctrine) {
+          // Execute Targeted Ability
+          const { type, team, cost } = targetingDoctrine;
+
+          // Deduct Cost
+          const cheatApi = (window as any).GAME_CHEATS;
+          if (cheatApi) {
+             cheatApi.setResources(team, stats[team].resources - cost);
+          }
+
+          setPendingDoctrineAction({
+              type,
+              target: location,
+              team
+          });
+
+          // Reset Mode
+          setInteractionMode('select');
+          setTargetingDoctrine(null);
+          
+          // Clear action after a tick
+          setTimeout(() => setPendingDoctrineAction(null), 100);
+      }
+  }, [interactionMode, targetingDoctrine, stats]);
+
+  // Cancel targeting with Escape or right click (handled by CityMap right click usually)
+  useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+          if (e.key === 'Escape' && interactionMode === 'target') {
+              setInteractionMode('select');
+              setTargetingDoctrine(null);
+          }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [interactionMode]);
+
   // Merge dynamic game stats with persistent doctrine state for UI consumption
   const combinedStats = useMemo(() => ({
-      blue: { ...stats.blue, doctrine: doctrines.blue },
-      red: { ...stats.red, doctrine: doctrines.red }
+      blue: { ...stats.blue, doctrine: { ...stats.blue.doctrine, ...doctrines.blue } },
+      red: { ...stats.red, doctrine: { ...stats.red.doctrine, ...doctrines.red } }
   }), [stats, doctrines]);
 
   // Expose global cheats for Doctrine testing
@@ -94,7 +178,7 @@ function App() {
   return (
     <div 
         className="w-full h-full relative bg-black" 
-        onContextMenu={(e) => e.preventDefault()} // Disable context menu for RTS controls
+        onContextMenu={(e) => e.preventDefault()}
     >
       <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 50, 50], fov: 45 }}>
         <Suspense fallback={null}>
@@ -104,6 +188,9 @@ function App() {
               onMapInit={handleMapInit}
               onMinimapUpdate={handleMinimapUpdate}
               playerTeam={playerTeam}
+              interactionMode={interactionMode}
+              onMapTarget={handleMapTarget}
+              pendingDoctrineAction={pendingDoctrineAction}
           />
           <DroneCamera cameraStateRef={cameraStateRef} />
         </Suspense>
@@ -116,6 +203,8 @@ function App() {
         setPlayerTeam={setPlayerTeam}
         cameraStateRef={cameraStateRef}
         onSelectDoctrine={handleSelectDoctrine}
+        onTriggerDoctrine={handleTriggerDoctrine}
+        targetingMode={interactionMode === 'target'}
       />
       <Loader 
         containerStyles={{ backgroundColor: '#050505' }}

@@ -384,9 +384,10 @@ interface CityMapProps {
   interactionMode?: 'select' | 'target';
   onMapTarget?: (location: {x: number, z: number}) => void;
   pendingDoctrineAction?: { type: string, target: {x: number, z: number}, team: 'blue'|'red' } | null;
+  onActionComplete?: () => void;
 }
 
-const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction }) => {
+const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete }) => {
   const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
   const offset = (gridSize * tileSize) / 2;
   const baseA_Coord = useMemo(() => ({ x: 4, z: 4 }), []);
@@ -882,8 +883,10 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   cooldowns: { spawnWasp: 0 }
               }]);
           }
+
+          if (onActionComplete) onActionComplete();
       }
-  }, [pendingDoctrineAction, tileSize, offset]);
+  }, [pendingDoctrineAction, tileSize, offset, onActionComplete]);
 
   // Doctrine Passive Loop
   useEffect(() => {
@@ -1460,12 +1463,12 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           if (teamResources[playerTeam] >= cost) {
               setTeamResources(prev => ({...prev, [playerTeam]: prev[playerTeam] - cost}));
               const newUnit: UnitData = {
-                  id: `u-${Date.now()}`, type: type, unitClass: stats.unitClass, team: playerTeam, gridPos: { ...struct.gridPos }, path: [], visionRange: stats.visionRange, health: stats.maxHealth, maxHealth: stats.maxHealth, battery: 100, maxBattery: 100, cooldowns: {},
+                  id: `u-${Date.now()}`, type: type, unitClass: stats.unitClass, team: playerTeam as UnitData['team'], gridPos: { ...struct.gridPos }, path: [], visionRange: stats.visionRange, health: stats.maxHealth, maxHealth: stats.maxHealth, battery: 100, maxBattery: 100, cooldowns: {},
                   ...(type === 'mason' ? { cargo: 100 } : {}),
                   ...(type === 'banshee' ? { battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY } : {}),
                   ...(type === 'wasp' ? { charges: { swarm: ABILITY_CONFIG.WASP_MAX_CHARGES } } : {}),
                   ...(type === 'tank' ? { charges: { smoke: ABILITY_CONFIG.MAX_CHARGES_SMOKE, aps: ABILITY_CONFIG.MAX_CHARGES_APS } } : {}),
-                  ...(type === 'ballista' ? { missileInventory: { eclipse: 1, wp: 1 }, ammoState: 'empty' } : {}), // New Ballistas start with 1 of each
+                  ...(type === 'ballista' ? { missileInventory: { eclipse: 1, wp: 1 }, ammoState: 'empty' as const } : {}), // New Ballistas start with 1 of each
               };
               setUnits(prev => [...prev, newUnit]);
               setDepotMenuOpenId(null);
@@ -1794,8 +1797,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       projsChanged = true;
                       newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: nextP.position, radius: 1.5, duration: 300, createdAt: now });
                       // Deal Area Damage (small)
-                      // Fix: Explicitly cast team to UnitData['team'] to resolve type mismatch
-                      damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: p.damage, position: nextP.position, team: p.team as any });
+                      damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: p.damage, position: nextP.position, team: p.team as UnitData['team'] });
                   } else {
                       projsChanged = true;
                       nextProjs.push(nextP);
@@ -1840,8 +1842,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   if (hit) {
                       projsChanged = true;
                       newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: nextP.position, radius: 3, duration: 500, createdAt: now });
-                      // Fix: Explicitly cast team to UnitData['team'] to resolve type mismatch
-                      damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: nextP.damage, position: nextP.position, team: nextP.team as any });
+                      damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: nextP.damage, position: nextP.position, team: nextP.team as UnitData['team'] });
                   } else {
                       if (steps > 0) projsChanged = true;
                       nextProjs.push(nextP);
@@ -2003,13 +2004,13 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                                       // Find Nearest Fab to return to
                                       const fabs = structuresRef.current.filter(s => s.type === 'ordnance_fab' && s.team === u.team);
                                       if (fabs.length > 0) {
-                                          let closest = fabs[0];
+                                          let nearestFab = fabs[0];
                                           let minD = 9999;
                                           fabs.forEach(f => {
                                               const d = Math.sqrt(Math.pow(f.gridPos.x - u.gridPos.x, 2) + Math.pow(f.gridPos.z - u.gridPos.z, 2));
-                                              if (d < minD) { minD = d; closest = f; }
+                                              if (d < minD) { minD = d; nearestFab = f; }
                                           });
-                                          newUnit.path = findPath(u.gridPos, closest.gridPos);
+                                          newUnit.path = findPath(u.gridPos, nearestFab.gridPos);
                                       } else {
                                           // No fab? Just die.
                                           newUnit.health = 0;

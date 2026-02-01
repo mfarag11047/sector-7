@@ -258,13 +258,102 @@ const MinimapViewfinder: React.FC<{
     return <rect ref={rectRef} fill="none" stroke="#22d3ee" strokeWidth="0.5" strokeOpacity="0.8" />;
 };
 
-// New Doctrine Card Component
+// Internal Doctrine HUD for Quick Actions
+const DoctrineHUD: React.FC<{
+    type: DoctrineType;
+    unlockedTiers: number;
+    resources: number;
+    onTrigger: (type: string, tier: 2 | 3, cost: number) => void;
+}> = ({ type, unlockedTiers, resources, onTrigger }) => {
+    const config = DOCTRINE_CONFIG[type];
+    
+    // Theme Colors
+    const theme = {
+        heavy_metal: 'border-orange-500 text-orange-400 bg-orange-900/40',
+        shadow_ops: 'border-purple-500 text-purple-400 bg-purple-900/40',
+        skunkworks: 'border-cyan-500 text-cyan-400 bg-cyan-900/40',
+    }[type];
+
+    const canAfford2 = resources >= config.tier2_cost;
+    const canAfford3 = resources >= config.tier3_cost;
+    const isUnlocked2 = unlockedTiers >= 2;
+    const isUnlocked3 = unlockedTiers >= 3;
+
+    return (
+        <div className={`p-3 rounded-lg border-2 ${theme} backdrop-blur-md shadow-lg flex flex-col gap-2 min-w-[200px] animate-in slide-in-from-bottom-4 duration-300 pointer-events-auto`}>
+            <div className="flex justify-between items-center border-b border-white/20 pb-1 mb-1">
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-white">Active Protocols</span>
+                <DoctrineIcon type={type} className="text-sm" />
+            </div>
+            
+            <div className="flex gap-2">
+                {/* Tier 2 Button */}
+                <button
+                    disabled={!isUnlocked2 || !canAfford2}
+                    onClick={() => onTrigger(`${type}_tier2`, 2, config.tier2_cost)}
+                    className={`
+                        flex-1 flex flex-col p-2 rounded border transition-all text-left relative overflow-hidden group
+                        ${isUnlocked2 
+                            ? (canAfford2 ? 'bg-black/40 hover:bg-white/10 border-white/20 hover:border-white/60 cursor-pointer' : 'bg-black/40 border-red-900/50 opacity-70') 
+                            : 'bg-black/20 border-transparent opacity-40 cursor-not-allowed grayscale'
+                        }
+                    `}
+                >
+                    <span className="text-[9px] uppercase font-bold opacity-60">Tier 2</span>
+                    <span className="text-xs font-bold font-mono">
+                        {isUnlocked2 ? "ACTIVATE" : "LOCKED"}
+                    </span>
+                    <div className="mt-auto pt-1 flex justify-between items-end">
+                        <span className={`text-[9px] font-mono ${!canAfford2 && isUnlocked2 ? 'text-red-400' : 'text-slate-400'}`}>
+                            {config.tier2_cost}
+                        </span>
+                    </div>
+                    {/* Hover Tooltip Effect */}
+                    {isUnlocked2 && (
+                        <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                    )}
+                </button>
+
+                {/* Tier 3 Button */}
+                <button
+                    disabled={!isUnlocked3 || !canAfford3}
+                    onClick={() => onTrigger(`${type}_tier3`, 3, config.tier3_cost)}
+                    className={`
+                        flex-1 flex flex-col p-2 rounded border transition-all text-left relative overflow-hidden group
+                        ${isUnlocked3
+                            ? (canAfford3 ? 'bg-black/40 hover:bg-white/10 border-white/20 hover:border-white/60 cursor-pointer' : 'bg-black/40 border-red-900/50 opacity-70') 
+                            : 'bg-black/20 border-transparent opacity-40 cursor-not-allowed grayscale'
+                        }
+                    `}
+                >
+                    <span className="text-[9px] uppercase font-bold opacity-60">Tier 3</span>
+                    <span className="text-xs font-bold font-mono">
+                        {isUnlocked3 ? "EXECUTE" : "LOCKED"}
+                    </span>
+                    <div className="mt-auto pt-1 flex justify-between items-end">
+                        <span className={`text-[9px] font-mono ${!canAfford3 && isUnlocked3 ? 'text-red-400' : 'text-slate-400'}`}>
+                            {config.tier3_cost}
+                        </span>
+                    </div>
+                     {isUnlocked3 && (
+                        <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                    )}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// Doctrine Card Component (Selection Menu)
 const DoctrineCard: React.FC<{ 
     type: DoctrineType, 
     active: boolean, 
-    locked: boolean, 
-    onSelect: () => void 
-}> = ({ type, active, locked, onSelect }) => {
+    locked: boolean,
+    unlockedTiers: number,
+    resources: number,
+    onSelect: () => void,
+    onTrigger?: (type: string, tier: 2 | 3, cost: number) => void
+}> = ({ type, active, locked, unlockedTiers, resources, onSelect, onTrigger }) => {
     const config = DOCTRINE_CONFIG[type];
     
     // Theme Colors
@@ -275,9 +364,11 @@ const DoctrineCard: React.FC<{
     };
     const theme = colors[type];
 
+    const canAfford2 = resources >= config.tier2_cost;
+    const canAfford3 = resources >= config.tier3_cost;
+
     return (
         <div 
-            onClick={() => !locked && !active && onSelect()}
             className={`
                 relative p-4 rounded-xl border-2 transition-all duration-300 flex flex-col gap-4
                 ${active ? `${theme} bg-opacity-40 shadow-[0_0_30px_rgba(0,0,0,0.5)] scale-105` : 
@@ -285,6 +376,7 @@ const DoctrineCard: React.FC<{
                   `border-slate-700 bg-slate-800/50 hover:bg-slate-800 hover:border-white/50 cursor-pointer hover:scale-105`
                 }
             `}
+            onClick={() => !locked && !active && onSelect()}
         >
             {/* Header */}
             <div className="flex justify-between items-center border-b border-white/10 pb-2">
@@ -305,14 +397,14 @@ const DoctrineCard: React.FC<{
                 <p className="text-xs leading-relaxed opacity-90">{config.tier1_passive}</p>
             </div>
 
-            {/* Active Tiers (Visual Only for now) */}
+            {/* Tiers Preview */}
             <div className="flex gap-2 mt-auto">
-                <div className="flex-1 bg-black/20 p-2 rounded opacity-70">
-                    <div className="text-[9px] uppercase font-bold opacity-50">Tier 2 Unlock</div>
+                <div className={`flex-1 p-2 rounded text-left border bg-black/20 border-white/10 opacity-60`}>
+                    <div className="text-[9px] uppercase font-bold opacity-50">Tier 2</div>
                     <div className="text-[10px] font-mono">{config.tier2_cost} Cores</div>
                 </div>
-                <div className="flex-1 bg-black/20 p-2 rounded opacity-70">
-                    <div className="text-[9px] uppercase font-bold opacity-50">Tier 3 Unlock</div>
+                <div className={`flex-1 p-2 rounded text-left border bg-black/20 border-white/10 opacity-60`}>
+                    <div className="text-[9px] uppercase font-bold opacity-50">Tier 3</div>
                     <div className="text-[10px] font-mono">{config.tier3_cost} Cores</div>
                 </div>
             </div>
@@ -336,9 +428,11 @@ interface UIOverlayProps {
     setPlayerTeam: (t: 'blue' | 'red') => void;
     cameraStateRef?: React.MutableRefObject<{ x: number, y: number, z: number, yaw: number }>;
     onSelectDoctrine: (team: 'blue' | 'red', doctrine: DoctrineType) => void;
+    onTriggerDoctrine?: (team: 'blue' | 'red', type: string, tier: 2 | 3, cost: number) => void;
+    interactionMode?: 'select' | 'target';
 }
 
-const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef, onSelectDoctrine }) => {
+const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef, onSelectDoctrine, onTriggerDoctrine, interactionMode }) => {
   const [isIntelOpen, setIsIntelOpen] = useState(false);
   const [isDoctrineOpen, setIsDoctrineOpen] = useState(false);
 
@@ -352,6 +446,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
 
   const activeStats = stats[playerTeam];
   const activeDoctrine = activeStats.doctrine?.selected || null;
+  const unlockedTiers = activeStats.doctrine?.unlockedTiers || 0;
 
   // Fog of War Logic for Minimap Units
   // 1. Always show own units
@@ -414,6 +509,13 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
 
   return (
     <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 z-50">
+      {/* Targeting Overlay */}
+      {interactionMode === 'target' && (
+          <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-red-900/80 border border-red-500 px-6 py-2 rounded-lg text-white font-mono font-bold animate-pulse z-[60] shadow-[0_0_20px_rgba(239,68,68,0.6)]">
+              TARGETING ACTIVE - CLICK MAP
+          </div>
+      )}
+
       {/* Top HUD: Team Stats */}
       <div className="flex justify-between items-start w-full relative z-50">
         
@@ -527,9 +629,12 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                         type={key} 
                         active={activeDoctrine === key}
                         locked={activeDoctrine !== null && activeDoctrine !== key}
+                        unlockedTiers={unlockedTiers}
+                        resources={activeStats.resources}
                         onSelect={() => {
                             onSelectDoctrine(playerTeam, key);
-                            setIsDoctrineOpen(false);
+                            // Keep open to see tier status or close?
+                            // setIsDoctrineOpen(false); 
                         }}
                     />
                 ))}
@@ -540,14 +645,26 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
 
       {/* Bottom Interface */}
       <div className="flex justify-between items-end z-50">
-        <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700 p-3 rounded-lg pointer-events-auto max-w-sm shadow-2xl">
-          <h3 className="text-slate-400 text-[10px] font-mono uppercase mb-2 border-b border-slate-700 pb-1 flex justify-between">
-            System Message
-          </h3>
-          <p className="text-xs text-cyan-500 font-mono leading-relaxed">
-            > COMMAND: Select unit to initiate movement.<br/>
-            > ALERT: Capture Server Nodes to unlock abilities.
-          </p>
+        <div className="flex flex-col gap-2">
+            <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700 p-3 rounded-lg pointer-events-auto max-w-sm shadow-2xl">
+              <h3 className="text-slate-400 text-[10px] font-mono uppercase mb-2 border-b border-slate-700 pb-1 flex justify-between">
+                System Message
+              </h3>
+              <p className="text-xs text-cyan-500 font-mono leading-relaxed">
+                > COMMAND: Select unit to initiate movement.<br/>
+                > ALERT: Capture Server Nodes to unlock abilities.
+              </p>
+            </div>
+            
+            {/* Active Doctrine HUD */}
+            {activeDoctrine && onTriggerDoctrine && (
+                <DoctrineHUD 
+                    type={activeDoctrine} 
+                    unlockedTiers={unlockedTiers} 
+                    resources={activeStats.resources}
+                    onTrigger={(type, tier, cost) => onTriggerDoctrine(playerTeam, type, tier, cost)}
+                />
+            )}
         </div>
 
         {/* Live Mini Map */}
