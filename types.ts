@@ -65,44 +65,18 @@ export interface BuildingData {
   height: number;
   blockId: string;
   owner: 'blue' | 'red' | null;
-  captureProgress: number; // 0 to 100
+  captureProgress: number;
   capturingTeam: 'blue' | 'red' | null;
-}
-
-export type StructureType = UnitClass | 'wall_tier1' | 'wall_tier2' | 'ordnance_fab';
-
-export interface StructureData {
-  id: string;
-  type: StructureType;
-  team: 'blue' | 'red';
-  gridPos: { x: number; z: number };
-  isBlueprint: boolean;
-  constructionProgress: number;
-  maxProgress: number;
-  health: number;
-  maxHealth: number;
-  production?: {
-    active: boolean;
-    item: 'eclipse' | 'wp';
-    progress: number;
-    totalTime: number;
-  };
 }
 
 export interface BuildingBlock {
   id: string;
-  type: string;
+  type: BuildingData['type'];
   buildingIds: string[];
   owner: 'blue' | 'red' | null;
 }
 
-export interface CityConfig {
-  gridSize: number;
-  tileSize: number;
-  buildingDensity: number;
-}
-
-export type UnitType = 'drone' | 'tank' | 'ghost' | 'guardian' | 'mule' | 'wasp' | 'mason' | 'helios' | 'sun_plate' | 'ballista' | 'courier' | 'banshee' | 'defense_drone';
+export type UnitType = 'drone' | 'tank' | 'ghost' | 'guardian' | 'mule' | 'wasp' | 'mason' | 'helios' | 'sun_plate' | 'ballista' | 'courier' | 'banshee' | 'defense_drone' | 'titan_dropped' | 'swarm_host';
 export type UnitClass = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'defense';
 
 export interface UnitData {
@@ -117,9 +91,18 @@ export interface UnitData {
   maxHealth: number;
   battery: number;
   maxBattery: number;
+  
+  // Status Effects & Doctrine fields
+  isStunned?: boolean;
+  stunDuration?: number;
+  isStealthed?: boolean;
+  activeBuffs?: ('speed' | 'damage' | 'regen')[];
+  lastDamageTime?: number;
+  
+  // Existing extended fields
   secondaryBattery?: number;
   maxSecondaryBattery?: number;
-  chargingStatus?: number;
+  chargingStatus?: number; // 0=none, 1=helios, 2=sunplate
   cargo?: number;
   constructionTargetId?: string | null;
   isDampenerActive?: boolean;
@@ -132,12 +115,12 @@ export interface UnitData {
   isJammed?: boolean;
   ammoState?: 'empty' | 'loading' | 'armed' | 'awaiting_delivery';
   loadedAmmo?: 'eclipse' | 'wp' | null;
-  missileInventory?: { eclipse: number; wp: number }; // Added inventory
+  missileInventory?: { eclipse: number; wp: number };
   loadingProgress?: number;
   courierTargetId?: string;
   courierPayload?: 'eclipse' | 'wp';
-  firingLaserAt?: string | null; // For defense drone visuals
-  lastAttackTime?: number; // For auto-attack cooldowns
+  firingLaserAt?: string | null;
+  lastAttackTime?: number;
   charges?: {
     smoke?: number;
     aps?: number;
@@ -158,7 +141,8 @@ export interface UnitData {
     combatPrint?: number;
     swarmLaunch?: number;
     smogShell?: number;
-    mainCannon?: number; // Added for Titan manual fire
+    mainCannon?: number;
+    spawnWasp?: number; 
   };
   repairTargetId?: string | null;
   surveillance?: {
@@ -168,11 +152,45 @@ export interface UnitData {
     returnPos: { x: number, z: number };
     startTime?: number;
   };
-  
-  // Doctrine specific fields
-  isStunned?: boolean;
-  isStealthed?: boolean;
-  activeBuffs?: ('overclock' | 'stealth_field')[];
+}
+
+export type StructureType = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'ordnance_fab' | 'wall_tier1' | 'wall_tier2' | 'defense';
+
+export interface StructureData {
+  id: string;
+  type: StructureType;
+  team: 'blue' | 'red';
+  gridPos: { x: number; z: number };
+  isBlueprint: boolean;
+  constructionProgress: number;
+  maxProgress: number;
+  health: number;
+  maxHealth: number;
+  production?: {
+      active: boolean;
+      item: 'eclipse' | 'wp';
+      progress: number;
+      totalTime: number;
+  };
+}
+
+export type RoadType = 'main' | 'street' | 'open';
+
+export interface RoadTileData {
+  x: number;
+  z: number;
+  type: RoadType;
+}
+
+export type DoctrineType = 'heavy_metal' | 'shadow_ops' | 'skunkworks';
+
+export interface DoctrineState {
+  selected: DoctrineType | null;
+  unlockedTiers: number; // 0, 1, 2, 3
+  cooldowns: {
+    tier2: number;
+    tier3: number;
+  };
 }
 
 export interface TeamStats {
@@ -188,8 +206,8 @@ export interface TeamStats {
     server_node: number;
   };
   stockpile: {
-    eclipse: number;
-    wp: number;
+      eclipse: number;
+      wp: number;
   };
   doctrine?: DoctrineState;
 }
@@ -199,21 +217,13 @@ export interface GameStats {
   red: TeamStats;
 }
 
-export type RoadType = 'main' | 'street' | 'open';
-
-export interface RoadTileData {
-  x: number;
-  z: number;
-  type: RoadType;
-}
-
 export interface MinimapData {
-  units: UnitData[];
-  buildings: BuildingData[];
-  structures: StructureData[];
-  roadTiles: RoadTileData[];
-  gridSize: number;
-  selectedUnitIds?: string[];
+    units: UnitData[];
+    buildings: BuildingData[];
+    structures: StructureData[];
+    roadTiles: RoadTileData[];
+    gridSize: number;
+    selectedUnitIds?: string[];
 }
 
 export interface DecoyData {
@@ -224,51 +234,44 @@ export interface DecoyData {
 }
 
 export interface CloudData {
-  id: string;
-  type: 'smoke' | 'wp' | 'eclipse';
-  gridPos: { x: number; z: number };
-  radius: number;
-  duration: number;
-  createdAt: number;
-  team: 'blue' | 'red';
+    id: string;
+    type: 'eclipse' | 'wp';
+    team: 'blue' | 'red' | 'neutral';
+    gridPos: { x: number; z: number };
+    radius: number;
+    duration: number;
+    createdAt: number;
 }
 
 export interface Projectile {
-  id: string;
-  ownerId: string;
-  team: 'blue' | 'red' | 'neutral';
-  position: { x: number, y: number, z: number };
-  velocity: { x: number, y: number, z: number };
-  damage: number;
-  radius: number; // Collision/Explosion radius
-  maxDistance: number;
-  distanceTraveled: number;
-  targetPos?: { x: number, y: number, z: number }; // Target visual position
-  trajectory?: 'direct' | 'ballistic' | 'swarm';
-  phase?: 'ascent' | 'cruise' | 'terminal';
-  payload?: 'eclipse' | 'wp';
-  startPos?: { x: number, y: number, z: number }; // For ballistic calculation
-  startTime?: number;
-  lockedTargetId?: string | null; // For swarm homing
+    id: string;
+    ownerId: string;
+    team: 'blue' | 'red' | 'neutral';
+    position: { x: number, y: number, z: number };
+    velocity: { x: number, y: number, z: number };
+    damage: number;
+    radius: number;
+    maxDistance: number;
+    distanceTraveled: number;
+    targetPos?: { x: number, y: number, z: number }; // For guided/ballistic
+    trajectory: 'direct' | 'ballistic' | 'swarm';
+    payload?: 'eclipse' | 'wp' | null; // For warheads
+    startPos?: { x: number, y: number, z: number };
+    startTime?: number;
+    lockedTargetId?: string | null; // For swarm homing
+    phase?: 'ascent' | 'cruise' | 'terminal';
 }
 
 export interface Explosion {
-  id: string;
-  position: { x: number, y: number, z: number };
-  radius: number;
-  duration: number;
-  createdAt: number;
+    id: string;
+    position: { x: number, y: number, z: number };
+    radius: number;
+    duration: number;
+    createdAt: number;
 }
 
-// --- DOCTRINE SYSTEM TYPES ---
-
-export type DoctrineType = 'heavy_metal' | 'shadow_ops' | 'skunkworks';
-
-export interface DoctrineState {
-  selected: DoctrineType | null;
-  unlockedTiers: number; // 1, 2, or 3
-  cooldowns: {
-    tier2: number; // Timestamp when ready
-    tier3: number; // Timestamp when ready
-  };
+export interface CityConfig {
+  gridSize: number;
+  tileSize: number;
+  buildingDensity: number;
 }

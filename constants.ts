@@ -1,5 +1,5 @@
 
-import { CityConfig, UnitClass, StructureType, UnitType } from './types';
+import { CityConfig, UnitClass, StructureType, UnitType, DoctrineType } from './types';
 
 export const CITY_CONFIG: CityConfig = {
   gridSize: 80, 
@@ -36,6 +36,8 @@ export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: st
   courier: { unitClass: 'support', cost: 50, captureMultiplier: 0.0, label: 'Ordnance Courier', visionRange: 2, speedMod: 1.8, maxHealth: 30, attackDamage: 0, attackCooldown: 0 },
   banshee: { unitClass: 'support', cost: 300, captureMultiplier: 0.0, label: '"Banshee" EW Vehicle', visionRange: 4, speedMod: 0.9, maxHealth: 350, attackDamage: 0, attackCooldown: 0 },
   defense_drone: { unitClass: 'defense', cost: 0, captureMultiplier: 0.0, label: 'Sentinel Drone', visionRange: 2, speedMod: 0, maxHealth: 60, attackDamage: 10, attackCooldown: 500 },
+  titan_dropped: { unitClass: 'armor', cost: 0, captureMultiplier: 0.8, label: 'Titan (Orbital Drop)', visionRange: 3, speedMod: 0.7, maxHealth: 400, attackDamage: 25, attackCooldown: 2000 },
+  swarm_host: { unitClass: 'ordnance', cost: 0, captureMultiplier: 0, label: 'Swarm Host', visionRange: 3, speedMod: 0.8, maxHealth: 100, attackDamage: 0, attackCooldown: 0 },
 };
 
 export const UNIT_CLASSES: Record<UnitClass, { icon: string, label: string }> = {
@@ -68,10 +70,10 @@ export const ABILITY_CONFIG = {
   TITAN_SMOKE_COOLDOWN: 20000,
   TITAN_APS_DURATION: 5000, 
   TITAN_APS_COOLDOWN: 15000,
-  TITAN_CANNON_RANGE: 6, // Auto attack range? No, projectile range is defined below
+  TITAN_CANNON_RANGE: 6, 
   TITAN_CANNON_PROJECTILE_RANGE: 20,
   TITAN_CANNON_DAMAGE: 150,
-  TITAN_CANNON_SPEED: 200, // Tiles per second (Increased from 25 for faster feel)
+  TITAN_CANNON_SPEED: 200, 
   TITAN_CANNON_COOLDOWN: 5000,
   TITAN_CANNON_COST: 15,
 
@@ -89,85 +91,86 @@ export const ABILITY_CONFIG = {
 
   // Wasp Abilities
   WASP_SWARM_RANGE: 12,
-  WASP_SWARM_RADIUS: 2, // 2 Radius Circle
+  WASP_SWARM_RADIUS: 2, 
   WASP_SWARM_COOLDOWN: 15000, 
   WASP_MAX_CHARGES: 2, 
-  WASP_MISSILES_PER_VOLLEY: 10, // 10 Microdrones
+  WASP_MISSILES_PER_VOLLEY: 10, 
   WASP_DAMAGE_PER_MISSILE: 15,
-  WASP_MISSILE_SPEED: 25, // Units per sec
+  WASP_MISSILE_SPEED: 25, 
   WASP_MISSILE_TURN_RATE: 5, 
+  SWARM_HOST_MAX_UNITS: 15,
 
   // Mason / Wall Abilities
   MASON_CARGO_CAPACITY: 100,
-  MASON_LOAD_TIME: 2000, // 2 seconds to load
-  MASON_BUILD_AMOUNT: 100, // Amount added per trip
-  WALL_TIER1_SLOW_FACTOR: 0.25, // 75% Slow
+  MASON_LOAD_TIME: 2000, 
+  MASON_BUILD_AMOUNT: 100, 
+  WALL_TIER1_SLOW_FACTOR: 0.25, 
 
   // Battery / Solar Logic
   BATTERY_MAX: 100,
-  BATTERY_DRAIN_MOVE: 0.2, // Reduced from 1.5 to 0.2 (50s movement on full charge)
-  BATTERY_DRAIN_IDLE: 0.01, // Reduced from 0.05 to 0.01 (1000s idle on full charge)
+  BATTERY_DRAIN_MOVE: 0.2, 
+  BATTERY_DRAIN_IDLE: 0.01, 
   
-  // Static Ability Drains (Low continuous)
-  DRAIN_STATIC_JAMMER: 1.5, // Banshee Jammer
-  DRAIN_STATIC_DOME: 1.5,   // Ghost Dampener / Sun-Plate Deploy
+  // Static Ability Drains 
+  DRAIN_STATIC_JAMMER: 1.5, 
+  DRAIN_STATIC_DOME: 1.5,   
 
-  // Active Ability Drains (High continuous or instant)
-  DRAIN_ACTIVE_HACK_MAINTENANCE: 6.0, // Per second for the hacker to maintain the hack
+  // Active Ability Drains
+  DRAIN_ACTIVE_HACK_MAINTENANCE: 6.0, 
   
   // Instant Ability Costs
-  COST_ABILITY_LOW: 10,    // Smoke, APS, Smog
-  COST_ABILITY_MEDIUM: 15, // Cannon, Repair burst
-  COST_ABILITY_HIGH: 25,   // Swarm, Print, Hack Initiation
+  COST_ABILITY_LOW: 10,    
+  COST_ABILITY_MEDIUM: 15, 
+  COST_ABILITY_HIGH: 25,   
+  SYSTEM_OVERCLOCK_COST: 250,
 
-  HELIOS_CHARGE_RATE: 2, // Per second
+  HELIOS_CHARGE_RATE: 2, 
   HELIOS_RADIUS: 3,
-  SUNPLATE_CHARGE_RATE: 6, // Per second
+  SUNPLATE_CHARGE_RATE: 6, 
   SUNPLATE_RADIUS: 5,
   SMOG_DURATION: 60000,
-  SMOG_RADIUS: 5, // Visual radius (approx 10x10 area)
+  SMOG_RADIUS: 5, 
 
   // Ballista / Warhead Logic
-  BALLISTA_LOAD_TIME: 5000, // 5s to load
+  BALLISTA_LOAD_TIME: 5000, 
   WARHEAD_COST_ECLIPSE: 500,
-  WARHEAD_BUILD_TIME_ECLIPSE: 20000, // 20s
+  WARHEAD_BUILD_TIME_ECLIPSE: 20000, 
   ECLIPSE_DURATION: 60000,
   ECLIPSE_RADIUS: 10,
 
   WARHEAD_COST_WP: 300,
-  WARHEAD_BUILD_TIME_WP: 15000, // 15s
-  WP_DURATION: 20000, // 20s cloud
+  WARHEAD_BUILD_TIME_WP: 15000, 
+  WP_DURATION: 20000, 
   WP_RADIUS: 5,
-  WP_DAMAGE_PER_TICK: 5, // Damage per second
+  WP_DAMAGE_PER_TICK: 5, 
   
   // Ballistic Missile Physics
   MISSILE_LAUNCH_HEIGHT: 80,
-  MISSILE_ASCENT_SPEED: 10, // Slowed down from 40
-  MISSILE_CRUISE_SPEED: 15, // Slowed down from 60
-  MISSILE_TERMINAL_SPEED: 30, // Slowed down from 150
+  MISSILE_ASCENT_SPEED: 10, 
+  MISSILE_CRUISE_SPEED: 15, 
+  MISSILE_TERMINAL_SPEED: 30, 
 
   // Banshee Logic
   BANSHEE_JAMMER_RADIUS: 7,
   BANSHEE_ACTION_RANGE: 7,
   BANSHEE_HACK_BREAK_RANGE: 10,
-  BANSHEE_HACK_DRAIN_MULTIPLIER: 3, // Multiplier for the VICTIM
+  BANSHEE_HACK_DRAIN_MULTIPLIER: 3, 
   
   // New Banshee Battery Stats
   BANSHEE_MAX_MAIN_BATTERY: 300,
   BANSHEE_MAX_SEC_BATTERY: 200,
-  BANSHEE_INTERNAL_CHARGE_RATE: 2.0, // Amount transferred per tick when stationary
-  BANSHEE_TETHER_CHARGE_RATE: 5.0,   // Amount delivered to target per tick
+  BANSHEE_INTERNAL_CHARGE_RATE: 2.0, 
+  BANSHEE_TETHER_CHARGE_RATE: 5.0,   
 
   // Defense Drone
   DEFENSE_DRONE_DAMAGE: 10,
   DEFENSE_DRONE_RANGE: 2,
-  UNIT_RETALIATION_DAMAGE: 5, // Damage units do back to the drone
+  UNIT_RETALIATION_DAMAGE: 5, 
 };
 
 export const STRUCTURE_COST = 1000;
 export const BUILD_RADIUS = 15; 
 
-// Combined config for structures (buildings) and walls
 export const STRUCTURE_INFO: Record<StructureType, { label: string, color: string, height: number, cost: number, maxProgress: number, maxHealth: number }> = {
     support: { label: 'Comm Link', color: '#8b5cf6', height: 12, cost: 1000, maxProgress: 0, maxHealth: 500 },
     infantry: { label: 'Barracks', color: '#10b981', height: 6, cost: 1000, maxProgress: 0, maxHealth: 500 },
@@ -210,13 +213,10 @@ export const CAMERA_ZOOM_SPEED = 2.0;
 export const MIN_ZOOM = 20;
 export const MAX_ZOOM = 600;
 
-// --- DOCTRINE CONFIGURATION ---
-
-export const DOCTRINE_CONFIG = {
+export const DOCTRINE_CONFIG: Record<DoctrineType, { label: string, tier1_passive: string, tier2_cost: number, tier2_cooldown: number, tier3_cost: number, tier3_cooldown: number }> = {
   heavy_metal: {
     label: "Heavy Metal",
-    tier1_regen_rate: 2, // HP per second
-    tier1_regen_delay: 5000, // ms out of combat
+    tier1_passive: "Mechanized Repair: Armor units regen 2 HP/s when out of combat.",
     tier2_cost: 500,
     tier2_cooldown: 120000,
     tier3_cost: 1200,
@@ -224,19 +224,29 @@ export const DOCTRINE_CONFIG = {
   },
   shadow_ops: {
     label: "Shadow Ops",
+    tier1_passive: "Signal Masking: Stealth units gain +20% speed.",
     tier2_cost: 400,
     tier2_cooldown: 60000,
     tier3_cost: 1000,
     tier3_cooldown: 240000,
-    stun_duration: 8000,
   },
   skunkworks: {
     label: "Skunkworks",
+    tier1_passive: "Overclock: Production speed +10% globally.",
     tier2_cost: 600,
     tier2_cooldown: 90000,
     tier3_cost: 1100,
     tier3_cooldown: 300000,
-    overclock_duration: 10000,
-    overclock_speed_mult: 1.5,
   }
+};
+
+export const TIER_UNLOCK_COSTS = {
+  TIER2: 1500,
+  TIER3: 3500,
+};
+
+export const CP_REWARDS = {
+  BUILDING_CAPTURE: 50,
+  UNIT_DESTROYED: 25,
+  SERVER_NODE_TICK: 1, // Per 10s?
 };

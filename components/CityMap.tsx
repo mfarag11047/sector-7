@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
-import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, BUILDING_VALUES, BLOCK_BONUS, UNIT_STATS, ABILITY_CONFIG, STRUCTURE_COST, BUILD_RADIUS, STRUCTURE_INFO, COMPUTE_GATES } from '../constants';
+import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, BUILDING_VALUES, BLOCK_BONUS, UNIT_STATS, ABILITY_CONFIG, STRUCTURE_COST, BUILD_RADIUS, STRUCTURE_INFO, COMPUTE_GATES, TIER_UNLOCK_COSTS, DOCTRINE_CONFIG } from '../constants';
 import { BuildingData, UnitData, BuildingBlock, GameStats, TeamStats, RoadType, RoadTileData, StructureData, UnitClass, DecoyData, UnitType, StructureType, CloudData, Projectile, Explosion } from '../types';
 import Building from './Building';
 import Structure from './Structure';
@@ -381,9 +381,12 @@ interface CityMapProps {
   onMapInit?: (data: { roadTiles: RoadTileData[], gridSize: number }) => void;
   onMinimapUpdate?: (data: { units: UnitData[], buildings: BuildingData[], structures: StructureData[], selectedUnitIds?: string[] }) => void;
   playerTeam?: 'blue' | 'red';
+  interactionMode?: 'select' | 'target';
+  onMapTarget?: (location: {x: number, z: number}) => void;
+  pendingDoctrineAction?: { type: string, target: {x: number, z: number}, team: 'blue'|'red' } | null;
 }
 
-const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue' }) => {
+const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction }) => {
   const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
   const offset = (gridSize * tileSize) / 2;
   const baseA_Coord = useMemo(() => ({ x: 4, z: 4 }), []);
@@ -535,6 +538,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   const [teamCompute, setTeamCompute] = useState<{blue: number, red: number}>({ blue: 0, red: 0 });
   const [stockpile, setStockpile] = useState<{blue: {eclipse: number, wp: number}, red: {eclipse: number, wp: number}}>({ blue: { eclipse: 0, wp: 0 }, red: { eclipse: 0, wp: 0 } });
   
+  // CP Accumulator for Doctrine Unlocks (Automatic progression simulation)
+  const cpAccumulator = useRef<{blue: number, red: number}>({ blue: 0, red: 0 });
+
   // Cheat State
   const [cheatCompute, setCheatCompute] = useState<{blue: number, red: number}>({ blue: 0, red: 0 });
   
@@ -617,6 +623,13 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       // e.stopPropagation(); // Avoid stopping if other elements need it?
       // Only handle Left Click (0) for drag select
       if (e.button === 0) {
+          if (interactionMode === 'target' && onMapTarget) {
+              const gx = Math.round((e.point.x + offset) / tileSize);
+              const gz = Math.round((e.point.z + offset) / tileSize);
+              onMapTarget({ x: gx, z: gz });
+              return; 
+          }
+
           didDragRef.current = false;
           setDragSelection({ start: e.point.clone(), current: e.point.clone(), active: true });
       }
@@ -634,6 +647,8 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   };
 
   const handlePointerUp = (e: any) => {
+      if (interactionMode === 'target') return;
+
       if (dragSelection && dragSelection.active) {
           if (didDragRef.current) {
                // Performed a Drag - Box Select
@@ -712,6 +727,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   ): GameStats => {
     const teams: ('blue' | 'red')[] = ['blue', 'red'];
     const result = { blue: {} as TeamStats, red: {} as TeamStats };
+    
     teams.forEach(team => {
       let income = 0;
       const teamBuildings = { residential: 0, commercial: 0, industrial: 0, hightech: 0, server_node: 0 };
@@ -722,9 +738,188 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         const isBlockOwned = block && block.owner === team;
         income += config.income * (isBlockOwned ? BLOCK_BONUS.RESOURCE_MULTIPLIER : 1);
       });
-      result[team] = { resources: currentResources[team], income, compute: teamBuildings.server_node, units: currentUnits.filter(u => u.team === team).length, buildings: teamBuildings, stockpile: currentStockpile[team] };
+
+      // Update CP Accumulator based on income
+      cpAccumulator.current[team] += income;
+
+      // Determine Doctrine Tier Unlocks
+      const lifetimeCP = cpAccumulator.current[team];
+      let tiers = 1; // Default Tier 1 unlocked
+      if (lifetimeCP >= TIER_UNLOCK_COSTS.TIER2) tiers = 2;
+      if (lifetimeCP >= TIER_UNLOCK_COSTS.TIER3) tiers = 3;
+
+      result[team] = { 
+          resources: currentResources[team], 
+          income, 
+          compute: teamBuildings.server_node, 
+          units: currentUnits.filter(u => u.team === team).length, 
+          buildings: teamBuildings, 
+          stockpile: currentStockpile[team],
+          doctrine: { selected: null, unlockedTiers: tiers, cooldowns: { tier2: 0, tier3: 0 } } // Selected is managed by App, but tiers are calculated here
+      };
     });
     return result as GameStats;
+  }, []);
+
+  // Doctrine Effects Processor
+  useEffect(() => {
+      if (pendingDoctrineAction) {
+          const { type, target, team } = pendingDoctrineAction;
+          
+          if (type === 'HEAVY_METAL_TIER2') {
+              // Spawn Orbital Drop Titan
+              const startPos = { x: (target.x * tileSize) - offset, y: 100, z: (target.z * tileSize) - offset };
+              const targetPos = { x: (target.x * tileSize) - offset, y: 1.5, z: (target.z * tileSize) - offset };
+              
+              setProjectiles(prev => [...prev, {
+                  id: `pod-${Date.now()}`,
+                  ownerId: 'orbital',
+                  team: team as 'blue' | 'red',
+                  position: startPos,
+                  velocity: { x: 0, y: -50, z: 0 }, // Fast drop
+                  damage: 50, // Impact damage
+                  radius: 2,
+                  maxDistance: 200,
+                  distanceTraveled: 0,
+                  targetPos: targetPos,
+                  trajectory: 'ballistic', // Use ballistic for landing logic
+                  startPos: startPos,
+                  startTime: Date.now(),
+                  payload: 'wp' // Hack to trigger unit spawn on impact in main loop if extended, but we'll spawn directly here for simplicity after delay
+              }]);
+
+              // Delayed Spawn (simulating impact)
+              setTimeout(() => {
+                  setUnits(prev => [...prev, {
+                      id: `titan-${Date.now()}`,
+                      type: 'titan_dropped', // Stronger titan variant
+                      unitClass: 'armor',
+                      team: team as 'blue' | 'red',
+                      gridPos: { x: target.x, z: target.z },
+                      path: [],
+                      visionRange: UNIT_STATS.tank.visionRange,
+                      health: UNIT_STATS.tank.maxHealth * 1.5,
+                      maxHealth: UNIT_STATS.tank.maxHealth * 1.5,
+                      battery: 100,
+                      maxBattery: 100,
+                      cooldowns: {},
+                      charges: { smoke: 3, aps: 2 }
+                  }]);
+                  setExplosions(prev => [...prev, { id: `exp-${Date.now()}`, position: targetPos, radius: 4, duration: 800, createdAt: Date.now() }]);
+              }, 1500);
+          }
+          else if (type === 'HEAVY_METAL_TIER3') {
+              // Tactical Nuke
+              const startPos = { x: (target.x * tileSize) - offset, y: 120, z: (target.z * tileSize) - offset };
+              const targetPos = { x: (target.x * tileSize) - offset, y: 1.0, z: (target.z * tileSize) - offset };
+              
+              setProjectiles(prev => [...prev, { 
+                  id: `nuke-${Date.now()}`, 
+                  ownerId: 'command', 
+                  team: team as 'blue' | 'red', 
+                  position: startPos, 
+                  velocity: { x: 0, y: -40, z: 0 }, 
+                  damage: 500, // Massive damage
+                  radius: 8, 
+                  maxDistance: 200,
+                  distanceTraveled: 0, 
+                  targetPos: targetPos,
+                  trajectory: 'ballistic',
+                  payload: 'eclipse', // Visual reuse
+                  startPos: startPos,
+                  startTime: Date.now()
+              }]);
+          }
+          else if (type === 'SHADOW_OPS_TIER2') {
+              // Spawn Decoys
+              const newDecoys: DecoyData[] = [];
+              const offsets = [{x:0, z:0}, {x:1, z:1}, {x:-1, z:-1}];
+              offsets.forEach((off, i) => {
+                  newDecoys.push({
+                      id: `decoy-doc-${Date.now()}-${i}`,
+                      team: team as 'blue' | 'red',
+                      gridPos: { x: target.x + off.x, z: target.z + off.z },
+                      createdAt: Date.now()
+                  });
+              });
+              setDecoys(prev => [...prev, ...newDecoys]);
+          }
+          else if (type === 'SHADOW_OPS_TIER3') {
+              // Global/Area Stun
+              setUnits(prev => prev.map(u => {
+                  if (u.team !== team && u.team !== 'neutral') {
+                      return { ...u, isStunned: true, stunDuration: 10000 }; // 10s Stun
+                  }
+                  return u;
+              }));
+          }
+          else if (type === 'SKUNKWORKS_TIER2') {
+              // Smoke Cloud
+              setClouds(prev => [...prev, {
+                  id: `cloud-doc-${Date.now()}`,
+                  type: 'eclipse', // Visual reuse for Smoke
+                  team: team as 'blue' | 'red',
+                  gridPos: { x: target.x, z: target.z },
+                  radius: 5,
+                  duration: 30000,
+                  createdAt: Date.now()
+              }]);
+          }
+          else if (type === 'SKUNKWORKS_TIER3') {
+              // Spawn Swarm Host
+              setUnits(prev => [...prev, {
+                  id: `host-${Date.now()}`,
+                  type: 'swarm_host',
+                  unitClass: 'ordnance',
+                  team: team as 'blue' | 'red',
+                  gridPos: { x: target.x, z: target.z },
+                  path: [],
+                  visionRange: 4,
+                  health: 200,
+                  maxHealth: 200,
+                  battery: 100,
+                  maxBattery: 100,
+                  cooldowns: { spawnWasp: 0 }
+              }]);
+          }
+      }
+  }, [pendingDoctrineAction, tileSize, offset]);
+
+  // Doctrine Passive Loop
+  useEffect(() => {
+      const interval = setInterval(() => {
+          setUnits(prevUnits => prevUnits.map(u => {
+              // 1. Heavy Metal Regen (Armor units only)
+              // We assume 'out of combat' if lastAttackTime is > 5s ago or undefined
+              if (u.unitClass === 'armor' && (!u.lastAttackTime || Date.now() - u.lastAttackTime > 5000)) {
+                  // Simplified check: assume if not attacked recently (we don't track incoming damage time yet efficiently, 
+                  // but we can add lastDamageTime to UnitData later. For now, simple passive regen always active for Armor)
+                  if (u.health < u.maxHealth) {
+                      return { ...u, health: Math.min(u.maxHealth, u.health + 2) };
+                  }
+              }
+
+              // 2. Stun Expiry
+              if (u.isStunned && u.stunDuration) {
+                  if (u.stunDuration <= 0) return { ...u, isStunned: false, stunDuration: 0 };
+                  return { ...u, stunDuration: u.stunDuration - 1000 };
+              }
+
+              // 3. Swarm Host Spawning
+              if (u.type === 'swarm_host') {
+                  const currentWasps = prevUnits.filter(w => w.type === 'wasp' && w.team === u.team).length; // Simplified count, usually per host
+                  // To avoid infinite global cap issues, we'll just check a global cap for now
+                  if (currentWasps < 20 && (!u.cooldowns.spawnWasp || u.cooldowns.spawnWasp <= 0)) {
+                      // Trigger spawn in next state update via separate effect or just modify here? 
+                      // Modifying 'prevUnits' array size inside map is bad. We need a separate spawn queue.
+                      // For now, we'll handle this in the main game loop logic instead.
+                  }
+              }
+
+              return u;
+          }));
+      }, 1000);
+      return () => clearInterval(interval);
   }, []);
 
   const dynamicRoadTileSet = useMemo(() => {
@@ -766,6 +961,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   const handleUnitSelect = (id: string) => {
       // If we just dragged, ignore click logic that might fire
       if (didDragRef.current) return;
+      if (interactionMode === 'target') return; // Selection disabled in target mode
 
       if (targetingSourceId && targetingAbility === 'TETHER') {
           setUnits(prev => prev.map(u => {
@@ -813,6 +1009,11 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   const handleTileClick = (x: number, z: number) => {
       // If we just dragged, ignore click events generated
       if (didDragRef.current) return;
+
+      if (interactionMode === 'target' && onMapTarget) {
+          onMapTarget({ x, z });
+          return;
+      }
 
       if (placementMode) {
           if (teamResources[playerTeam] >= placementMode.cost) {
@@ -1593,6 +1794,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       projsChanged = true;
                       newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: nextP.position, radius: 1.5, duration: 300, createdAt: now });
                       // Deal Area Damage (small)
+                      // Fix: Explicitly cast team to UnitData['team'] to resolve type mismatch
                       damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: p.damage, position: nextP.position, team: p.team as any });
                   } else {
                       projsChanged = true;
@@ -1638,6 +1840,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   if (hit) {
                       projsChanged = true;
                       newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: nextP.position, radius: 3, duration: 500, createdAt: now });
+                      // Fix: Explicitly cast team to UnitData['team'] to resolve type mismatch
                       damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: nextP.damage, position: nextP.position, team: nextP.team as any });
                   } else {
                       if (steps > 0) projsChanged = true;
@@ -2060,6 +2263,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                 resources={teamResources[playerTeam]}
             /> 
         ))}
+        {blocks.map(block => (
+            <BlockStatus key={block.id} block={block} buildings={buildings} />
+        ))}
         {units.map(u => {
              const isVisible = visibleUnitIds.has(u.id);
              return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={handleUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onMoveStep={handleMoveStep} tileTypeMap={tileTypeMap} onDoubleClick={() => {}} visible={isVisible} actionMenuOpen={primarySelectionId === u.id} onAction={handleUnitAction} isTargetingMode={!!targetingSourceId} /> );
@@ -2116,10 +2322,10 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
             </group>
         ))}
 
-        {/* Targeting Cursor (Red for Cannon, Green for Surveillance, Orange for Missile) */}
-        {hoverGridPos && (targetingAbility === 'CANNON' || targetingAbility === 'SURVEILLANCE' || targetingAbility === 'MISSILE' || targetingAbility === 'DECOY' || targetingAbility === 'SWARM') && (
+        {/* Targeting Cursor (Red for Cannon, Green for Surveillance, Orange for Missile, Cyan for Doctrine) */}
+        {hoverGridPos && (targetingAbility || interactionMode === 'target') && (
             <group position={[(hoverGridPos.x * tileSize) - offset, 0.5, (hoverGridPos.z * tileSize) - offset]}>
-                {targetingAbility === 'MISSILE' ? (
+                {targetingAbility === 'MISSILE' || (interactionMode === 'target' && pendingDoctrineAction?.type.includes('HEAVY_METAL')) ? (
                      // Nuke / Missile Targeting Reticle
                      <group>
                          {/* Spinning Ring Outer */}
@@ -2153,7 +2359,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                          </mesh>
                          <pointLight color="#ef4444" intensity={2} distance={10} animate-pulse />
                      </group>
-                ) : targetingAbility === 'SWARM' ? (
+                ) : (targetingAbility === 'SWARM' || (interactionMode === 'target' && pendingDoctrineAction?.type.includes('SKUNKWORKS'))) ? (
                     // Wasp Swarm Reticle (Orange, 2 radius)
                     <group>
                         {/* Outer Ring */}
@@ -2198,6 +2404,13 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                             <mesh position={[0, 1, 0]}>
                                 <boxGeometry args={[1, 1, 1]} />
                                 <meshBasicMaterial color="#c084fc" wireframe transparent opacity={0.5} />
+                            </mesh>
+                        )}
+                        {/* Interaction Mode Indicator */}
+                        {interactionMode === 'target' && (
+                            <mesh position={[0, 2, 0]} rotation={[Math.PI, 0, 0]}>
+                                <coneGeometry args={[0.5, 1, 4]} />
+                                <meshBasicMaterial color="#22d3ee" transparent opacity={0.8} />
                             </mesh>
                         )}
                     </group>

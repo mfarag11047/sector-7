@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { GameStats, TeamStats, MinimapData } from '../types';
-import { BUILDING_COLORS, TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG } from '../constants';
+import { GameStats, TeamStats, MinimapData, DoctrineType, DoctrineState } from '../types';
+import { BUILDING_COLORS, TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG } from '../constants';
 
 interface ManualSection {
   title: string;
@@ -113,6 +113,15 @@ const EditableStat: React.FC<{
   );
 };
 
+// Doctrine Icon Helper
+const DoctrineIcon: React.FC<{ type: DoctrineType | null, className?: string }> = ({ type, className }) => {
+    if (!type) return <span className={`text-slate-500 font-mono ${className}`}>-</span>;
+    if (type === 'heavy_metal') return <span className={`text-orange-500 font-bold ${className}`}>⛨</span>;
+    if (type === 'shadow_ops') return <span className={`text-purple-500 font-bold ${className}`}>👁</span>;
+    if (type === 'skunkworks') return <span className={`text-cyan-500 font-bold ${className}`}>⚡</span>;
+    return null;
+};
+
 const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left' | 'right'; isVisible: boolean }> = ({ team, stats, align, isVisible }) => {
   const isBlue = team === 'blue';
   const baseColor = isBlue ? 'text-blue-400' : 'text-red-400';
@@ -129,9 +138,17 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
       <div className={`absolute top-0 ${align === 'left' ? 'left-0' : 'right-0'} w-full h-full bg-gradient-to-b ${bgGradient} to-transparent opacity-30 pointer-events-none`}></div>
 
       <div className="flex justify-between items-baseline border-b border-slate-700/50 pb-2 relative z-10">
-        <h2 className={`text-xl font-bold font-mono uppercase tracking-widest ${baseColor}`}>
-          {team} TEAM
-        </h2>
+        <div className="flex items-center gap-2">
+            <h2 className={`text-xl font-bold font-mono uppercase tracking-widest ${baseColor}`}>
+            {team} TEAM
+            </h2>
+            {/* Doctrine Indicator */}
+            {stats.doctrine?.selected && (
+                <div className="bg-slate-800 rounded px-1.5 py-0.5 border border-slate-700 flex items-center" title={`Doctrine: ${DOCTRINE_CONFIG[stats.doctrine.selected].label}`}>
+                    <DoctrineIcon type={stats.doctrine.selected} className="text-sm" />
+                </div>
+            )}
+        </div>
         <div className="flex items-baseline gap-4 pointer-events-auto">
           {isVisible ? (
             <>
@@ -241,16 +258,89 @@ const MinimapViewfinder: React.FC<{
     return <rect ref={rectRef} fill="none" stroke="#22d3ee" strokeWidth="0.5" strokeOpacity="0.8" />;
 };
 
+// New Doctrine Card Component
+const DoctrineCard: React.FC<{ 
+    type: DoctrineType, 
+    active: boolean, 
+    locked: boolean, 
+    onSelect: () => void 
+}> = ({ type, active, locked, onSelect }) => {
+    const config = DOCTRINE_CONFIG[type];
+    
+    // Theme Colors
+    const colors = {
+        heavy_metal: 'border-orange-500 text-orange-400 bg-orange-900/20',
+        shadow_ops: 'border-purple-500 text-purple-400 bg-purple-900/20',
+        skunkworks: 'border-cyan-500 text-cyan-400 bg-cyan-900/20',
+    };
+    const theme = colors[type];
+
+    return (
+        <div 
+            onClick={() => !locked && !active && onSelect()}
+            className={`
+                relative p-4 rounded-xl border-2 transition-all duration-300 flex flex-col gap-4
+                ${active ? `${theme} bg-opacity-40 shadow-[0_0_30px_rgba(0,0,0,0.5)] scale-105` : 
+                  locked ? 'border-slate-800 bg-slate-900/50 text-slate-600 grayscale cursor-not-allowed' :
+                  `border-slate-700 bg-slate-800/50 hover:bg-slate-800 hover:border-white/50 cursor-pointer hover:scale-105`
+                }
+            `}
+        >
+            {/* Header */}
+            <div className="flex justify-between items-center border-b border-white/10 pb-2">
+                <div className="flex items-center gap-2">
+                    <div className={`p-2 rounded bg-black/40`}>
+                        <DoctrineIcon type={type} className="text-xl" />
+                    </div>
+                    <h3 className={`font-mono font-bold uppercase tracking-wider ${active ? 'text-white' : ''}`}>
+                        {config.label}
+                    </h3>
+                </div>
+                {active && <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded font-bold uppercase">Active</span>}
+            </div>
+
+            {/* Passive */}
+            <div className="bg-black/20 p-2 rounded">
+                <div className="text-[10px] uppercase font-bold opacity-70 mb-1">Tier 1: Passive Protocol</div>
+                <p className="text-xs leading-relaxed opacity-90">{config.tier1_passive}</p>
+            </div>
+
+            {/* Active Tiers (Visual Only for now) */}
+            <div className="flex gap-2 mt-auto">
+                <div className="flex-1 bg-black/20 p-2 rounded opacity-70">
+                    <div className="text-[9px] uppercase font-bold opacity-50">Tier 2 Unlock</div>
+                    <div className="text-[10px] font-mono">{config.tier2_cost} Cores</div>
+                </div>
+                <div className="flex-1 bg-black/20 p-2 rounded opacity-70">
+                    <div className="text-[9px] uppercase font-bold opacity-50">Tier 3 Unlock</div>
+                    <div className="text-[10px] font-mono">{config.tier3_cost} Cores</div>
+                </div>
+            </div>
+
+            {/* Selection Overlay */}
+            {!active && !locked && (
+                <div className="absolute inset-0 bg-white/5 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center rounded-xl">
+                    <span className="bg-white text-black font-bold px-4 py-2 rounded uppercase tracking-widest text-sm transform scale-110 shadow-lg">
+                        Confirm Doctrine
+                    </span>
+                </div>
+            )}
+        </div>
+    );
+};
+
 interface UIOverlayProps {
     stats: GameStats;
     minimapData: MinimapData;
     playerTeam: 'blue' | 'red';
     setPlayerTeam: (t: 'blue' | 'red') => void;
     cameraStateRef?: React.MutableRefObject<{ x: number, y: number, z: number, yaw: number }>;
+    onSelectDoctrine: (team: 'blue' | 'red', doctrine: DoctrineType) => void;
 }
 
-const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef }) => {
+const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef, onSelectDoctrine }) => {
   const [isIntelOpen, setIsIntelOpen] = useState(false);
+  const [isDoctrineOpen, setIsDoctrineOpen] = useState(false);
 
   // Minimap Scale / Viewbox
   const gridSize = minimapData.gridSize || 40;
@@ -259,6 +349,9 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
   const toggleTeam = () => {
     setPlayerTeam(playerTeam === 'blue' ? 'red' : 'blue');
   };
+
+  const activeStats = stats[playerTeam];
+  const activeDoctrine = activeStats.doctrine?.selected || null;
 
   // Fog of War Logic for Minimap Units
   // 1. Always show own units
@@ -339,21 +432,36 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
         
         <div className="mt-8 flex flex-col items-center gap-2 pointer-events-auto">
             <h1 className="text-slate-500 font-mono text-[10px] tracking-[0.3em] uppercase opacity-50">Sector 7 Conflict</h1>
-            <button 
-                onClick={() => setIsIntelOpen(!isIntelOpen)}
-                className={`w-8 h-8 flex items-center justify-center rounded border transition-all pointer-events-auto ${
-                isIntelOpen 
-                    ? 'bg-cyan-500 text-slate-900 border-cyan-400' 
-                    : 'bg-slate-900/50 text-slate-400 border-slate-700 hover:text-cyan-400 hover:border-cyan-500'
-                }`}
-            >
-                <span className="font-mono font-bold text-sm">?</span>
-            </button>
+            <div className="flex gap-2">
+                <button 
+                    onClick={() => setIsIntelOpen(!isIntelOpen)}
+                    className={`w-8 h-8 flex items-center justify-center rounded border transition-all pointer-events-auto ${
+                    isIntelOpen 
+                        ? 'bg-cyan-500 text-slate-900 border-cyan-400' 
+                        : 'bg-slate-900/50 text-slate-400 border-slate-700 hover:text-cyan-400 hover:border-cyan-500'
+                    }`}
+                    title="Manual / Intel"
+                >
+                    <span className="font-mono font-bold text-sm">?</span>
+                </button>
+                <button 
+                    onClick={() => setIsDoctrineOpen(!isDoctrineOpen)}
+                    className={`w-8 h-8 flex items-center justify-center rounded border transition-all pointer-events-auto ${
+                    isDoctrineOpen 
+                        ? 'bg-orange-500 text-slate-900 border-orange-400' 
+                        : 'bg-slate-900/50 text-slate-400 border-slate-700 hover:text-orange-400 hover:border-orange-500'
+                    }`}
+                    title="Doctrine Protocols"
+                >
+                    <span className="font-mono font-bold text-lg">★</span>
+                </button>
+            </div>
         </div>
 
         <TeamPanel team="red" stats={stats.red} align="right" isVisible={playerTeam === 'red'} />
       </div>
 
+      {/* Manual / Intel Modal */}
       {isIntelOpen && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[100]">
           <div className="w-full max-w-2xl bg-slate-900/95 backdrop-blur-xl border border-cyan-500/50 p-8 rounded-2xl pointer-events-auto shadow-[0_0_50px_rgba(6,182,212,0.2)] animate-in fade-in zoom-in duration-200">
@@ -388,6 +496,43 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Doctrine Selection Modal */}
+      {isDoctrineOpen && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[100] bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-4xl bg-slate-950/95 border border-slate-700 p-8 rounded-2xl pointer-events-auto shadow-2xl animate-in fade-in slide-in-from-bottom-10 duration-300">
+            <div className="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
+                <div>
+                    <h2 className="text-3xl font-bold text-white font-mono tracking-widest uppercase mb-1">
+                        Faction Doctrine
+                    </h2>
+                    <p className="text-slate-400 text-sm">Select a strategic specialization. Protocols are permanent once initialized.</p>
+                </div>
+                <button 
+                    onClick={() => setIsDoctrineOpen(false)}
+                    className="text-slate-500 hover:text-white transition-colors text-sm font-mono border border-slate-700 hover:border-white px-3 py-1 rounded"
+                >
+                    CLOSE TERMINAL
+                </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {(Object.keys(DOCTRINE_CONFIG) as DoctrineType[]).map((key) => (
+                    <DoctrineCard 
+                        key={key} 
+                        type={key} 
+                        active={activeDoctrine === key}
+                        locked={activeDoctrine !== null && activeDoctrine !== key}
+                        onSelect={() => {
+                            onSelectDoctrine(playerTeam, key);
+                            setIsDoctrineOpen(false);
+                        }}
+                    />
+                ))}
             </div>
           </div>
         </div>
