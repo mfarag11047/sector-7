@@ -112,7 +112,7 @@ const Unit: React.FC<UnitProps> = ({
   const apsRef = useRef<THREE.Group>(null);
 
   const teamColor = TEAM_COLORS[team];
-  const isTank = type === 'tank';
+  const isTank = type === 'tank' || type === 'titan_dropped';
   const isGhost = type === 'ghost';
   const isGuardian = type === 'guardian';
   const isMule = type === 'mule';
