@@ -111,6 +111,7 @@ export interface UnitData {
   constructionTargetId?: string | null;
   isDampenerActive?: boolean;
   isDeployed?: boolean;
+  isAnchored?: boolean; // Added for Swarm Host
   jammerActive?: boolean;
   tetherTargetId?: string | null;
   isHacked?: boolean;

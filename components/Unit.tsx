@@ -100,11 +100,13 @@ interface UnitProps {
   isStunned?: boolean;
   globalSpeedModifier?: number;
   activeBuffs?: ('speed' | 'damage' | 'regen')[];
+  // Swarm Host Anchoring
+  isAnchored?: boolean;
 }
 
 const Unit: React.FC<UnitProps> = ({ 
   id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, onMoveStep, tileTypeMap, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, ammoState, loadedAmmo, missileInventory, loadingProgress, courierPayload, jammerActive, tetherTargetId, isJammed, isHacked, hackType, teamCompute, firingLaserAt, lastAttackTime,
-  isStunned, globalSpeedModifier = 1.0, activeBuffs
+  isStunned, globalSpeedModifier = 1.0, activeBuffs, isAnchored
 }) => {
   const meshRef = useRef<THREE.Group>(null);
   const radarRef = useRef<THREE.Group>(null);
@@ -190,6 +192,7 @@ const Unit: React.FC<UnitProps> = ({
     if (path.length === 0) return 0;
     if (isDisabled) return 0; // No speed if no battery or disabled/stunned
     if (isBallista && ammoState === 'loading') return 0; // Immobilized while loading
+    if (isSwarmHost && isAnchored) return 0; // Anchored Swarm Host cannot move
     if (isJammed) return 0.5; 
     
     let speed = 1.0;
@@ -220,7 +223,7 @@ const Unit: React.FC<UnitProps> = ({
     }
     
     return speed;
-  }, [path, tileTypeMap, isGhost, isDampenerActive, unitStats, isAir, isDisabled, isBallista, ammoState, isJammed, globalSpeedModifier, activeBuffs]);
+  }, [path, tileTypeMap, isGhost, isDampenerActive, unitStats, isAir, isDisabled, isBallista, ammoState, isJammed, globalSpeedModifier, activeBuffs, isSwarmHost, isAnchored]);
 
   useFrame((state, delta) => {
     // Muzzle Flash Logic
@@ -341,7 +344,7 @@ const Unit: React.FC<UnitProps> = ({
              return;
         }
 
-        if (path.length > 0 && !isDisabled && !isDeployed && !(isBallista && ammoState === 'loading')) {
+        if (path.length > 0 && !isDisabled && !isDeployed && !isAnchored && !(isBallista && ammoState === 'loading')) {
              const meshPos = meshRef.current.position;
              const moveDist = BASE_SPEED * speedMultiplier * delta;
 
@@ -509,9 +512,14 @@ const Unit: React.FC<UnitProps> = ({
                 {/* Heavy Legs */}
                 {[45, 135, 225, 315].map((angle, i) => {
                     const rad = angle * Math.PI / 180;
+                    // Use isAnchored to determine leg spread/rotation
+                    const legRotationZ = isAnchored ? -Math.PI / 6 : 0; 
+                    const legPosY = isAnchored ? 0.2 : 0.5;
+                    const legPosOffset = isAnchored ? 0.8 : 0.6; // Spread out more
+
                     return (
                         <group key={i} rotation={[0, rad, 0]}>
-                            <group position={[0.6, 0.5, 0.6]}>
+                            <group position={[legPosOffset, legPosY, legPosOffset]} rotation={[0, 0, legRotationZ]}>
                                 {/* Upper Leg */}
                                 <mesh rotation={[0, 0, -Math.PI/4]} position={[0.2, 0.4, 0]}><boxGeometry args={[0.6, 0.25, 0.3]} /><meshStandardMaterial color="#334155" /></mesh>
                                 {/* Lower Leg */}
@@ -795,6 +803,12 @@ const Unit: React.FC<UnitProps> = ({
                   )}
                    {isWasp && (
                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('FIRE_SWARM'); }} disabled={charges?.swarm === 0} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left flex justify-between"><span>Swarm</span><span>{charges?.swarm}</span></button>
+                   )}
+                   {/* Swarm Host Anchoring */}
+                   {isSwarmHost && (
+                       <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TOGGLE_ANCHOR'); }} className={`text-[10px] ${isAnchored ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>
+                          {isAnchored ? "Unanchor" : "Anchor Down"}
+                       </button>
                    )}
                    
                    {/* Restored Menu for Guardian */}

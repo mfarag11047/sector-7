@@ -948,103 +948,174 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
               hosts.forEach(host => {
                   hostMap.set(host.id, host);
-                  const children = nextUnits.filter(u => u.type === 'crawler_drone' && u.parentId === host.id);
                   
-                  // Spawn Logic
-                  if (children.length < ABILITY_CONFIG.SWARM_HOST_MAX_UNITS) {
-                      const newCrawler: UnitData = {
-                          id: `crawler-${host.id}-${Date.now()}-${children.length}`,
-                          type: 'crawler_drone',
-                          unitClass: 'ordnance',
-                          team: host.team,
-                          gridPos: { ...host.gridPos }, // Spawn at host location
-                          path: [],
-                          visionRange: UNIT_STATS.crawler_drone.visionRange,
-                          health: UNIT_STATS.crawler_drone.maxHealth,
-                          maxHealth: UNIT_STATS.crawler_drone.maxHealth,
-                          battery: 100,
-                          maxBattery: 100,
-                          cooldowns: {},
-                          parentId: host.id
-                      };
-                      nextUnits.push(newCrawler);
-                      unitsChanged = true;
-                  }
-              });
+                  // Only spawn if anchored
+                  if (host.isAnchored) {
+                      const children = nextUnits.filter(u => u.type === 'crawler_drone' && u.parentId === host.id);
+                      const maxCrawlers = ABILITY_CONFIG.SWARM_HOST_MAX_UNITS || 6;
+                      
+                      // Check spawn cooldown
+                      const spawnReady = !host.cooldowns.spawnWasp || host.cooldowns.spawnWasp <= 0;
 
-              // 2. Unit Passive Effects & AI (Heavy Metal, Shadow Ops, Crawler AI)
-              nextUnits = nextUnits.map(u => {
-                  const teamDoctrine = doctrines?.[u.team as 'blue' | 'red'];
-
-                  // Heavy Metal Regen (Armor units only)
-                  if (teamDoctrine?.selected === 'heavy_metal' && u.unitClass === 'armor') {
-                      if (!u.lastAttackTime || Date.now() - u.lastAttackTime > 5000) {
-                          if (u.health < u.maxHealth) {
-                              unitsChanged = true;
-                              return { ...u, health: Math.min(u.maxHealth, u.health + 5) };
+                      if (children.length < maxCrawlers && spawnReady) {
+                          const newCrawler: UnitData = {
+                              id: `crawler-${host.id}-${Date.now()}-${children.length}`,
+                              type: 'crawler_drone',
+                              unitClass: 'ordnance',
+                              team: host.team,
+                              gridPos: { ...host.gridPos }, // Spawn at host location
+                              path: [],
+                              visionRange: UNIT_STATS.crawler_drone.visionRange,
+                              health: UNIT_STATS.crawler_drone.maxHealth,
+                              maxHealth: UNIT_STATS.crawler_drone.maxHealth,
+                              battery: 100,
+                              maxBattery: 100,
+                              cooldowns: {},
+                              parentId: host.id
+                          };
+                          nextUnits.push(newCrawler);
+                          
+                          // Set cooldown on host
+                          const hIdx = nextUnits.findIndex(u => u.id === host.id);
+                          if (hIdx !== -1) {
+                              nextUnits[hIdx] = {
+                                  ...nextUnits[hIdx],
+                                  cooldowns: { ...nextUnits[hIdx].cooldowns, spawnWasp: 2000 }
+                              };
                           }
-                      }
-                  }
-                  
-                  // Shadow Ops Passive: Speed
-                  if (teamDoctrine?.selected === 'shadow_ops' && (u.type === 'ghost' || u.isStealthed)) {
-                      if (!u.activeBuffs?.includes('speed')) {
                           unitsChanged = true;
-                          return { ...u, activeBuffs: [...(u.activeBuffs || []), 'speed'] };
                       }
                   }
-
-                  // Stun Expiry
-                  if (u.isStunned && u.stunDuration) {
-                      unitsChanged = true;
-                      if (u.stunDuration <= 0) return { ...u, isStunned: false, stunDuration: 0 };
-                      return { ...u, stunDuration: u.stunDuration - 1000 };
-                  }
-
-                  // Crawler Drone AI (Patrol & Intercept)
-                  if (u.type === 'crawler_drone' && u.parentId && u.path.length === 0) {
-                      const parent = hostMap.get(u.parentId);
-                      if (parent) {
-                          // Scan for enemies near PARENT (7 block radius)
-                          const enemies = nextUnits.filter(e => 
-                              e.team !== u.team && e.team !== 'neutral' && !e.isStealthed && e.health > 0 &&
-                              Math.sqrt(Math.pow(e.gridPos.x - parent.gridPos.x, 2) + Math.pow(e.gridPos.z - parent.gridPos.z, 2)) <= ABILITY_CONFIG.CRAWLER_RADIUS
-                          );
-
-                          let targetPos: {x: number, z: number} | null = null;
-
-                          if (enemies.length > 0) {
-                              // Find Closest Enemy
-                              let minDist = 9999;
-                              enemies.forEach(e => {
-                                  const d = Math.sqrt(Math.pow(u.gridPos.x - e.gridPos.x, 2) + Math.pow(u.gridPos.z - e.gridPos.z, 2));
-                                  if (d < minDist) { minDist = d; targetPos = e.gridPos; }
-                              });
-                          } else {
-                              // Random Patrol near parent
-                              const rx = parent.gridPos.x + Math.floor(Math.random() * 10 - 5);
-                              const rz = parent.gridPos.z + Math.floor(Math.random() * 10 - 5);
-                              // Ensure patrol is within bounds and range
-                              const dToParent = Math.sqrt(Math.pow(rx - parent.gridPos.x, 2) + Math.pow(rz - parent.gridPos.z, 2));
-                              if (dToParent <= ABILITY_CONFIG.CRAWLER_RADIUS && rx >= 0 && rx < CITY_CONFIG.gridSize && rz >= 0 && rz < CITY_CONFIG.gridSize) {
-                                  targetPos = { x: rx, z: rz };
-                              }
-                          }
-
-                          if (targetPos) {
-                              const path = findPath(u.gridPos, targetPos);
-                              if (path.length > 0) {
-                                  unitsChanged = true;
-                                  return { ...u, path };
-                              }
-                          }
-                      }
-                  }
-
-                  return u;
               });
 
-              return unitsChanged ? nextUnits : prevUnits;
+              // 2. Unit Passive Effects & AI (Crawler AI included)
+              const survivingUnits: UnitData[] = [];
+              
+              nextUnits.forEach(u => {
+                  let modifiedUnit = u;
+                  let keepUnit = true;
+                  let uChanged = false;
+
+                  // Crawler AI
+                  if (u.type === 'crawler_drone' && u.parentId) {
+                      const parent = hostMap.get(u.parentId);
+                      if (!parent) {
+                          keepUnit = false; // Parent gone
+                          uChanged = true;
+                      } else {
+                          if (!parent.isAnchored) {
+                              // RECALL
+                              const dist = Math.sqrt(Math.pow(u.gridPos.x - parent.gridPos.x, 2) + Math.pow(u.gridPos.z - parent.gridPos.z, 2));
+                              if (dist < 1.5) {
+                                  keepUnit = false; // Recalled
+                                  uChanged = true;
+                              } else {
+                                  // Path to parent if not already
+                                  const targetKey = `${parent.gridPos.x},${parent.gridPos.z}`;
+                                  const currentDest = u.path.length > 0 ? u.path[u.path.length - 1] : null;
+                                  
+                                  if (currentDest !== targetKey) {
+                                      const path = findPath(u.gridPos, parent.gridPos);
+                                      if (path.length > 0) {
+                                          modifiedUnit = { ...u, path };
+                                          uChanged = true;
+                                      }
+                                  }
+                              }
+                          } else {
+                              // PATROL / ATTACK (Parent Anchored)
+                              if (u.path.length === 0) {
+                                  // Scan enemies relative to PARENT
+                                  const range = ABILITY_CONFIG.CRAWLER_RADIUS || 7;
+                                  const enemies = nextUnits.filter(e => 
+                                      e.team !== u.team && e.team !== 'neutral' && e.health > 0 && !e.isStealthed &&
+                                      Math.sqrt(Math.pow(e.gridPos.x - parent.gridPos.x, 2) + Math.pow(e.gridPos.z - parent.gridPos.z, 2)) <= range
+                                  );
+
+                                  let targetPos = null;
+                                  if (enemies.length > 0) {
+                                      // Closest enemy
+                                      let minDist = 9999;
+                                      enemies.forEach(e => {
+                                          const d = Math.sqrt(Math.pow(e.gridPos.x - parent.gridPos.x, 2) + Math.pow(e.gridPos.z - parent.gridPos.z, 2));
+                                          if (d < minDist) { minDist = d; targetPos = e.gridPos; }
+                                      });
+                                  } else {
+                                      // Patrol near parent
+                                      const rx = parent.gridPos.x + Math.floor(Math.random() * 10 - 5);
+                                      const rz = parent.gridPos.z + Math.floor(Math.random() * 10 - 5);
+                                      const d = Math.sqrt(Math.pow(rx - parent.gridPos.x, 2) + Math.pow(rz - parent.gridPos.z, 2));
+                                      if (d <= range && rx >= 0 && rx < CITY_CONFIG.gridSize && rz >= 0 && rz < CITY_CONFIG.gridSize) {
+                                          targetPos = { x: rx, z: rz };
+                                      }
+                                  }
+
+                                  if (targetPos) {
+                                      const path = findPath(u.gridPos, targetPos);
+                                      if (path.length > 0) {
+                                          modifiedUnit = { ...u, path };
+                                          uChanged = true;
+                                      }
+                                  }
+                              }
+                          }
+                      }
+                  }
+
+                  // Doctrine Passives
+                  const teamDoctrine = doctrines?.[modifiedUnit.team as 'blue' | 'red'];
+                  
+                  // Heavy Metal: Regen
+                  if (teamDoctrine?.selected === 'heavy_metal' && modifiedUnit.unitClass === 'armor') {
+                      if (!modifiedUnit.lastAttackTime || Date.now() - modifiedUnit.lastAttackTime > 5000) {
+                          if (modifiedUnit.health < modifiedUnit.maxHealth) {
+                              modifiedUnit = { ...modifiedUnit, health: Math.min(modifiedUnit.maxHealth, modifiedUnit.health + 5) };
+                              uChanged = true;
+                          }
+                      }
+                  }
+
+                  // Shadow Ops: Speed
+                  if (teamDoctrine?.selected === 'shadow_ops' && (modifiedUnit.type === 'ghost' || modifiedUnit.isStealthed)) {
+                      if (!modifiedUnit.activeBuffs?.includes('speed')) {
+                          modifiedUnit = { ...modifiedUnit, activeBuffs: [...(modifiedUnit.activeBuffs || []), 'speed'] };
+                          uChanged = true;
+                      }
+                  }
+
+                  // Stun Timer
+                  if (modifiedUnit.isStunned && modifiedUnit.stunDuration) {
+                      if (modifiedUnit.stunDuration <= 0) {
+                          modifiedUnit = { ...modifiedUnit, isStunned: false, stunDuration: 0 };
+                          uChanged = true;
+                      } else {
+                          modifiedUnit = { ...modifiedUnit, stunDuration: modifiedUnit.stunDuration - 1000 };
+                          uChanged = true;
+                      }
+                  }
+
+                  // Cooldown Management
+                  if (modifiedUnit.cooldowns) {
+                      const nextCds = { ...modifiedUnit.cooldowns };
+                      let cdsChanged = false;
+                      for (const k in nextCds) {
+                          const key = k as keyof typeof nextCds;
+                          if (typeof nextCds[key] === 'number' && nextCds[key]! > 0) {
+                              nextCds[key] = Math.max(0, nextCds[key]! - 1000);
+                              cdsChanged = true;
+                          }
+                      }
+                      if (cdsChanged) {
+                          modifiedUnit = { ...modifiedUnit, cooldowns: nextCds };
+                          uChanged = true;
+                      }
+                  }
+
+                  if (uChanged) unitsChanged = true;
+                  if (keepUnit) survivingUnits.push(modifiedUnit);
+              });
+
+              return unitsChanged ? survivingUnits : prevUnits;
           });
       }, 1000);
       return () => clearInterval(interval);
@@ -1531,6 +1602,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           if (action === 'TOGGLE_JAMMER' && u.type === 'banshee') return { ...u, jammerActive: !u.jammerActive };
           if (action === 'TOGGLE DAMPENER' && u.type === 'ghost') return { ...u, isDampenerActive: !u.isDampenerActive };
           if (action === 'TOGGLE ARRAY' && u.type === 'sun_plate') return { ...u, isDeployed: !u.isDeployed };
+          if (action === 'TOGGLE_ANCHOR' && u.type === 'swarm_host') return { ...u, isAnchored: !u.isAnchored, path: [] };
           if (action === 'SMOKE SCREEN' && u.type === 'tank') return { ...u, cooldowns: { ...u.cooldowns, titanSmoke: ABILITY_CONFIG.TITAN_SMOKE_COOLDOWN }, smoke: { active: true, remainingTime: ABILITY_CONFIG.TITAN_SMOKE_DURATION } };
           if (action === 'ACTIVATE APS' && u.type === 'tank') return { ...u, cooldowns: { ...u.cooldowns, titanAps: ABILITY_CONFIG.TITAN_APS_COOLDOWN }, aps: { active: true, remainingTime: ABILITY_CONFIG.TITAN_APS_DURATION } };
           return u;

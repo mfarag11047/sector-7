@@ -39,10 +39,21 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
     // Strict safety checks before accessing properties
     if (!shader || !shader.uniforms) return;
 
-    // Destructure to check existence before access
-    const { uProgress, uBaseColor, uGlowColor, uTeamColor, uHasOwner, uHeight } = shader.uniforms;
+    // Retrieve uniforms individually to safely check existence
+    const uProgress = shader.uniforms.uProgress;
+    const uBaseColor = shader.uniforms.uBaseColor;
+    const uGlowColor = shader.uniforms.uGlowColor;
+    const uTeamColor = shader.uniforms.uTeamColor;
+    const uHasOwner = shader.uniforms.uHasOwner;
+    const uHeight = shader.uniforms.uHeight;
 
-    if (!uProgress || !uBaseColor || !uGlowColor || !uTeamColor || !uHasOwner || !uHeight) {
+    // Check if uniforms AND their value containers exist
+    if (!uProgress || uProgress.value === undefined ||
+        !uBaseColor || uBaseColor.value === undefined ||
+        !uGlowColor || uGlowColor.value === undefined ||
+        !uTeamColor || uTeamColor.value === undefined ||
+        !uHasOwner || uHasOwner.value === undefined ||
+        !uHeight || uHeight.value === undefined) {
         return;
     }
     
@@ -53,9 +64,9 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
         delta * 2
     );
     
-    uBaseColor.value.copy(hovered ? colors.hover : colors.base);
-    uGlowColor.value.copy(colors.glow);
-    uTeamColor.value.copy(colors.team);
+    if (uBaseColor.value.copy) uBaseColor.value.copy(hovered ? colors.hover : colors.base);
+    if (uGlowColor.value.copy) uGlowColor.value.copy(colors.glow);
+    if (uTeamColor.value.copy) uTeamColor.value.copy(colors.team);
     uHasOwner.value = !!data.owner;
     uHeight.value = data.scale[1];
     
