@@ -189,51 +189,47 @@ const DetailedMissileModel = ({ color }: { color: string }) => {
     });
 
     return (
-        <group rotation={[Math.PI/2, 0, 0]}>
-            {/* Main Body - Z-forward is Up in local Y, so rotate 90 X to face Z */}
-            {/* We build it along +Z axis for lookAt compatibility */}
-            <group rotation={[-Math.PI/2, 0, 0]}>
-                 {/* Fuselage */}
-                 <mesh position={[0, 1.5, 0]}>
-                     <cylinderGeometry args={[0.3, 0.3, 3, 16]} />
-                     <meshStandardMaterial color="#e2e8f0" metalness={0.6} roughness={0.3} />
+        <group rotation={[-Math.PI/2, 0, 0]}>
+             {/* Fuselage */}
+             <mesh position={[0, 1.5, 0]}>
+                 <cylinderGeometry args={[0.3, 0.3, 3, 16]} />
+                 <meshStandardMaterial color="#e2e8f0" metalness={0.6} roughness={0.3} />
+             </mesh>
+             {/* Warhead */}
+             <mesh position={[0, 3.4, 0]}>
+                 <coneGeometry args={[0.31, 0.8, 16]} />
+                 <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} />
+             </mesh>
+             {/* Collar Ring */}
+             <mesh position={[0, 3.0, 0]}>
+                 <cylinderGeometry args={[0.32, 0.32, 0.1, 16]} />
+                 <meshBasicMaterial color="#f97316" />
+             </mesh>
+             {/* Fins */}
+             {[0, Math.PI/2, Math.PI, -Math.PI/2].map((r, i) => (
+                 <mesh key={i} position={[0, 0.5, 0]} rotation={[0, r, 0]}>
+                     <boxGeometry args={[0.05, 1.0, 0.8]} />
+                     <meshStandardMaterial color="#475569" metalness={0.5} />
                  </mesh>
-                 {/* Warhead */}
-                 <mesh position={[0, 3.4, 0]}>
-                     <coneGeometry args={[0.31, 0.8, 16]} />
-                     <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} />
-                 </mesh>
-                 {/* Collar Ring */}
-                 <mesh position={[0, 3.0, 0]}>
-                     <cylinderGeometry args={[0.32, 0.32, 0.1, 16]} />
-                     <meshBasicMaterial color="#f97316" />
-                 </mesh>
-                 {/* Fins */}
-                 {[0, Math.PI/2, Math.PI, -Math.PI/2].map((r, i) => (
-                     <mesh key={i} position={[0, 0.5, 0]} rotation={[0, r, 0]}>
-                         <boxGeometry args={[0.05, 1.0, 0.8]} />
-                         <meshStandardMaterial color="#475569" metalness={0.5} />
-                     </mesh>
-                 ))}
-                 {/* Engine Nozzle */}
-                 <mesh position={[0, -0.2, 0]}>
-                     <cylinderGeometry args={[0.2, 0.15, 0.4, 16]} />
-                     <meshStandardMaterial color="#334155" />
-                 </mesh>
-                 {/* Engine Glow */}
-                 <mesh position={[0, -0.5, 0]} rotation={[Math.PI, 0, 0]}>
-                     <coneGeometry args={[0.15, 0.6, 8, 1, true]} />
-                     <meshBasicMaterial color="#f97316" transparent opacity={0.8} depthWrite={false} blending={THREE.AdditiveBlending} />
-                 </mesh>
-                 <pointLight position={[0, -1.0, 0]} color="#f97316" intensity={3} distance={8} />
+             ))}
+             {/* Engine Nozzle */}
+             <mesh position={[0, -0.2, 0]}>
+                 <cylinderGeometry args={[0.2, 0.15, 0.4, 16]} />
+                 <meshStandardMaterial color="#334155" />
+             </mesh>
+             {/* Engine Glow */}
+             <mesh position={[0, -0.5, 0]} rotation={[Math.PI, 0, 0]}>
+                 <coneGeometry args={[0.15, 0.6, 8, 1, true]} />
+                 <meshBasicMaterial color="#f97316" transparent opacity={0.8} depthWrite={false} blending={THREE.AdditiveBlending} />
+             </mesh>
+             <pointLight position={[0, -1.0, 0]} color="#f97316" intensity={3} distance={8} />
 
-                 {/* Navigation/Strobe Light - Blinking */}
-                 <mesh position={[0, 2.0, 0.32]}>
-                     <sphereGeometry args={[0.08]} />
-                     <meshBasicMaterial color="#ff0000" />
-                 </mesh>
-                 <pointLight ref={lightRef} position={[0, 2.0, 0.4]} color="#ff0000" distance={2} decay={1} />
-            </group>
+             {/* Navigation/Strobe Light - Blinking */}
+             <mesh position={[0, 2.0, 0.32]}>
+                 <sphereGeometry args={[0.08]} />
+                 <meshBasicMaterial color="#ff0000" />
+             </mesh>
+             <pointLight ref={lightRef} position={[0, 2.0, 0.4]} color="#ff0000" distance={2} decay={1} />
         </group>
     );
 };
@@ -307,7 +303,7 @@ const ProjectileMesh: React.FC<{ projectile: Projectile }> = ({ projectile }) =>
     return (
         <group ref={meshRef}>
              {/* The projectile body - oriented along Z axis natively, so rotate X to align with LookAt forward (-Z) */}
-             <mesh rotation={[Math.PI/2, 0, 0]}>
+             <mesh rotation={[-Math.PI/2, 0, 0]}>
                  <cylinderGeometry args={[0.2, 0.2, 1.5, 8]} />
                  <meshBasicMaterial color="#fca5a5" />
              </mesh>
