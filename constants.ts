@@ -38,6 +38,7 @@ export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: st
   defense_drone: { unitClass: 'defense', cost: 0, captureMultiplier: 0.0, label: 'Sentinel Drone', visionRange: 2, speedMod: 0, maxHealth: 60, attackDamage: 10, attackCooldown: 500 },
   titan_dropped: { unitClass: 'armor', cost: 0, captureMultiplier: 0.8, label: 'Titan (Orbital Drop)', visionRange: 3, speedMod: 0.7, maxHealth: 400, attackDamage: 25, attackCooldown: 2000 },
   swarm_host: { unitClass: 'ordnance', cost: 0, captureMultiplier: 0, label: 'Swarm Host', visionRange: 3, speedMod: 0.8, maxHealth: 100, attackDamage: 0, attackCooldown: 0 },
+  crawler_drone: { unitClass: 'ordnance', cost: 25, captureMultiplier: 0, label: 'Crawler Drone', visionRange: 3, speedMod: 1.2, maxHealth: 30, attackDamage: 0, attackCooldown: 0 },
 };
 
 export const UNIT_CLASSES: Record<UnitClass, { icon: string, label: string }> = {
@@ -99,6 +100,11 @@ export const ABILITY_CONFIG = {
   WASP_MISSILE_SPEED: 25, 
   WASP_MISSILE_TURN_RATE: 5, 
   SWARM_HOST_MAX_UNITS: 15,
+
+  // Crawler Abilities
+  CRAWLER_RADIUS: 7,
+  CRAWLER_EXPLOSION_RADIUS: 1.5,
+  CRAWLER_EXPLOSION_DAMAGE: 80,
 
   // Mason / Wall Abilities
   MASON_CARGO_CAPACITY: 100,

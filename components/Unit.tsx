@@ -130,6 +130,8 @@ const Unit: React.FC<UnitProps> = ({
   const isBanshee = type === 'banshee';
   const isDrone = type === 'drone';
   const isDefenseDrone = type === 'defense_drone';
+  const isSwarmHost = type === 'swarm_host';
+  const isCrawler = type === 'crawler_drone';
   const isAir = isWasp || isDrone || isHelios;
   
   const classConfig = UNIT_CLASSES[unitClass];
@@ -140,7 +142,7 @@ const Unit: React.FC<UnitProps> = ({
 
   // Floating height difference
   // Raised ground units to 1.2 to clear the Base platform (height 1.0)
-  const hoverHeight = isDefenseDrone ? 12.0 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee) ? 1.2 : (isAir ? 75.0 : 2.0);
+  const hoverHeight = isDefenseDrone ? 12.0 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler) ? 1.2 : (isAir ? 75.0 : 2.0);
   
   // Logical World Position
   const logicalWorldPos = useMemo(() => new THREE.Vector3(
@@ -323,7 +325,7 @@ const Unit: React.FC<UnitProps> = ({
             return;
         }
 
-        if (surveillance && surveillance.status === 'active' && !isTank && !isGhost && !isGuardian && !isMule && !isMason && !isSunPlate && !isBallista && !isCourier && !isBanshee) {
+        if (surveillance && surveillance.status === 'active' && !isTank && !isGhost && !isGuardian && !isMule && !isMason && !isSunPlate && !isBallista && !isCourier && !isBanshee && !isSwarmHost && !isCrawler) {
              const time = state.clock.getElapsedTime();
              const radiusWorld = ABILITY_CONFIG.SURVEILLANCE_RADIUS * tileSize; 
              const cx = (surveillance.center.x * tileSize) - offset;
@@ -480,6 +482,77 @@ const Unit: React.FC<UnitProps> = ({
     if (isGhost) return (<group scale={[2.4, 2.4, 2.4]}> <group position={[-0.2, 0.4, 0]}> <mesh position={[0, 0.2, 0]}><boxGeometry args={[0.22, 0.45, 0.25]} /><meshStandardMaterial color="#475569" /></mesh> <mesh position={[0, -0.05, 0.13]}><boxGeometry args={[0.18, 0.15, 0.05]} /><meshStandardMaterial color="#334155" /></mesh> <mesh position={[0, -0.35, 0]}><boxGeometry args={[0.2, 0.45, 0.22]} /><meshStandardMaterial color="#475569" /> <mesh position={[0, 0, 0.115]}><planeGeometry args={[0.05, 0.3]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> </mesh> <mesh position={[0, -0.6, 0.05]}><boxGeometry args={[0.22, 0.15, 0.35]} /><meshStandardMaterial color="#1e293b" /></mesh> </group> <group position={[0.2, 0.4, 0]}> <mesh position={[0, 0.2, 0]}><boxGeometry args={[0.22, 0.45, 0.25]} /><meshStandardMaterial color="#475569" /></mesh> <mesh position={[0, -0.05, 0.13]}><boxGeometry args={[0.18, 0.15, 0.05]} /><meshStandardMaterial color="#334155" /></mesh> <mesh position={[0, -0.35, 0]}><boxGeometry args={[0.2, 0.45, 0.22]} /><meshStandardMaterial color="#475569" /> <mesh position={[0, 0, 0.115]}><planeGeometry args={[0.05, 0.3]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> </mesh> <mesh position={[0, -0.6, 0.05]}><boxGeometry args={[0.22, 0.15, 0.35]} /><meshStandardMaterial color="#1e293b" /></mesh> </group> <group position={[0, 1.05, 0]}> <mesh position={[0, -0.2, 0]}><boxGeometry args={[0.4, 0.3, 0.3]} /><meshStandardMaterial color="#334155" /></mesh> <mesh position={[0, 0.15, 0.05]}><boxGeometry args={[0.55, 0.45, 0.35]} /><meshStandardMaterial color="#475569" /><Edges color="#1e293b" /></mesh> <mesh position={[0, 0.15, 0.23]}><planeGeometry args={[0.2, 0.05]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> <mesh position={[0.21, -0.2, 0]}><boxGeometry args={[0.05, 0.1, 0.2]} /><meshBasicMaterial color="#f97316" /></mesh> <mesh position={[-0.21, -0.2, 0]}><boxGeometry args={[0.05, 0.1, 0.2]} /><meshBasicMaterial color="#f97316" /></mesh> </group> <group position={[0, 1.55, 0]}> <mesh><boxGeometry args={[0.3, 0.35, 0.35]} /><meshStandardMaterial color="#475569" /></mesh> <mesh position={[0, 0.02, 0.18]}><boxGeometry args={[0.22, 0.1, 0.05]} /><meshStandardMaterial color="#0f172a" /></mesh> <mesh position={[0, 0.02, 0.21]}><planeGeometry args={[0.15, 0.02]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> </group> <group position={[-0.35, 1.25, 0.1]} rotation={[0, 0.5, 0]}> <mesh position={[0, 0.1, 0]}><boxGeometry args={[0.25, 0.25, 0.25]} /><meshStandardMaterial color="#475569" /></mesh> <mesh position={[0, -0.2, 0.2]} rotation={[0.5, 0, 0]}><boxGeometry args={[0.15, 0.4, 0.15]} /><meshStandardMaterial color="#334155" /></mesh> </group> <group position={[0.35, 1.25, 0.1]} rotation={[0, -0.5, 0]}> <mesh position={[0, 0.1, 0]}><boxGeometry args={[0.25, 0.25, 0.25]} /><meshStandardMaterial color="#475569" /></mesh> <mesh position={[0, -0.2, 0.2]} rotation={[0.5, 0, 0]}><boxGeometry args={[0.15, 0.4, 0.15]} /><meshStandardMaterial color="#334155" /></mesh> </group> <group position={[0, 1.15, -0.25]}> <mesh><boxGeometry args={[0.5, 0.6, 0.3]} /><meshStandardMaterial color="#475569" /><Edges color="#1e293b" /></mesh> <mesh position={[0, 0, -0.16]}><boxGeometry args={[0.3, 0.4, 0.05]} /><meshStandardMaterial color="#334155" /></mesh> <mesh position={[0.15, 0.4, -0.1]} rotation={[0, 0, -0.2]}><boxGeometry args={[0.1, 0.8, 0.1]} /><meshStandardMaterial color="#64748b" /></mesh> <mesh position={[-0.15, 0.35, -0.1]} rotation={[0, 0, 0.4]}><boxGeometry args={[0.08, 0.5, 0.08]} /><meshStandardMaterial color="#64748b" /></mesh> <mesh position={[0.26, 0.1, 0]}><boxGeometry args={[0.05, 0.05, 0.05]} /><meshBasicMaterial color="#f97316" /></mesh> </group> <group position={[0, 1.05, 0.5]}> <mesh><boxGeometry args={[0.1, 0.2, 0.6]} /><meshStandardMaterial color="#1e293b" /></mesh> <mesh position={[0, 0.05, 0.4]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.03, 0.03, 0.4]} /><meshStandardMaterial color="#334155" /></mesh> <mesh position={[0, 0.05, 0.7]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.05, 0.05, 0.3]} /><meshStandardMaterial color="#0f172a" /></mesh> <mesh position={[0, 0.15, 0.1]}><boxGeometry args={[0.06, 0.06, 0.2]} /><meshStandardMaterial color="#0f172a" /></mesh> <mesh position={[0, -0.05, -0.4]}><boxGeometry args={[0.08, 0.15, 0.3]} /><meshStandardMaterial color="#334155" /></mesh> </group> {isDampenerActive && ( <group> <mesh rotation={[0, Date.now() * 0.001, 0]} raycast={() => null}><sphereGeometry args={[ABILITY_CONFIG.GHOST_DAMPENER_RADIUS * tileSize, 12, 12]} /><meshBasicMaterial color={teamColor} wireframe transparent opacity={0.1} /></mesh> <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.2, 0]} raycast={() => null}><ringGeometry args={[ABILITY_CONFIG.GHOST_DAMPENER_RADIUS * tileSize - 0.5, ABILITY_CONFIG.GHOST_DAMPENER_RADIUS * tileSize, 16]} /><meshBasicMaterial color={teamColor} transparent opacity={0.3} /></mesh> </group> )} <pointLight ref={flashRef} position={[0, 1.05, 1.0]} color="#fbbf24" distance={3} decay={2} visible={false} /> </group>);
     if (isWasp) return (<Float speed={2} rotationIntensity={0.2} floatIntensity={0.5} floatingRange={[0, 0.5]}> <group scale={[2.4, 2.4, 2.4]}> <mesh position={[0, 0, 0]}><boxGeometry args={[0.5, 0.4, 1.0]} /><meshStandardMaterial color="#475569" metalness={0.7} roughness={0.4} /><Edges color="#1e293b" /></mesh> <mesh position={[0, 0, 0.55]}><boxGeometry args={[0.4, 0.3, 0.2]} /><meshStandardMaterial color="#334155" metalness={0.8} /></mesh> <mesh position={[-0.1, 0.05, 0.66]}><planeGeometry args={[0.1, 0.05]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> <mesh position={[0.1, 0.05, 0.66]}><planeGeometry args={[0.1, 0.05]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> <mesh position={[0, 0.1, -0.55]}><boxGeometry args={[0.4, 0.2, 0.2]} /><meshStandardMaterial color="#1e293b" /></mesh> <mesh position={[0, 0.4, -0.3]}><boxGeometry args={[0.05, 0.4, 0.6]} /><meshStandardMaterial color="#64748b" /><Edges color="#334155" /></mesh> {[-1, 1].map((dir) => ( <group key={dir} position={[dir * 0.6, 0, 0.1]}> <mesh position={[dir * -0.2, 0, 0]}><boxGeometry args={[0.4, 0.1, 0.4]} /><meshStandardMaterial color="#475569" /></mesh> <mesh rotation={[Math.PI/2, 0, Math.PI/2]}><cylinderGeometry args={[0.3, 0.3, 1.2, 6]} /><meshStandardMaterial color="#334155" metalness={0.6} roughness={0.3} /><Edges color="#1e293b" threshold={15} /></mesh> <mesh position={[0, 0, 0.61]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.25, 0.25, 0.05, 6]} /><meshStandardMaterial color="#1e293b" /></mesh> {[0, 60, 120, 180, 240, 300].map((angle, i) => { const rad = (angle * Math.PI) / 180; const r = 0.15; const x = Math.cos(rad) * r; const y = Math.sin(rad) * r; return ( <mesh key={i} position={[x, y, 0.65]} rotation={[Math.PI/2, 0, 0]}> <cylinderGeometry args={[0.04, 0.04, 0.1, 8]} /><meshStandardMaterial color="#b91c1c" /> <mesh position={[0, 0.06, 0]}><sphereGeometry args={[0.04]} /><meshBasicMaterial color="#ef4444" /> </mesh> </mesh> ) })} <mesh position={[0, 0.31, 0]} rotation={[-Math.PI/2, 0, 0]}><planeGeometry args={[0.4, 0.8]} /><meshBasicMaterial color={teamColor} transparent opacity={0.5} /></mesh> <mesh position={[0, 0, -0.61]} rotation={[Math.PI/2, 0, 0]}><circleGeometry args={[0.2, 8]} /><meshBasicMaterial color={teamColor} transparent opacity={0.8} /></mesh> </group> ))} {[0.3, -0.3].map((x, i) => ( <group key={`vtol-${i}`} position={[x, -0.25, 0]}> <mesh rotation={[Math.PI, 0, 0]}><coneGeometry args={[0.1, 0.4, 8, 1, true]} /><meshBasicMaterial color={teamColor} transparent opacity={0.4} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh> </group> ))} <pointLight ref={flashRef} position={[0, 0, 0.8]} color="#fbbf24" distance={3} decay={2} visible={false} /> </group> </Float>);
     if (isDrone) return (<Float speed={2} rotationIntensity={0.2} floatIntensity={0.5} floatingRange={[0, 0.5]}> <group scale={[2.2, 2.2, 2.2]}> <mesh position={[0, 0, 0]}><boxGeometry args={[0.5, 0.25, 1.0]} /><meshStandardMaterial color="#334155" metalness={0.7} roughness={0.3} /><Edges color={teamColor} /></mesh> <mesh position={[0, 0.15, -0.1]}><boxGeometry args={[0.4, 0.15, 0.6]} /><meshStandardMaterial color="#475569" /></mesh> <group position={[0, 0, 0.55]}> <mesh rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.15, 0.15, 0.2, 8]} /><meshStandardMaterial color="#1e293b" /></mesh> <mesh position={[0, 0, 0.11]} rotation={[Math.PI/2, 0, 0]}><circleGeometry args={[0.08, 8]} /><meshBasicMaterial color="#0ea5e9" toneMapped={false} /> </mesh> <pointLight color="#0ea5e9" distance={2} intensity={2} decay={2} /> </group> {[{ x: 0.6, z: 0.6 }, { x: -0.6, z: 0.6 }, { x: 0.6, z: -0.6 }, { x: -0.6, z: -0.6 }].map((pos, i) => ( <group key={i} position={[pos.x, 0, pos.z]}> <mesh position={[-pos.x/2, 0, -pos.z/2]} rotation={[0, Math.atan2(pos.x, pos.z), 0]}><boxGeometry args={[0.1, 0.05, Math.hypot(pos.x, pos.z)]} /><meshStandardMaterial color="#64748b" /></mesh> <mesh position={[0, -0.05, 0]}><cylinderGeometry args={[0.08, 0.08, 0.15]} /><meshStandardMaterial color="#0f172a" /></mesh> <mesh rotation={[Math.PI/2, 0, 0]}><ringGeometry args={[0.35, 0.38, 12]} /><meshStandardMaterial color="#334155" side={THREE.DoubleSide} /></mesh> <group position={[0, 0.05, 0]}><Rotor /></group> <mesh position={[0, -0.15, 0]}><sphereGeometry args={[0.05]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> </group> ))} <mesh position={[0, 0.2, -0.4]} rotation={[-0.3, 0, 0]}><cylinderGeometry args={[0.02, 0.02, 0.6]} /><meshStandardMaterial color="#94a3b8" /></mesh> <mesh position={[0, 0.5, -0.5]}><sphereGeometry args={[0.04]} /><meshBasicMaterial color={teamColor} /></mesh> </group> </Float>);
+    
+    if (isSwarmHost) {
+        return (
+            <group scale={[2.8, 2.8, 2.8]}>
+                {/* Main Bunker Body */}
+                <group position={[0, 1.2, 0]}>
+                    <mesh><boxGeometry args={[1.4, 1.0, 1.6]} /><meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.2} /><Edges color="#38bdf8" threshold={15} /></mesh>
+                    
+                    {/* Top Hatch / Vents */}
+                    <mesh position={[0, 0.51, 0]}><boxGeometry args={[1.0, 0.1, 1.0]} /><meshStandardMaterial color="#334155" /></mesh>
+                    <mesh position={[0, 0.52, 0]}><planeGeometry args={[0.8, 0.8]} /><meshBasicMaterial color={teamColor} transparent opacity={0.3} /></mesh>
+                    
+                    {/* Glowing Side Panels (Orange/Team Color) */}
+                    <mesh position={[0.71, 0, 0]} rotation={[0, Math.PI/2, 0]}><planeGeometry args={[1.2, 0.4]} /><meshBasicMaterial color="#f97316" /></mesh>
+                    <mesh position={[-0.71, 0, 0]} rotation={[0, -Math.PI/2, 0]}><planeGeometry args={[1.2, 0.4]} /><meshBasicMaterial color="#f97316" /></mesh>
+
+                    {/* Front Ramp (Open) */}
+                    <group position={[0, -0.4, 0.8]} rotation={[Math.PI/6, 0, 0]}>
+                        <mesh position={[0, 0, 0.4]}><boxGeometry args={[1.0, 0.1, 0.8]} /><meshStandardMaterial color="#0f172a" /></mesh>
+                        {/* Interior Glow emitting from ramp */}
+                        <pointLight position={[0, 0.2, 0]} color="#f97316" distance={2} intensity={2} />
+                    </group>
+                </group>
+
+                {/* Heavy Legs */}
+                {[45, 135, 225, 315].map((angle, i) => {
+                    const rad = angle * Math.PI / 180;
+                    return (
+                        <group key={i} rotation={[0, rad, 0]}>
+                            <group position={[0.6, 0.5, 0.6]}>
+                                {/* Upper Leg */}
+                                <mesh rotation={[0, 0, -Math.PI/4]} position={[0.2, 0.4, 0]}><boxGeometry args={[0.6, 0.25, 0.3]} /><meshStandardMaterial color="#334155" /></mesh>
+                                {/* Lower Leg */}
+                                <mesh position={[0.5, -0.4, 0]}><boxGeometry args={[0.25, 1.0, 0.25]} /><meshStandardMaterial color="#1e293b" /></mesh>
+                                {/* Foot */}
+                                <mesh position={[0.5, -0.9, 0]}><boxGeometry args={[0.35, 0.15, 0.35]} /><meshStandardMaterial color="#475569" /></mesh>
+                                {/* Leg Joint Glow */}
+                                <mesh position={[0.5, 0.1, 0.13]}><planeGeometry args={[0.1, 0.3]} /><meshBasicMaterial color="#38bdf8" /></mesh>
+                            </group>
+                        </group>
+                    )
+                })}
+            </group>
+        );
+    }
+
+    if (isCrawler) {
+        return (
+            <group scale={[1.2, 1.2, 1.2]}>
+                {/* Central Core */}
+                <mesh position={[0, 0.3, 0]}><octahedronGeometry args={[0.25]} /><meshStandardMaterial color="#334155" metalness={0.9} /></mesh>
+                {/* Glowing Eye */}
+                <mesh position={[0, 0.35, 0.15]}><sphereGeometry args={[0.1]} /><meshBasicMaterial color="#f97316" emissive="#f97316" emissiveIntensity={2} /></mesh>
+                
+                {/* Spider Legs */}
+                {[0, 60, 120, 180, 240, 300].map((angle, i) => {
+                    const rad = angle * Math.PI / 180;
+                    return (
+                        <group key={i} rotation={[0, rad, 0]}>
+                            <group position={[0.2, 0.2, 0]}>
+                                <mesh rotation={[0, 0, -Math.PI/6]}><boxGeometry args={[0.3, 0.05, 0.05]} /><meshStandardMaterial color="#475569" /></mesh>
+                                <mesh position={[0.25, -0.15, 0]} rotation={[0, 0, Math.PI/3]}><boxGeometry args={[0.3, 0.04, 0.04]} /><meshStandardMaterial color="#1e293b" /></mesh>
+                            </group>
+                        </group>
+                    )
+                })}
+                {/* Antenna */}
+                <mesh position={[0, 0.5, -0.1]} rotation={[-0.2, 0, 0]}><cylinderGeometry args={[0.01, 0.01, 0.3]} /><meshBasicMaterial color="#94a3b8" /></mesh>
+            </group>
+        );
+    }
 
     return (
         <Float speed={4} rotationIntensity={0.5} floatIntensity={0.5} floatingRange={[0, 0.5]}>
@@ -512,7 +585,7 @@ const Unit: React.FC<UnitProps> = ({
     >
       {/* ... previous selection ring ... */}
       {isSelected && (
-        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee) ? 0.1 : -1.2, 0]}>
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler) ? 0.1 : -1.2, 0]}>
           <ringGeometry args={[tileSize * 0.5, tileSize * 0.55, 32]} />
           <meshBasicMaterial color={teamColor} transparent opacity={0.8} />
         </mesh>

@@ -793,6 +793,42 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
     return result as GameStats;
   }, []);
 
+  const dynamicRoadTileSet = useMemo(() => {
+    const set = new Set<number>();
+    roadTiles.forEach(t => { set.add((t.x << 16) | t.z); });
+    structuresState.forEach(s => { set.delete((s.gridPos.x << 16) | s.gridPos.z); });
+    set.delete((baseA_Coord.x << 16) | baseA_Coord.z);
+    set.delete((baseB_Coord.x << 16) | baseB_Coord.z);
+    return set;
+  }, [roadTiles, structuresState, baseA_Coord, baseB_Coord]);
+
+  const findPath = useCallback((start: {x: number, z: number}, end: {x: number, z: number}) => {
+      const startId = (start.x << 16) | start.z;
+      const endId = (end.x << 16) | end.z;
+      const queue = [{x: start.x, z: start.z, path: [] as string[]}];
+      const visited = new Set<number>();
+      visited.add(startId);
+      const MAX_SEARCH = 20000; 
+      let ops = 0;
+      while(queue.length > 0 && ops < MAX_SEARCH) {
+          ops++;
+          const current = queue.shift()!;
+          const currentId = (current.x << 16) | current.z;
+          if (currentId === endId) return current.path;
+          const neighbors = [{x: current.x+1, z: current.z}, {x: current.x-1, z: current.z}, {x: current.x, z: current.z+1}, {x: current.x, z: current.z-1}];
+          for (const n of neighbors) {
+              const nId = (n.x << 16) | n.z;
+              if (n.x >= 0 && n.x < gridSize && n.z >= 0 && n.z < gridSize) {
+                  if ((dynamicRoadTileSet.has(nId) || nId === endId) && !visited.has(nId)) {
+                      visited.add(nId);
+                      queue.push({ x: n.x, z: n.z, path: [...current.path, `${n.x},${n.z}`] });
+                  }
+              }
+          }
+      }
+      return [];
+  }, [gridSize, dynamicRoadTileSet]);
+
   // Doctrine Effects Processor
   useEffect(() => {
       if (pendingDoctrineAction) {
@@ -899,86 +935,120 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       }
   }, [pendingDoctrineAction, tileSize, offset, onActionComplete]);
 
-  // Doctrine Passive Loop
+  // Doctrine Passive Loop + Swarm AI
   useEffect(() => {
       const interval = setInterval(() => {
-          setUnits(prevUnits => prevUnits.map(u => {
-              const teamDoctrine = doctrines?.[u.team as 'blue' | 'red'];
+          setUnits(prevUnits => {
+              let unitsChanged = false;
+              let nextUnits = [...prevUnits];
 
-              // 1. Heavy Metal Regen (Armor units only)
-              if (teamDoctrine?.selected === 'heavy_metal' && u.unitClass === 'armor') {
-                  // We assume 'out of combat' if lastAttackTime is > 5s ago or undefined
-                  if (!u.lastAttackTime || Date.now() - u.lastAttackTime > 5000) {
-                      if (u.health < u.maxHealth) {
-                          return { ...u, health: Math.min(u.maxHealth, u.health + 5) };
+              // 1. Swarm Host Spawning Logic
+              const hosts = nextUnits.filter(u => u.type === 'swarm_host');
+              const hostMap = new Map<string, UnitData>();
+
+              hosts.forEach(host => {
+                  hostMap.set(host.id, host);
+                  const children = nextUnits.filter(u => u.type === 'crawler_drone' && u.parentId === host.id);
+                  
+                  // Spawn Logic
+                  if (children.length < ABILITY_CONFIG.SWARM_HOST_MAX_UNITS) {
+                      const newCrawler: UnitData = {
+                          id: `crawler-${host.id}-${Date.now()}-${children.length}`,
+                          type: 'crawler_drone',
+                          unitClass: 'ordnance',
+                          team: host.team,
+                          gridPos: { ...host.gridPos }, // Spawn at host location
+                          path: [],
+                          visionRange: UNIT_STATS.crawler_drone.visionRange,
+                          health: UNIT_STATS.crawler_drone.maxHealth,
+                          maxHealth: UNIT_STATS.crawler_drone.maxHealth,
+                          battery: 100,
+                          maxBattery: 100,
+                          cooldowns: {},
+                          parentId: host.id
+                      };
+                      nextUnits.push(newCrawler);
+                      unitsChanged = true;
+                  }
+              });
+
+              // 2. Unit Passive Effects & AI (Heavy Metal, Shadow Ops, Crawler AI)
+              nextUnits = nextUnits.map(u => {
+                  const teamDoctrine = doctrines?.[u.team as 'blue' | 'red'];
+
+                  // Heavy Metal Regen (Armor units only)
+                  if (teamDoctrine?.selected === 'heavy_metal' && u.unitClass === 'armor') {
+                      if (!u.lastAttackTime || Date.now() - u.lastAttackTime > 5000) {
+                          if (u.health < u.maxHealth) {
+                              unitsChanged = true;
+                              return { ...u, health: Math.min(u.maxHealth, u.health + 5) };
+                          }
                       }
                   }
-              }
-              
-              // Shadow Ops Passive: Speed
-              // Note: Visual speed is calculated in Unit.tsx based on stats. 
-              // We inject the buff flag here for reference, though visual speed update might require Unit.tsx modification.
-              if (teamDoctrine?.selected === 'shadow_ops' && (u.type === 'ghost' || u.isStealthed)) {
-                  if (!u.activeBuffs?.includes('speed')) {
-                      return { ...u, activeBuffs: [...(u.activeBuffs || []), 'speed'] };
+                  
+                  // Shadow Ops Passive: Speed
+                  if (teamDoctrine?.selected === 'shadow_ops' && (u.type === 'ghost' || u.isStealthed)) {
+                      if (!u.activeBuffs?.includes('speed')) {
+                          unitsChanged = true;
+                          return { ...u, activeBuffs: [...(u.activeBuffs || []), 'speed'] };
+                      }
                   }
-              }
 
-              // 2. Stun Expiry
-              if (u.isStunned && u.stunDuration) {
-                  if (u.stunDuration <= 0) return { ...u, isStunned: false, stunDuration: 0 };
-                  return { ...u, stunDuration: u.stunDuration - 1000 };
-              }
-
-              // 3. Swarm Host Spawning
-              if (u.type === 'swarm_host') {
-                  const currentWasps = prevUnits.filter(w => w.type === 'wasp' && w.team === u.team).length; 
-                  if (currentWasps < 20 && (!u.cooldowns.spawnWasp || u.cooldowns.spawnWasp <= 0)) {
-                      // Handled in main loop for spawning to avoid state update collision
+                  // Stun Expiry
+                  if (u.isStunned && u.stunDuration) {
+                      unitsChanged = true;
+                      if (u.stunDuration <= 0) return { ...u, isStunned: false, stunDuration: 0 };
+                      return { ...u, stunDuration: u.stunDuration - 1000 };
                   }
-              }
 
-              return u;
-          }));
+                  // Crawler Drone AI (Patrol & Intercept)
+                  if (u.type === 'crawler_drone' && u.parentId && u.path.length === 0) {
+                      const parent = hostMap.get(u.parentId);
+                      if (parent) {
+                          // Scan for enemies near PARENT (7 block radius)
+                          const enemies = nextUnits.filter(e => 
+                              e.team !== u.team && e.team !== 'neutral' && !e.isStealthed && e.health > 0 &&
+                              Math.sqrt(Math.pow(e.gridPos.x - parent.gridPos.x, 2) + Math.pow(e.gridPos.z - parent.gridPos.z, 2)) <= ABILITY_CONFIG.CRAWLER_RADIUS
+                          );
+
+                          let targetPos: {x: number, z: number} | null = null;
+
+                          if (enemies.length > 0) {
+                              // Find Closest Enemy
+                              let minDist = 9999;
+                              enemies.forEach(e => {
+                                  const d = Math.sqrt(Math.pow(u.gridPos.x - e.gridPos.x, 2) + Math.pow(u.gridPos.z - e.gridPos.z, 2));
+                                  if (d < minDist) { minDist = d; targetPos = e.gridPos; }
+                              });
+                          } else {
+                              // Random Patrol near parent
+                              const rx = parent.gridPos.x + Math.floor(Math.random() * 10 - 5);
+                              const rz = parent.gridPos.z + Math.floor(Math.random() * 10 - 5);
+                              // Ensure patrol is within bounds and range
+                              const dToParent = Math.sqrt(Math.pow(rx - parent.gridPos.x, 2) + Math.pow(rz - parent.gridPos.z, 2));
+                              if (dToParent <= ABILITY_CONFIG.CRAWLER_RADIUS && rx >= 0 && rx < CITY_CONFIG.gridSize && rz >= 0 && rz < CITY_CONFIG.gridSize) {
+                                  targetPos = { x: rx, z: rz };
+                              }
+                          }
+
+                          if (targetPos) {
+                              const path = findPath(u.gridPos, targetPos);
+                              if (path.length > 0) {
+                                  unitsChanged = true;
+                                  return { ...u, path };
+                              }
+                          }
+                      }
+                  }
+
+                  return u;
+              });
+
+              return unitsChanged ? nextUnits : prevUnits;
+          });
       }, 1000);
       return () => clearInterval(interval);
-  }, [doctrines]);
-
-  const dynamicRoadTileSet = useMemo(() => {
-    const set = new Set<number>();
-    roadTiles.forEach(t => { set.add((t.x << 16) | t.z); });
-    structuresState.forEach(s => { set.delete((s.gridPos.x << 16) | s.gridPos.z); });
-    set.delete((baseA_Coord.x << 16) | baseA_Coord.z);
-    set.delete((baseB_Coord.x << 16) | baseB_Coord.z);
-    return set;
-  }, [roadTiles, structuresState, baseA_Coord, baseB_Coord]);
-
-  const findPath = useCallback((start: {x: number, z: number}, end: {x: number, z: number}) => {
-      const startId = (start.x << 16) | start.z;
-      const endId = (end.x << 16) | end.z;
-      const queue = [{x: start.x, z: start.z, path: [] as string[]}];
-      const visited = new Set<number>();
-      visited.add(startId);
-      const MAX_SEARCH = 20000; 
-      let ops = 0;
-      while(queue.length > 0 && ops < MAX_SEARCH) {
-          ops++;
-          const current = queue.shift()!;
-          const currentId = (current.x << 16) | current.z;
-          if (currentId === endId) return current.path;
-          const neighbors = [{x: current.x+1, z: current.z}, {x: current.x-1, z: current.z}, {x: current.x, z: current.z+1}, {x: current.x, z: current.z-1}];
-          for (const n of neighbors) {
-              const nId = (n.x << 16) | n.z;
-              if (n.x >= 0 && n.x < gridSize && n.z >= 0 && n.z < gridSize) {
-                  if ((dynamicRoadTileSet.has(nId) || nId === endId) && !visited.has(nId)) {
-                      visited.add(nId);
-                      queue.push({ x: n.x, z: n.z, path: [...current.path, `${n.x},${n.z}`] });
-                  }
-              }
-          }
-      }
-      return [];
-  }, [gridSize, dynamicRoadTileSet]);
+  }, [doctrines, findPath]);
 
   const handleUnitSelect = (id: string) => {
       // If we just dragged, ignore click logic that might fire
@@ -1655,6 +1725,43 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           const currentBuildings = buildingsRef.current;
           const currentStructures = structuresRef.current;
           const currentUnitsRef = unitsRef.current; 
+          const explodedCrawlerIds = new Set<string>();
+
+          // Crawler Drone Detonation Logic
+          currentUnitsRef.forEach(u => {
+              if (u.type === 'crawler_drone' && u.health > 0) {
+                  // Check distance to enemies
+                  const ux = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
+                  const uz = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
+                  
+                  const hasEnemy = currentUnitsRef.some(e => {
+                      if (e.team === u.team || e.team === 'neutral' || e.health <= 0) return false;
+                      const ex = (e.gridPos.x * CITY_CONFIG.tileSize) - offset;
+                      const ez = (e.gridPos.z * CITY_CONFIG.tileSize) - offset;
+                      const dist = Math.sqrt((ux - ex)**2 + (uz - ez)**2);
+                      return dist < 1.5 * CITY_CONFIG.tileSize; // 1.5 block trigger
+                  });
+
+                  if (hasEnemy) {
+                      explodedCrawlerIds.add(u.id);
+                      const pos = { x: ux, y: 1.0, z: uz };
+                      newExplosions.push({ 
+                          id: `exp-crawler-${u.id}-${now}`, 
+                          position: pos, 
+                          radius: ABILITY_CONFIG.CRAWLER_EXPLOSION_RADIUS, 
+                          duration: 500, 
+                          createdAt: now 
+                      });
+                      damageEvents.push({ 
+                          id: `dmg-crawler-${u.id}-${now}`, 
+                          damage: ABILITY_CONFIG.CRAWLER_EXPLOSION_DAMAGE, 
+                          position: pos, 
+                          radius: ABILITY_CONFIG.CRAWLER_EXPLOSION_RADIUS * CITY_CONFIG.tileSize, 
+                          team: u.team 
+                      });
+                  }
+              }
+          });
 
           // Helper to get unit target height
           const getTargetY = (u: UnitData) => {
@@ -2080,6 +2187,13 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   
                   let activeUnits = prevUnits.filter(u => u.health > 0);
                   if (prevUnits.length !== activeUnits.length) unitsChanged = true;
+
+                  // Remove exploded crawlers
+                  if (explodedCrawlerIds.size > 0) {
+                      const beforeCount = activeUnits.length;
+                      activeUnits = activeUnits.filter(u => !explodedCrawlerIds.has(u.id));
+                      if (activeUnits.length !== beforeCount) unitsChanged = true;
+                  }
 
                   const chargers = activeUnits.filter(u => (u.type === 'helios') || (u.type === 'sun_plate' && u.isDeployed));
 
