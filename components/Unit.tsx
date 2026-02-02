@@ -108,6 +108,8 @@ const Unit: React.FC<UnitProps> = ({
   const constructionLineRef = useRef<THREE.BufferGeometry>(null);
   const scene = useThree((state) => state.scene); // Access scene for lookups
   const flashRef = useRef<THREE.PointLight>(null);
+  const smokeRef = useRef<THREE.Group>(null);
+  const apsRef = useRef<THREE.Group>(null);
 
   const teamColor = TEAM_COLORS[team];
   const isTank = type === 'tank';
@@ -212,6 +214,15 @@ const Unit: React.FC<UnitProps> = ({
             flashRef.current.intensity = 0;
             flashRef.current.visible = false;
         }
+    }
+
+    // Ability Animations
+    if (smokeRef.current) {
+        smokeRef.current.rotation.y += delta * 0.2;
+    }
+    if (apsRef.current) {
+        apsRef.current.rotation.y -= delta * 1.5;
+        apsRef.current.rotation.z += delta * 0.5;
     }
 
     // Rotation for Banshee/Guardian Radar
@@ -533,15 +544,55 @@ const Unit: React.FC<UnitProps> = ({
       {isHacked && hackerPos && (<group><Line points={[[0, 1, 0],[hackerPos.x - meshRef.current!.position.x, hackerPos.y - meshRef.current!.position.y, hackerPos.z - meshRef.current!.position.z]]} color="#c084fc" lineWidth={1} transparent opacity={0.5}/><mesh position={[0, 1.5, 0]} raycast={() => null}><octahedronGeometry args={[0.5]} /><meshBasicMaterial color="#c084fc" wireframe /></mesh></group>)}
       {isJammed && (<mesh position={[0, 2, 0]} raycast={() => null}><sphereGeometry args={[1]} /><meshBasicMaterial color="#ffffff" wireframe transparent opacity={0.3} /></mesh>)}
       {isHacked && hackType === 'drain' && (<group><mesh position={[0, 1, 0]} rotation={[Math.random(), Math.random(), Math.random()]} raycast={() => null}><planeGeometry args={[0.5, 0.5]} /><meshBasicMaterial color="#3b82f6" side={THREE.DoubleSide} /></mesh><pointLight color="#3b82f6" intensity={2} distance={3} /></group>)}
-      {isTank && smoke?.active && (<group><mesh position={[0, 2, 0]} rotation={[0, Date.now() * 0.001, 0]} raycast={() => null}><sphereGeometry args={[tileSize * 0.8, 8, 8]} /><meshStandardMaterial color="#64748b" transparent opacity={0.8} depthWrite={false} /></mesh><mesh position={[0, 1.5, 0]} rotation={[0, -Date.now() * 0.0005, 0]} raycast={() => null}><cylinderGeometry args={[tileSize * 1.5, tileSize * 1.2, 2.5, 8]} /><meshStandardMaterial color="#94a3b8" transparent opacity={0.4} depthWrite={false} side={THREE.DoubleSide} /></mesh></group>)}
-      {isTank && aps?.active && (<group><mesh raycast={() => null}><sphereGeometry args={[tileSize * 0.8, 12, 12]} /><meshBasicMaterial color={teamColor} transparent opacity={0.2} wireframe={false} side={THREE.DoubleSide} depthWrite={false} /></mesh><mesh rotation={[0, Date.now() * 0.005, 0]} raycast={() => null}><sphereGeometry args={[tileSize * 0.85, 8, 8]} /><meshBasicMaterial color="#ffffff" wireframe transparent opacity={0.1} /></mesh></group>)}
+      
+      {/* Smoke Screen Effect */}
+      {isTank && smoke?.active && (
+          <group position={[0, 1.5, 0]} ref={smokeRef}>
+                {/* Core Cloud */}
+                <mesh rotation={[0, Date.now() * 0.001, 0]}>
+                    <dodecahedronGeometry args={[tileSize * 0.8, 0]} />
+                    <meshStandardMaterial color="#475569" transparent opacity={0.9} depthWrite={false} />
+                </mesh>
+                {/* Outer Puffs */}
+                {[0, 2, 4].map(i => (
+                    <mesh key={i} position={[Math.sin(i)*1.5, 0.5, Math.cos(i)*1.5]} scale={[0.6, 0.6, 0.6]}>
+                        <dodecahedronGeometry args={[tileSize * 0.5, 0]} />
+                        <meshStandardMaterial color="#64748b" transparent opacity={0.6} depthWrite={false} />
+                    </mesh>
+                ))}
+          </group>
+      )}
+
+      {/* APS Shield Effect */}
+      {isTank && aps?.active && (
+          <group position={[0, 1, 0]} ref={apsRef}>
+               <mesh rotation={[0, Date.now()*0.005, 0]}>
+                   <sphereGeometry args={[tileSize * 0.9, 16, 16]} />
+                   <meshBasicMaterial color={teamColor} wireframe transparent opacity={0.3} />
+               </mesh>
+               <mesh rotation={[0, -Date.now()*0.005, Math.PI/4]}>
+                   <sphereGeometry args={[tileSize * 0.8, 4, 8]} /> 
+                   <meshBasicMaterial color="#ffffff" wireframe transparent opacity={0.1} />
+               </mesh>
+          </group>
+      )}
+
+      {/* Guardian Repair Beam */}
       {isGuardian && repairTargetPos && (
           <group>
-          <mesh position={[repairTargetPos.x - logicalWorldPos.x, repairTargetPos.y - logicalWorldPos.y, repairTargetPos.z - logicalWorldPos.z]}>
-            <octahedronGeometry args={[0.5]} />
-            <meshBasicMaterial color="#38bdf8" wireframe />
-          </mesh>
-        </group>
+            <Line
+                points={[[0, 1.5, 0], [repairTargetPos.x - logicalWorldPos.x, repairTargetPos.y - logicalWorldPos.y + 0.5, repairTargetPos.z - logicalWorldPos.z]]}
+                color="#4ade80"
+                lineWidth={2}
+                dashed
+                dashScale={2}
+            />
+            {/* Target marker */}
+            <mesh position={[repairTargetPos.x - logicalWorldPos.x, repairTargetPos.y - logicalWorldPos.y, repairTargetPos.z - logicalWorldPos.z]}>
+                <octahedronGeometry args={[0.5]} />
+                <meshBasicMaterial color="#4ade80" wireframe />
+            </mesh>
+          </group>
       )}
 
       {/* Stats Overlay - Always visible if damaged or selected or charging */}
