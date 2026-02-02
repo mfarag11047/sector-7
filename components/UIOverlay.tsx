@@ -291,6 +291,7 @@ const DoctrineHUD: React.FC<{
                 <button
                     disabled={!isUnlocked2 || !canAfford2}
                     onClick={() => onTrigger(`${type}_tier2`, 2, config.tier2_cost)}
+                    title={config.tier2_desc}
                     className={`
                         flex-1 flex flex-col p-2 rounded border transition-all text-left relative overflow-hidden group
                         ${isUnlocked2 
@@ -299,7 +300,7 @@ const DoctrineHUD: React.FC<{
                         }
                     `}
                 >
-                    <span className="text-[9px] uppercase font-bold opacity-60">Tier 2</span>
+                    <span className="text-[9px] uppercase font-bold opacity-60">T2: {config.tier2_name}</span>
                     <span className="text-xs font-bold font-mono">
                         {isUnlocked2 ? "ACTIVATE" : "LOCKED"}
                     </span>
@@ -318,6 +319,7 @@ const DoctrineHUD: React.FC<{
                 <button
                     disabled={!isUnlocked3 || !canAfford3}
                     onClick={() => onTrigger(`${type}_tier3`, 3, config.tier3_cost)}
+                    title={config.tier3_desc}
                     className={`
                         flex-1 flex flex-col p-2 rounded border transition-all text-left relative overflow-hidden group
                         ${isUnlocked3
@@ -326,7 +328,7 @@ const DoctrineHUD: React.FC<{
                         }
                     `}
                 >
-                    <span className="text-[9px] uppercase font-bold opacity-60">Tier 3</span>
+                    <span className="text-[9px] uppercase font-bold opacity-60">T3: {config.tier3_name}</span>
                     <span className="text-xs font-bold font-mono">
                         {isUnlocked3 ? "EXECUTE" : "LOCKED"}
                     </span>
@@ -400,12 +402,14 @@ const DoctrineCard: React.FC<{
             {/* Tiers Preview */}
             <div className="flex gap-2 mt-auto">
                 <div className={`flex-1 p-2 rounded text-left border bg-black/20 border-white/10 opacity-60`}>
-                    <div className="text-[9px] uppercase font-bold opacity-50">Tier 2</div>
-                    <div className="text-[10px] font-mono">{config.tier2_cost} Cores</div>
+                    <div className="text-[9px] uppercase font-bold opacity-50 mb-1">Tier 2: {config.tier2_name}</div>
+                    <div className="text-[10px] font-mono mb-1 text-cyan-400">{config.tier2_cost} Cores</div>
+                    <p className="text-[10px] leading-tight text-slate-300">{config.tier2_desc}</p>
                 </div>
                 <div className={`flex-1 p-2 rounded text-left border bg-black/20 border-white/10 opacity-60`}>
-                    <div className="text-[9px] uppercase font-bold opacity-50">Tier 3</div>
-                    <div className="text-[10px] font-mono">{config.tier3_cost} Cores</div>
+                    <div className="text-[9px] uppercase font-bold opacity-50 mb-1">Tier 3: {config.tier3_name}</div>
+                    <div className="text-[10px] font-mono mb-1 text-cyan-400">{config.tier3_cost} Cores</div>
+                    <p className="text-[10px] leading-tight text-slate-300">{config.tier3_desc}</p>
                 </div>
             </div>
 

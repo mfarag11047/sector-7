@@ -213,30 +213,53 @@ export const CAMERA_ZOOM_SPEED = 2.0;
 export const MIN_ZOOM = 20;
 export const MAX_ZOOM = 600;
 
-export const DOCTRINE_CONFIG: Record<DoctrineType, { label: string, tier1_passive: string, tier2_cost: number, tier2_cooldown: number, tier3_cost: number, tier3_cooldown: number }> = {
+export const DOCTRINE_CONFIG: Record<DoctrineType, { 
+  label: string, 
+  tier1_passive: string, 
+  tier2_cost: number, 
+  tier2_cooldown: number, 
+  tier2_name: string,
+  tier2_desc: string,
+  tier3_cost: number, 
+  tier3_cooldown: number,
+  tier3_name: string,
+  tier3_desc: string 
+}> = {
   heavy_metal: {
     label: "Heavy Metal",
     tier1_passive: "Mechanized Repair: Armor units regen 2 HP/s when out of combat.",
     tier2_cost: 500,
     tier2_cooldown: 120000,
+    tier2_name: "Orbital Drop",
+    tier2_desc: "Deploys a Titan tank directly to the target location.",
     tier3_cost: 1200,
     tier3_cooldown: 300000,
+    tier3_name: "Tactical Nuke",
+    tier3_desc: "Massive area damage strike on target coordinates.",
   },
   shadow_ops: {
     label: "Shadow Ops",
     tier1_passive: "Signal Masking: Stealth units gain +20% speed.",
     tier2_cost: 400,
     tier2_cooldown: 60000,
+    tier2_name: "Phantom Decoys",
+    tier2_desc: "Spawns holographic units to distract enemy fire.",
     tier3_cost: 1000,
     tier3_cooldown: 240000,
+    tier3_name: "Global EMP",
+    tier3_desc: "Stuns all enemy units on the map for 10 seconds.",
   },
   skunkworks: {
     label: "Skunkworks",
     tier1_passive: "Overclock: Production speed +10% globally.",
     tier2_cost: 600,
     tier2_cooldown: 90000,
+    tier2_name: "Nano-Cloud",
+    tier2_desc: "Deploys a dense smoke screen at target area.",
     tier3_cost: 1100,
     tier3_cooldown: 300000,
+    tier3_name: "Swarm Host",
+    tier3_desc: "Deploys a mobile factory that spawns Wasp drones.",
   }
 };
 
