@@ -96,10 +96,15 @@ interface UnitProps {
   teamCompute: number; // New Prop
   firingLaserAt?: string | null;
   lastAttackTime?: number;
+  // Step 3 Updates
+  isStunned?: boolean;
+  globalSpeedModifier?: number;
+  activeBuffs?: ('speed' | 'damage' | 'regen')[];
 }
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, onMoveStep, tileTypeMap, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, ammoState, loadedAmmo, missileInventory, loadingProgress, courierPayload, jammerActive, tetherTargetId, isJammed, isHacked, hackType, teamCompute, firingLaserAt, lastAttackTime
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, onMoveStep, tileTypeMap, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, ammoState, loadedAmmo, missileInventory, loadingProgress, courierPayload, jammerActive, tetherTargetId, isJammed, isHacked, hackType, teamCompute, firingLaserAt, lastAttackTime,
+  isStunned, globalSpeedModifier = 1.0, activeBuffs
 }) => {
   const meshRef = useRef<THREE.Group>(null);
   const radarRef = useRef<THREE.Group>(null);
@@ -130,7 +135,8 @@ const Unit: React.FC<UnitProps> = ({
   const classConfig = UNIT_CLASSES[unitClass];
   const unitStats = UNIT_STATS[type];
 
-  const isDisabled = battery <= 0 || (isHacked && hackType === 'drain');
+  // Updated isDisabled Logic
+  const isDisabled = battery <= 0 || (isHacked && hackType === 'drain') || isStunned;
 
   // Floating height difference
   // Raised ground units to 1.2 to clear the Base platform (height 1.0)
@@ -180,29 +186,39 @@ const Unit: React.FC<UnitProps> = ({
   // Determine Speed multiplier
   const speedMultiplier = useMemo(() => {
     if (path.length === 0) return 0;
-    if (isDisabled) return 0; // No speed if no battery or disabled
+    if (isDisabled) return 0; // No speed if no battery or disabled/stunned
     if (isBallista && ammoState === 'loading') return 0; // Immobilized while loading
     if (isJammed) return 0.5; 
     
+    let speed = 1.0;
+
     if (isAir) {
-         return 1.2 * (unitStats.speedMod || 1.0);
+         speed = 1.2;
+    } else {
+        const targetKey = path[0];
+        const tileType = tileTypeMap[targetKey];
+        if (tileType === 'main') speed = 2.0;    
+        if (tileType === 'open') speed = 0.5;    
     }
 
-    const targetKey = path[0];
-    const tileType = tileTypeMap[targetKey];
-    
-    let speed = 1.0;
-    if (tileType === 'main') speed = 2.0;    
-    if (tileType === 'open') speed = 0.5;    
-
+    // Apply Unit Stats Mod
     speed *= unitStats.speedMod || 1.0;
 
+    // Apply Ghost Dampener Penalty
     if (isGhost && isDampenerActive) {
         speed *= ABILITY_CONFIG.GHOST_SPEED_PENALTY;
     }
+
+    // Apply Global Modifiers
+    speed *= globalSpeedModifier;
+
+    // Apply Active Buffs (e.g. Shadow Ops Passive)
+    if (activeBuffs?.includes('speed')) {
+        speed *= 1.2;
+    }
     
     return speed;
-  }, [path, tileTypeMap, isGhost, isDampenerActive, unitStats, isAir, isDisabled, isBallista, ammoState, isJammed]);
+  }, [path, tileTypeMap, isGhost, isDampenerActive, unitStats, isAir, isDisabled, isBallista, ammoState, isJammed, globalSpeedModifier, activeBuffs]);
 
   useFrame((state, delta) => {
     // Muzzle Flash Logic
@@ -480,7 +496,6 @@ const Unit: React.FC<UnitProps> = ({
   if (!visible) return null;
 
   // Calculate visual vision radius based on visionRange prop
-  // Updated: User requested uniform 2-block radius for Drones (Helios/Wasp/Standard) unless surveillance is active
   const isSurveillanceActive = surveillance && surveillance.status === 'active';
   const effectiveVision = isSurveillanceActive ? ABILITY_CONFIG.SURVEILLANCE_RADIUS : 2;
   const visualVisionRadius = effectiveVision * tileSize;
@@ -510,6 +525,23 @@ const Unit: React.FC<UnitProps> = ({
       </mesh>
 
       {renderModel()}
+
+      {/* Stunned Effect Overlay */}
+      {isStunned && (
+          <group position={[0, 3, 0]}>
+              <Float speed={10} rotationIntensity={0} floatIntensity={0.5}>
+                  <Html center>
+                      <div className="text-yellow-400 font-bold text-2xl animate-pulse shadow-black drop-shadow-md">
+                          ⚡
+                      </div>
+                  </Html>
+              </Float>
+              <mesh position={[0, -1, 0]}>
+                  <cylinderGeometry args={[1.5, 1.5, 3, 8, 1, true]} />
+                  <meshBasicMaterial color="#fbbf24" wireframe transparent opacity={0.3} />
+              </mesh>
+          </group>
+      )}
 
       {/* Lines, Effects, Html overlays */}
       {(tetherTargetId || isGuardian) && (<line><bufferGeometry ref={tetherLineRef} /><lineBasicMaterial color="#38bdf8" linewidth={2} transparent opacity={0.6} /></line>)}

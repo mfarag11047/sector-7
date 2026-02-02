@@ -191,6 +191,7 @@ function App() {
               interactionMode={interactionMode}
               onMapTarget={handleMapTarget}
               pendingDoctrineAction={pendingDoctrineAction}
+              doctrines={doctrines}
           />
           <DroneCamera cameraStateRef={cameraStateRef} />
         </Suspense>
@@ -204,7 +205,7 @@ function App() {
         cameraStateRef={cameraStateRef}
         onSelectDoctrine={handleSelectDoctrine}
         onTriggerDoctrine={handleTriggerDoctrine}
-        targetingMode={interactionMode === 'target'}
+        interactionMode={interactionMode}
       />
       <Loader 
         containerStyles={{ backgroundColor: '#050505' }}

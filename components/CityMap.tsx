@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
 import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, BUILDING_VALUES, BLOCK_BONUS, UNIT_STATS, ABILITY_CONFIG, STRUCTURE_COST, BUILD_RADIUS, STRUCTURE_INFO, COMPUTE_GATES, TIER_UNLOCK_COSTS, DOCTRINE_CONFIG } from '../constants';
-import { BuildingData, UnitData, BuildingBlock, GameStats, TeamStats, RoadType, RoadTileData, StructureData, UnitClass, DecoyData, UnitType, StructureType, CloudData, Projectile, Explosion } from '../types';
+import { BuildingData, UnitData, BuildingBlock, GameStats, TeamStats, RoadType, RoadTileData, StructureData, UnitClass, DecoyData, UnitType, StructureType, CloudData, Projectile, Explosion, DoctrineState } from '../types';
 import Building from './Building';
 import Structure from './Structure';
 import Base from './Base';
@@ -244,7 +244,7 @@ const ProjectileMesh: React.FC<{ projectile: Projectile }> = ({ projectile }) =>
             // Update position directly
             meshRef.current.position.set(projectile.position.x, projectile.position.y, projectile.position.z);
             
-            if ((projectile.trajectory === 'ballistic' || projectile.trajectory === 'swarm') && projectile.velocity) {
+            if ((projectile.trajectory === 'ballistic' || projectile.trajectory === 'swarm' || projectile.payload === 'titan_drop') && projectile.velocity) {
                  // Calculate forward vector based on velocity for proper orientation
                  if (Math.abs(projectile.velocity.x) > 0.001 || Math.abs(projectile.velocity.y) > 0.001 || Math.abs(projectile.velocity.z) > 0.001) {
                      const velocityVec = new THREE.Vector3(projectile.velocity.x, projectile.velocity.y, projectile.velocity.z);
@@ -275,8 +275,23 @@ const ProjectileMesh: React.FC<{ projectile: Projectile }> = ({ projectile }) =>
         }
     });
 
+    if (projectile.payload === 'titan_drop') {
+        return (
+            <group ref={meshRef}>
+                <mesh rotation={[Math.PI, 0, 0]}>
+                    <coneGeometry args={[1, 3, 8]} />
+                    <meshStandardMaterial color="#334155" metalness={0.8} />
+                </mesh>
+                <mesh position={[0, 1.5, 0]}>
+                    <coneGeometry args={[0.5, 2, 8, 1, true]} />
+                    <meshBasicMaterial color="#f97316" transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} />
+                </mesh>
+            </group>
+        );
+    }
+
     if (projectile.trajectory === 'ballistic') {
-        const payloadColor = projectile.payload === 'eclipse' ? '#c084fc' : '#ef4444';
+        const payloadColor = projectile.payload === 'eclipse' ? '#c084fc' : (projectile.payload === 'nuke' ? '#f59e0b' : '#ef4444');
         return (
             <group ref={meshRef}>
                  <DetailedMissileModel color={payloadColor} />
@@ -381,9 +396,10 @@ interface CityMapProps {
   onMapTarget?: (location: {x: number, z: number}) => void;
   pendingDoctrineAction?: { type: string, target: {x: number, z: number}, team: 'blue'|'red' } | null;
   onActionComplete?: () => void;
+  doctrines?: { blue: DoctrineState, red: DoctrineState };
 }
 
-const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete }) => {
+const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines }) => {
   const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
   const offset = (gridSize * tileSize) / 2;
   const baseA_Coord = useMemo(() => ({ x: 4, z: 4 }), []);
@@ -784,45 +800,25 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           
           if (type === 'HEAVY_METAL_TIER2') {
               // Spawn Orbital Drop Titan
-              const startPos = { x: (target.x * tileSize) - offset, y: 100, z: (target.z * tileSize) - offset };
-              const targetPos = { x: (target.x * tileSize) - offset, y: 1.5, z: (target.z * tileSize) - offset };
+              const dropPos = { x: (target.x * tileSize) - offset, y: 100, z: (target.z * tileSize) - offset };
+              const impactPos = { x: (target.x * tileSize) - offset, y: 0.5, z: (target.z * tileSize) - offset };
               
               setProjectiles(prev => [...prev, {
-                  id: `pod-${Date.now()}`,
+                  id: `drop-${Date.now()}`,
                   ownerId: 'orbital',
-                  team: team as 'blue' | 'red',
-                  position: startPos,
-                  velocity: { x: 0, y: -50, z: 0 }, // Fast drop
+                  team: team,
+                  position: dropPos,
+                  velocity: { x: 0, y: -65.6, z: 0 }, 
                   damage: 50, // Impact damage
                   radius: 2,
                   maxDistance: 200,
                   distanceTraveled: 0,
-                  targetPos: targetPos,
-                  trajectory: 'ballistic', // Use ballistic for landing logic
-                  startPos: startPos,
-                  startTime: Date.now(),
-                  payload: 'wp' // Hack to trigger unit spawn on impact in main loop if extended, but we'll spawn directly here for simplicity after delay
+                  targetPos: impactPos,
+                  trajectory: 'direct', 
+                  payload: 'titan_drop', // Special payload to trigger spawn
+                  startPos: dropPos,
+                  startTime: Date.now()
               }]);
-
-              // Delayed Spawn (simulating impact)
-              setTimeout(() => {
-                  setUnits(prev => [...prev, {
-                      id: `titan-${Date.now()}`,
-                      type: 'titan_dropped', // Stronger titan variant
-                      unitClass: 'armor',
-                      team: team as 'blue' | 'red',
-                      gridPos: { x: target.x, z: target.z },
-                      path: [],
-                      visionRange: UNIT_STATS.tank.visionRange,
-                      health: UNIT_STATS.tank.maxHealth * 1.5,
-                      maxHealth: UNIT_STATS.tank.maxHealth * 1.5,
-                      battery: 100,
-                      maxBattery: 100,
-                      cooldowns: {},
-                      charges: { smoke: 3, aps: 2 }
-                  }]);
-                  setExplosions(prev => [...prev, { id: `exp-${Date.now()}`, position: targetPos, radius: 4, duration: 800, createdAt: Date.now() }]);
-              }, 1500);
           }
           else if (type === 'HEAVY_METAL_TIER3') {
               // Tactical Nuke
@@ -835,13 +831,13 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   team: team as 'blue' | 'red', 
                   position: startPos, 
                   velocity: { x: 0, y: -40, z: 0 }, 
-                  damage: 500, // Massive damage
+                  damage: 500, // Massive damage handled in explosion logic
                   radius: 8, 
                   maxDistance: 200,
                   distanceTraveled: 0, 
                   targetPos: targetPos,
                   trajectory: 'ballistic',
-                  payload: 'eclipse', // Visual reuse
+                  payload: 'nuke',
                   startPos: startPos,
                   startTime: Date.now()
               }]);
@@ -907,13 +903,24 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   useEffect(() => {
       const interval = setInterval(() => {
           setUnits(prevUnits => prevUnits.map(u => {
+              const teamDoctrine = doctrines?.[u.team as 'blue' | 'red'];
+
               // 1. Heavy Metal Regen (Armor units only)
-              // We assume 'out of combat' if lastAttackTime is > 5s ago or undefined
-              if (u.unitClass === 'armor' && (!u.lastAttackTime || Date.now() - u.lastAttackTime > 5000)) {
-                  // Simplified check: assume if not attacked recently (we don't track incoming damage time yet efficiently, 
-                  // but we can add lastDamageTime to UnitData later. For now, simple passive regen always active for Armor)
-                  if (u.health < u.maxHealth) {
-                      return { ...u, health: Math.min(u.maxHealth, u.health + 2) };
+              if (teamDoctrine?.selected === 'heavy_metal' && u.unitClass === 'armor') {
+                  // We assume 'out of combat' if lastAttackTime is > 5s ago or undefined
+                  if (!u.lastAttackTime || Date.now() - u.lastAttackTime > 5000) {
+                      if (u.health < u.maxHealth) {
+                          return { ...u, health: Math.min(u.maxHealth, u.health + 5) };
+                      }
+                  }
+              }
+              
+              // Shadow Ops Passive: Speed
+              // Note: Visual speed is calculated in Unit.tsx based on stats. 
+              // We inject the buff flag here for reference, though visual speed update might require Unit.tsx modification.
+              if (teamDoctrine?.selected === 'shadow_ops' && (u.type === 'ghost' || u.isStealthed)) {
+                  if (!u.activeBuffs?.includes('speed')) {
+                      return { ...u, activeBuffs: [...(u.activeBuffs || []), 'speed'] };
                   }
               }
 
@@ -925,12 +932,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
               // 3. Swarm Host Spawning
               if (u.type === 'swarm_host') {
-                  const currentWasps = prevUnits.filter(w => w.type === 'wasp' && w.team === u.team).length; // Simplified count, usually per host
-                  // To avoid infinite global cap issues, we'll just check a global cap for now
+                  const currentWasps = prevUnits.filter(w => w.type === 'wasp' && w.team === u.team).length; 
                   if (currentWasps < 20 && (!u.cooldowns.spawnWasp || u.cooldowns.spawnWasp <= 0)) {
-                      // Trigger spawn in next state update via separate effect or just modify here? 
-                      // Modifying 'prevUnits' array size inside map is bad. We need a separate spawn queue.
-                      // For now, we'll handle this in the main game loop logic instead.
+                      // Handled in main loop for spawning to avoid state update collision
                   }
               }
 
@@ -938,7 +942,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           }));
       }, 1000);
       return () => clearInterval(interval);
-  }, []);
+  }, [doctrines]);
 
   const dynamicRoadTileSet = useMemo(() => {
     const set = new Set<number>();
@@ -1645,7 +1649,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           const dT = TICK_RATE / 1000;
           const activeProjs = projectilesRef.current;
           let newExplosions: Explosion[] = [];
-          let damageEvents: {id: string, damage: number, position: {x: number, y: number, z: number}, team: UnitData['team'] }[] = [];
+          let damageEvents: {id: string, damage: number, position: {x: number, y: number, z: number}, radius: number, team: UnitData['team'] }[] = [];
           const nextProjs: Projectile[] = [];
           let projsChanged = false;
           const currentBuildings = buildingsRef.current;
@@ -1672,19 +1676,31 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   if (t >= 1) {
                       // Impact
                        projsChanged = true;
-                       newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: p.targetPos, radius: 8, duration: 1200, createdAt: now });
                        
-                       // Create Cloud
+                       const isNuke = p.payload === 'nuke';
+                       const explosionRadius = isNuke ? 12 : 8;
+                       const explosionDuration = isNuke ? 2000 : 1200;
+                       
+                       newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: p.targetPos, radius: explosionRadius, duration: explosionDuration, createdAt: now });
+                       
+                       // Nuke Damage Event
+                       if (isNuke) {
+                           damageEvents.push({ id: `nuke-dmg-${now}`, damage: 500, position: p.targetPos, radius: 8 * tileSize, team: p.team as UnitData['team'] });
+                       }
+
+                       // Create Cloud (if applicable)
                        const cloudType = p.payload || 'wp';
-                       setClouds(prev => [...prev, {
-                           id: `cloud-${Date.now()}`,
-                           type: cloudType,
-                           gridPos: { x: Math.round((p.targetPos!.x + offset) / CITY_CONFIG.tileSize), z: Math.round((p.targetPos!.z + offset) / CITY_CONFIG.tileSize) },
-                           radius: cloudType === 'eclipse' ? ABILITY_CONFIG.ECLIPSE_RADIUS : ABILITY_CONFIG.WP_RADIUS,
-                           duration: cloudType === 'eclipse' ? ABILITY_CONFIG.ECLIPSE_DURATION : ABILITY_CONFIG.WP_DURATION,
-                           createdAt: Date.now(),
-                           team: p.team as CloudData['team']
-                       }]);
+                       if (cloudType !== 'nuke') {
+                           setClouds(prev => [...prev, {
+                               id: `cloud-${Date.now()}`,
+                               type: cloudType as 'eclipse'|'wp',
+                               gridPos: { x: Math.round((p.targetPos!.x + offset) / CITY_CONFIG.tileSize), z: Math.round((p.targetPos!.z + offset) / CITY_CONFIG.tileSize) },
+                               radius: cloudType === 'eclipse' ? ABILITY_CONFIG.ECLIPSE_RADIUS : ABILITY_CONFIG.WP_RADIUS,
+                               duration: cloudType === 'eclipse' ? ABILITY_CONFIG.ECLIPSE_DURATION : ABILITY_CONFIG.WP_DURATION,
+                               createdAt: Date.now(),
+                               team: p.team as CloudData['team']
+                           }]);
+                       }
                   } else {
                       // Calculate Parabolic Position
                       // Linear X/Z
@@ -1835,7 +1851,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       projsChanged = true;
                       newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: nextP.position, radius: 1.5, duration: 300, createdAt: now });
                       // Deal Area Damage (small)
-                      damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: p.damage, position: nextP.position, team: p.team as UnitData['team'] });
+                      damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: p.damage, position: nextP.position, radius: 1.5, team: p.team as UnitData['team'] });
                   } else {
                       projsChanged = true;
                       nextProjs.push(nextP);
@@ -1850,37 +1866,78 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   const stepY = (p.velocity.y * dT) / steps;
                   const stepZ = (p.velocity.z * dT) / steps;
                   let hit = false;
+                  
                   for(let i=0; i<steps; i++) {
                       nextP.position.x += stepX;
                       nextP.position.y += stepY;
                       nextP.position.z += stepZ;
                       nextP.distanceTraveled += Math.sqrt(stepX**2 + stepY**2 + stepZ**2);
-                      if (nextP.distanceTraveled >= nextP.maxDistance) { hit = true; break; }
-                      const gx = Math.round((nextP.position.x + offset) / CITY_CONFIG.tileSize);
-                      const gz = Math.round((nextP.position.z + offset) / CITY_CONFIG.tileSize);
-                      if (gx >= 0 && gx < gridSize && gz >= 0 && gz < gridSize) {
-                           const b = currentBuildings.find(b => b.gridX === gx && b.gridZ === gz);
-                           if (b && nextP.position.y > 0 && nextP.position.y < b.scale[1]) { hit = true; break; }
-                           const s = currentStructures.find(s => s.gridPos.x === gx && s.gridPos.z === gz && !s.isBlueprint);
-                           if (s) {
-                               const info = STRUCTURE_INFO[s.type];
-                               if (nextP.position.y > 0 && nextP.position.y < info.height) { hit = true; break; }
-                           }
-                      }
-                      for (const u of currentUnitsRef) {
-                          if (u.team === nextP.team) continue;
-                          if (u.health <= 0) continue;
-                          const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
-                          const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
-                          const dist = Math.sqrt((nextP.position.x - uX)**2 + (nextP.position.z - uZ)**2);
-                          if (dist < CITY_CONFIG.tileSize * 0.8) { hit = true; break; }
+                      
+                      // Special Handling for Orbital Drop (Titan Drop)
+                      if (p.payload === 'titan_drop') {
+                          // Impact ground check
+                          if (nextP.position.y <= 0.5) {
+                              hit = true;
+                              // Spawn Logic: Delay actual unit spawn slightly for visual effect
+                              setTimeout(() => {
+                                  if (p.targetPos) {
+                                      const gridX = Math.round((p.targetPos.x + offset) / tileSize);
+                                      const gridZ = Math.round((p.targetPos.z + offset) / tileSize);
+                                      setUnits(prev => [...prev, {
+                                          id: `titan-${Date.now()}`,
+                                          type: 'titan_dropped', 
+                                          unitClass: 'armor',
+                                          team: p.team as 'blue' | 'red',
+                                          gridPos: { x: gridX, z: gridZ },
+                                          path: [],
+                                          visionRange: UNIT_STATS.tank.visionRange,
+                                          health: UNIT_STATS.tank.maxHealth * 1.5,
+                                          maxHealth: UNIT_STATS.tank.maxHealth * 1.5,
+                                          battery: 100,
+                                          maxBattery: 100,
+                                          cooldowns: {},
+                                          charges: { smoke: 3, aps: 2 }
+                                      }]);
+                                  }
+                              }, 200);
+                              break;
+                          }
+                      } else {
+                          // Standard Projectile Max Distance Check
+                          if (nextP.distanceTraveled >= nextP.maxDistance) { hit = true; break; }
+                          
+                          // Building Collision Check
+                          const gx = Math.round((nextP.position.x + offset) / CITY_CONFIG.tileSize);
+                          const gz = Math.round((nextP.position.z + offset) / CITY_CONFIG.tileSize);
+                          if (gx >= 0 && gx < gridSize && gz >= 0 && gz < gridSize) {
+                               const b = currentBuildings.find(b => b.gridX === gx && b.gridZ === gz);
+                               if (b && nextP.position.y > 0 && nextP.position.y < b.scale[1]) { hit = true; break; }
+                               const s = currentStructures.find(s => s.gridPos.x === gx && s.gridPos.z === gz && !s.isBlueprint);
+                               if (s) {
+                                   const info = STRUCTURE_INFO[s.type];
+                                   if (nextP.position.y > 0 && nextP.position.y < info.height) { hit = true; break; }
+                               }
+                          }
+                          
+                          // Unit Collision Check
+                          for (const u of currentUnitsRef) {
+                              if (u.team === nextP.team) continue;
+                              if (u.health <= 0) continue;
+                              const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
+                              const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
+                              const dist = Math.sqrt((nextP.position.x - uX)**2 + (nextP.position.z - uZ)**2);
+                              if (dist < CITY_CONFIG.tileSize * 0.8) { hit = true; break; }
+                          }
                       }
                       if (hit) break;
                   }
                   if (hit) {
                       projsChanged = true;
                       newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: nextP.position, radius: 3, duration: 500, createdAt: now });
-                      damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: nextP.damage, position: nextP.position, team: nextP.team as UnitData['team'] });
+                      // If it's not a drop pod, deal damage
+                      if (p.payload !== 'titan_drop') {
+                          damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: nextP.damage, position: nextP.position, radius: 3, team: nextP.team as UnitData['team'] });
+                      }
                   } else {
                       if (steps > 0) projsChanged = true;
                       nextProjs.push(nextP);
@@ -1959,7 +2016,11 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           setStructuresState(prev => prev.map(s => {
               if (s.type === 'ordnance_fab' && s.production?.active) {
                    const p = s.production;
-                   const newProgress = p.progress + 100; 
+                   // Apply Skunkworks production bonus (10%)
+                   const teamDoctrine = doctrines?.[s.team];
+                   const speedMult = (teamDoctrine?.selected === 'skunkworks') ? 1.1 : 1.0;
+                   
+                   const newProgress = p.progress + (100 * speedMult); 
                    if (newProgress >= p.totalTime) {
                        setStockpile(sp => ({ ...sp, [s.team]: { ...sp[s.team], [p.item]: sp[s.team][p.item] + 1 } }));
                        return { ...s, production: { ...p, active: false, progress: 0 } };
@@ -1989,8 +2050,11 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                           const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
                           const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
                           const dist = Math.sqrt((evt.position.x - uX)**2 + (evt.position.z - uZ)**2);
-                          if (dist <= CITY_CONFIG.tileSize * 1.5) {
-                              const dmg = evt.damage * (1 - (dist / (CITY_CONFIG.tileSize * 1.5))); 
+                          
+                          // Radius check is now dynamic based on event
+                          const damageRadius = evt.radius || (CITY_CONFIG.tileSize * 1.5);
+                          if (dist <= damageRadius) {
+                              const dmg = evt.damage * (1 - (dist / damageRadius)); 
                               damageMap.set(u.id, (damageMap.get(u.id) || 0) + dmg);
                           }
                       });
