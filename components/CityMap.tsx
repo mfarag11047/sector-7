@@ -603,8 +603,27 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         };
 
         const interval = setInterval(() => {
+            // Filter real units (hide active decoys source)
+            const realUnits = unitsRef.current.filter(u => !u.decoyActive);
+            
+            // Create fake units from decoys
+            const fakeUnits: UnitData[] = decoys.map(d => ({
+                id: d.id,
+                type: 'ghost',
+                unitClass: 'infantry',
+                team: d.team,
+                gridPos: d.gridPos,
+                path: [],
+                visionRange: 0,
+                health: 100,
+                maxHealth: 100,
+                battery: 100,
+                maxBattery: 100,
+                cooldowns: {}
+            }));
+
             onMinimapUpdate({ 
-                units: unitsRef.current, 
+                units: [...realUnits, ...fakeUnits], 
                 buildings: buildingsRef.current,
                 structures: [staticBaseBlue, staticBaseRed, ...structuresRef.current],
                 selectedUnitIds: Array.from(selectedUnitIdsRef.current)
@@ -613,7 +632,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         
         return () => clearInterval(interval);
     }
-  }, [onMinimapUpdate, gridSize]);
+  }, [onMinimapUpdate, gridSize, decoys]);
 
   // Pointer Handlers for Drag Select
   const handlePointerDown = (e: any) => {
@@ -1178,12 +1197,21 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           if (sourceUnit) {
               const dist = Math.sqrt(Math.pow(sourceUnit.gridPos.x - x, 2) + Math.pow(sourceUnit.gridPos.z - z, 2));
               if (dist <= ABILITY_CONFIG.GHOST_DECOY_RANGE) {
+                  const now = Date.now();
                   setDecoys(prev => [...prev, { 
-                      id: `decoy-${Date.now()}`, 
+                      id: `decoy-${now}`, 
                       team: sourceUnit.team as 'blue'|'red', 
                       gridPos: { x, z }, 
-                      createdAt: Date.now() 
+                      createdAt: now 
                   }]);
+                  
+                  // Hide Source Unit
+                  setUnits(prev => prev.map(u => {
+                      if (u.id === sourceUnit.id) {
+                          return { ...u, decoyActive: true, decoyStartTime: now };
+                      }
+                      return u;
+                  }));
               }
           }
           setTargetingSourceId(null);
@@ -1591,6 +1619,20 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         const now = Date.now();
         setDecoys(prev => prev.filter(d => now - d.createdAt < ABILITY_CONFIG.DECOY_DURATION));
         setExplosions(prev => prev.filter(e => now - e.createdAt < e.duration));
+        
+        // Restore units whose decoy time has expired
+        setUnits(prev => {
+            let changed = false;
+            const next = prev.map(u => {
+                if (u.decoyActive && u.decoyStartTime && (now - u.decoyStartTime >= ABILITY_CONFIG.DECOY_DURATION)) {
+                    changed = true;
+                    return { ...u, decoyActive: false, decoyStartTime: undefined };
+                }
+                return u;
+            });
+            return changed ? next : prev;
+        });
+
     }, 500); 
     return () => clearInterval(timer);
   }, []);
@@ -2267,6 +2309,35 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
              const isVisible = visibleUnitIds.has(u.id);
              return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={handleUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onMoveStep={handleMoveStep} tileTypeMap={tileTypeMap} onDoubleClick={() => {}} visible={isVisible} actionMenuOpen={primarySelectionId === u.id} onAction={handleUnitAction} isTargetingMode={!!targetingSourceId} /> );
         })}
+        {decoys.map(d => (
+            <Unit
+                key={d.id}
+                id={d.id}
+                type="ghost"
+                unitClass="infantry"
+                team={d.team}
+                gridPos={d.gridPos}
+                isSelected={false}
+                onSelect={() => {}} // Decoys not selectable
+                tileSize={CITY_CONFIG.tileSize}
+                offset={offset}
+                path={[]}
+                onMoveStep={() => {}}
+                tileTypeMap={tileTypeMap}
+                onDoubleClick={() => {}}
+                visionRange={0}
+                visible={true} // Decoys always visible (they are meant to be seen)
+                actionMenuOpen={false}
+                onAction={() => {}}
+                health={100}
+                maxHealth={100}
+                battery={100}
+                maxBattery={100}
+                cooldowns={{}}
+                teamCompute={0}
+                isDecoy={true}
+            />
+        ))}
         
         {/* Projectiles */}
         {projectiles.map(p => <ProjectileMesh key={p.id} projectile={p} />)}

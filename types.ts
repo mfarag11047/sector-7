@@ -99,6 +99,10 @@ export interface UnitData {
   activeBuffs?: ('speed' | 'damage' | 'regen')[];
   lastDamageTime?: number;
   
+  // New Decoy Fields
+  decoyActive?: boolean;
+  decoyStartTime?: number;
+
   // Existing extended fields
   secondaryBattery?: number;
   maxSecondaryBattery?: number;
