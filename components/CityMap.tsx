@@ -70,7 +70,7 @@ const InstancedRoads: React.FC<{
         // Set specific color for hovered
         if (hoveredId !== null && hoveredId < tiles.length) {
             meshRef.current.setColorAt(hoveredId, colorHover);
-            meshRef.current.instanceColor!.needsUpdate = true;
+            if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
         }
 
         return () => {
@@ -79,7 +79,7 @@ const InstancedRoads: React.FC<{
                 if (tile.type === 'main') meshRef.current.setColorAt(hoveredId, colorMain);
                 else if (tile.type === 'street') meshRef.current.setColorAt(hoveredId, colorStreet);
                 else meshRef.current.setColorAt(hoveredId, colorOpen);
-                meshRef.current.instanceColor!.needsUpdate = true;
+                if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
             }
         }
     }, [hoveredId, tiles]);
@@ -952,7 +952,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   // Only spawn if anchored
                   if (host.isAnchored) {
                       const children = nextUnits.filter(u => u.type === 'crawler_drone' && u.parentId === host.id);
-                      const maxCrawlers = ABILITY_CONFIG.SWARM_HOST_MAX_UNITS || 6;
+                      const maxCrawlers = ABILITY_CONFIG.SWARM_HOST_MAX_UNITS || 10;
                       
                       // Check spawn cooldown
                       const spawnReady = !host.cooldowns.spawnWasp || host.cooldowns.spawnWasp <= 0;
@@ -980,7 +980,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                           if (hIdx !== -1) {
                               nextUnits[hIdx] = {
                                   ...nextUnits[hIdx],
-                                  cooldowns: { ...nextUnits[hIdx].cooldowns, spawnWasp: 2000 }
+                                  cooldowns: { ...nextUnits[hIdx].cooldowns, spawnWasp: 7000 }
                               };
                           }
                           unitsChanged = true;
@@ -1602,7 +1602,15 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           if (action === 'TOGGLE_JAMMER' && u.type === 'banshee') return { ...u, jammerActive: !u.jammerActive };
           if (action === 'TOGGLE DAMPENER' && u.type === 'ghost') return { ...u, isDampenerActive: !u.isDampenerActive };
           if (action === 'TOGGLE ARRAY' && u.type === 'sun_plate') return { ...u, isDeployed: !u.isDeployed };
-          if (action === 'TOGGLE_ANCHOR' && u.type === 'swarm_host') return { ...u, isAnchored: !u.isAnchored, path: [] };
+          if (action === 'TOGGLE_ANCHOR' && u.type === 'swarm_host') {
+              const anchoring = !u.isAnchored;
+              return { 
+                  ...u, 
+                  isAnchored: anchoring, 
+                  path: [],
+                  cooldowns: { ...u.cooldowns, spawnWasp: anchoring ? 3000 : 0 } 
+              };
+          }
           if (action === 'SMOKE SCREEN' && u.type === 'tank') return { ...u, cooldowns: { ...u.cooldowns, titanSmoke: ABILITY_CONFIG.TITAN_SMOKE_COOLDOWN }, smoke: { active: true, remainingTime: ABILITY_CONFIG.TITAN_SMOKE_DURATION } };
           if (action === 'ACTIVATE APS' && u.type === 'tank') return { ...u, cooldowns: { ...u.cooldowns, titanAps: ABILITY_CONFIG.TITAN_APS_COOLDOWN }, aps: { active: true, remainingTime: ABILITY_CONFIG.TITAN_APS_DURATION } };
           return u;

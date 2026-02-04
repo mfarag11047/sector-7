@@ -607,6 +607,20 @@ const Unit: React.FC<UnitProps> = ({
 
       {renderModel()}
 
+      {/* Swarm Host Anchor Range */}
+      {isSwarmHost && isAnchored && (
+          <group position={[0, 0.2, 0]}>
+              <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                  <ringGeometry args={[ABILITY_CONFIG.CRAWLER_RADIUS * tileSize - 0.2, ABILITY_CONFIG.CRAWLER_RADIUS * tileSize, 64]} />
+                  <meshBasicMaterial color={teamColor} transparent opacity={0.15} side={THREE.DoubleSide} depthWrite={false} />
+              </mesh>
+              <mesh rotation={[-Math.PI / 2, 0, 0]}>
+                  <ringGeometry args={[ABILITY_CONFIG.CRAWLER_RADIUS * tileSize - 0.3, ABILITY_CONFIG.CRAWLER_RADIUS * tileSize - 0.25, 64]} />
+                  <meshBasicMaterial color={teamColor} transparent opacity={0.4} side={THREE.DoubleSide} depthWrite={false} />
+              </mesh>
+          </group>
+      )}
+
       {/* Stunned Effect Overlay */}
       {isStunned && (
           <group position={[0, 3, 0]}>

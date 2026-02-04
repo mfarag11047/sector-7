@@ -39,7 +39,7 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
     // Strict safety checks before accessing properties
     if (!shader || !shader.uniforms) return;
 
-    // Retrieve uniforms individually to safely check existence
+    // Retrieve uniforms individually with optional chaining
     const uProgress = shader.uniforms.uProgress;
     const uBaseColor = shader.uniforms.uBaseColor;
     const uGlowColor = shader.uniforms.uGlowColor;
@@ -47,28 +47,25 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
     const uHasOwner = shader.uniforms.uHasOwner;
     const uHeight = shader.uniforms.uHeight;
 
-    // Check if uniforms AND their value containers exist
-    if (!uProgress || uProgress.value === undefined ||
-        !uBaseColor || uBaseColor.value === undefined ||
-        !uGlowColor || uGlowColor.value === undefined ||
-        !uTeamColor || uTeamColor.value === undefined ||
-        !uHasOwner || uHasOwner.value === undefined ||
-        !uHeight || uHeight.value === undefined) {
-        return;
+    // Check if uniforms exist
+    if (!uProgress || !uBaseColor || !uGlowColor || !uTeamColor || !uHasOwner || !uHeight) return;
+
+    // Safe to write values now - verify 'value' property exists implicitly by assignment, 
+    // but check for undefined on read if necessary.
+    if (uProgress.value !== undefined) {
+        uProgress.value = THREE.MathUtils.lerp(
+            uProgress.value,
+            data.captureProgress / 100.0,
+            delta * 2
+        );
     }
     
-    // Safe to write values now
-    uProgress.value = THREE.MathUtils.lerp(
-        uProgress.value,
-        data.captureProgress / 100.0,
-        delta * 2
-    );
+    if (uBaseColor.value && uBaseColor.value.copy) uBaseColor.value.copy(hovered ? colors.hover : colors.base);
+    if (uGlowColor.value && uGlowColor.value.copy) uGlowColor.value.copy(colors.glow);
+    if (uTeamColor.value && uTeamColor.value.copy) uTeamColor.value.copy(colors.team);
     
-    if (uBaseColor.value.copy) uBaseColor.value.copy(hovered ? colors.hover : colors.base);
-    if (uGlowColor.value.copy) uGlowColor.value.copy(colors.glow);
-    if (uTeamColor.value.copy) uTeamColor.value.copy(colors.team);
-    uHasOwner.value = !!data.owner;
-    uHeight.value = data.scale[1];
+    if (uHasOwner.value !== undefined) uHasOwner.value = !!data.owner;
+    if (uHeight.value !== undefined) uHeight.value = data.scale[1];
     
     // Rotate fans if server node
     if (data.type === 'server_node' && fansRef.current) {
@@ -78,6 +75,8 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
 
   // Inject custom logic into MeshStandardMaterial
   const onBeforeCompile = useCallback((shader: any) => {
+    if (!shader.uniforms) shader.uniforms = {};
+
     // Initialize uniforms
     shader.uniforms.uProgress = { value: 0 };
     shader.uniforms.uBaseColor = { value: new THREE.Color() };
