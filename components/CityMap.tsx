@@ -20,10 +20,7 @@ const InstancedRoads: React.FC<{
     onClick: (x: number, z: number) => void; 
     onRightClick: (x: number, z: number) => void; 
     onHover?: (x: number, z: number) => void;
-    onPointerDown?: (e: any) => void;
-    onPointerUp?: (e: any) => void;
-    onPointerMove?: (e: any) => void;
-}> = ({ tiles, tileSize, offset, onClick, onRightClick, onHover, onPointerDown, onPointerUp, onPointerMove }) => {
+}> = ({ tiles, tileSize, offset, onClick, onRightClick, onHover }) => {
     const meshRef = useRef<THREE.InstancedMesh>(null);
     const [hoveredId, setHoveredId] = useState<number | null>(null);
 
@@ -57,12 +54,6 @@ const InstancedRoads: React.FC<{
 
     }, [tiles, tileSize, offset]);
 
-    // Handle Hover Effect efficiently
-    useFrame(() => {
-        if (!meshRef.current) return;
-        // Optimization: Hover colors are handled in useEffect below to avoid per-frame loops
-    });
-
     // Update Colors when hover changes
     useEffect(() => {
         if (!meshRef.current) return;
@@ -85,8 +76,7 @@ const InstancedRoads: React.FC<{
     }, [hoveredId, tiles]);
 
     const handlePointerMove = (e: any) => {
-        e.stopPropagation();
-        if (onPointerMove) onPointerMove(e);
+        // IMPORTANT: No stopPropagation here so events bubble to the main map group
         if (e.instanceId !== undefined) {
             setHoveredId(e.instanceId);
             const tile = tiles[e.instanceId];
@@ -121,8 +111,6 @@ const InstancedRoads: React.FC<{
                 args={[undefined, undefined, tiles.length]}
                 onPointerMove={handlePointerMove}
                 onPointerOut={handlePointerOut}
-                onPointerDown={(e) => { e.stopPropagation(); if (onPointerDown) onPointerDown(e); }}
-                onPointerUp={(e) => { e.stopPropagation(); if (onPointerUp) onPointerUp(e); }}
                 onClick={handleClick}
                 onContextMenu={handleContextMenu}
             >
@@ -237,7 +225,6 @@ const DetailedMissileModel = ({ color }: { color: string }) => {
 // Projectile Component
 const ProjectileMesh: React.FC<{ projectile: Projectile }> = ({ projectile }) => {
     const meshRef = useRef<THREE.Group>(null);
-    const targetRef = useRef<THREE.Vector3>(new THREE.Vector3());
 
     useFrame((state, delta) => {
         if (meshRef.current) {
@@ -652,7 +639,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
   // Pointer Handlers for Drag Select
   const handlePointerDown = (e: any) => {
-      // e.stopPropagation(); // Avoid stopping if other elements need it?
+      // e.stopPropagation(); // Bubbling allowed
       // Only handle Left Click (0) for drag select
       if (e.button === 0) {
           if (interactionMode === 'target' && onMapTarget) {
@@ -706,27 +693,11 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                
                if (newSelection.size > 0) {
                    setSelectedUnitIds(newSelection);
-               }
-               // Don't clear selection if empty box? Standard RTS: Empty box clears selection.
-               // Let's stick to standard.
-               else {
-                   // setSelectedUnitIds(new Set()); 
-                   // Actually, if I drag a box and select nothing, usually I deselect. 
-                   // But let's check if the prompt implied it. 
-                   // "Once I release... unit should all stay selected"
-                   // Safe to clear if box is valid but empty.
+               } else {
+                   // Optional: clear selection if empty box
                    setSelectedUnitIds(newSelection);
                }
-          } else {
-               // Was a Click (Short Drag)
-               // Handled by handleTileClick below if we don't stop it.
-               // Since we use onClick separately, we let that fire.
-               // However, `onClick` might fire even if we dragged if we don't block it.
-               // But `onClick` relies on raycasting which might be specific.
-               // The logic for `handleTileClick` is:
-               // If clicking ground -> Move.
-               // If clicking unit -> Select.
-          }
+          } 
           setDragSelection({ ...dragSelection, active: false });
       }
   };
@@ -2503,16 +2474,17 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   const primarySelectionId = selectedUnitIds.size > 0 ? Array.from(selectedUnitIds)[0] : null;
 
   return (
-    <group>
+    <group
+        onPointerDown={handlePointerDown}
+        onPointerUp={handlePointerUp}
+        onPointerMove={handlePointerMove}
+        onContextMenu={handleBgRightClick}
+    >
         {/* Solid Ground Plane */}
         <mesh 
           rotation={[-Math.PI / 2, 0, 0]} 
           position={[0, -0.1, 0]} 
           receiveShadow 
-          onContextMenu={handleBgRightClick}
-          onPointerDown={handlePointerDown}
-          onPointerUp={handlePointerUp}
-          onPointerMove={handlePointerMove}
         >
             <planeGeometry args={[gridSize * tileSize, gridSize * tileSize]} />
             <meshStandardMaterial color="#0f172a" roughness={1} metalness={0} />
@@ -2526,9 +2498,6 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
             onClick={handleTileClick} 
             onRightClick={handleRightClick} 
             onHover={(x, z) => setHoverGridPos({x, z})}
-            onPointerDown={handlePointerDown}
-            onPointerUp={handlePointerUp}
-            onPointerMove={handlePointerMove}
         />
 
         {/* Selection Box Visual */}

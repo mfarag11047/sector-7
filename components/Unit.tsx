@@ -139,6 +139,9 @@ const Unit: React.FC<UnitProps> = ({
   const classConfig = UNIT_CLASSES[unitClass];
   const unitStats = UNIT_STATS[type];
 
+  // Safety check to prevent crash if unit type is unknown
+  if (!unitStats) return null;
+
   // Updated isDisabled Logic
   const isDisabled = battery <= 0 || (isHacked && hackType === 'drain') || isStunned;
 
@@ -542,7 +545,7 @@ const Unit: React.FC<UnitProps> = ({
                 {/* Central Core */}
                 <mesh position={[0, 0.3, 0]}><octahedronGeometry args={[0.25]} /><meshStandardMaterial color="#334155" metalness={0.9} /></mesh>
                 {/* Glowing Eye */}
-                <mesh position={[0, 0.35, 0.15]}><sphereGeometry args={[0.1]} /><meshBasicMaterial color="#f97316" emissive="#f97316" emissiveIntensity={2} /></mesh>
+                <mesh position={[0, 0.35, 0.15]}><sphereGeometry args={[0.1]} /><meshStandardMaterial color="#f97316" emissive="#f97316" emissiveIntensity={2} /></mesh>
                 
                 {/* Spider Legs */}
                 {[0, 60, 120, 180, 240, 300].map((angle, i) => {

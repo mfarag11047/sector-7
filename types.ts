@@ -112,6 +112,9 @@ export interface UnitData {
   isDampenerActive?: boolean;
   isDeployed?: boolean;
   isAnchored?: boolean; // Added for Swarm Host
+  anchorTime?: number; // Added for Swarm Host spawn delay logic
+  lastSpawnTime?: number; // Added for Swarm Host interval logic
+  spawnedUnitIds?: string[]; // Added to track child units
   jammerActive?: boolean;
   tetherTargetId?: string | null;
   isHacked?: boolean;
