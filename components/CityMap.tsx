@@ -222,6 +222,67 @@ const DetailedMissileModel = ({ color }: { color: string }) => {
     );
 };
 
+// CloudMesh Component
+const CloudMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number }> = ({ cloud, tileSize, offset }) => {
+    const meshRef = useRef<THREE.Mesh>(null);
+    
+    useFrame((state) => {
+        if (meshRef.current) {
+            const time = state.clock.elapsedTime;
+            // Pulsating effect
+            const scaleBase = 1.0;
+            const scaleVar = 0.05 * Math.sin(time * 1.5);
+            meshRef.current.scale.setScalar(scaleBase + scaleVar);
+            
+            // Gentle rotation
+            meshRef.current.rotation.y = time * 0.1;
+            meshRef.current.rotation.z = time * 0.05;
+        }
+    });
+
+    const pos = new THREE.Vector3(
+        (cloud.gridPos.x * tileSize) - offset,
+        3, // slightly elevated
+        (cloud.gridPos.z * tileSize) - offset
+    );
+
+    let color = "#ffffff";
+    let opacity = 0.4;
+
+    if (cloud.type === 'nano') {
+        color = "#10b981"; // Emerald
+        opacity = 0.3;
+    } else if (cloud.type === 'eclipse') {
+        color = "#c084fc"; // Purple
+        opacity = 0.5;
+    } else if (cloud.type === 'wp') {
+        color = "#fdba74"; // Orange/White
+        opacity = 0.4;
+    }
+
+    return (
+        <group position={pos}>
+            <mesh ref={meshRef}>
+                <sphereGeometry args={[cloud.radius * tileSize, 32, 32]} />
+                <meshBasicMaterial 
+                    color={color} 
+                    transparent 
+                    opacity={opacity} 
+                    depthWrite={false} 
+                    side={THREE.DoubleSide} 
+                />
+            </mesh>
+            {/* Inner core for Nano */}
+            {cloud.type === 'nano' && (
+                <mesh>
+                    <dodecahedronGeometry args={[cloud.radius * tileSize * 0.6, 0]} />
+                    <meshBasicMaterial color="#059669" wireframe transparent opacity={0.2} />
+                </mesh>
+            )}
+        </group>
+    );
+};
+
 // Projectile Component
 const ProjectileMesh: React.FC<{ projectile: Projectile }> = ({ projectile }) => {
     const meshRef = useRef<THREE.Group>(null);
@@ -873,14 +934,14 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
               }));
           }
           else if (type === 'SKUNKWORKS_TIER2') {
-              // Smoke Cloud
+              // Nano Cloud
               setClouds(prev => [...prev, {
                   id: `cloud-doc-${Date.now()}`,
-                  type: 'eclipse', // Visual reuse for Smoke
+                  type: 'nano',
                   team: team as 'blue' | 'red',
                   gridPos: { x: target.x, z: target.z },
-                  radius: 5,
-                  duration: 30000,
+                  radius: ABILITY_CONFIG.NANO_CLOUD_RADIUS,
+                  duration: ABILITY_CONFIG.NANO_CLOUD_DURATION,
                   createdAt: Date.now()
               }]);
           }
@@ -2534,7 +2595,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         ))}
         {units.map(u => {
              const isVisible = visibleUnitIds.has(u.id);
-             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={handleUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onMoveStep={handleMoveStep} tileTypeMap={tileTypeMap} onDoubleClick={() => {}} visible={isVisible} actionMenuOpen={primarySelectionId === u.id} onAction={handleUnitAction} isTargetingMode={!!targetingSourceId} /> );
+             // Detect if inside a Nano Cloud
+             const isInNanoCloud = clouds.some(c => c.type === 'nano' && Math.sqrt(Math.pow(u.gridPos.x - c.gridPos.x, 2) + Math.pow(u.gridPos.z - c.gridPos.z, 2)) <= c.radius);
+             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={handleUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onMoveStep={handleMoveStep} tileTypeMap={tileTypeMap} onDoubleClick={() => {}} visible={isVisible} actionMenuOpen={primarySelectionId === u.id} onAction={handleUnitAction} isTargetingMode={!!targetingSourceId} isInNanoCloud={isInNanoCloud} /> );
         })}
         {decoys.map(d => (
             <Unit
@@ -2571,6 +2634,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         
         {/* Explosions */}
         {explosions.map(e => <ExplosionMesh key={e.id} explosion={e} />)}
+        
+        {/* Cloud Effects */}
+        {clouds.map(c => <CloudMesh key={c.id} cloud={c} tileSize={CITY_CONFIG.tileSize} offset={offset} />)}
 
         <Base 
             position={[(baseA_Coord.x * CITY_CONFIG.tileSize) - offset, 0, (baseA_Coord.z * CITY_CONFIG.tileSize) - offset]} 

@@ -245,7 +245,7 @@ export interface DecoyData {
 
 export interface CloudData {
     id: string;
-    type: 'eclipse' | 'wp';
+    type: 'eclipse' | 'wp' | 'nano';
     team: 'blue' | 'red' | 'neutral';
     gridPos: { x: number; z: number };
     radius: number;
@@ -265,7 +265,7 @@ export interface Projectile {
     distanceTraveled: number;
     targetPos?: { x: number, y: number, z: number }; // For guided/ballistic
     trajectory: 'direct' | 'ballistic' | 'swarm';
-    payload?: 'eclipse' | 'wp' | null; // For warheads
+    payload?: 'eclipse' | 'wp' | 'nuke' | 'nano_canister' | 'nano_cloud_master' | 'titan_drop' | null; // For warheads
     startPos?: { x: number, y: number, z: number };
     startTime?: number;
     lockedTargetId?: string | null; // For swarm homing

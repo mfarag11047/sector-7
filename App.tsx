@@ -89,12 +89,12 @@ function App() {
 
     // 2. Identify Targeting Mode
     // Mapping specific doctrine types to their behavior
-    // heavy_metal_tier2: Drop (Target)
-    // heavy_metal_tier3: Nuke (Target)
-    // shadow_ops_tier2: Decoy (Target)
-    // shadow_ops_tier3: Stun (Global)
-    // skunkworks_tier2: Smoke (Target)
-    // skunkworks_tier3: Host (Target)
+    // heavy_metal_tier2: Drop (Targeted)
+    // heavy_metal_tier3: Nuke (Targeted)
+    // shadow_ops_tier2: Decoy (Targeted)
+    // shadow_ops_tier3: Global EMP (Global)
+    // skunkworks_tier2: Nano-Cloud (Targeted)
+    // skunkworks_tier3: Swarm Host (Targeted)
 
     const fullType = type.toUpperCase();
     const needsTarget = fullType !== 'SHADOW_OPS_TIER3';

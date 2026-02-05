@@ -155,6 +155,10 @@ export const ABILITY_CONFIG = {
   WP_RADIUS: 5,
   WP_DAMAGE_PER_TICK: 5, 
   
+  // Nano Cloud
+  NANO_CLOUD_RADIUS: 5,
+  NANO_CLOUD_DURATION: 30000,
+
   // Ballistic Missile Physics
   MISSILE_LAUNCH_HEIGHT: 80,
   MISSILE_ASCENT_SPEED: 10, 
