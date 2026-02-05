@@ -223,7 +223,7 @@ const DetailedMissileModel = ({ color }: { color: string }) => {
 };
 
 // CloudMesh Component
-const CloudMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number }> = ({ cloud, tileSize, offset }) => {
+const CloudMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number; playerTeam: 'blue' | 'red' }> = ({ cloud, tileSize, offset, playerTeam }) => {
     const meshRef = useRef<THREE.Mesh>(null);
     
     useFrame((state) => {
@@ -250,7 +250,8 @@ const CloudMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number }
     let opacity = 0.4;
 
     if (cloud.type === 'nano') {
-        color = "#10b981"; // Emerald
+        const isFriendly = cloud.team === playerTeam;
+        color = isFriendly ? "#10b981" : "#ef4444"; // Green if friendly, Red if enemy
         opacity = 0.3;
     } else if (cloud.type === 'eclipse') {
         color = "#c084fc"; // Purple
@@ -276,7 +277,7 @@ const CloudMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number }
             {cloud.type === 'nano' && (
                 <mesh>
                     <dodecahedronGeometry args={[cloud.radius * tileSize * 0.6, 0]} />
-                    <meshBasicMaterial color="#059669" wireframe transparent opacity={0.2} />
+                    <meshBasicMaterial color={cloud.team === playerTeam ? "#059669" : "#b91c1c"} wireframe transparent opacity={0.2} />
                 </mesh>
             )}
         </group>
@@ -333,6 +334,21 @@ const ProjectileMesh: React.FC<{ projectile: Projectile }> = ({ projectile }) =>
                 <mesh position={[0, 1.5, 0]}>
                     <coneGeometry args={[0.5, 2, 8, 1, true]} />
                     <meshBasicMaterial color="#f97316" transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} />
+                </mesh>
+            </group>
+        );
+    }
+
+    if (projectile.payload === 'nano_canister' || projectile.payload === 'nano_cloud_master') {
+        return (
+            <group ref={meshRef}>
+                <mesh>
+                    <cylinderGeometry args={[0.3, 0.3, 1, 8]} />
+                    <meshStandardMaterial color="#10b981" />
+                </mesh>
+                <mesh position={[0, 0.6, 0]}>
+                    <coneGeometry args={[0.3, 0.4, 8]} />
+                    <meshStandardMaterial color="#34d399" />
                 </mesh>
             </group>
         );
@@ -445,9 +461,10 @@ interface CityMapProps {
   pendingDoctrineAction?: { type: string, target: {x: number, z: number}, team: 'blue'|'red' } | null;
   onActionComplete?: () => void;
   doctrines?: { blue: DoctrineState, red: DoctrineState };
+  targetingDoctrine?: { type: string, team: 'blue'|'red', cost: number } | null;
 }
 
-const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines }) => {
+const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine }) => {
   const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
   const offset = (gridSize * tileSize) / 2;
   const baseA_Coord = useMemo(() => ({ x: 4, z: 4 }), []);
@@ -934,16 +951,43 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
               }));
           }
           else if (type === 'SKUNKWORKS_TIER2') {
-              // Nano Cloud
-              setClouds(prev => [...prev, {
-                  id: `cloud-doc-${Date.now()}`,
-                  type: 'nano',
-                  team: team as 'blue' | 'red',
-                  gridPos: { x: target.x, z: target.z },
-                  radius: ABILITY_CONFIG.NANO_CLOUD_RADIUS,
-                  duration: ABILITY_CONFIG.NANO_CLOUD_DURATION,
-                  createdAt: Date.now()
-              }]);
+              // Nano Cloud Projectile Volley
+              const count = 3;
+              for (let i = 0; i < count; i++) {
+                  const isMaster = i === 0;
+                  const angle = (i / count) * Math.PI * 2;
+                  const radius = isMaster ? 0 : 2;
+                  const offsetX = Math.cos(angle) * radius;
+                  const offsetZ = Math.sin(angle) * radius;
+                  
+                  const startPos = { 
+                      x: (target.x * tileSize) - offset + (Math.random() * 5 - 2.5), 
+                      y: 60, 
+                      z: (target.z * tileSize) - offset + (Math.random() * 5 - 2.5) 
+                  };
+                  const targetPos = { 
+                      x: ((target.x + offsetX) * tileSize) - offset, 
+                      y: 0.5, 
+                      z: ((target.z + offsetZ) * tileSize) - offset 
+                  };
+
+                  setProjectiles(prev => [...prev, {
+                      id: `nano-canister-${Date.now()}-${i}`,
+                      ownerId: 'command',
+                      team: team as 'blue'|'red',
+                      position: startPos,
+                      velocity: { x: 0, y: -30, z: 0 }, 
+                      damage: 20,
+                      radius: ABILITY_CONFIG.NANO_CLOUD_RADIUS, 
+                      maxDistance: 200,
+                      distanceTraveled: 0,
+                      targetPos: targetPos,
+                      trajectory: 'ballistic',
+                      payload: isMaster ? 'nano_cloud_master' : 'nano_canister', // Only master spawns actual cloud
+                      startPos: startPos,
+                      startTime: Date.now()
+                  }]);
+              }
           }
           else if (type === 'SKUNKWORKS_TIER3') {
               // Spawn Swarm Host
@@ -1897,8 +1941,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                        projsChanged = true;
                        
                        const isNuke = p.payload === 'nuke';
-                       const explosionRadius = isNuke ? 12 : 8;
-                       const explosionDuration = isNuke ? 2000 : 1200;
+                       // Reduce impact explosion size for nano canisters to avoid clutter
+                       const explosionRadius = isNuke ? 12 : (p.payload === 'nano_canister' ? 2 : 8);
+                       const explosionDuration = isNuke ? 2000 : (p.payload === 'nano_canister' ? 500 : 1200);
                        
                        newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: p.targetPos, radius: explosionRadius, duration: explosionDuration, createdAt: now });
                        
@@ -1909,16 +1954,29 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
                        // Create Cloud (if applicable)
                        const cloudType = p.payload || 'wp';
-                       if (cloudType !== 'nuke') {
-                           setClouds(prev => [...prev, {
-                               id: `cloud-${Date.now()}`,
-                               type: cloudType as 'eclipse'|'wp',
-                               gridPos: { x: Math.round((p.targetPos!.x + offset) / CITY_CONFIG.tileSize), z: Math.round((p.targetPos!.z + offset) / CITY_CONFIG.tileSize) },
-                               radius: cloudType === 'eclipse' ? ABILITY_CONFIG.ECLIPSE_RADIUS : ABILITY_CONFIG.WP_RADIUS,
-                               duration: cloudType === 'eclipse' ? ABILITY_CONFIG.ECLIPSE_DURATION : ABILITY_CONFIG.WP_DURATION,
-                               createdAt: Date.now(),
-                               team: p.team as CloudData['team']
-                           }]);
+                       if (cloudType !== 'nuke' && cloudType !== 'titan_drop') {
+                           if (cloudType === 'nano_cloud_master') {
+                               setClouds(prev => [...prev, {
+                                   id: `cloud-${Date.now()}-${Math.random()}`,
+                                   type: 'nano',
+                                   gridPos: { x: Math.round((p.targetPos!.x + offset) / CITY_CONFIG.tileSize), z: Math.round((p.targetPos!.z + offset) / CITY_CONFIG.tileSize) },
+                                   radius: ABILITY_CONFIG.NANO_CLOUD_RADIUS,
+                                   duration: ABILITY_CONFIG.NANO_CLOUD_DURATION,
+                                   createdAt: Date.now(),
+                                   team: p.team as CloudData['team']
+                               }]);
+                           } else if (cloudType === 'eclipse' || cloudType === 'wp') {
+                               setClouds(prev => [...prev, {
+                                   id: `cloud-${Date.now()}`,
+                                   type: cloudType as 'eclipse'|'wp',
+                                   gridPos: { x: Math.round((p.targetPos!.x + offset) / CITY_CONFIG.tileSize), z: Math.round((p.targetPos!.z + offset) / CITY_CONFIG.tileSize) },
+                                   radius: cloudType === 'eclipse' ? ABILITY_CONFIG.ECLIPSE_RADIUS : ABILITY_CONFIG.WP_RADIUS,
+                                   duration: cloudType === 'eclipse' ? ABILITY_CONFIG.ECLIPSE_DURATION : ABILITY_CONFIG.WP_DURATION,
+                                   createdAt: Date.now(),
+                                   team: p.team as CloudData['team']
+                               }]);
+                           }
+                           // 'nano_canister' payloads just explode without spawning a cloud, effectively "dummy" rounds
                        }
                   } else {
                       // Calculate Parabolic Position
@@ -2636,7 +2694,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         {explosions.map(e => <ExplosionMesh key={e.id} explosion={e} />)}
         
         {/* Cloud Effects */}
-        {clouds.map(c => <CloudMesh key={c.id} cloud={c} tileSize={CITY_CONFIG.tileSize} offset={offset} />)}
+        {clouds.map(c => <CloudMesh key={c.id} cloud={c} tileSize={CITY_CONFIG.tileSize} offset={offset} playerTeam={playerTeam} />)}
 
         <Base 
             position={[(baseA_Coord.x * CITY_CONFIG.tileSize) - offset, 0, (baseA_Coord.z * CITY_CONFIG.tileSize) - offset]} 
@@ -2721,6 +2779,23 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                          <pointLight color="#ef4444" intensity={2} distance={10} animate-pulse />
                      </group>
                 ) : (targetingAbility === 'SWARM' || (interactionMode === 'target' && pendingDoctrineAction?.type.includes('SKUNKWORKS'))) ? (
+                    (interactionMode === 'target' && targetingDoctrine?.type === 'SKUNKWORKS_TIER2') ? (
+                        // Nano Cloud Reticle (Green, 5 radius)
+                        <group>
+                            <mesh rotation={[-Math.PI/2, 0, Date.now() * 0.005]}>
+                                <ringGeometry args={[ABILITY_CONFIG.NANO_CLOUD_RADIUS * tileSize - 0.5, ABILITY_CONFIG.NANO_CLOUD_RADIUS * tileSize, 64]} />
+                                <meshBasicMaterial color="#10b981" transparent opacity={0.6} side={THREE.DoubleSide} />
+                            </mesh>
+                            <mesh rotation={[-Math.PI/2, 0, 0]}>
+                                <circleGeometry args={[ABILITY_CONFIG.NANO_CLOUD_RADIUS * tileSize, 64]} />
+                                <meshBasicMaterial color="#10b981" transparent opacity={0.15} depthWrite={false} />
+                            </mesh>
+                            <mesh position={[0, 1, 0]}>
+                                <cylinderGeometry args={[0.5, 0.5, 2]} />
+                                <meshBasicMaterial color="#10b981" wireframe />
+                            </mesh>
+                        </group>
+                    ) : (
                     // Wasp Swarm Reticle (Orange, 2 radius)
                     <group>
                         {/* Outer Ring */}
@@ -2744,6 +2819,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                             <meshBasicMaterial color="#facc15" wireframe />
                         </mesh>
                     </group>
+                    )
                 ) : (
                     // Standard Reticle
                     <group>

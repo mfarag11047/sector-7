@@ -192,6 +192,7 @@ function App() {
               onMapTarget={handleMapTarget}
               pendingDoctrineAction={pendingDoctrineAction}
               doctrines={doctrines}
+              targetingDoctrine={targetingDoctrine}
           />
           <DroneCamera cameraStateRef={cameraStateRef} />
         </Suspense>
