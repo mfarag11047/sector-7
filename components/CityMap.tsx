@@ -10,6 +10,18 @@ import BlockStatus from './BlockStatus';
 import * as THREE from 'three';
 import { Edges, Html, Line, Float, Instance, Instances } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
+import { Zap, Ban } from 'lucide-react';
+
+// Helper to check if a grid position is inside any cloud of a specific type (optional)
+const isPointInCloud = (pos: {x: number, z: number}, clouds: CloudData[], type?: string): boolean => {
+    return clouds.some(c => {
+        if (type && c.type !== type) return false;
+        // Use cloud's gridPos directly
+        const dx = pos.x - c.gridPos.x;
+        const dz = pos.z - c.gridPos.z;
+        return Math.sqrt(dx * dx + dz * dz) <= c.radius;
+    });
+};
 
 // --- OPTIMIZED RENDERING: Instanced Roads ---
 // Replaces thousands of <RoadTile> components with a single draw call
@@ -275,10 +287,18 @@ const CloudMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number; 
             </mesh>
             {/* Inner core for Nano */}
             {cloud.type === 'nano' && (
-                <mesh>
-                    <dodecahedronGeometry args={[cloud.radius * tileSize * 0.6, 0]} />
-                    <meshBasicMaterial color={cloud.team === playerTeam ? "#059669" : "#b91c1c"} wireframe transparent opacity={0.2} />
-                </mesh>
+                <>
+                    <mesh>
+                        <dodecahedronGeometry args={[cloud.radius * tileSize * 0.6, 0]} />
+                        <meshBasicMaterial color={cloud.team === playerTeam ? "#059669" : "#b91c1c"} wireframe transparent opacity={0.2} />
+                    </mesh>
+                    <Html position={[0, cloud.radius * tileSize * 0.5, 0]} center distanceFactor={25} occlude>
+                        <div className="relative flex items-center justify-center animate-pulse drop-shadow-md">
+                            <Zap className="text-yellow-400 w-8 h-8 fill-current" />
+                            <Ban className="text-red-500 w-10 h-10 absolute opacity-80" />
+                        </div>
+                    </Html>
+                </>
             )}
         </group>
     );
@@ -2222,8 +2242,18 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   if (hit) {
                       projsChanged = true;
                       newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: nextP.position, radius: 3, duration: 500, createdAt: now });
-                      // If it's not a drop pod, deal damage
-                      if (p.payload !== 'titan_drop') {
+                      
+                      if (p.payload === 'nano_cloud_master') {
+                           setClouds(prev => [...prev, {
+                               id: `cloud-${Date.now()}-${Math.random()}`,
+                               type: 'nano',
+                               gridPos: { x: Math.round((nextP.position.x + offset) / CITY_CONFIG.tileSize), z: Math.round((nextP.position.z + offset) / CITY_CONFIG.tileSize) },
+                               radius: ABILITY_CONFIG.NANO_CLOUD_RADIUS,
+                               duration: ABILITY_CONFIG.NANO_CLOUD_DURATION,
+                               createdAt: Date.now(),
+                               team: p.team as CloudData['team']
+                           }]);
+                      } else if (p.payload !== 'titan_drop') {
                           damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: nextP.damage, position: nextP.position, radius: 3, team: nextP.team as UnitData['team'] });
                       }
                   } else {
@@ -2377,6 +2407,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   }
 
                   const chargers = activeUnits.filter(u => (u.type === 'helios') || (u.type === 'sun_plate' && u.isDeployed));
+                  
+                  // Clouds for visual obscuration logic (Charging & Targeting)
+                  const activeClouds = cloudsRef.current.filter(c => c.type === 'nano');
 
                   let nextUnits = activeUnits.map(u => {
                       let newUnit = { ...u };
@@ -2502,23 +2535,30 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       }
 
                       // External Charging (Helios/Sunplate/Tether)
+                      // Nano-Cloud Check: Obscures solar charging
+                      const isInNano = isPointInCloud(u.gridPos, activeClouds, 'nano');
+                      
                       let chargeAmount = 0;
                       let status = 0;
                       if (externalChargeMap.has(u.id)) { 
                           chargeAmount += externalChargeMap.get(u.id)!.amount; 
                           status = 1; 
                       }
-                      chargers.forEach(charger => {
-                          if (charger.team !== u.team) return;
-                          const dist = Math.sqrt(Math.pow(u.gridPos.x - charger.gridPos.x, 2) + Math.pow(u.gridPos.z - charger.gridPos.z, 2));
-                          if (charger.type === 'helios' && dist <= ABILITY_CONFIG.HELIOS_RADIUS) { 
-                              chargeAmount += ABILITY_CONFIG.HELIOS_CHARGE_RATE; 
-                              status = Math.max(status, 1); 
-                          } else if (charger.type === 'sun_plate' && charger.isDeployed && dist <= ABILITY_CONFIG.SUNPLATE_RADIUS) { 
-                              chargeAmount += ABILITY_CONFIG.SUNPLATE_CHARGE_RATE; 
-                              status = 2; 
-                          }
-                      });
+                      
+                      // Only process wireless charging if NOT obscured by Nano Cloud
+                      if (!isInNano) {
+                          chargers.forEach(charger => {
+                              if (charger.team !== u.team) return;
+                              const dist = Math.sqrt(Math.pow(u.gridPos.x - charger.gridPos.x, 2) + Math.pow(u.gridPos.z - charger.gridPos.z, 2));
+                              if (charger.type === 'helios' && dist <= ABILITY_CONFIG.HELIOS_RADIUS) { 
+                                  chargeAmount += ABILITY_CONFIG.HELIOS_CHARGE_RATE; 
+                                  status = Math.max(status, 1); 
+                              } else if (charger.type === 'sun_plate' && charger.isDeployed && dist <= ABILITY_CONFIG.SUNPLATE_RADIUS) { 
+                                  chargeAmount += ABILITY_CONFIG.SUNPLATE_CHARGE_RATE; 
+                                  status = 2; 
+                              }
+                          });
+                      }
 
                       if (chargeAmount > 0 && newUnit.battery < newUnit.maxBattery) { 
                           newUnit.battery = Math.min(newUnit.maxBattery, newUnit.battery + chargeAmount); 
@@ -2527,6 +2567,12 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       if (newUnit.chargingStatus !== status) { 
                           newUnit.chargingStatus = status; 
                           uChanged = true; 
+                      }
+                      
+                      // Update Nano Cloud state for visuals
+                      if (!!newUnit.isInNanoCloud !== isInNano) {
+                          newUnit.isInNanoCloud = isInNano;
+                          uChanged = true;
                       }
 
                       if (uChanged) {
@@ -2553,6 +2599,11 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   const autoAttackDamage = new Map<string, number>();
                   const finalUnitsWithAttacks = nextUnits.map(attacker => {
                        const stats = UNIT_STATS[attacker.type];
+                       
+                       // Check if attacker is blinded by Nano Cloud
+                       const attackerObscured = isPointInCloud(attacker.gridPos, activeClouds, 'nano');
+                       if (attackerObscured) return attacker;
+
                        if (stats.attackDamage && stats.attackDamage > 0) {
                            const lastAttack = attacker.lastAttackTime || 0;
                            const cooldown = stats.attackCooldown || 1000;
@@ -2561,6 +2612,11 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                                let minDist = 999;
                                for (const enemy of nextUnits) {
                                    if (enemy.team === attacker.team || enemy.team === 'neutral') continue;
+                                   
+                                   // Check if target is obscured by Nano Cloud
+                                   const targetObscured = isPointInCloud(enemy.gridPos, activeClouds, 'nano');
+                                   if (targetObscured) continue;
+
                                    const d = Math.sqrt(Math.pow(attacker.gridPos.x - enemy.gridPos.x, 2) + Math.pow(attacker.gridPos.z - enemy.gridPos.z, 2));
                                    if (d <= 2 && d < minDist) { minDist = d; targetId = enemy.id; }
                                }
@@ -2664,9 +2720,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         ))}
         {units.map(u => {
              const isVisible = visibleUnitIds.has(u.id);
-             // Detect if inside a Nano Cloud
-             const isInNanoCloud = clouds.some(c => c.type === 'nano' && Math.sqrt(Math.pow(u.gridPos.x - c.gridPos.x, 2) + Math.pow(u.gridPos.z - c.gridPos.z, 2)) <= c.radius);
-             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={handleUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onMoveStep={handleMoveStep} tileTypeMap={tileTypeMap} onDoubleClick={() => {}} visible={isVisible} actionMenuOpen={primarySelectionId === u.id} onAction={handleUnitAction} isTargetingMode={!!targetingSourceId} isInNanoCloud={isInNanoCloud} /> );
+             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={handleUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onMoveStep={handleMoveStep} tileTypeMap={tileTypeMap} onDoubleClick={() => {}} visible={isVisible} actionMenuOpen={primarySelectionId === u.id} onAction={handleUnitAction} isTargetingMode={!!targetingSourceId} /> );
         })}
         {decoys.map(d => (
             <Unit
