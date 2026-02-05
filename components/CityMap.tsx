@@ -342,14 +342,16 @@ const ProjectileMesh: React.FC<{ projectile: Projectile }> = ({ projectile }) =>
     if (projectile.payload === 'nano_canister' || projectile.payload === 'nano_cloud_master') {
         return (
             <group ref={meshRef}>
-                <mesh>
-                    <cylinderGeometry args={[0.3, 0.3, 1, 8]} />
-                    <meshStandardMaterial color="#10b981" />
-                </mesh>
-                <mesh position={[0, 0.6, 0]}>
-                    <coneGeometry args={[0.3, 0.4, 8]} />
-                    <meshStandardMaterial color="#34d399" />
-                </mesh>
+                <group rotation={[Math.PI/2, 0, 0]}>
+                    <mesh>
+                        <cylinderGeometry args={[0.3, 0.3, 1, 8]} />
+                        <meshStandardMaterial color="#10b981" />
+                    </mesh>
+                    <mesh position={[0, 0.6, 0]}>
+                        <coneGeometry args={[0.3, 0.4, 8]} />
+                        <meshStandardMaterial color="#34d399" />
+                    </mesh>
+                </group>
             </group>
         );
     }
@@ -962,7 +964,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   
                   const startPos = { 
                       x: (target.x * tileSize) - offset + (Math.random() * 5 - 2.5), 
-                      y: 60, 
+                      y: 80, 
                       z: (target.z * tileSize) - offset + (Math.random() * 5 - 2.5) 
                   };
                   const targetPos = { 
@@ -971,18 +973,24 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       z: ((target.z + offsetZ) * tileSize) - offset 
                   };
 
+                  const dx = targetPos.x - startPos.x;
+                  const dy = targetPos.y - startPos.y;
+                  const dz = targetPos.z - startPos.z;
+                  const dist = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                  const speed = 40;
+
                   setProjectiles(prev => [...prev, {
                       id: `nano-canister-${Date.now()}-${i}`,
                       ownerId: 'command',
                       team: team as 'blue'|'red',
                       position: startPos,
-                      velocity: { x: 0, y: -30, z: 0 }, 
+                      velocity: { x: (dx/dist)*speed, y: (dy/dist)*speed, z: (dz/dist)*speed }, 
                       damage: 20,
                       radius: ABILITY_CONFIG.NANO_CLOUD_RADIUS, 
                       maxDistance: 200,
                       distanceTraveled: 0,
                       targetPos: targetPos,
-                      trajectory: 'ballistic',
+                      trajectory: 'direct',
                       payload: isMaster ? 'nano_cloud_master' : 'nano_canister', // Only master spawns actual cloud
                       startPos: startPos,
                       startTime: Date.now()
@@ -2150,6 +2158,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       nextP.position.z += stepZ;
                       nextP.distanceTraveled += Math.sqrt(stepX**2 + stepY**2 + stepZ**2);
                       
+                      // Explicit ground check
+                      if (nextP.position.y <= 0.5) { hit = true; break; }
+
                       // Special Handling for Orbital Drop (Titan Drop)
                       if (p.payload === 'titan_drop') {
                           // Impact ground check
@@ -2744,7 +2755,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         {/* Targeting Cursor (Red for Cannon, Green for Surveillance, Orange for Missile, Cyan for Doctrine) */}
         {hoverGridPos && (targetingAbility || interactionMode === 'target') && (
             <group position={[(hoverGridPos.x * tileSize) - offset, 0.5, (hoverGridPos.z * tileSize) - offset]}>
-                {targetingAbility === 'MISSILE' || (interactionMode === 'target' && pendingDoctrineAction?.type.includes('HEAVY_METAL')) ? (
+                {targetingAbility === 'MISSILE' || (interactionMode === 'target' && targetingDoctrine?.type.includes('HEAVY_METAL')) ? (
                      // Nuke / Missile Targeting Reticle
                      <group>
                          {/* Spinning Ring Outer */}
@@ -2778,17 +2789,28 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                          </mesh>
                          <pointLight color="#ef4444" intensity={2} distance={10} animate-pulse />
                      </group>
-                ) : (targetingAbility === 'SWARM' || (interactionMode === 'target' && pendingDoctrineAction?.type.includes('SKUNKWORKS'))) ? (
+                ) : (targetingAbility === 'SWARM' || (interactionMode === 'target' && targetingDoctrine?.type.includes('SKUNKWORKS'))) ? (
                     (interactionMode === 'target' && targetingDoctrine?.type === 'SKUNKWORKS_TIER2') ? (
-                        // Nano Cloud Reticle (Green, 5 radius)
+                        // Nano Cloud Reticle (Green, 5 radius) - Crosshair + Ring
                         <group>
+                            {/* Outer Ring */}
                             <mesh rotation={[-Math.PI/2, 0, Date.now() * 0.005]}>
                                 <ringGeometry args={[ABILITY_CONFIG.NANO_CLOUD_RADIUS * tileSize - 0.5, ABILITY_CONFIG.NANO_CLOUD_RADIUS * tileSize, 64]} />
                                 <meshBasicMaterial color="#10b981" transparent opacity={0.6} side={THREE.DoubleSide} />
                             </mesh>
+                            {/* Inner Faint Fill */}
                             <mesh rotation={[-Math.PI/2, 0, 0]}>
                                 <circleGeometry args={[ABILITY_CONFIG.NANO_CLOUD_RADIUS * tileSize, 64]} />
                                 <meshBasicMaterial color="#10b981" transparent opacity={0.15} depthWrite={false} />
+                            </mesh>
+                            {/* Crosshair */}
+                            <mesh position={[0, 1, 0]}>
+                                <boxGeometry args={[0.5, 0.5, ABILITY_CONFIG.NANO_CLOUD_RADIUS * tileSize * 2]} />
+                                <meshBasicMaterial color="#10b981" transparent opacity={0.5} />
+                            </mesh>
+                            <mesh position={[0, 1, 0]} rotation={[0, Math.PI/2, 0]}>
+                                <boxGeometry args={[0.5, 0.5, ABILITY_CONFIG.NANO_CLOUD_RADIUS * tileSize * 2]} />
+                                <meshBasicMaterial color="#10b981" transparent opacity={0.5} />
                             </mesh>
                             <mesh position={[0, 1, 0]}>
                                 <cylinderGeometry args={[0.5, 0.5, 2]} />
