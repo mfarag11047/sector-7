@@ -246,22 +246,20 @@ const SingleTypeRoads: React.FC<{
             const x = (tile.x * tileSize) - offset;
             const z = (tile.z * tileSize) - offset;
             
-            tempObject.position.set(x, 0.02, z); // Slightly above ground
-            tempObject.rotation.set(-Math.PI / 2, 0, 0);
+            // Using boxGeometry, so position Y should be half thickness (0.1) so it sits on 0
+            tempObject.position.set(x, 0.1, z); 
             
+            let rotationY = 0;
             if (getRotation) {
-                tempObject.rotation.z = getRotation(tile);
+                rotationY = getRotation(tile);
             } else if (randomRotation) {
                 // Deterministic random based on position to avoid flicker on re-renders
                 const hash = Math.abs(Math.sin(tile.x * 12.9898 + tile.z * 78.233) * 43758.5453);
                 const rot = Math.floor((hash - Math.floor(hash)) * 4);
-                tempObject.rotation.z = rot * (Math.PI / 2);
-            } else {
-                // Default random-ish but actually just 0 for others to keep clean, or random if specified
-                const hash = Math.abs(Math.sin(tile.x * 32.9898 + tile.z * 48.233) * 43758.5453);
-                const rot = Math.floor((hash - Math.floor(hash)) * 4);
-                tempObject.rotation.z = rot * (Math.PI / 2);
+                rotationY = rot * (Math.PI / 2);
             }
+            
+            tempObject.rotation.set(0, rotationY, 0);
             
             tempObject.updateMatrix();
             meshRef.current!.setMatrixAt(i, tempObject.matrix);
@@ -322,7 +320,7 @@ const SingleTypeRoads: React.FC<{
             onClick={handleClick}
             onContextMenu={handleContextMenu}
         >
-            <planeGeometry args={[tileSize * tileScale, tileSize * tileScale]} />
+            <boxGeometry args={[tileSize * tileScale, 0.2, tileSize * tileScale]} />
             <meshStandardMaterial 
                 map={texture} 
                 roughness={0.8} 
