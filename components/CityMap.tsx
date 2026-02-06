@@ -25,17 +25,19 @@ const isPointInCloud = (pos: {x: number, z: number}, clouds: CloudData[], type?:
 };
 
 // New Component: StreetLights
-// Renders emissive orange strips along edges of street tiles
+// Renders discrete orange light fixtures along edges of street tiles
 const StreetLights: React.FC<{ tiles: RoadTileData[], tileSize: number, offset: number }> = ({ tiles, tileSize, offset }) => {
     const meshRef = useRef<THREE.InstancedMesh>(null);
     
-    // Count instances needed
+    // Count instances needed: 4 lights per edge per tile
+    const lightsPerEdge = 4;
+    
     const count = useMemo(() => {
         let c = 0;
         tiles.forEach(t => {
             if (t.type === 'street') {
-                if (t.x % 6 === 0) c += 2; // Vertical road borders
-                if (t.z % 6 === 0) c += 2; // Horizontal road borders
+                if (t.x % 6 === 0) c += 2 * lightsPerEdge; // Vertical road borders
+                if (t.z % 6 === 0) c += 2 * lightsPerEdge; // Horizontal road borders
             }
         });
         return c;
@@ -46,45 +48,50 @@ const StreetLights: React.FC<{ tiles: RoadTileData[], tileSize: number, offset: 
         const dummy = new THREE.Object3D();
         let idx = 0;
         const halfSize = tileSize / 2;
-        // Strip dimensions: thin strip of light
-        const stripThickness = 0.15;
-        const margin = 0.2; // Offset from edge
+        const margin = 0.3; // Offset from edge
+        const spacing = tileSize / lightsPerEdge;
+        const startOffset = -tileSize/2 + spacing/2; 
 
         tiles.forEach(t => {
             if (t.type !== 'street') return;
             const tx = (t.x * tileSize) - offset;
             const tz = (t.z * tileSize) - offset;
 
-            // Vertical Road (Running along Z, constant X) -> Lights on Left/Right edges
+            // Vertical Road (Running along Z)
             if (t.x % 6 === 0) {
                 // Left Strip
-                dummy.position.set(tx - halfSize + margin, 0.05, tz);
-                dummy.rotation.set(0, 0, 0); // Aligned with Z
-                dummy.scale.set(1, 1, 1);
-                dummy.updateMatrix();
-                meshRef.current.setMatrixAt(idx++, dummy.matrix);
-
+                for(let i=0; i<lightsPerEdge; i++) {
+                    dummy.position.set(tx - halfSize + margin, 0.05, tz + startOffset + (i * spacing));
+                    dummy.rotation.set(0, 0, 0); 
+                    dummy.scale.set(1, 1, 1);
+                    dummy.updateMatrix();
+                    meshRef.current.setMatrixAt(idx++, dummy.matrix);
+                }
                 // Right Strip
-                dummy.position.set(tx + halfSize - margin, 0.05, tz);
-                dummy.rotation.set(0, 0, 0);
-                dummy.updateMatrix();
-                meshRef.current.setMatrixAt(idx++, dummy.matrix);
+                for(let i=0; i<lightsPerEdge; i++) {
+                    dummy.position.set(tx + halfSize - margin, 0.05, tz + startOffset + (i * spacing));
+                    dummy.rotation.set(0, 0, 0);
+                    dummy.updateMatrix();
+                    meshRef.current.setMatrixAt(idx++, dummy.matrix);
+                }
             }
             
-            // Horizontal Road (Running along X, constant Z) -> Lights on Top/Bottom edges
+            // Horizontal Road (Running along X)
             if (t.z % 6 === 0) {
                 // Top Strip (Near -Z)
-                dummy.position.set(tx, 0.05, tz - halfSize + margin);
-                dummy.rotation.set(0, Math.PI / 2, 0); // Aligned with X
-                dummy.scale.set(1, 1, 1);
-                dummy.updateMatrix();
-                meshRef.current.setMatrixAt(idx++, dummy.matrix);
-
+                for(let i=0; i<lightsPerEdge; i++) {
+                    dummy.position.set(tx + startOffset + (i * spacing), 0.05, tz - halfSize + margin);
+                    dummy.rotation.set(0, Math.PI / 2, 0); 
+                    dummy.updateMatrix();
+                    meshRef.current.setMatrixAt(idx++, dummy.matrix);
+                }
                 // Bottom Strip (Near +Z)
-                dummy.position.set(tx, 0.05, tz + halfSize - margin);
-                dummy.rotation.set(0, Math.PI / 2, 0);
-                dummy.updateMatrix();
-                meshRef.current.setMatrixAt(idx++, dummy.matrix);
+                for(let i=0; i<lightsPerEdge; i++) {
+                    dummy.position.set(tx + startOffset + (i * spacing), 0.05, tz + halfSize - margin);
+                    dummy.rotation.set(0, Math.PI / 2, 0);
+                    dummy.updateMatrix();
+                    meshRef.current.setMatrixAt(idx++, dummy.matrix);
+                }
             }
         });
         meshRef.current.instanceMatrix.needsUpdate = true;
@@ -94,8 +101,7 @@ const StreetLights: React.FC<{ tiles: RoadTileData[], tileSize: number, offset: 
 
     return (
         <instancedMesh ref={meshRef} args={[undefined, undefined, count]}>
-            {/* BoxGeometry: width=thickness, height=0.1, depth=tileSize */}
-            <boxGeometry args={[0.15, 0.1, tileSize]} />
+            <boxGeometry args={[0.2, 0.1, 1.5]} />
             <meshBasicMaterial color="#f97316" toneMapped={false} />
         </instancedMesh>
     );

@@ -63,38 +63,103 @@ const createHexTexture = () => {
     return tex;
 };
 
-// 2. Concrete Texture (Normal/Street)
+// 2. Concrete Texture (Normal/Street) - UPDATED VISUALS
 const createConcreteTexture = () => {
     if (typeof document === 'undefined') return new THREE.Texture();
     const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
+    canvas.width = 512; // Increased resolution for details
+    canvas.height = 512;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-        // Base Concrete
+        // Helper for rounded rects
+        const drawRoundRect = (x: number, y: number, w: number, h: number, r: number) => {
+            ctx.beginPath();
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+            ctx.closePath();
+        };
+
+        // 1. Dark Industrial Base
         ctx.fillStyle = '#1e293b'; // Slate 800
-        ctx.fillRect(0, 0, 256, 256);
+        ctx.fillRect(0, 0, 512, 512);
         
-        // Noise
-        for(let i=0; i<1000; i++) {
-            ctx.fillStyle = Math.random() > 0.5 ? '#334155' : '#0f172a';
-            ctx.globalAlpha = 0.2;
-            ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+        // 2. Heavy Noise / Grime
+        for(let i=0; i<8000; i++) {
+            ctx.fillStyle = Math.random() > 0.5 ? '#0f172a' : '#334155';
+            ctx.globalAlpha = 0.15;
+            const s = Math.random() * 6;
+            ctx.fillRect(Math.random() * 512, Math.random() * 512, s, s);
         }
         ctx.globalAlpha = 1.0;
 
-        // Panel Lines (Cross)
-        ctx.strokeStyle = '#000000';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, 128); ctx.lineTo(256, 128);
-        ctx.moveTo(128, 0); ctx.lineTo(128, 256);
+        // 3. Concrete Cracks
+        ctx.strokeStyle = '#020617';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = 0.7;
+        for(let i=0; i<4; i++) {
+            ctx.beginPath();
+            let cx = Math.random() * 512;
+            let cy = Math.random() * 512;
+            ctx.moveTo(cx, cy);
+            for(let j=0; j<6; j++) {
+                cx += (Math.random() - 0.5) * 100;
+                cy += (Math.random() - 0.5) * 100;
+                ctx.lineTo(cx, cy);
+            }
+            ctx.stroke();
+        }
+        ctx.globalAlpha = 1.0;
+
+        // 4. Maintenance Hatch (The "Panel")
+        const hx = 80, hy = 120, hw = 160, hh = 240;
+        
+        // Hatch Shadow/Inset
+        ctx.fillStyle = 'rgba(0,0,0,0.4)';
+        drawRoundRect(hx+5, hy+5, hw, hh, 15);
+        ctx.fill();
+
+        // Hatch Body
+        ctx.fillStyle = '#283547'; 
+        drawRoundRect(hx, hy, hw, hh, 15);
+        ctx.fill();
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 3;
         ctx.stroke();
         
-        // Border
+        // Hatch Hinge Line
+        ctx.beginPath();
+        ctx.moveTo(hx + 20, hy + hh/2);
+        ctx.lineTo(hx + hw - 20, hy + hh/2);
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        
+        // Hatch Handle
+        ctx.fillStyle = '#0f172a';
+        drawRoundRect(hx + hw - 40, hy + hh/2 - 25, 20, 50, 5);
+        ctx.fill();
+
+        // 5. Panel Cut Lines (Grid)
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 3;
+        ctx.globalAlpha = 0.4;
+        ctx.beginPath();
+        ctx.moveTo(0, 380); ctx.lineTo(512, 380); 
+        ctx.moveTo(350, 0); ctx.lineTo(350, 512); 
+        ctx.stroke();
+        ctx.globalAlpha = 1.0;
+        
+        // 6. Worn Edges
         ctx.strokeStyle = '#334155';
-        ctx.lineWidth = 4;
-        ctx.strokeRect(0,0,256,256);
+        ctx.lineWidth = 8;
+        ctx.strokeRect(0,0,512,512);
     }
     const tex = new THREE.CanvasTexture(canvas);
     return tex;
@@ -168,7 +233,8 @@ const SingleTypeRoads: React.FC<{
     onHover: (x: number, z: number) => void;
     getRotation?: (tile: RoadTileData) => number;
     tileScale?: number;
-}> = ({ tiles, tileSize, offset, texture, baseColor, onClick, onRightClick, onHover, getRotation, tileScale = 0.95 }) => {
+    randomRotation?: boolean;
+}> = ({ tiles, tileSize, offset, texture, baseColor, onClick, onRightClick, onHover, getRotation, tileScale = 0.95, randomRotation = false }) => {
     const meshRef = useRef<THREE.InstancedMesh>(null);
     const [hoveredId, setHoveredId] = useState<number | null>(null);
     const tempObject = useMemo(() => new THREE.Object3D(), []);
@@ -185,9 +251,16 @@ const SingleTypeRoads: React.FC<{
             
             if (getRotation) {
                 tempObject.rotation.z = getRotation(tile);
+            } else if (randomRotation) {
+                // Deterministic random based on position to avoid flicker on re-renders
+                const hash = Math.abs(Math.sin(tile.x * 12.9898 + tile.z * 78.233) * 43758.5453);
+                const rot = Math.floor((hash - Math.floor(hash)) * 4);
+                tempObject.rotation.z = rot * (Math.PI / 2);
             } else {
-                // Random rotation for open/street tiles to break repetition
-                tempObject.rotation.z = Math.floor(Math.random() * 4) * (Math.PI / 2);
+                // Default random-ish but actually just 0 for others to keep clean, or random if specified
+                const hash = Math.abs(Math.sin(tile.x * 32.9898 + tile.z * 48.233) * 43758.5453);
+                const rot = Math.floor((hash - Math.floor(hash)) * 4);
+                tempObject.rotation.z = rot * (Math.PI / 2);
             }
             
             tempObject.updateMatrix();
@@ -196,7 +269,7 @@ const SingleTypeRoads: React.FC<{
         });
         meshRef.current.instanceMatrix.needsUpdate = true;
         if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
-    }, [tiles, tileSize, offset, baseColor, getRotation]);
+    }, [tiles, tileSize, offset, baseColor, getRotation, randomRotation]);
 
     useEffect(() => {
         if (!meshRef.current) return;
@@ -330,6 +403,7 @@ export const InstancedRoads: React.FC<{
                     texture={texConcrete} baseColor={new THREE.Color('#94a3b8')} // Lighten the concrete slightly
                     onClick={onClick} onRightClick={onRightClick} onHover={handleHover}
                     tileScale={tileScale}
+                    randomRotation={true}
                 />
             )}
             {openTiles.length > 0 && (
@@ -338,6 +412,7 @@ export const InstancedRoads: React.FC<{
                     texture={texHex} baseColor={new THREE.Color('#ffffff')}
                     onClick={onClick} onRightClick={onRightClick} onHover={handleHover}
                     tileScale={tileScale}
+                    randomRotation={true}
                 />
             )}
         </group>
