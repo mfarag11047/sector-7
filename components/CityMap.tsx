@@ -7,6 +7,7 @@ import Structure from './Structure';
 import Base from './Base';
 import Unit from './Unit';
 import BlockStatus from './BlockStatus';
+import { InstancedRoads } from './RoadSystem';
 import * as THREE from 'three';
 import { Edges, Html, Line, Float, Instance, Instances } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
@@ -23,116 +24,82 @@ const isPointInCloud = (pos: {x: number, z: number}, clouds: CloudData[], type?:
     });
 };
 
-// --- OPTIMIZED RENDERING: Instanced Roads ---
-// Replaces thousands of <RoadTile> components with a single draw call
-const InstancedRoads: React.FC<{ 
-    tiles: RoadTileData[]; 
-    tileSize: number; 
-    offset: number; 
-    onClick: (x: number, z: number) => void; 
-    onRightClick: (x: number, z: number) => void; 
-    onHover?: (x: number, z: number) => void;
-}> = ({ tiles, tileSize, offset, onClick, onRightClick, onHover }) => {
+// New Component: StreetLights
+// Renders emissive orange strips along edges of street tiles
+const StreetLights: React.FC<{ tiles: RoadTileData[], tileSize: number, offset: number }> = ({ tiles, tileSize, offset }) => {
     const meshRef = useRef<THREE.InstancedMesh>(null);
-    const [hoveredId, setHoveredId] = useState<number | null>(null);
+    
+    // Count instances needed
+    const count = useMemo(() => {
+        let c = 0;
+        tiles.forEach(t => {
+            if (t.type === 'street') {
+                if (t.x % 6 === 0) c += 2; // Vertical road borders
+                if (t.z % 6 === 0) c += 2; // Horizontal road borders
+            }
+        });
+        return c;
+    }, [tiles]);
 
-    // Colors
-    const colorMain = useMemo(() => new THREE.Color("#1e293b"), []);
-    const colorStreet = useMemo(() => new THREE.Color("#0f172a"), []);
-    const colorOpen = useMemo(() => new THREE.Color("#020617"), []); // Darker for open
-    const colorHover = useMemo(() => new THREE.Color("#0ea5e9"), []);
-    const tempObject = useMemo(() => new THREE.Object3D(), []);
-
-    // Initial Setup of Matrices and Colors
     useLayoutEffect(() => {
         if (!meshRef.current) return;
+        const dummy = new THREE.Object3D();
+        let idx = 0;
+        const halfSize = tileSize / 2;
+        // Strip dimensions: thin strip of light
+        const stripThickness = 0.15;
+        const margin = 0.2; // Offset from edge
 
-        tiles.forEach((tile, i) => {
-            const x = (tile.x * tileSize) - offset;
-            const z = (tile.z * tileSize) - offset;
+        tiles.forEach(t => {
+            if (t.type !== 'street') return;
+            const tx = (t.x * tileSize) - offset;
+            const tz = (t.z * tileSize) - offset;
+
+            // Vertical Road (Running along Z, constant X) -> Lights on Left/Right edges
+            if (t.x % 6 === 0) {
+                // Left Strip
+                dummy.position.set(tx - halfSize + margin, 0.05, tz);
+                dummy.rotation.set(0, 0, 0); // Aligned with Z
+                dummy.scale.set(1, 1, 1);
+                dummy.updateMatrix();
+                meshRef.current.setMatrixAt(idx++, dummy.matrix);
+
+                // Right Strip
+                dummy.position.set(tx + halfSize - margin, 0.05, tz);
+                dummy.rotation.set(0, 0, 0);
+                dummy.updateMatrix();
+                meshRef.current.setMatrixAt(idx++, dummy.matrix);
+            }
             
-            tempObject.position.set(x, 0.01, z);
-            tempObject.rotation.set(-Math.PI / 2, 0, 0);
-            tempObject.updateMatrix();
-            meshRef.current!.setMatrixAt(i, tempObject.matrix);
+            // Horizontal Road (Running along X, constant Z) -> Lights on Top/Bottom edges
+            if (t.z % 6 === 0) {
+                // Top Strip (Near -Z)
+                dummy.position.set(tx, 0.05, tz - halfSize + margin);
+                dummy.rotation.set(0, Math.PI / 2, 0); // Aligned with X
+                dummy.scale.set(1, 1, 1);
+                dummy.updateMatrix();
+                meshRef.current.setMatrixAt(idx++, dummy.matrix);
 
-            // Set base color
-            if (tile.type === 'main') meshRef.current!.setColorAt(i, colorMain);
-            else if (tile.type === 'street') meshRef.current!.setColorAt(i, colorStreet);
-            else meshRef.current!.setColorAt(i, colorOpen);
+                // Bottom Strip (Near +Z)
+                dummy.position.set(tx, 0.05, tz + halfSize - margin);
+                dummy.rotation.set(0, Math.PI / 2, 0);
+                dummy.updateMatrix();
+                meshRef.current.setMatrixAt(idx++, dummy.matrix);
+            }
         });
         meshRef.current.instanceMatrix.needsUpdate = true;
-        if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
+    }, [tiles, tileSize, offset, count]);
 
-    }, [tiles, tileSize, offset]);
-
-    // Update Colors when hover changes
-    useEffect(() => {
-        if (!meshRef.current) return;
-
-        // Set specific color for hovered
-        if (hoveredId !== null && hoveredId < tiles.length) {
-            meshRef.current.setColorAt(hoveredId, colorHover);
-            if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
-        }
-
-        return () => {
-            if (meshRef.current && hoveredId !== null && hoveredId < tiles.length) {
-                const tile = tiles[hoveredId];
-                if (tile.type === 'main') meshRef.current.setColorAt(hoveredId, colorMain);
-                else if (tile.type === 'street') meshRef.current.setColorAt(hoveredId, colorStreet);
-                else meshRef.current.setColorAt(hoveredId, colorOpen);
-                if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
-            }
-        }
-    }, [hoveredId, tiles]);
-
-    const handlePointerMove = (e: any) => {
-        // IMPORTANT: No stopPropagation here so events bubble to the main map group
-        if (e.instanceId !== undefined) {
-            setHoveredId(e.instanceId);
-            const tile = tiles[e.instanceId];
-            if (onHover) onHover(tile.x, tile.z);
-        }
-    };
-
-    const handlePointerOut = (e: any) => {
-        setHoveredId(null);
-    };
-
-    const handleClick = (e: any) => {
-        e.stopPropagation();
-        if (e.instanceId !== undefined) {
-            const tile = tiles[e.instanceId];
-            onClick(tile.x, tile.z);
-        }
-    };
-
-    const handleContextMenu = (e: any) => {
-        e.stopPropagation();
-        if (e.instanceId !== undefined) {
-            const tile = tiles[e.instanceId];
-            onRightClick(tile.x, tile.z);
-        }
-    };
+    if (count === 0) return null;
 
     return (
-        <group>
-            <instancedMesh
-                ref={meshRef}
-                args={[undefined, undefined, tiles.length]}
-                onPointerMove={handlePointerMove}
-                onPointerOut={handlePointerOut}
-                onClick={handleClick}
-                onContextMenu={handleContextMenu}
-            >
-                {/* Slightly smaller plane to create grid lines naturally via background gap */}
-                <planeGeometry args={[tileSize * 0.95, tileSize * 0.95]} />
-                <meshStandardMaterial roughness={0.8} metalness={0.4} />
-            </instancedMesh>
-        </group>
+        <instancedMesh ref={meshRef} args={[undefined, undefined, count]}>
+            {/* BoxGeometry: width=thickness, height=0.1, depth=tileSize */}
+            <boxGeometry args={[0.15, 0.1, tileSize]} />
+            <meshBasicMaterial color="#f97316" toneMapped={false} />
+        </instancedMesh>
     );
-}
+};
 
 // New Component: Destination Marker
 const DestinationMarker: React.FC<{ x: number, z: number, tileSize: number, offset: number }> = ({ x, z, tileSize, offset }) => {
@@ -2673,10 +2640,10 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           receiveShadow 
         >
             <planeGeometry args={[gridSize * tileSize, gridSize * tileSize]} />
-            <meshStandardMaterial color="#0f172a" roughness={1} metalness={0} />
+            <meshStandardMaterial color="#020617" roughness={1} metalness={0} />
         </mesh>
 
-        {/* Instanced Roads */}
+        {/* Instanced Roads with Procedural Textures */}
         <InstancedRoads 
             tiles={roadTiles} 
             tileSize={CITY_CONFIG.tileSize} 
@@ -2684,7 +2651,11 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
             onClick={handleTileClick} 
             onRightClick={handleRightClick} 
             onHover={(x, z) => setHoverGridPos({x, z})}
+            tileScale={0.95}
         />
+
+        {/* Street Lights */}
+        <StreetLights tiles={roadTiles} tileSize={CITY_CONFIG.tileSize} offset={offset} />
 
         {/* Selection Box Visual */}
         {dragSelection && dragSelection.active && (
