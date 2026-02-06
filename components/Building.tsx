@@ -359,6 +359,101 @@ const IndustrialComplex = ({
     );
 };
 
+// --- Sub-Component for Residential Building ---
+
+const ResidentialBuilding = ({
+    data,
+    materialRef,
+    onBeforeCompile,
+    onClick,
+    onRightClick,
+    onPointerOver,
+    onPointerOut,
+    hovered,
+    colors
+}: {
+    data: BuildingData;
+    materialRef: any;
+    onBeforeCompile: any;
+    onClick: any;
+    onRightClick: any;
+    onPointerOver: any;
+    onPointerOut: any;
+    hovered: boolean;
+    colors: any;
+}) => {
+    const width = data.scale[0];
+    const height = data.scale[1];
+    const depth = data.scale[2];
+
+    // Core dimensions slightly smaller than full tile to allow for details
+    const coreWidth = width * 0.65;
+    const coreDepth = depth * 0.65;
+
+    return (
+        <group
+            onClick={onClick}
+            onContextMenu={onRightClick}
+            onPointerOver={onPointerOver}
+            onPointerOut={onPointerOut}
+        >
+            {/* Core Hull (Capture Target) */}
+            {/* Position: center is at y = height/2 so shader fill works from bottom up */}
+            <mesh position={[0, height / 2, 0]} castShadow receiveShadow>
+                <boxGeometry args={[coreWidth, height, coreDepth]} />
+                <meshStandardMaterial
+                    ref={materialRef}
+                    metalness={0.5}
+                    roughness={0.7}
+                    onBeforeCompile={onBeforeCompile}
+                />
+                {hovered && <Edges color="#ffffff" threshold={20} />}
+            </mesh>
+
+            {/* Bay Columns (Dark Metallic Structures attached to faces) */}
+            {[
+                { pos: [0, height/2, coreDepth/2], args: [coreWidth * 0.6, height * 0.95, width * 0.15] }, // Front
+                { pos: [0, height/2, -coreDepth/2], args: [coreWidth * 0.6, height * 0.95, width * 0.15] }, // Back
+                { pos: [coreWidth/2, height/2, 0], args: [width * 0.15, height * 0.95, coreDepth * 0.6] }, // Right
+                { pos: [-coreWidth/2, height/2, 0], args: [width * 0.15, height * 0.95, coreDepth * 0.6] }, // Left
+            ].map((cfg, i) => (
+                <mesh key={i} position={cfg.pos as any}>
+                    <boxGeometry args={cfg.args as any} />
+                    <meshStandardMaterial color="#334155" metalness={0.6} roughness={0.4} />
+                </mesh>
+            ))}
+
+            {/* Neon Accents (Vertical strips at Core Corners) */}
+            {[
+                [1, 1], [1, -1], [-1, 1], [-1, -1]
+            ].map(([xSign, zSign], i) => (
+                <mesh key={i} position={[xSign * (coreWidth/2 + 0.02), height/2, zSign * (coreDepth/2 + 0.02)]}>
+                    <boxGeometry args={[0.05, height * 0.9, 0.05]} />
+                    <meshBasicMaterial color="#0ea5e9" toneMapped={false} />
+                </mesh>
+            ))}
+
+            {/* Roof Cap */}
+            <group position={[0, height, 0]}>
+                {/* Main Plate */}
+                <mesh position={[0, 0.05, 0]}>
+                    <boxGeometry args={[width * 0.7, 0.1, depth * 0.7]} />
+                    <meshStandardMaterial color="#1e293b" />
+                </mesh>
+                {/* AC Units */}
+                <mesh position={[width * 0.15, 0.25, -depth * 0.15]}>
+                    <boxGeometry args={[width * 0.2, 0.3, depth * 0.2]} />
+                    <meshStandardMaterial color="#475569" />
+                </mesh>
+                <mesh position={[-width * 0.1, 0.2, depth * 0.1]}>
+                    <boxGeometry args={[width * 0.15, 0.2, depth * 0.3]} />
+                    <meshStandardMaterial color="#475569" />
+                </mesh>
+            </group>
+        </group>
+    );
+};
+
 // --- Main Building Component ---
 
 const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHover }) => {
@@ -576,8 +671,20 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
               hovered={hovered}
               colors={colors}
           />
+      ) : data.type === 'residential' ? (
+          <ResidentialBuilding
+              data={data}
+              materialRef={materialRef}
+              onBeforeCompile={onBeforeCompile}
+              onClick={handleClick}
+              onRightClick={handleRightClick}
+              onPointerOver={handlePointerOver}
+              onPointerOut={handlePointerOut}
+              hovered={hovered}
+              colors={colors}
+          />
       ) : (
-          /* Standard Box Building (Residential, Server Node Base) */
+          /* Standard Box Building (Server Node Base) */
           <mesh
             castShadow
             receiveShadow
@@ -645,9 +752,9 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
           </group>
       )}
 
-      {/* Rooftop Details for standard buildings (Non-commercial, Non-server, Non-hightech, Non-industrial) */}
+      {/* Rooftop Details for standard buildings (Non-commercial, Non-server, Non-hightech, Non-industrial, Non-residential) */}
       <group position={[0, data.scale[1], 0]}>
-        {data.type !== 'server_node' && data.type !== 'commercial' && data.type !== 'hightech' && data.type !== 'industrial' && data.height > 20 && (
+        {data.type !== 'server_node' && data.type !== 'commercial' && data.type !== 'hightech' && data.type !== 'industrial' && data.type !== 'residential' && data.height > 20 && (
           <>
             <mesh position={[0, 1, 0]}>
               <cylinderGeometry args={[0.05, 0.05, 3, 6]} />
