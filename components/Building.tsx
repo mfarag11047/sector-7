@@ -13,6 +13,139 @@ interface BuildingProps {
   onHover?: (x: number, z: number) => void;
 }
 
+// --- Sub-Components for Commercial Tower ---
+
+const HologramRing = ({ radius, height, color }: { radius: number, height: number, color: string }) => {
+  const groupRef = useRef<THREE.Group>(null);
+  useFrame((state, delta) => {
+    if (groupRef.current) {
+        groupRef.current.rotation.y -= delta * 0.2;
+        // Floating effect
+        groupRef.current.position.y = height * 0.9 + Math.sin(state.clock.elapsedTime) * 0.2;
+    }
+  });
+
+  return (
+    <group ref={groupRef}>
+        <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <ringGeometry args={[radius * 1.5, radius * 1.6, 32]} />
+            <meshBasicMaterial color={color} transparent opacity={0.4} side={THREE.DoubleSide} depthWrite={false} />
+        </mesh>
+        {[0, 120, 240].map((deg, i) => (
+            <group key={i} rotation={[0, (deg * Math.PI) / 180, 0]}>
+                <mesh position={[radius * 1.8, 0, 0]} rotation={[0, 0, 0]}>
+                    <planeGeometry args={[radius * 0.8, radius * 0.3]} />
+                    <meshBasicMaterial color={color} transparent opacity={0.2} side={THREE.DoubleSide} depthWrite={false} />
+                </mesh>
+                <mesh position={[radius * 1.8, radius * 0.2, 0]} rotation={[0, 0, 0]}>
+                    <boxGeometry args={[radius * 0.8, 0.05, 0.05]} />
+                    <meshBasicMaterial color={color} />
+                </mesh>
+            </group>
+        ))}
+    </group>
+  );
+};
+
+const CommercialTower = ({ 
+    data, 
+    materialRef, 
+    onBeforeCompile, 
+    onClick, 
+    onRightClick, 
+    onPointerOver, 
+    onPointerOut, 
+    hovered,
+    colors
+}: { 
+    data: BuildingData; 
+    materialRef: any; 
+    onBeforeCompile: any; 
+    onClick: any; 
+    onRightClick: any; 
+    onPointerOver: any; 
+    onPointerOut: any; 
+    hovered: boolean;
+    colors: any;
+}) => {
+    const width = data.scale[0];
+    const height = data.scale[1];
+    const depth = data.scale[2];
+    const radius = Math.min(width, depth) * 0.35;
+    const coreHeight = height * 0.85;
+    const podiumHeight = height * 0.15;
+    
+    const glowColor = data.owner ? TEAM_COLORS[data.owner] : data.color;
+
+    return (
+        <group 
+            onClick={onClick}
+            onContextMenu={onRightClick}
+            onPointerOver={onPointerOver}
+            onPointerOut={onPointerOut}
+        >
+            {/* Podium (Base) */}
+            <mesh position={[0, podiumHeight / 2, 0]} castShadow receiveShadow>
+                <cylinderGeometry args={[radius * 1.4, radius * 1.6, podiumHeight, 8]} />
+                <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.3} />
+                <Edges color={hovered ? "#ffffff" : "#475569"} threshold={20} />
+            </mesh>
+
+            {/* Core (The Capture Shader Mesh) */}
+            {/* Positioned so its center allows the shader logic to fill correctly upwards */}
+            <mesh position={[0, podiumHeight + coreHeight / 2, 0]} castShadow receiveShadow>
+                <cylinderGeometry args={[radius, radius, coreHeight, 16]} />
+                <meshStandardMaterial
+                    ref={materialRef}
+                    metalness={0.6}
+                    roughness={0.2}
+                    onBeforeCompile={onBeforeCompile}
+                />
+                {hovered && <Edges color="#ffffff" threshold={40} />}
+            </mesh>
+
+            {/* Exoskeleton Pillars */}
+            {[45, 135, 225, 315].map((deg, i) => {
+                const rad = (deg * Math.PI) / 180;
+                const dist = radius * 1.25;
+                return (
+                    <group key={i} position={[Math.cos(rad) * dist, height / 2, Math.sin(rad) * dist]} rotation={[0, -rad, 0]}>
+                        <mesh>
+                            <boxGeometry args={[width * 0.1, height, depth * 0.1]} />
+                            <meshStandardMaterial color="#334155" metalness={0.8} roughness={0.4} />
+                            <Edges color={hovered ? "#ffffff" : "#0f172a"} />
+                        </mesh>
+                        {/* Light strip on pillar */}
+                        <mesh position={[0, 0, depth * 0.051]}>
+                            <planeGeometry args={[width * 0.02, height * 0.9]} />
+                            <meshBasicMaterial color={glowColor} />
+                        </mesh>
+                    </group>
+                );
+            })}
+
+            {/* Ribs/Rings connecting pillars */}
+            {[0.25, 0.5, 0.75].map((pct, i) => (
+                <mesh key={i} position={[0, height * pct, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                    <torusGeometry args={[radius * 1.3, width * 0.02, 4, 32]} />
+                    <meshStandardMaterial color="#1e293b" metalness={0.9} />
+                </mesh>
+            ))}
+
+            {/* Top Cap */}
+            <mesh position={[0, height, 0]}>
+                <cylinderGeometry args={[radius * 1.1, radius * 1.1, height * 0.05, 16]} />
+                <meshStandardMaterial color="#1e293b" />
+            </mesh>
+
+            {/* Hologram */}
+            <HologramRing radius={radius} height={height} color={glowColor} />
+        </group>
+    );
+};
+
+// --- Main Building Component ---
+
 const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHover }) => {
   const [hovered, setHovered] = useState(false);
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -36,10 +169,8 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
 
     const shader = materialRef.current.userData.shader;
     
-    // Strict safety checks before accessing properties
     if (!shader || !shader.uniforms) return;
 
-    // Retrieve uniforms individually with optional chaining
     const uProgress = shader.uniforms.uProgress;
     const uBaseColor = shader.uniforms.uBaseColor;
     const uGlowColor = shader.uniforms.uGlowColor;
@@ -47,11 +178,8 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
     const uHasOwner = shader.uniforms.uHasOwner;
     const uHeight = shader.uniforms.uHeight;
 
-    // Check if uniforms exist
     if (!uProgress || !uBaseColor || !uGlowColor || !uTeamColor || !uHasOwner || !uHeight) return;
 
-    // Safe to write values now - verify 'value' property exists implicitly by assignment, 
-    // but check for undefined on read if necessary.
     if (uProgress.value !== undefined) {
         uProgress.value = THREE.MathUtils.lerp(
             uProgress.value,
@@ -114,6 +242,7 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
       
       float h = uHeight;
       // Map local Y from [-height/2, height/2] to [0, 1]
+      // Adjusting normalization to handle variations in geometry origin slightly
       float normalizedY = clamp((vPos.y + h * 0.5) / h, 0.0, 1.0);
       
       vec3 finalColor = uBaseColor;
@@ -170,6 +299,11 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
       if (onHover) onHover(data.gridX, data.gridZ);
   };
 
+  const handlePointerOut = (e: any) => {
+      e.stopPropagation(); 
+      setHovered(false); 
+  };
+
   return (
     <group position={data.position}>
       {/* Foundation/Base Glow */}
@@ -191,28 +325,43 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
       )}
 
       {/* Main Building Body */}
-      <mesh
-        castShadow
-        receiveShadow
-        onClick={handleClick}
-        onContextMenu={handleRightClick}
-        onPointerOver={handlePointerOver}
-        onPointerOut={(e) => { e.stopPropagation(); setHovered(false); }}
-        position={[0, data.scale[1] / 2, 0]} 
-      >
-        <boxGeometry args={data.scale} />
-        <meshStandardMaterial
-          ref={materialRef}
-          metalness={data.type === 'server_node' ? 0.9 : 0.5}
-          roughness={data.type === 'server_node' ? 0.2 : 0.2}
-          onBeforeCompile={onBeforeCompile}
-        />
-        
-        <Edges
-          threshold={15}
-          color={hovered ? '#ffffff' : colors.edge}
-        />
-      </mesh>
+      {data.type === 'commercial' ? (
+          <CommercialTower 
+              data={data}
+              materialRef={materialRef}
+              onBeforeCompile={onBeforeCompile}
+              onClick={handleClick}
+              onRightClick={handleRightClick}
+              onPointerOver={handlePointerOver}
+              onPointerOut={handlePointerOut}
+              hovered={hovered}
+              colors={colors}
+          />
+      ) : (
+          /* Standard Box Building (Residential, Industrial, Hightech, Server Node Base) */
+          <mesh
+            castShadow
+            receiveShadow
+            onClick={handleClick}
+            onContextMenu={handleRightClick}
+            onPointerOver={handlePointerOver}
+            onPointerOut={handlePointerOut}
+            position={[0, data.scale[1] / 2, 0]} 
+          >
+            <boxGeometry args={data.scale} />
+            <meshStandardMaterial
+              ref={materialRef}
+              metalness={data.type === 'server_node' ? 0.9 : 0.5}
+              roughness={data.type === 'server_node' ? 0.2 : 0.2}
+              onBeforeCompile={onBeforeCompile}
+            />
+            
+            <Edges
+              threshold={15}
+              color={hovered ? '#ffffff' : colors.edge}
+            />
+          </mesh>
+      )}
 
       {/* Server Node Details */}
       {data.type === 'server_node' && (
@@ -257,9 +406,9 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
           </group>
       )}
 
-      {/* Rooftop Details for standard buildings */}
+      {/* Rooftop Details for standard buildings (Non-commercial, Non-server) */}
       <group position={[0, data.scale[1], 0]}>
-        {data.type !== 'server_node' && data.height > 20 && (
+        {data.type !== 'server_node' && data.type !== 'commercial' && data.height > 20 && (
           <>
             <mesh position={[0, 1, 0]}>
               <cylinderGeometry args={[0.05, 0.05, 3, 6]} />
