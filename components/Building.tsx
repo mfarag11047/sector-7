@@ -235,6 +235,130 @@ const HighTechBuilding = ({
     );
 };
 
+// --- Sub-Component for Industrial Complex ---
+
+const IndustrialComplex = ({ 
+    data, 
+    materialRef, 
+    onBeforeCompile, 
+    onClick, 
+    onRightClick, 
+    onPointerOver, 
+    onPointerOut, 
+    hovered,
+    colors
+}: { 
+    data: BuildingData; 
+    materialRef: any; 
+    onBeforeCompile: any; 
+    onClick: any; 
+    onRightClick: any; 
+    onPointerOver: any; 
+    onPointerOut: any; 
+    hovered: boolean;
+    colors: any;
+}) => {
+    const width = data.scale[0];
+    const height = data.scale[1];
+    const depth = data.scale[2];
+    
+    // Main Reactor dimensions match the logical height for the shader to work 1:1
+    const reactorRadius = Math.min(width, depth) * 0.35;
+    
+    return (
+        <group 
+            onClick={onClick}
+            onContextMenu={onRightClick}
+            onPointerOver={onPointerOver}
+            onPointerOut={onPointerOut}
+        >
+            {/* Foundation */}
+            <mesh position={[0, 0.5, 0]} castShadow receiveShadow>
+                <boxGeometry args={[width, 1, depth]} />
+                <meshStandardMaterial color="#1e293b" />
+            </mesh>
+
+            {/* Main Reactor Body (Capture Target) */}
+            <mesh position={[0, height / 2 + 0.5, 0]} castShadow receiveShadow>
+                {/* 8-sided cylinder looks like a heavy industrial tank */}
+                <cylinderGeometry args={[reactorRadius, reactorRadius, height, 8]} />
+                <meshStandardMaterial
+                    ref={materialRef}
+                    metalness={0.6}
+                    roughness={0.5}
+                    onBeforeCompile={onBeforeCompile}
+                />
+                {hovered && <Edges color="#ffffff" threshold={20} />}
+            </mesh>
+
+            {/* Reactor Top Cap */}
+            <mesh position={[0, height + 0.5, 0]}>
+                <cylinderGeometry args={[reactorRadius * 0.8, reactorRadius, 0.5, 8]} />
+                <meshStandardMaterial color="#334155" />
+            </mesh>
+
+            {/* Smokestack 1 */}
+            <group position={[width * 0.35, 0, depth * 0.35]}>
+                <mesh position={[0, height * 0.6, 0]}>
+                    <cylinderGeometry args={[width * 0.08, width * 0.12, height * 1.2, 8]} />
+                    <meshStandardMaterial color="#0f172a" />
+                </mesh>
+                <mesh position={[0, height * 1.2, 0]}>
+                    <torusGeometry args={[width * 0.08, width * 0.02, 4, 8]} rotation={[Math.PI/2, 0, 0]} />
+                    <meshBasicMaterial color="#ef4444" toneMapped={false} />
+                </mesh>
+            </group>
+
+            {/* Smokestack 2 */}
+            <group position={[-width * 0.35, 0, -depth * 0.35]}>
+                <mesh position={[0, height * 0.5, 0]}>
+                    <cylinderGeometry args={[width * 0.06, width * 0.1, height * 1.0, 8]} />
+                    <meshStandardMaterial color="#0f172a" />
+                </mesh>
+                <mesh position={[0, height * 1.0, 0]}>
+                    <torusGeometry args={[width * 0.06, width * 0.02, 4, 8]} rotation={[Math.PI/2, 0, 0]} />
+                    <meshBasicMaterial color="#ef4444" toneMapped={false} />
+                </mesh>
+            </group>
+
+            {/* Horizontal Storage Tank */}
+            <group position={[-width * 0.3, 1.5, depth * 0.3]}>
+                 <mesh rotation={[0, 0, Math.PI/2]}>
+                     <cylinderGeometry args={[width * 0.12, width * 0.12, width * 0.5, 8]} />
+                     <meshStandardMaterial color={colors.base} metalness={0.7} roughness={0.3} />
+                 </mesh>
+                 {/* Supports */}
+                 <mesh position={[-width*0.15, -0.6, 0]}>
+                     <boxGeometry args={[0.1, 1.2, 0.1]} />
+                     <meshStandardMaterial color="#475569" />
+                 </mesh>
+                 <mesh position={[width*0.15, -0.6, 0]}>
+                     <boxGeometry args={[0.1, 1.2, 0.1]} />
+                     <meshStandardMaterial color="#475569" />
+                 </mesh>
+                 {/* Pipe to main reactor */}
+                 <mesh position={[width*0.25, 0, -depth*0.1]} rotation={[0, Math.PI/4, Math.PI/2]}>
+                      <cylinderGeometry args={[0.1, 0.1, width*0.4]} />
+                      <meshStandardMaterial color="#64748b" />
+                 </mesh>
+            </group>
+            
+            {/* Vertical Tank */}
+            <group position={[width * 0.35, width*0.25 + 0.5, -depth * 0.1]}>
+                <mesh>
+                    <cylinderGeometry args={[width*0.15, width*0.15, width*0.5, 12]} />
+                    <meshStandardMaterial color={data.color} metalness={0.4} />
+                </mesh>
+                <mesh position={[0, width*0.25, 0]}>
+                    <sphereGeometry args={[width*0.15, 12, 8, 0, Math.PI*2, 0, Math.PI/2]} />
+                    <meshStandardMaterial color={data.color} metalness={0.4} />
+                </mesh>
+            </group>
+
+        </group>
+    );
+};
+
 // --- Main Building Component ---
 
 const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHover }) => {
@@ -440,8 +564,20 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
               hovered={hovered}
               colors={colors}
           />
+      ) : data.type === 'industrial' ? (
+          <IndustrialComplex 
+              data={data}
+              materialRef={materialRef}
+              onBeforeCompile={onBeforeCompile}
+              onClick={handleClick}
+              onRightClick={handleRightClick}
+              onPointerOver={handlePointerOver}
+              onPointerOut={handlePointerOut}
+              hovered={hovered}
+              colors={colors}
+          />
       ) : (
-          /* Standard Box Building (Residential, Industrial, Server Node Base) */
+          /* Standard Box Building (Residential, Server Node Base) */
           <mesh
             castShadow
             receiveShadow
@@ -509,9 +645,9 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
           </group>
       )}
 
-      {/* Rooftop Details for standard buildings (Non-commercial, Non-server, Non-hightech) */}
+      {/* Rooftop Details for standard buildings (Non-commercial, Non-server, Non-hightech, Non-industrial) */}
       <group position={[0, data.scale[1], 0]}>
-        {data.type !== 'server_node' && data.type !== 'commercial' && data.type !== 'hightech' && data.height > 20 && (
+        {data.type !== 'server_node' && data.type !== 'commercial' && data.type !== 'hightech' && data.type !== 'industrial' && data.height > 20 && (
           <>
             <mesh position={[0, 1, 0]}>
               <cylinderGeometry args={[0.05, 0.05, 3, 6]} />
