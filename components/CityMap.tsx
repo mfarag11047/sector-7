@@ -241,7 +241,7 @@ const CloudMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number; 
     } else if (cloud.type === 'eclipse') {
         color = "#c084fc"; // Purple
         opacity = 0.5;
-    } else if (cloud.type === 'wp') {
+    } else if (cloud.type === 'he') {
         color = "#fdba74"; // Orange/White
         opacity = 0.4;
     }
@@ -580,12 +580,12 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
     { id: 'u12', type: 'mason', unitClass: 'builder', team: 'blue', gridPos: { x: 3, z: 6 }, path: [], visionRange: UNIT_STATS.mason.visionRange, health: UNIT_STATS.mason.maxHealth, maxHealth: UNIT_STATS.mason.maxHealth, cooldowns: {}, cargo: 0, constructionTargetId: null, battery: 100, maxBattery: 100 },
     { id: 'u13', type: 'helios', unitClass: 'support', team: 'blue', gridPos: { x: 2, z: 6 }, path: [], visionRange: UNIT_STATS.helios.visionRange, health: UNIT_STATS.helios.maxHealth, maxHealth: UNIT_STATS.helios.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100 },
     { id: 'u14', type: 'sun_plate', unitClass: 'armor', team: 'blue', gridPos: { x: 4, z: 5 }, path: [], visionRange: UNIT_STATS.sun_plate.visionRange, health: UNIT_STATS.sun_plate.maxHealth, maxHealth: UNIT_STATS.sun_plate.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, isDeployed: false },
-    { id: 'u15', type: 'ballista', unitClass: 'support', team: 'blue', gridPos: { x: 5, z: 5 }, path: [], visionRange: UNIT_STATS.ballista.visionRange, health: UNIT_STATS.ballista.maxHealth, maxHealth: UNIT_STATS.ballista.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, ammoState: 'empty', loadedAmmo: null, missileInventory: { eclipse: 1, wp: 1 }, loadingProgress: 0 },
+    { id: 'u15', type: 'ballista', unitClass: 'support', team: 'blue', gridPos: { x: 5, z: 5 }, path: [], visionRange: UNIT_STATS.ballista.visionRange, health: UNIT_STATS.ballista.maxHealth, maxHealth: UNIT_STATS.ballista.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, ammoState: 'empty', loadedAmmo: null, missileInventory: { eclipse: 1, he: 1 }, loadingProgress: 0 },
     { id: 'u16', type: 'wasp', unitClass: 'air', team: 'red', gridPos: { x: gridSize - 6, z: gridSize - 8 }, path: [], visionRange: UNIT_STATS.wasp.visionRange, health: UNIT_STATS.wasp.maxHealth, maxHealth: UNIT_STATS.wasp.maxHealth, cooldowns: { swarmLaunch: 0 }, charges: { swarm: ABILITY_CONFIG.WASP_MAX_CHARGES }, battery: 100, maxBattery: 100 },
     { id: 'u17', type: 'mason', unitClass: 'builder', team: 'red', gridPos: { x: gridSize - 4, z: gridSize - 7 }, path: [], visionRange: UNIT_STATS.mason.visionRange, health: UNIT_STATS.mason.maxHealth, maxHealth: UNIT_STATS.mason.maxHealth, cooldowns: {}, cargo: 0, constructionTargetId: null, battery: 100, maxBattery: 100 },
     { id: 'u18', type: 'helios', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 3, z: gridSize - 7 }, path: [], visionRange: UNIT_STATS.helios.visionRange, health: UNIT_STATS.helios.maxHealth, maxHealth: UNIT_STATS.helios.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100 },
     { id: 'u19', type: 'sun_plate', unitClass: 'armor', team: 'red', gridPos: { x: gridSize - 5, z: gridSize - 6 }, path: [], visionRange: UNIT_STATS.sun_plate.visionRange, health: UNIT_STATS.sun_plate.maxHealth, maxHealth: UNIT_STATS.sun_plate.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, isDeployed: false },
-    { id: 'u20', type: 'ballista', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 6, z: gridSize - 6 }, path: [], visionRange: UNIT_STATS.ballista.visionRange, health: UNIT_STATS.ballista.maxHealth, maxHealth: UNIT_STATS.ballista.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, ammoState: 'empty', loadedAmmo: null, missileInventory: { eclipse: 1, wp: 1 }, loadingProgress: 0 },
+    { id: 'u20', type: 'ballista', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 6, z: gridSize - 6 }, path: [], visionRange: UNIT_STATS.ballista.visionRange, health: UNIT_STATS.ballista.maxHealth, maxHealth: UNIT_STATS.ballista.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, ammoState: 'empty', loadedAmmo: null, missileInventory: { eclipse: 1, he: 1 }, loadingProgress: 0 },
     { id: 'u21', type: 'banshee', unitClass: 'support', team: 'blue', gridPos: { x: 6, z: 6 }, path: [], visionRange: UNIT_STATS.banshee.visionRange, health: UNIT_STATS.banshee.maxHealth, maxHealth: UNIT_STATS.banshee.maxHealth, cooldowns: {}, battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, jammerActive: false },
     { id: 'u22', type: 'banshee', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 7, z: gridSize - 7 }, path: [], visionRange: UNIT_STATS.banshee.visionRange, health: UNIT_STATS.banshee.maxHealth, maxHealth: UNIT_STATS.banshee.maxHealth, cooldowns: {}, battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, jammerActive: false },
     ...initialDrones
@@ -609,7 +609,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   const [hoverGridPos, setHoverGridPos] = useState<{x: number, z: number} | null>(null);
   const [teamResources, setTeamResources] = useState<{blue: number, red: number}>({ blue: 1000, red: 1000 });
   const [teamCompute, setTeamCompute] = useState<{blue: number, red: number}>({ blue: 0, red: 0 });
-  const [stockpile, setStockpile] = useState<{blue: {eclipse: number, wp: number}, red: {eclipse: number, wp: number}}>({ blue: { eclipse: 0, wp: 0 }, red: { eclipse: 0, wp: 0 } });
+  const [stockpile, setStockpile] = useState<{blue: {eclipse: number, he: number}, red: {eclipse: number, he: number}}>({ blue: { eclipse: 0, he: 0 }, red: { eclipse: 0, he: 0 } });
   
   // CP Accumulator for Doctrine Unlocks (Automatic progression simulation)
   const cpAccumulator = useRef<{blue: number, red: number}>({ blue: 0, red: 0 });
@@ -781,15 +781,15 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         // Always show friendly units AND defense drones (they are map features)
         if (u.team === playerTeam || u.type === 'defense_drone') { visible.add(u.id); return; }
         const friendlies = units.filter(f => f.team === playerTeam);
-        const inWP = clouds.some(c => c.type === 'wp' && Math.sqrt(Math.pow(u.gridPos.x - c.gridPos.x, 2) + Math.pow(u.gridPos.z - c.gridPos.z, 2)) <= c.radius);
-        if (inWP) return; 
+        const inHE = clouds.some(c => c.type === 'he' && Math.sqrt(Math.pow(u.gridPos.x - c.gridPos.x, 2) + Math.pow(u.gridPos.z - c.gridPos.z, 2)) <= c.radius);
+        if (inHE) return; 
         if (u.smoke?.active) {
             const isAdjacent = friendlies.some(f => Math.abs(u.gridPos.x - f.gridPos.x) <= 1 && Math.abs(u.gridPos.z - f.gridPos.z) <= 1);
             if (!isAdjacent) return;
         }
         const isDetected = friendlies.some(f => {
-            const fInWP = clouds.some(c => c.type === 'wp' && Math.sqrt(Math.pow(f.gridPos.x - c.gridPos.x, 2) + Math.pow(f.gridPos.z - c.gridPos.z, 2)) <= c.radius);
-            if (fInWP) return false;
+            const fInHE = clouds.some(c => c.type === 'he' && Math.sqrt(Math.pow(f.gridPos.x - c.gridPos.x, 2) + Math.pow(f.gridPos.z - c.gridPos.z, 2)) <= c.radius);
+            if (fInHE) return false;
             const dist = Math.sqrt(Math.pow(u.gridPos.x - f.gridPos.x, 2) + Math.pow(u.gridPos.z - f.gridPos.z, 2));
             return dist <= f.visionRange;
         });
@@ -799,7 +799,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   }, [units, playerTeam, clouds]);
 
   const calculateStats = useCallback((
-    currentBuildings: BuildingData[], currentUnits: UnitData[], currentBlocks: BuildingBlock[], currentResources: {blue: number, red: number}, currentStockpile: {blue: {eclipse: number, wp: number}, red: {eclipse: number, wp: number}}
+    currentBuildings: BuildingData[], currentUnits: UnitData[], currentBlocks: BuildingBlock[], currentResources: {blue: number, red: number}, currentStockpile: {blue: {eclipse: number, he: number}, red: {eclipse: number, he: number}}
   ): GameStats => {
     const teams: ('blue' | 'red')[] = ['blue', 'red'];
     const result = { blue: {} as TeamStats, red: {} as TeamStats };
@@ -863,7 +863,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           for (const n of neighbors) {
               const nId = (n.x << 16) | n.z;
               if (n.x >= 0 && n.x < gridSize && n.z >= 0 && n.z < gridSize) {
-                  if ((dynamicRoadTileSet.has(nId) || nId === endId) && !visited.has(nId)) {
+                  if (dynamicRoadTileSet.has(nId) && !visited.has(nId)) {
                       visited.add(nId);
                       queue.push({ x: n.x, z: n.z, path: [...current.path, `${n.x},${n.z}`] });
                   }
@@ -1019,6 +1019,21 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
               let unitsChanged = false;
               let nextUnits = [...prevUnits];
 
+              const getSpawnPos = (center) => {
+                  const neighbors = [
+                      {x: center.x+1, z: center.z}, {x: center.x-1, z: center.z}, 
+                      {x: center.x, z: center.z+1}, {x: center.x, z: center.z-1},
+                      {x: center.x+1, z: center.z+1}, {x: center.x-1, z: center.z-1},
+                      {x: center.x+1, z: center.z-1}, {x: center.x-1, z: center.z+1}
+                  ];
+                  for (let n of neighbors) {
+                      if (n.x >= 0 && n.x < CITY_CONFIG.gridSize && n.z >= 0 && n.z < CITY_CONFIG.gridSize) {
+                          if (dynamicRoadTileSet.has((n.x << 16) | n.z)) return n;
+                      }
+                  }
+                  return { ...center };
+              };
+
               // 1. Swarm Host Spawning Logic
               const hosts = nextUnits.filter(u => u.type === 'swarm_host');
               const hostMap = new Map<string, UnitData>();
@@ -1040,7 +1055,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                               type: 'crawler_drone',
                               unitClass: 'ordnance',
                               team: host.team,
-                              gridPos: { ...host.gridPos }, // Spawn at host location
+                              gridPos: getSpawnPos(host.gridPos), // Spawn at valid adjacent location
                               path: [],
                               visionRange: UNIT_STATS.crawler_drone.visionRange,
                               health: UNIT_STATS.crawler_drone.maxHealth,
@@ -1119,11 +1134,16 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                                       });
                                   } else {
                                       // Patrol near parent
-                                      const rx = parent.gridPos.x + Math.floor(Math.random() * 10 - 5);
-                                      const rz = parent.gridPos.z + Math.floor(Math.random() * 10 - 5);
-                                      const d = Math.sqrt(Math.pow(rx - parent.gridPos.x, 2) + Math.pow(rz - parent.gridPos.z, 2));
-                                      if (d <= range && rx >= 0 && rx < CITY_CONFIG.gridSize && rz >= 0 && rz < CITY_CONFIG.gridSize) {
-                                          targetPos = { x: rx, z: rz };
+                                      for (let i = 0; i < 15; i++) {
+                                          const rx = parent.gridPos.x + Math.floor(Math.random() * 10 - 5);
+                                          const rz = parent.gridPos.z + Math.floor(Math.random() * 10 - 5);
+                                          const d = Math.sqrt(Math.pow(rx - parent.gridPos.x, 2) + Math.pow(rz - parent.gridPos.z, 2));
+                                          if (d <= range && rx >= 0 && rx < CITY_CONFIG.gridSize && rz >= 0 && rz < CITY_CONFIG.gridSize) {
+                                              if (dynamicRoadTileSet.has((rx << 16) | rz)) {
+                                                  targetPos = { x: rx, z: rz };
+                                                  break;
+                                              }
+                                          }
                                       }
                                   }
 
@@ -1196,7 +1216,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           });
       }, 1000);
       return () => clearInterval(interval);
-  }, [doctrines, findPath]);
+  }, [doctrines, findPath, dynamicRoadTileSet]);
 
   const handleUnitSelect = (id: string) => {
       // If we just dragged, ignore click logic that might fire
@@ -1246,6 +1266,14 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       }));
   };
 
+  const checkIsValidPlacement = (x: number, z: number) => {
+      if (Math.abs(x - baseA_Coord.x) <= 1 && Math.abs(z - baseA_Coord.z) <= 1) return false;
+      if (Math.abs(x - baseB_Coord.x) <= 1 && Math.abs(z - baseB_Coord.z) <= 1) return false;
+      if (structuresState.some(s => s.gridPos.x === x && s.gridPos.z === z)) return false;
+      if (buildings.some(b => b.gridX === x && b.gridZ === z)) return false;
+      return true;
+  };
+
   const handleTileClick = (x: number, z: number) => {
       // If we just dragged, ignore click events generated
       if (didDragRef.current) return;
@@ -1256,6 +1284,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       }
 
       if (placementMode) {
+          if (!checkIsValidPlacement(x, z)) return;
           if (teamResources[playerTeam] >= placementMode.cost) {
               setTeamResources(prev => ({...prev, [playerTeam]: prev[playerTeam] - placementMode.cost}));
               const isWallOrTurret = placementMode.type === 'wall_tier1' || placementMode.type === 'wall_tier2' || placementMode.type === 'defense';
@@ -1546,18 +1575,16 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
   const handleBuild = (type: StructureType) => { const info = STRUCTURE_INFO[type]; if (teamResources[playerTeam] >= info.cost) { setPlacementMode({ type, cost: info.cost }); setBaseMenuOpen(null); } };
   
-  const handleUnitAction = (action: string) => {
-      if (selectedUnitIds.size === 0) return;
-      
-      const primaryUnitId = Array.from(selectedUnitIds)[0];
-      const unit = unitsRef.current.find(u => u.id === primaryUnitId);
+  const handleUnitAction = (unitId: string, action: string) => {
+      console.log("handleUnitAction called", unitId, action);
+      const unit = unitsRef.current.find(u => u.id === unitId);
       if (!unit) return;
       
       const compute = teamCompute[unit.team as 'blue' | 'red'];
       
       // Ballista Load Logic (Inventory -> Armed)
       if (action.startsWith('LOAD_AMMO_')) {
-          const type = action.replace('LOAD_AMMO_', '').toLowerCase() as 'eclipse' | 'wp';
+          const type = action.replace('LOAD_AMMO_', '').toLowerCase() as 'eclipse' | 'he';
           if (unit.missileInventory && unit.missileInventory[type] > 0) {
               setUnits(prev => prev.map(u => {
                   if (u.id === unit.id) {
@@ -1584,8 +1611,8 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
       // Ballista Order Logic (Spawn Courier)
       if (action.startsWith('REQUEST_DELIVERY_')) {
-          const type = action.replace('REQUEST_DELIVERY_', '').toLowerCase() as 'eclipse' | 'wp';
-          const cost = type === 'eclipse' ? ABILITY_CONFIG.WARHEAD_COST_ECLIPSE : ABILITY_CONFIG.WARHEAD_COST_WP;
+          const type = action.replace('REQUEST_DELIVERY_', '').toLowerCase() as 'eclipse' | 'he';
+          const cost = type === 'eclipse' ? ABILITY_CONFIG.WARHEAD_COST_ECLIPSE : ABILITY_CONFIG.WARHEAD_COST_HE;
           
           if (teamResources[unit.team as 'blue' | 'red'] >= cost) {
               // Find nearest Ordnance Fab
@@ -1639,59 +1666,85 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       }
 
       if (action === 'HARDLINE_TETHER') {
-          setTargetingSourceId(primaryUnitId);
+          setTargetingSourceId(unitId);
           setTargetingAbility('TETHER');
           return;
       }
       if (action === 'CANNON ATTACK') {
-          setTargetingSourceId(primaryUnitId);
+          setTargetingSourceId(unitId);
           setTargetingAbility('CANNON');
           return;
       }
       if (action === 'LOITERING SURVEILLANCE') {
-          setTargetingSourceId(primaryUnitId);
+          setTargetingSourceId(unitId);
           setTargetingAbility('SURVEILLANCE');
           return;
       }
       // Replaces FIRE_BALLISTA direct execution with Targeting Mode
       if (action === 'FIRE_BALLISTA') {
-          setTargetingSourceId(primaryUnitId);
+          setTargetingSourceId(unitId);
           setTargetingAbility('MISSILE');
           return;
       }
       // Wasp Swarm Targeting
       if (action === 'FIRE_SWARM') {
-          setTargetingSourceId(primaryUnitId);
+          setTargetingSourceId(unitId);
           setTargetingAbility('SWARM');
           return;
       }
 
       if (action === 'PHANTOM_DECOY_INIT' && compute >= COMPUTE_GATES.PHANTOM_DECOY) {
-           setTargetingSourceId(primaryUnitId);
+           setTargetingSourceId(unitId);
            setTargetingAbility('DECOY');
            return;
       }
 
       // Toggle Actions - Apply to all selected units of valid type
-      setUnits(prev => prev.map(u => {
-          if (!selectedUnitIds.has(u.id)) return u;
-          
-          if (action === 'TOGGLE_JAMMER' && u.type === 'banshee') return { ...u, jammerActive: !u.jammerActive };
-          if (action === 'TOGGLE DAMPENER' && u.type === 'ghost') return { ...u, isDampenerActive: !u.isDampenerActive };
-          if (action === 'TOGGLE ARRAY' && u.type === 'sun_plate') return { ...u, isDeployed: !u.isDeployed };
-          if (action === 'TOGGLE_ANCHOR' && u.type === 'swarm_host') {
-              const anchoring = !u.isAnchored;
-              return { 
-                  ...u, 
-                  isAnchored: anchoring, 
-                  path: [],
-                  cooldowns: { ...u.cooldowns, spawnWasp: anchoring ? 3000 : 0 } 
-              };
-          }
-          if (action === 'SMOKE SCREEN' && u.type === 'tank') return { ...u, cooldowns: { ...u.cooldowns, titanSmoke: ABILITY_CONFIG.TITAN_SMOKE_COOLDOWN }, smoke: { active: true, remainingTime: ABILITY_CONFIG.TITAN_SMOKE_DURATION } };
-          if (action === 'ACTIVATE APS' && u.type === 'tank') return { ...u, cooldowns: { ...u.cooldowns, titanAps: ABILITY_CONFIG.TITAN_APS_COOLDOWN }, aps: { active: true, remainingTime: ABILITY_CONFIG.TITAN_APS_DURATION } };
-          return u;
-      }));
+      setUnits(prev => {
+          let newDrones: any[] = [];
+          const getSpawnPos = (center: {x: number, z: number}) => {
+              const neighbors = [
+                  {x: center.x+1, z: center.z}, {x: center.x-1, z: center.z}, 
+                  {x: center.x, z: center.z+1}, {x: center.x, z: center.z-1},
+                  {x: center.x+1, z: center.z+1}, {x: center.x-1, z: center.z-1},
+                  {x: center.x+1, z: center.z-1}, {x: center.x-1, z: center.z+1}
+              ];
+              for (let n of neighbors) {
+                  if (n.x >= 0 && n.x < CITY_CONFIG.gridSize && n.z >= 0 && n.z < CITY_CONFIG.gridSize) {
+                      if (dynamicRoadTileSet.has((n.x << 16) | n.z)) return n;
+                  }
+              }
+              return { ...center };
+          };
+          const nextUnits = prev.map(u => {
+              if (!selectedUnitIds.has(u.id) && u.id !== unitId) return u;
+              
+              if (action === 'TOGGLE_JAMMER' && u.type === 'banshee') return { ...u, jammerActive: !u.jammerActive };
+              if (action === 'TOGGLE DAMPENER' && u.type === 'ghost') return { ...u, isDampenerActive: !u.isDampenerActive };
+              if (action === 'TOGGLE ARRAY' && u.type === 'sun_plate') return { ...u, isDeployed: !u.isDeployed };
+              if (action === 'TOGGLE_ANCHOR' && u.type === 'swarm_host') {
+                  const anchoring = !u.isAnchored;
+                  if (anchoring) {
+                      const rId = Math.floor(Math.random() * 100000);
+                      const idPrefix = `crawler-${u.id}-${Date.now()}-${rId}`;
+                      newDrones.push(
+                          { id: `${idPrefix}-1`, type: 'crawler_drone', unitClass: 'ordnance', team: u.team, gridPos: getSpawnPos(u.gridPos), path: [], visionRange: UNIT_STATS.crawler_drone.visionRange, health: UNIT_STATS.crawler_drone.maxHealth, maxHealth: UNIT_STATS.crawler_drone.maxHealth, battery: 100, maxBattery: 100, cooldowns: {}, parentId: u.id },
+                          { id: `${idPrefix}-2`, type: 'crawler_drone', unitClass: 'ordnance', team: u.team, gridPos: getSpawnPos(u.gridPos), path: [], visionRange: UNIT_STATS.crawler_drone.visionRange, health: UNIT_STATS.crawler_drone.maxHealth, maxHealth: UNIT_STATS.crawler_drone.maxHealth, battery: 100, maxBattery: 100, cooldowns: {}, parentId: u.id }
+                      );
+                  }
+                  return { 
+                      ...u, 
+                      isAnchored: anchoring, 
+                      path: [],
+                      cooldowns: { ...u.cooldowns, spawnWasp: anchoring ? 7000 : 0 } 
+                  };
+              }
+              if (action === 'SMOKE SCREEN' && u.type === 'tank') return { ...u, cooldowns: { ...u.cooldowns, titanSmoke: ABILITY_CONFIG.TITAN_SMOKE_COOLDOWN }, smoke: { active: true, remainingTime: ABILITY_CONFIG.TITAN_SMOKE_DURATION } };
+              if (action === 'ACTIVATE APS' && u.type === 'tank') return { ...u, cooldowns: { ...u.cooldowns, titanAps: ABILITY_CONFIG.TITAN_APS_COOLDOWN }, aps: { active: true, remainingTime: ABILITY_CONFIG.TITAN_APS_DURATION } };
+              return u;
+          });
+          return [...nextUnits, ...newDrones];
+      });
   };
 
   // --- Depot / Mason Logic ---
@@ -1717,13 +1770,30 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           const cost = stats.cost || 0;
           if (teamResources[playerTeam] >= cost) {
               setTeamResources(prev => ({...prev, [playerTeam]: prev[playerTeam] - cost}));
+              
+              // Find an adjacent valid tile for spawning
+              let spawnPos = { ...struct.gridPos };
+              const neighbors = [
+                  {x: struct.gridPos.x + 1, z: struct.gridPos.z},
+                  {x: struct.gridPos.x - 1, z: struct.gridPos.z},
+                  {x: struct.gridPos.x, z: struct.gridPos.z + 1},
+                  {x: struct.gridPos.x, z: struct.gridPos.z - 1}
+              ];
+              for (const n of neighbors) {
+                  const nId = (n.x << 16) | n.z;
+                  if (dynamicRoadTileSet.has(nId)) {
+                      spawnPos = n;
+                      break;
+                  }
+              }
+
               const newUnit: UnitData = {
-                  id: `u-${Date.now()}`, type: type, unitClass: stats.unitClass, team: playerTeam as UnitData['team'], gridPos: { ...struct.gridPos }, path: [], visionRange: stats.visionRange, health: stats.maxHealth, maxHealth: stats.maxHealth, battery: 100, maxBattery: 100, cooldowns: {},
+                  id: `u-${Date.now()}`, type: type, unitClass: stats.unitClass, team: playerTeam as UnitData['team'], gridPos: spawnPos, path: [], visionRange: stats.visionRange, health: stats.maxHealth, maxHealth: stats.maxHealth, battery: 100, maxBattery: 100, cooldowns: {},
                   ...(type === 'mason' ? { cargo: 100 } : {}),
                   ...(type === 'banshee' ? { battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY } : {}),
                   ...(type === 'wasp' ? { charges: { swarm: ABILITY_CONFIG.WASP_MAX_CHARGES } } : {}),
                   ...(type === 'tank' ? { charges: { smoke: ABILITY_CONFIG.MAX_CHARGES_SMOKE, aps: ABILITY_CONFIG.MAX_CHARGES_APS } } : {}),
-                  ...(type === 'ballista' ? { missileInventory: { eclipse: 1, wp: 1 }, ammoState: 'empty' as const } : {}), // New Ballistas start with 1 of each
+                  ...(type === 'ballista' ? { missileInventory: { eclipse: 1, he: 1 }, ammoState: 'empty' as const } : {}), // New Ballistas start with 1 of each
               };
               setUnits(prev => [...prev, newUnit]);
               setDepotMenuOpenId(null);
@@ -1772,7 +1842,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                 }
                 if (targetPos) {
                      const dist = Math.sqrt(Math.pow(u.gridPos.x - targetPos.x, 2) + Math.pow(u.gridPos.z - targetPos.z, 2));
-                     if (dist === 0) {
+                     if (dist < 1.5) {
                          if (actionType === 'build') { newUnit.cargo = Math.max(0, newUnit.cargo - ABILITY_CONFIG.MASON_BUILD_AMOUNT); } 
                          else { newUnit.cargo = 100; }
                          newUnit.path = []; 
@@ -1948,14 +2018,16 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                        
                        newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: p.targetPos, radius: explosionRadius, duration: explosionDuration, createdAt: now });
                        
-                       // Nuke Damage Event
+                       // Damage Events
+                       const cloudType = p.payload || 'he';
                        if (isNuke) {
                            damageEvents.push({ id: `nuke-dmg-${now}`, damage: 500, position: p.targetPos, radius: 8 * tileSize, team: p.team as UnitData['team'] });
+                       } else if (cloudType === 'he') {
+                           damageEvents.push({ id: `he-dmg-${now}`, damage: 150, position: p.targetPos, radius: 4 * tileSize, team: p.team as UnitData['team'] });
                        }
 
                        // Create Cloud (if applicable)
-                       const cloudType = p.payload || 'wp';
-                       if (cloudType !== 'nuke' && cloudType !== 'titan_drop') {
+                       if (cloudType !== 'nuke' && cloudType !== 'titan_drop' && cloudType !== 'he') {
                            if (cloudType === 'nano_cloud_master') {
                                setClouds(prev => [...prev, {
                                    id: `cloud-${Date.now()}-${Math.random()}`,
@@ -1966,13 +2038,13 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                                    createdAt: Date.now(),
                                    team: p.team as CloudData['team']
                                }]);
-                           } else if (cloudType === 'eclipse' || cloudType === 'wp') {
+                           } else if (cloudType === 'eclipse') {
                                setClouds(prev => [...prev, {
-                                   id: `cloud-${Date.now()}`,
-                                   type: cloudType as 'eclipse'|'wp',
+                                   id: `cloud-${Date.now()}-${Math.random()}`,
+                                   type: 'eclipse',
                                    gridPos: { x: Math.round((p.targetPos!.x + offset) / CITY_CONFIG.tileSize), z: Math.round((p.targetPos!.z + offset) / CITY_CONFIG.tileSize) },
-                                   radius: cloudType === 'eclipse' ? ABILITY_CONFIG.ECLIPSE_RADIUS : ABILITY_CONFIG.WP_RADIUS,
-                                   duration: cloudType === 'eclipse' ? ABILITY_CONFIG.ECLIPSE_DURATION : ABILITY_CONFIG.WP_DURATION,
+                                   radius: ABILITY_CONFIG.ECLIPSE_RADIUS,
+                                   duration: ABILITY_CONFIG.ECLIPSE_DURATION,
                                    createdAt: Date.now(),
                                    team: p.team as CloudData['team']
                                }]);
@@ -2240,13 +2312,13 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
           setClouds(prev => {
               const active = prev.filter(c => now - c.createdAt < c.duration);
-              active.filter(c => c.type === 'wp').forEach(cloud => {
+              active.filter(c => c.type === 'he').forEach(cloud => {
                    setUnits(prevUnits => prevUnits.map(u => {
                        const dx = u.gridPos.x - cloud.gridPos.x;
                        const dz = u.gridPos.z - cloud.gridPos.z;
                        if (Math.sqrt(dx*dx + dz*dz) <= cloud.radius) {
                            const isSoft = ['infantry', 'air'].includes(u.unitClass) || u.type === 'drone' || u.type === 'helios';
-                           if (isSoft) return { ...u, health: u.health - ABILITY_CONFIG.WP_DAMAGE_PER_TICK };
+                           if (isSoft) return { ...u, health: u.health - ABILITY_CONFIG.HE_DAMAGE_PER_TICK };
                        }
                        return u;
                    }));
@@ -2331,7 +2403,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   const tetherSources = new Map<string, UnitData>();
                   
                   // Courier Delivery Events to be processed after map
-                  const deliveries: { targetId: string, payload: 'eclipse' | 'wp' }[] = [];
+                  const deliveries: { targetId: string, payload: 'eclipse' | 'he' }[] = [];
 
                   prevUnits.forEach(u => { if (u.tetherTargetId) tetherSources.set(u.tetherTargetId, u); });
 
@@ -2503,8 +2575,22 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
                       // General Battery Drain
                       if (u.battery > 0 && u.type !== 'defense_drone') { 
-                          newUnit.battery = Math.max(0, newUnit.battery - drain); 
-                          if (newUnit.battery !== u.battery) uChanged = true; 
+                          let shouldDrain = true;
+                          if (u.type === 'crawler_drone' && u.parentId) {
+                              const parent = currentUnitsRef.find(p => p.id === u.parentId);
+                              if (parent && parent.isAnchored) {
+                                  const dist = Math.sqrt((u.gridPos.x - parent.gridPos.x)**2 + (u.gridPos.z - parent.gridPos.z)**2);
+                                  if (dist <= (ABILITY_CONFIG.CRAWLER_RADIUS || 7)) {
+                                      shouldDrain = false;
+                                      newUnit.battery = u.maxBattery;
+                                      if (newUnit.battery !== u.battery) uChanged = true;
+                                  }
+                              }
+                          }
+                          if (shouldDrain) {
+                              newUnit.battery = Math.max(0, newUnit.battery - drain); 
+                              if (newUnit.battery !== u.battery) uChanged = true; 
+                          }
                       }
 
                       // External Charging (Helios/Sunplate/Tether)
@@ -2632,6 +2718,22 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   // If multiple units are selected, only show menu for the first one for now (or improve to group commands later)
   const primarySelectionId = selectedUnitIds.size > 0 ? Array.from(selectedUnitIds)[0] : null;
 
+  const callbacksRef = useRef({ handleTileClick, handleRightClick, setHoverGridPos, handleUnitSelect, handleMoveStep, handleUnitAction, handleStructureClick, handleStructureAction });
+  callbacksRef.current = { handleTileClick, handleRightClick, setHoverGridPos, handleUnitSelect, handleMoveStep, handleUnitAction, handleStructureClick, handleStructureAction };
+  
+  const stableTileClick = useCallback((x: number, z: number) => callbacksRef.current.handleTileClick(x, z), []);
+  const stableRightClick = useCallback((x: number, z: number) => callbacksRef.current.handleRightClick(x, z), []);
+  const stableHover = useCallback((x: number, z: number) => callbacksRef.current.setHoverGridPos({x, z}), []);
+  const stableUnitSelect = useCallback((id: string) => callbacksRef.current.handleUnitSelect(id), []);
+  const stableMoveStep = useCallback((id: string) => callbacksRef.current.handleMoveStep(id), []);
+  const stableUnitAction = useCallback((id: string, action: string) => callbacksRef.current.handleUnitAction(id, action), []);
+  const stableDoubleClick = useCallback(() => {}, []);
+  const stableStructureClick = useCallback((id: string) => callbacksRef.current.handleStructureClick(id), []);
+  const stableStructureAction = useCallback((id: string, action: string) => callbacksRef.current.handleStructureAction(id, action), []);
+
+  const stableEmptyArray = useMemo(() => [], []);
+  const stableEmptyObject = useMemo(() => ({}), []);
+
   return (
     <group
         onPointerDown={handlePointerDown}
@@ -2646,7 +2748,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           receiveShadow 
         >
             <planeGeometry args={[gridSize * tileSize, gridSize * tileSize]} />
-            <meshStandardMaterial color="#020617" roughness={1} metalness={0} />
+            <meshStandardMaterial color="#1e293b" roughness={1} metalness={0} />
         </mesh>
 
         {/* Instanced Roads with Procedural Textures */}
@@ -2672,9 +2774,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
             <Building 
                 key={b.id} 
                 data={b} 
-                onClick={handleTileClick} 
-                onRightClick={handleRightClick} 
-                onHover={(x, z) => setHoverGridPos({x, z})}
+                onClick={stableTileClick} 
+                onRightClick={stableRightClick} 
+                onHover={stableHover}
             /> 
         ))}
         {structuresState.map(s => ( 
@@ -2683,11 +2785,11 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                 data={s} 
                 tileSize={CITY_CONFIG.tileSize} 
                 offset={offset} 
-                onRightClick={handleRightClick}
-                onDoubleClick={(id) => handleStructureClick(id)}
-                onClick={handleStructureClick}
+                onRightClick={stableRightClick}
+                onDoubleClick={stableStructureClick}
+                onClick={stableStructureClick}
                 menuOpen={depotMenuOpenId === s.id}
-                onAction={handleStructureAction}
+                onAction={stableStructureAction}
                 hasMason={hasMason}
                 resources={teamResources[playerTeam]}
             /> 
@@ -2697,7 +2799,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         ))}
         {units.map(u => {
              const isVisible = visibleUnitIds.has(u.id);
-             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={handleUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onMoveStep={handleMoveStep} tileTypeMap={tileTypeMap} onDoubleClick={() => {}} visible={isVisible} actionMenuOpen={primarySelectionId === u.id} onAction={handleUnitAction} isTargetingMode={!!targetingSourceId} /> );
+             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onMoveStep={stableMoveStep} tileTypeMap={tileTypeMap} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} /> );
         })}
         {decoys.map(d => (
             <Unit
@@ -2708,22 +2810,22 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                 team={d.team}
                 gridPos={d.gridPos}
                 isSelected={false}
-                onSelect={() => {}} // Decoys not selectable
+                onSelect={stableUnitSelect} // Decoys not selectable
                 tileSize={CITY_CONFIG.tileSize}
                 offset={offset}
-                path={[]}
-                onMoveStep={() => {}}
+                path={stableEmptyArray}
+                onMoveStep={stableMoveStep}
                 tileTypeMap={tileTypeMap}
-                onDoubleClick={() => {}}
+                onDoubleClick={stableDoubleClick}
                 visionRange={0}
                 visible={true} // Decoys always visible (they are meant to be seen)
                 actionMenuOpen={false}
-                onAction={() => {}}
+                onAction={stableUnitAction}
                 health={100}
                 maxHealth={100}
                 battery={100}
                 maxBattery={100}
-                cooldowns={{}}
+                cooldowns={stableEmptyObject}
                 teamCompute={0}
                 isDecoy={true}
             />
@@ -2815,7 +2917,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                          </mesh>
                          {/* Impact Radius Warning */}
                          <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, -0.4, 0]}>
-                              <circleGeometry args={[ABILITY_CONFIG.WP_RADIUS * tileSize, 32]} />
+                              <circleGeometry args={[ABILITY_CONFIG.HE_RADIUS * tileSize, 32]} />
                               <meshBasicMaterial color="#fca5a5" transparent opacity={0.15} depthWrite={false} />
                          </mesh>
                          <pointLight color="#ef4444" intensity={2} distance={10} animate-pulse />
@@ -2910,10 +3012,29 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
         {/* Placement Preview */}
         {placementMode && hoverGridPos && (
-           <mesh position={[(hoverGridPos.x * tileSize) - offset, 2, (hoverGridPos.z * tileSize) - offset]}>
-               <boxGeometry args={[tileSize * 0.8, 2, tileSize * 0.8]} />
-               <meshBasicMaterial color={placementMode.type.includes('wall') ? '#ffffff' : TEAM_COLORS[playerTeam]} transparent opacity={0.5} wireframe />
-           </mesh>
+           <group position={[(hoverGridPos.x * tileSize) - offset, 2, (hoverGridPos.z * tileSize) - offset]}>
+               {checkIsValidPlacement(hoverGridPos.x, hoverGridPos.z) ? (
+                   <mesh>
+                       <boxGeometry args={[tileSize * 0.8, 2, tileSize * 0.8]} />
+                       <meshBasicMaterial color={placementMode.type.includes('wall') ? '#ffffff' : TEAM_COLORS[playerTeam]} transparent opacity={0.5} wireframe />
+                   </mesh>
+               ) : (
+                   <group>
+                       <mesh>
+                           <boxGeometry args={[tileSize * 0.8, 2, tileSize * 0.8]} />
+                           <meshBasicMaterial color="#ef4444" transparent opacity={0.3} wireframe />
+                       </mesh>
+                       <mesh rotation={[0, Math.PI/4, 0]} position={[0, 1, 0]}>
+                           <boxGeometry args={[tileSize * 0.8, 1, 1]} />
+                           <meshBasicMaterial color="#ef4444" />
+                       </mesh>
+                       <mesh rotation={[0, -Math.PI/4, 0]} position={[0, 1, 0]}>
+                           <boxGeometry args={[tileSize * 0.8, 1, 1]} />
+                           <meshBasicMaterial color="#ef4444" />
+                       </mesh>
+                   </group>
+               )}
+           </group>
         )}
 
         {/* Active Projectile Target Markers (Dark Red until impact) */}
@@ -2935,4 +3056,4 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   );
 };
 
-export default CityMap;
+export default React.memo(CityMap);

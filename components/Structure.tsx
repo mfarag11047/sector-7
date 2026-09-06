@@ -5,6 +5,7 @@ import { Edges, Html } from '@react-three/drei';
 import { StructureData, StructureType, UnitType } from '../types';
 import { STRUCTURE_INFO, TEAM_COLORS, UNIT_CLASSES, UNIT_STATS } from '../constants';
 import * as THREE from 'three';
+import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 
 interface StructureProps {
   data: StructureData;
@@ -24,11 +25,11 @@ const CommLinkModel = ({ color, teamColor }: { color: string, teamColor: string 
   const fanRef = useRef<THREE.Group>(null);
 
   useFrame((state, delta) => {
-    if (dishRef.current) {
+    if (dishRef.current && isObjectInFrustum(dishRef.current, 10)) {
         dishRef.current.rotation.y += delta * 0.2;
         dishRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.5) * 0.2 - 0.2;
     }
-    if (fanRef.current) {
+    if (fanRef.current && isObjectInFrustum(fanRef.current, 5)) {
         fanRef.current.rotation.y += delta * 5;
     }
   });
@@ -360,7 +361,9 @@ const MunitionsModel = ({ color, teamColor }: { color: string, teamColor: string
 const AirpadModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
     const radarRef = useRef<THREE.Group>(null);
     useFrame((state, delta) => {
-        if(radarRef.current) radarRef.current.rotation.y += delta;
+        if(radarRef.current && isObjectInFrustum(radarRef.current, 10)) {
+            radarRef.current.rotation.y += delta;
+        }
     });
 
     return (
@@ -585,7 +588,7 @@ const OrdnanceFabModel = ({ color, teamColor }: { color: string, teamColor: stri
 const DefenseTurretModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
     const headRef = useRef<THREE.Group>(null);
     useFrame((state) => {
-        if(headRef.current) {
+        if(headRef.current && isObjectInFrustum(headRef.current, 10)) {
             headRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.5) * 0.5;
         }
     });
@@ -833,6 +836,25 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
     (data.gridPos.z * tileSize) - offset
   ] as [number, number, number], [data.gridPos, tileSize, offset]);
 
+  const [inView, setInView] = React.useState(true);
+  
+  useFrame((state) => {
+      // Distance culling to stop React rendering of heavy Html and elements if far
+      // Note: we can mutate a ref's visible property, but for Html we might want conditional rendering
+      // or just mutability. Mutability is faster!
+  });
+
+  const groupRef = useRef<THREE.Group>(null);
+  
+  useFrame((state) => {
+      if (groupRef.current) {
+          const isVisible = isObjectInFrustum(groupRef.current, 20);
+          if (groupRef.current.visible !== isVisible) {
+              groupRef.current.visible = isVisible;
+          }
+      }
+  });
+
   const handleRightClick = (e: any) => {
     e.stopPropagation();
     if (onRightClick) onRightClick(data.gridPos.x, data.gridPos.z);
@@ -1077,11 +1099,11 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
   };
 
   return (
-    <group position={position} onContextMenu={handleRightClick} onDoubleClick={handleDoubleClick} onClick={handleClick}>
+    <group ref={groupRef} position={position} onContextMenu={handleRightClick} onDoubleClick={handleDoubleClick} onClick={handleClick}>
       {renderMenu()}
       {renderModel()}
     </group>
   );
 };
 
-export default Structure;
+export default React.memo(Structure);

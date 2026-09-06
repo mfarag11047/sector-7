@@ -13,12 +13,12 @@ const createHexTexture = () => {
     canvas.height = 512;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-        // Dark Base
-        ctx.fillStyle = '#020617'; // Slate 950
+        // Dark Base (Lighter than before)
+        ctx.fillStyle = '#1e293b'; // Slate 800 (was 950)
         ctx.fillRect(0, 0, 512, 512);
         
         // Hex Lines
-        ctx.strokeStyle = '#1e293b'; // Slate 800
+        ctx.strokeStyle = '#334155'; // Slate 700
         ctx.lineWidth = 2;
         
         const r = 32;
@@ -38,7 +38,7 @@ const createHexTexture = () => {
             ctx.stroke();
             
             // Inner highlight
-            ctx.fillStyle = 'rgba(30, 41, 59, 0.3)'; 
+            ctx.fillStyle = 'rgba(51, 65, 85, 0.3)'; 
             ctx.fill();
         };
 
@@ -53,7 +53,7 @@ const createHexTexture = () => {
         // Add vignette/shadow at edges
         const grad = ctx.createRadialGradient(256, 256, 150, 256, 256, 300);
         grad.addColorStop(0, 'rgba(0,0,0,0)');
-        grad.addColorStop(1, 'rgba(0,0,0,0.9)');
+        grad.addColorStop(1, 'rgba(0,0,0,0.7)');
         ctx.fillStyle = grad;
         ctx.fillRect(0,0,512,512);
     }
@@ -86,13 +86,13 @@ const createConcreteTexture = () => {
             ctx.closePath();
         };
 
-        // 1. Dark Industrial Base
-        ctx.fillStyle = '#1e293b'; // Slate 800
+        // 1. Asphalt Base (Different from city base)
+        ctx.fillStyle = '#334155'; // Slate 700
         ctx.fillRect(0, 0, 512, 512);
         
         // 2. Heavy Noise / Grime
         for(let i=0; i<8000; i++) {
-            ctx.fillStyle = Math.random() > 0.5 ? '#0f172a' : '#334155';
+            ctx.fillStyle = Math.random() > 0.5 ? '#1e293b' : '#475569';
             ctx.globalAlpha = 0.15;
             const s = Math.random() * 6;
             ctx.fillRect(Math.random() * 512, Math.random() * 512, s, s);
@@ -100,7 +100,7 @@ const createConcreteTexture = () => {
         ctx.globalAlpha = 1.0;
 
         // 3. Concrete Cracks
-        ctx.strokeStyle = '#020617';
+        ctx.strokeStyle = '#0f172a';
         ctx.lineWidth = 2;
         ctx.globalAlpha = 0.7;
         for(let i=0; i<4; i++) {
@@ -126,10 +126,10 @@ const createConcreteTexture = () => {
         ctx.fill();
 
         // Hatch Body
-        ctx.fillStyle = '#283547'; 
+        ctx.fillStyle = '#475569'; 
         drawRoundRect(hx, hy, hw, hh, 15);
         ctx.fill();
-        ctx.strokeStyle = '#0f172a';
+        ctx.strokeStyle = '#1e293b';
         ctx.lineWidth = 3;
         ctx.stroke();
         
@@ -137,17 +137,17 @@ const createConcreteTexture = () => {
         ctx.beginPath();
         ctx.moveTo(hx + 20, hy + hh/2);
         ctx.lineTo(hx + hw - 20, hy + hh/2);
-        ctx.strokeStyle = '#1e293b';
+        ctx.strokeStyle = '#334155';
         ctx.lineWidth = 2;
         ctx.stroke();
         
         // Hatch Handle
-        ctx.fillStyle = '#0f172a';
+        ctx.fillStyle = '#1e293b';
         drawRoundRect(hx + hw - 40, hy + hh/2 - 25, 20, 50, 5);
         ctx.fill();
 
         // 5. Panel Cut Lines (Grid)
-        ctx.strokeStyle = '#000000';
+        ctx.strokeStyle = '#0f172a';
         ctx.lineWidth = 3;
         ctx.globalAlpha = 0.4;
         ctx.beginPath();
@@ -157,7 +157,7 @@ const createConcreteTexture = () => {
         ctx.globalAlpha = 1.0;
         
         // 6. Worn Edges
-        ctx.strokeStyle = '#334155';
+        ctx.strokeStyle = '#475569';
         ctx.lineWidth = 8;
         ctx.strokeRect(0,0,512,512);
     }
@@ -173,7 +173,7 @@ const createHighwayGlowTexture = () => {
     canvas.height = 256;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-        ctx.fillStyle = '#0f172a'; // Deep Base
+        ctx.fillStyle = '#0f172a'; // Very Dark Asphalt for Highway
         ctx.fillRect(0, 0, 256, 256);
         
         // Glow Settings

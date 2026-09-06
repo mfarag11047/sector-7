@@ -5,6 +5,7 @@ import { Edges, Float, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { StructureType, UnitClass } from '../types';
 import { STRUCTURE_INFO, UNIT_CLASSES } from '../constants';
+import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 
 interface BaseProps {
   position: [number, number, number];
@@ -23,9 +24,18 @@ const Base: React.FC<BaseProps> = ({
   position, gridPos, teamColor, label, onMoveCommand, onRightClick, onDoubleClick, menuOpen, resources = 0, onBuild 
 }) => {
   const radarRef = useRef<THREE.Group>(null);
+  const baseGroupRef = useRef<THREE.Group>(null);
   
-  // Animation for radar rotation
+  // Animation for radar rotation and visibility culling
   useFrame((state, delta) => {
+    if (baseGroupRef.current) {
+        const isVisible = isObjectInFrustum(baseGroupRef.current, 30);
+        if (baseGroupRef.current.visible !== isVisible) {
+            baseGroupRef.current.visible = isVisible;
+        }
+        if (!isVisible) return;
+    }
+
     if (radarRef.current) {
       radarRef.current.rotation.y += 0.5 * delta;
       // Slight tilt bobbing for "active" look
@@ -71,6 +81,7 @@ const Base: React.FC<BaseProps> = ({
 
   return (
     <group 
+      ref={baseGroupRef}
       position={position} 
       onClick={handleClick}
       onContextMenu={handleRightClick}

@@ -2,6 +2,7 @@
 import React, { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
+import { updateGlobalFrustum } from '../frustum';
 import { CAMERA_SPEED, CITY_CONFIG, CAMERA_ZOOM_SPEED, MIN_ZOOM, MAX_ZOOM } from '../constants';
 
 interface DroneCameraProps {
@@ -141,6 +142,8 @@ const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef }) => {
     // 4. Smoothly interpolate actual camera position to target position
     // Note: We only lerp position. Rotation is instant for responsive aiming.
     camera.position.lerp(positionRef.current, 0.1);
+
+    updateGlobalFrustum(camera);
 
     // 5. Sync State for Minimap
     if (cameraStateRef) {

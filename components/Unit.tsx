@@ -5,12 +5,17 @@ import { Edges, Float, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, UNIT_STATS, COMPUTE_GATES } from '../constants';
 import { UnitType, UnitClass } from '../types';
+import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 
 // Helper component for spinning rotors
 const Rotor: React.FC = () => {
   const ref = useRef<THREE.Group>(null);
-  useFrame((_, delta) => {
-    if (ref.current) ref.current.rotation.y += delta * 20;
+  useFrame((state, delta) => {
+    if (ref.current) {
+        if (isObjectInFrustum(ref.current, 5)) {
+             ref.current.rotation.y += delta * 20;
+        }
+    }
   });
   return (
     <group ref={ref}>
@@ -45,7 +50,7 @@ interface UnitProps {
   isDampenerActive?: boolean;
   isDeployed?: boolean; // Sun-Plate
   actionMenuOpen: boolean;
-  onAction: (action: string) => void;
+  onAction: (id: string, action: string) => void;
   isDecoy?: boolean;
   health: number;
   maxHealth: number;
@@ -83,11 +88,11 @@ interface UnitProps {
   constructionTargetId?: string | null; // Mason target
   isTargetingMode?: boolean;
   ammoState?: 'empty' | 'loading' | 'armed' | 'awaiting_delivery';
-  loadedAmmo?: 'eclipse' | 'wp' | null;
-  missileInventory?: { eclipse: number; wp: number }; // Added
+  loadedAmmo?: 'eclipse' | 'he' | null;
+  missileInventory?: { eclipse: number; he: number }; // Added
   loadingProgress?: number;
   courierTargetId?: string;
-  courierPayload?: 'eclipse' | 'wp';
+  courierPayload?: 'eclipse' | 'he';
   jammerActive?: boolean;
   tetherTargetId?: string | null;
   isJammed?: boolean;
@@ -231,31 +236,45 @@ const Unit: React.FC<UnitProps> = ({
   }, [path, tileTypeMap, isGhost, isDampenerActive, unitStats, isAir, isDisabled, isBallista, ammoState, isJammed, globalSpeedModifier, activeBuffs, isSwarmHost, isAnchored]);
 
   useFrame((state, delta) => {
-    // Muzzle Flash Logic
-    if (flashRef.current) {
-        if (lastAttackTime && Date.now() - lastAttackTime < 100) {
-            flashRef.current.intensity = 5;
-            flashRef.current.visible = true;
-        } else {
-            flashRef.current.intensity = 0;
-            flashRef.current.visible = false;
+    let isVisible = true;
+    if (meshRef.current) {
+        isVisible = isObjectInFrustum(meshRef.current, 15);
+        if (meshRef.current.visible !== isVisible) {
+            meshRef.current.visible = isVisible;
         }
     }
 
-    // Ability Animations
-    if (smokeRef.current) {
-        smokeRef.current.rotation.y += delta * 0.2;
-    }
-    if (apsRef.current) {
-        apsRef.current.rotation.y -= delta * 1.5;
-        apsRef.current.rotation.z += delta * 0.5;
-    }
+    if (isVisible) {
+        // Muzzle Flash Logic
+        if (flashRef.current) {
+            if (lastAttackTime && Date.now() - lastAttackTime < 100) {
+                flashRef.current.intensity = 5;
+                flashRef.current.visible = true;
+            } else {
+                flashRef.current.intensity = 0;
+                flashRef.current.visible = false;
+            }
+        }
 
-    // Rotation for Banshee/Guardian Radar
-    if (radarRef.current && jammerActive) {
-        radarRef.current.rotation.y += 5 * delta;
-    } else if (radarRef.current) {
-        radarRef.current.rotation.y += 1 * delta; // Slow idle spin
+        // Ability Animations
+        if (smokeRef.current) {
+            smokeRef.current.rotation.y += delta * 0.2;
+        }
+        if (apsRef.current) {
+            apsRef.current.rotation.y -= delta * 1.5;
+            apsRef.current.rotation.z += delta * 0.5;
+        }
+
+        // Rotation for Banshee/Guardian Radar
+        if (radarRef.current && jammerActive) {
+            radarRef.current.rotation.y += 5 * delta;
+        } else if (radarRef.current) {
+            radarRef.current.rotation.y += 1 * delta; // Slow idle spin
+        }
+        
+        if (meshRef.current && isDefenseDrone) {
+            meshRef.current.rotation.y += delta * 0.5;
+        }
     }
 
     // Imperative Line Updates (Construction, Laser, Tether) ...
@@ -413,7 +432,7 @@ const Unit: React.FC<UnitProps> = ({
   };
 
   const handleMenuAction = (action: string) => {
-    onAction(action);
+    onAction(id, action);
   };
 
   const handlePointerOver = () => {
@@ -800,12 +819,12 @@ const Unit: React.FC<UnitProps> = ({
                           {ammoState === 'empty' && (
                               <>
                                 <button onClick={(e) => { e.stopPropagation(); handleMenuAction('REQUEST_DELIVERY_ECLIPSE'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-fuchsia-400 px-2 py-1 rounded text-left">Req Eclipse</button>
-                                <button onClick={(e) => { e.stopPropagation(); handleMenuAction('REQUEST_DELIVERY_WP'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-red-400 px-2 py-1 rounded text-left">Req WP</button>
+                                <button onClick={(e) => { e.stopPropagation(); handleMenuAction('REQUEST_DELIVERY_HE'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-red-400 px-2 py-1 rounded text-left">Req HE</button>
                                 {missileInventory && missileInventory.eclipse > 0 && (
                                      <button onClick={(e) => { e.stopPropagation(); handleMenuAction('LOAD_AMMO_ECLIPSE'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-fuchsia-400 px-2 py-1 rounded text-left">Load Eclipse ({missileInventory.eclipse})</button>
                                 )}
-                                {missileInventory && missileInventory.wp > 0 && (
-                                     <button onClick={(e) => { e.stopPropagation(); handleMenuAction('LOAD_AMMO_WP'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-red-400 px-2 py-1 rounded text-left">Load WP ({missileInventory.wp})</button>
+                                {missileInventory && missileInventory.he > 0 && (
+                                     <button onClick={(e) => { e.stopPropagation(); handleMenuAction('LOAD_AMMO_HE'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-red-400 px-2 py-1 rounded text-left">Load HE ({missileInventory.he})</button>
                                 )}
                               </>
                           )}
@@ -860,4 +879,4 @@ const Unit: React.FC<UnitProps> = ({
   );
 };
 
-export default Unit;
+export default React.memo(Unit);

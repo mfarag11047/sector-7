@@ -122,11 +122,11 @@ export interface UnitData {
   hackedBy?: string | null;
   isJammed?: boolean;
   ammoState?: 'empty' | 'loading' | 'armed' | 'awaiting_delivery';
-  loadedAmmo?: 'eclipse' | 'wp' | null;
-  missileInventory?: { eclipse: number; wp: number };
+  loadedAmmo?: 'eclipse' | 'he' | null;
+  missileInventory?: { eclipse: number; he: number };
   loadingProgress?: number;
   courierTargetId?: string;
-  courierPayload?: 'eclipse' | 'wp';
+  courierPayload?: 'eclipse' | 'he';
   firingLaserAt?: string | null;
   lastAttackTime?: number;
   charges?: {
@@ -178,7 +178,7 @@ export interface StructureData {
   maxHealth: number;
   production?: {
       active: boolean;
-      item: 'eclipse' | 'wp';
+      item: 'eclipse' | 'he';
       progress: number;
       totalTime: number;
   };
@@ -217,7 +217,7 @@ export interface TeamStats {
   };
   stockpile: {
       eclipse: number;
-      wp: number;
+      he: number;
   };
   doctrine?: DoctrineState;
 }
@@ -245,7 +245,7 @@ export interface DecoyData {
 
 export interface CloudData {
     id: string;
-    type: 'eclipse' | 'wp' | 'nano';
+    type: 'eclipse' | 'he' | 'nano';
     team: 'blue' | 'red' | 'neutral';
     gridPos: { x: number; z: number };
     radius: number;
@@ -265,7 +265,7 @@ export interface Projectile {
     distanceTraveled: number;
     targetPos?: { x: number, y: number, z: number }; // For guided/ballistic
     trajectory: 'direct' | 'ballistic' | 'swarm';
-    payload?: 'eclipse' | 'wp' | 'nuke' | 'nano_canister' | 'nano_cloud_master' | 'titan_drop' | null; // For warheads
+    payload?: 'eclipse' | 'he' | 'nuke' | 'nano_canister' | 'nano_cloud_master' | 'titan_drop' | null; // For warheads
     startPos?: { x: number, y: number, z: number };
     startTime?: number;
     lockedTargetId?: string | null; // For swarm homing

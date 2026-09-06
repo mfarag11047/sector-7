@@ -1,8 +1,10 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { Html } from '@react-three/drei';
 import { BuildingBlock, BuildingData } from '../types';
 import { BLOCK_BONUS, TEAM_COLORS } from '../constants';
 import * as THREE from 'three';
+import { useFrame } from '@react-three/fiber';
+import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 
 interface BlockStatusProps {
   block: BuildingBlock;
@@ -44,35 +46,49 @@ const BlockStatus: React.FC<BlockStatusProps> = ({ block, buildings }) => {
   }, [block, buildings]);
 
   const color = TEAM_COLORS[block.owner];
+  const groupRef = useRef<THREE.Group>(null);
+  
+  useFrame((state) => {
+    if (groupRef.current) {
+      const isVisible = isObjectInFrustum(groupRef.current, 20);
+      if (groupRef.current.visible !== isVisible) {
+        groupRef.current.visible = isVisible;
+      }
+    }
+  });
 
   return (
-    <Html position={position} center zIndexRange={[100, 0]}>
-      <div 
-        className="flex flex-col items-center pointer-events-none select-none"
-        style={{ color: color, textShadow: `0 0 10px ${color}` }}
-      >
-        <div className="bg-slate-900/90 backdrop-blur-md border border-current px-4 py-2 rounded-lg flex flex-col items-center gap-1 shadow-[0_0_15px_rgba(0,0,0,0.5)] min-w-[120px]">
-          <div className="text-xs font-mono font-bold uppercase tracking-wider mb-1 whitespace-nowrap">
-            BLOCK SECURED
-          </div>
-          <div className="flex gap-4 text-[11px] font-mono whitespace-nowrap">
-            <div className="flex flex-col items-center">
-              <span className="text-white font-bold text-sm">+{outputBonus}%</span>
-              <span className="opacity-70 text-[9px]">OUTPUT</span>
+    <group ref={groupRef} position={position}>
+        <Html center zIndexRange={[100, 0]}>
+          <div 
+            className="flex flex-col items-center pointer-events-none select-none"
+            style={{ color: color, textShadow: `0 0 10px ${color}` }}
+          >
+            <div className="bg-slate-900/90 backdrop-blur-md border border-current px-4 py-2 rounded-lg flex flex-col items-center gap-1 shadow-[0_0_15px_rgba(0,0,0,0.5)] min-w-[120px]">
+              <div className="text-xs font-mono font-bold uppercase tracking-wider mb-1 whitespace-nowrap">
+                BLOCK SECURED
+              </div>
+              <div className="flex gap-4 text-[11px] font-mono whitespace-nowrap">
+                <div className="flex flex-col items-center">
+                  <span className="text-white font-bold text-sm">+{outputBonus}%</span>
+                  <span className="opacity-70 text-[9px]">OUTPUT</span>
+                </div>
+                <div className="w-px bg-white/20"></div>
+                <div className="flex flex-col items-center">
+                  <span className="text-white font-bold text-sm">+{defenseBonus}%</span>
+                  <span className="opacity-70 text-[9px]">DEFENSE</span>
+                </div>
+              </div>
             </div>
-            <div className="w-px bg-white/20"></div>
-            <div className="flex flex-col items-center">
-              <span className="text-white font-bold text-sm">+{defenseBonus}%</span>
-              <span className="opacity-70 text-[9px]">DEFENSE</span>
-            </div>
+            {/* Connector Line */}
+            <div className="w-px h-8 bg-gradient-to-b from-current to-transparent opacity-80"></div>
+            <div className="w-2 h-2 rounded-full bg-current shadow-[0_0_10px_currentColor]"></div>
           </div>
-        </div>
-        {/* Connector Line */}
-        <div className="w-px h-8 bg-gradient-to-b from-current to-transparent opacity-80"></div>
-        <div className="w-2 h-2 rounded-full bg-current shadow-[0_0_10px_currentColor]"></div>
-      </div>
-    </Html>
+        </Html>
+    </group>
   );
 };
 
-export default BlockStatus;
+export default React.memo(BlockStatus, (prevProps, nextProps) => {
+    return prevProps.block === nextProps.block && prevProps.buildings === nextProps.buildings;
+});

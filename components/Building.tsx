@@ -3,8 +3,10 @@ import React, { useMemo, useState, useRef, useCallback } from 'react';
 import { BuildingData } from '../types';
 import { Edges } from '@react-three/drei';
 import * as THREE from 'three';
-import { TEAM_COLORS } from '../constants';
+import { TEAM_COLORS, CITY_CONFIG } from '../constants';
 import { useFrame } from '@react-three/fiber';
+import { globalFrustum } from '../frustum';
+import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 
 interface BuildingProps {
   data: BuildingData;
@@ -474,8 +476,20 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
   }, [data.color, data.owner]);
 
   // Update shader uniforms every frame for smooth animation
+  const worldPos = useMemo(() => {
+    const offset = (CITY_CONFIG.gridSize * CITY_CONFIG.tileSize) / 2;
+    return new THREE.Vector3(
+      (data.gridX * CITY_CONFIG.tileSize) - offset,
+      0,
+      (data.gridZ * CITY_CONFIG.tileSize) - offset
+    );
+  }, [data.gridX, data.gridZ]);
+
   useFrame((state, delta) => {
     if (!materialRef.current) return;
+
+    // Distance culling for JS updates: skip if too far
+    if (!isPointInFrustum(worldPos, 20)) return;
 
     const shader = materialRef.current.userData.shader;
     
@@ -771,4 +785,4 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
   );
 };
 
-export default Building;
+export default React.memo(Building);

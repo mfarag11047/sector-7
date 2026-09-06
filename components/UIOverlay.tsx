@@ -215,6 +215,57 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
   );
 };
 
+// --- Memoized Minimap Background ---
+const MinimapBackground = React.memo(({ 
+    roadTiles, 
+    buildings, 
+    structures 
+}: { 
+    roadTiles: any[], 
+    buildings: any[], 
+    structures: any[] 
+}) => {
+    return (
+        <g>
+            {/* Road Network */}
+            {roadTiles.map((t, i) => (
+                <rect 
+                    key={`road-${i}`}
+                    x={t.x}
+                    y={t.z}
+                    width={1}
+                    height={1}
+                    fill={t.type === 'main' ? '#1e293b' : '#0f172a'}
+                />
+            ))}
+            {/* Buildings Layer */}
+            {buildings.map((b) => (
+                <rect 
+                    key={b.id}
+                    x={b.gridX}
+                    y={b.gridZ}
+                    width={1}
+                    height={1}
+                    fill={b.owner ? TEAM_COLORS[b.owner] : (b.type === 'server_node' ? '#1e3a8a' : '#64748b')}
+                    opacity={0.8}
+                />
+            ))}
+            {/* Structures Layer */}
+            {structures?.map((s) => (
+                <rect 
+                    key={s.id}
+                    x={s.gridPos.x}
+                    y={s.gridPos.z}
+                    width={1}
+                    height={1}
+                    fill={STRUCTURE_INFO[s.type]?.color || (s.type === 'support' ? '#8b5cf6' : '#ffffff')}
+                    opacity={0.9}
+                />
+            ))}
+        </g>
+    );
+});
+
 // Component to render the viewfinder rectangle
 const MinimapViewfinder: React.FC<{ 
     cameraStateRef?: React.MutableRefObject<{ x: number, y: number, z: number, yaw: number }>;
@@ -655,8 +706,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                 System Message
               </h3>
               <p className="text-xs text-cyan-500 font-mono leading-relaxed">
-                > COMMAND: Select unit to initiate movement.<br/>
-                > ALERT: Capture Server Nodes to unlock abilities.
+                &gt; COMMAND: Select unit to initiate movement.<br/>
+                &gt; ALERT: Capture Server Nodes to unlock abilities.
               </p>
             </div>
             
@@ -678,43 +729,11 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
               viewBox={`0 0 ${gridSize} ${gridSize}`} 
               preserveAspectRatio="xMidYMid meet"
            >
-              {/* Roads Layer */}
-              {minimapData.roadTiles.map((tile, i) => (
-                  <rect 
-                      key={`r-${i}`} 
-                      x={tile.x} 
-                      y={tile.z} 
-                      width={1} 
-                      height={1} 
-                      fill={tile.type === 'main' ? '#334155' : '#1e293b'} 
-                  />
-              ))}
-
-              {/* Buildings Layer */}
-              {minimapData.buildings.map((b) => (
-                  <rect 
-                      key={b.id}
-                      x={b.gridX}
-                      y={b.gridZ}
-                      width={1}
-                      height={1}
-                      fill={b.owner ? TEAM_COLORS[b.owner] : (b.type === 'server_node' ? '#1e3a8a' : '#64748b')}
-                      opacity={0.8}
-                  />
-              ))}
-
-              {/* Structures Layer */}
-              {minimapData.structures?.map((s) => (
-                  <rect 
-                      key={s.id}
-                      x={s.gridPos.x}
-                      y={s.gridPos.z}
-                      width={1}
-                      height={1}
-                      fill={STRUCTURE_INFO[s.type]?.color || (s.type === 'support' ? '#8b5cf6' : '#ffffff')}
-                      opacity={0.9}
-                  />
-              ))}
+              <MinimapBackground 
+                  roadTiles={minimapData.roadTiles} 
+                  buildings={minimapData.buildings} 
+                  structures={minimapData.structures || []} 
+              />
 
               {/* Selected Unit Path Trail */}
               {selectedUnitPath && (
