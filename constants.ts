@@ -99,15 +99,15 @@ export const ABILITY_CONFIG = {
   WASP_DAMAGE_PER_MISSILE: 15,
   WASP_MISSILE_SPEED: 25, 
   WASP_MISSILE_TURN_RATE: 5, 
-  SWARM_HOST_MAX_UNITS: 10,
-  
   // Swarm Host Spawning
-  SWARM_HOST_INITIAL_DELAY: 3000,
-  SWARM_HOST_SPAWN_INTERVAL: 7000,
+  SWARM_HOST_INITIAL_DRONES: 2,    // Released the moment the host anchors down
+  SWARM_HOST_SPAWN_INTERVAL: 7000, // Then one more on this cadence
   SWARM_HOST_MAX_DRONES: 7,
 
   // Crawler Abilities
-  CRAWLER_RADIUS: 7,
+  CRAWLER_RADIUS: 7,          // Host detection radius; crawlers patrol and engage within it
+  CRAWLER_SPAWN_INNER: 0.35,  // Periodic drones appear between these fractions of the radius
+  CRAWLER_RECALL_DISTANCE: 1.5,
   CRAWLER_EXPLOSION_RADIUS: 1.5,
   CRAWLER_EXPLOSION_DAMAGE: 80,
 
@@ -175,7 +175,8 @@ export const ABILITY_CONFIG = {
   BANSHEE_MAX_MAIN_BATTERY: 300,
   BANSHEE_MAX_SEC_BATTERY: 200,
   BANSHEE_INTERNAL_CHARGE_RATE: 2.0, 
-  BANSHEE_TETHER_CHARGE_RATE: 5.0,   
+  BANSHEE_TETHER_CHARGE_RATE: 5.0,
+  BANSHEE_TETHER_RANGE: 8, 
 
   // Defense Drone
   DEFENSE_DRONE_DAMAGE: 10,
@@ -226,7 +227,20 @@ export const TEAM_COLORS = {
 export const CAMERA_SPEED = 1.2;
 export const CAMERA_ZOOM_SPEED = 2.0;
 export const MIN_ZOOM = 20;
-export const MAX_ZOOM = 600;
+
+// Altitude ceiling. The map is gridSize * tileSize = 1120 units across, and at the old
+// 600 the frustum covered most of that at once, which handed the player full map
+// awareness and put the whole city in one frame. Lower this to tighten both.
+export const MAX_ZOOM = 340;
+
+// --- View Distance ---
+// CAMERA_FAR is the hard limit. It matters for more than clipping: updateGlobalFrustum
+// derives the culling frustum from the camera projection, so Building.tsx stops updating
+// and drawing anything past this. Fog has to finish before it, otherwise geometry pops
+// in at the clip plane instead of dissolving into the skyline.
+export const CAMERA_FAR = 760;
+export const FOG_NEAR = 400; // Raise for a clearer view, lower to hide more of the map
+export const FOG_FAR = 745;
 
 export const DOCTRINE_CONFIG: Record<DoctrineType, { 
   label: string, 

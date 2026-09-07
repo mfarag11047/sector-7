@@ -878,10 +878,13 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
     const buildableUnits: UnitType[] = [];
     const productionTypes: string[] = ['support', 'infantry', 'armor', 'ordnance', 'air', 'builder'];
     
+    // Units that only ever exist as spawned children, never as depot production.
+    const nonProducible: UnitType[] = ['defense_drone', 'crawler_drone', 'titan_dropped'];
+
     if (productionTypes.includes(data.type)) {
         // Find units that match this class
         (Object.keys(UNIT_STATS) as UnitType[]).forEach(uType => {
-            if (UNIT_STATS[uType].unitClass === data.type && uType !== 'defense_drone') {
+            if (UNIT_STATS[uType].unitClass === data.type && !nonProducible.includes(uType)) {
                 buildableUnits.push(uType);
             }
         });

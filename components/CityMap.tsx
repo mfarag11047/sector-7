@@ -8,10 +8,14 @@ import Base from './Base';
 import Unit from './Unit';
 import BlockStatus from './BlockStatus';
 import { InstancedRoads } from './RoadSystem';
+import BuildingHitProxies from './BuildingHitProxies';
 import * as THREE from 'three';
 import { Edges, Html, Line, Float, Instance, Instances } from '@react-three/drei';
 import { useFrame } from '@react-three/fiber';
 import { Zap, Ban } from 'lucide-react';
+import { freezeContainer } from '../perf';
+
+const isTetherableDrone = (u: UnitData) => u.type === 'drone' || u.type === 'helios';
 
 // Helper to check if a grid position is inside any cloud of a specific type (optional)
 const isPointInCloud = (pos: {x: number, z: number}, clouds: CloudData[], type?: string): boolean => {
@@ -606,7 +610,22 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
   const [baseMenuOpen, setBaseMenuOpen] = useState<'blue' | 'red' | null>(null);
   const [placementMode, setPlacementMode] = useState<{type: StructureType, cost: number} | null>(null);
-  const [hoverGridPos, setHoverGridPos] = useState<{x: number, z: number} | null>(null);
+  const [hoverGridPos, setHoverGridPosRaw] = useState<{x: number, z: number} | null>(null);
+
+  // Pointer moves fire far faster than the hover highlight can change. Writing a
+  // fresh object on every move re-renders the entire map for an identical result,
+  // so only commit when the hovered tile actually changes.
+  const hoverGridPosRef = useRef<{x: number, z: number} | null>(null);
+  const setHoverGridPos = useCallback((pos: {x: number, z: number} | null) => {
+    const prev = hoverGridPosRef.current;
+    if (pos === null) {
+      if (prev === null) return;
+    } else if (prev && prev.x === pos.x && prev.z === pos.z) {
+      return;
+    }
+    hoverGridPosRef.current = pos;
+    setHoverGridPosRaw(pos);
+  }, []);
   const [teamResources, setTeamResources] = useState<{blue: number, red: number}>({ blue: 1000, red: 1000 });
   const [teamCompute, setTeamCompute] = useState<{blue: number, red: number}>({ blue: 0, red: 0 });
   const [stockpile, setStockpile] = useState<{blue: {eclipse: number, he: number}, red: {eclipse: number, he: number}}>({ blue: { eclipse: 0, he: 0 }, red: { eclipse: 0, he: 0 } });
@@ -873,6 +892,63 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       return [];
   }, [gridSize, dynamicRoadTileSet]);
 
+  const isWalkable = useCallback((x: number, z: number) => (
+      x >= 0 && x < gridSize && z >= 0 && z < gridSize && dynamicRoadTileSet.has((x << 16) | z)
+  ), [gridSize, dynamicRoadTileSet]);
+
+  // Nearest usable tile touching `center`, for drones emerging directly from a host.
+  const findAdjacentSpawn = useCallback((center: {x: number, z: number}) => {
+      const neighbors = [
+          {x: center.x+1, z: center.z}, {x: center.x-1, z: center.z},
+          {x: center.x, z: center.z+1}, {x: center.x, z: center.z-1},
+          {x: center.x+1, z: center.z+1}, {x: center.x-1, z: center.z-1},
+          {x: center.x+1, z: center.z-1}, {x: center.x-1, z: center.z+1}
+      ];
+      for (const n of neighbors) {
+          if (isWalkable(n.x, n.z)) return n;
+      }
+      return { ...center };
+  }, [isWalkable]);
+
+  // Somewhere out in the host's detection radius, so periodically produced drones
+  // fan out across the perimeter instead of piling up against the host.
+  const findScatteredSpawn = useCallback((center: {x: number, z: number}) => {
+      const radius = ABILITY_CONFIG.CRAWLER_RADIUS;
+      const inner = ABILITY_CONFIG.CRAWLER_SPAWN_INNER;
+      for (let attempt = 0; attempt < 40; attempt++) {
+          const angle = Math.random() * Math.PI * 2;
+          const dist = radius * (inner + Math.random() * (1 - inner));
+          const x = Math.round(center.x + Math.cos(angle) * dist);
+          const z = Math.round(center.z + Math.sin(angle) * dist);
+          if (isWalkable(x, z)) return { x, z };
+      }
+      return findAdjacentSpawn(center);
+  }, [isWalkable, findAdjacentSpawn]);
+
+  const createCrawler = useCallback((host: UnitData, gridPos: {x: number, z: number}, suffix: string | number): UnitData => ({
+      id: `crawler-${host.id}-${Date.now()}-${suffix}`,
+      type: 'crawler_drone',
+      unitClass: 'ordnance',
+      team: host.team,
+      gridPos,
+      path: [],
+      visionRange: UNIT_STATS.crawler_drone.visionRange,
+      health: UNIT_STATS.crawler_drone.maxHealth,
+      maxHealth: UNIT_STATS.crawler_drone.maxHealth,
+      battery: 100,
+      maxBattery: 100,
+      cooldowns: {},
+      parentId: host.id,
+      crawlerTargetId: null
+  }), []);
+
+  // The simulation tick below must NOT list these as effect dependencies. Several of
+  // them (dynamicRoadTileSet, and therefore findPath) get a fresh identity on almost
+  // every render, which used to tear down and rebuild the 1s interval ~4x a second so
+  // its callback never once fired. Reading them through a ref keeps the interval alive.
+  const aiHelpersRef = useRef({ findPath, findScatteredSpawn, isWalkable, doctrines });
+  aiHelpersRef.current = { findPath, findScatteredSpawn, isWalkable, doctrines };
+
   // Doctrine Effects Processor
   useEffect(() => {
       if (pendingDoctrineAction) {
@@ -1004,7 +1080,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   maxHealth: 200,
                   battery: 100,
                   maxBattery: 100,
-                  cooldowns: { spawnWasp: 0 }
+                  cooldowns: { spawnCrawler: 0 }
               }]);
           }
 
@@ -1015,68 +1091,35 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   // Doctrine Passive Loop + Swarm AI
   useEffect(() => {
       const interval = setInterval(() => {
+          const { findPath, findScatteredSpawn, isWalkable, doctrines } = aiHelpersRef.current;
           setUnits(prevUnits => {
               let unitsChanged = false;
               let nextUnits = [...prevUnits];
 
-              const getSpawnPos = (center) => {
-                  const neighbors = [
-                      {x: center.x+1, z: center.z}, {x: center.x-1, z: center.z}, 
-                      {x: center.x, z: center.z+1}, {x: center.x, z: center.z-1},
-                      {x: center.x+1, z: center.z+1}, {x: center.x-1, z: center.z-1},
-                      {x: center.x+1, z: center.z-1}, {x: center.x-1, z: center.z+1}
-                  ];
-                  for (let n of neighbors) {
-                      if (n.x >= 0 && n.x < CITY_CONFIG.gridSize && n.z >= 0 && n.z < CITY_CONFIG.gridSize) {
-                          if (dynamicRoadTileSet.has((n.x << 16) | n.z)) return n;
-                      }
-                  }
-                  return { ...center };
-              };
-
               // 1. Swarm Host Spawning Logic
+              // An unanchored host is inert; anchoring releases its opening pair (handled
+              // in TOGGLE_ANCHOR) and then tops the swarm up on an interval from here.
               const hosts = nextUnits.filter(u => u.type === 'swarm_host');
               const hostMap = new Map<string, UnitData>();
 
               hosts.forEach(host => {
                   hostMap.set(host.id, host);
-                  
-                  // Only spawn if anchored
-                  if (host.isAnchored) {
-                      const children = nextUnits.filter(u => u.type === 'crawler_drone' && u.parentId === host.id);
-                      const maxCrawlers = ABILITY_CONFIG.SWARM_HOST_MAX_UNITS || 10;
-                      
-                      // Check spawn cooldown
-                      const spawnReady = !host.cooldowns.spawnWasp || host.cooldowns.spawnWasp <= 0;
+                  if (!host.isAnchored) return;
 
-                      if (children.length < maxCrawlers && spawnReady) {
-                          const newCrawler: UnitData = {
-                              id: `crawler-${host.id}-${Date.now()}-${children.length}`,
-                              type: 'crawler_drone',
-                              unitClass: 'ordnance',
-                              team: host.team,
-                              gridPos: getSpawnPos(host.gridPos), // Spawn at valid adjacent location
-                              path: [],
-                              visionRange: UNIT_STATS.crawler_drone.visionRange,
-                              health: UNIT_STATS.crawler_drone.maxHealth,
-                              maxHealth: UNIT_STATS.crawler_drone.maxHealth,
-                              battery: 100,
-                              maxBattery: 100,
-                              cooldowns: {},
-                              parentId: host.id
+                  const children = nextUnits.filter(u => u.type === 'crawler_drone' && u.parentId === host.id);
+                  const spawnReady = !host.cooldowns.spawnCrawler || host.cooldowns.spawnCrawler <= 0;
+
+                  if (children.length < ABILITY_CONFIG.SWARM_HOST_MAX_DRONES && spawnReady) {
+                      nextUnits.push(createCrawler(host, findScatteredSpawn(host.gridPos), children.length));
+
+                      const hIdx = nextUnits.findIndex(u => u.id === host.id);
+                      if (hIdx !== -1) {
+                          nextUnits[hIdx] = {
+                              ...nextUnits[hIdx],
+                              cooldowns: { ...nextUnits[hIdx].cooldowns, spawnCrawler: ABILITY_CONFIG.SWARM_HOST_SPAWN_INTERVAL }
                           };
-                          nextUnits.push(newCrawler);
-                          
-                          // Set cooldown on host
-                          const hIdx = nextUnits.findIndex(u => u.id === host.id);
-                          if (hIdx !== -1) {
-                              nextUnits[hIdx] = {
-                                  ...nextUnits[hIdx],
-                                  cooldowns: { ...nextUnits[hIdx].cooldowns, spawnWasp: 7000 }
-                              };
-                          }
-                          unitsChanged = true;
                       }
+                      unitsChanged = true;
                   }
               });
 
@@ -1091,68 +1134,80 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   // Crawler AI
                   if (u.type === 'crawler_drone' && u.parentId) {
                       const parent = hostMap.get(u.parentId);
+                      const range = ABILITY_CONFIG.CRAWLER_RADIUS;
+
                       if (!parent) {
                           keepUnit = false; // Parent gone
                           uChanged = true;
-                      } else {
-                          if (!parent.isAnchored) {
-                              // RECALL
-                              const dist = Math.sqrt(Math.pow(u.gridPos.x - parent.gridPos.x, 2) + Math.pow(u.gridPos.z - parent.gridPos.z, 2));
-                              if (dist < 1.5) {
-                                  keepUnit = false; // Recalled
-                                  uChanged = true;
-                              } else {
-                                  // Path to parent if not already
-                                  const targetKey = `${parent.gridPos.x},${parent.gridPos.z}`;
-                                  const currentDest = u.path.length > 0 ? u.path[u.path.length - 1] : null;
-                                  
-                                  if (currentDest !== targetKey) {
-                                      const path = findPath(u.gridPos, parent.gridPos);
-                                      if (path.length > 0) {
-                                          modifiedUnit = { ...u, path };
-                                          uChanged = true;
-                                      }
-                                  }
-                              }
+                      } else if (!parent.isAnchored) {
+                          // RECALL: the host has packed up, so fold the swarm back inside.
+                          const dist = Math.hypot(u.gridPos.x - parent.gridPos.x, u.gridPos.z - parent.gridPos.z);
+                          if (dist <= ABILITY_CONFIG.CRAWLER_RECALL_DISTANCE) {
+                              keepUnit = false; // Absorbed back into the host
+                              uChanged = true;
                           } else {
-                              // PATROL / ATTACK (Parent Anchored)
-                              if (u.path.length === 0) {
-                                  // Scan enemies relative to PARENT
-                                  const range = ABILITY_CONFIG.CRAWLER_RADIUS || 7;
-                                  const enemies = nextUnits.filter(e => 
-                                      e.team !== u.team && e.team !== 'neutral' && e.health > 0 && !e.isStealthed &&
-                                      Math.sqrt(Math.pow(e.gridPos.x - parent.gridPos.x, 2) + Math.pow(e.gridPos.z - parent.gridPos.z, 2)) <= range
-                                  );
+                              // Re-path whenever the host is no longer our destination, which
+                              // also covers an unanchored host being driven somewhere else.
+                              const targetKey = `${parent.gridPos.x},${parent.gridPos.z}`;
+                              const currentDest = u.path.length > 0 ? u.path[u.path.length - 1] : null;
 
-                                  let targetPos = null;
-                                  if (enemies.length > 0) {
-                                      // Closest enemy
-                                      let minDist = 9999;
-                                      enemies.forEach(e => {
-                                          const d = Math.sqrt(Math.pow(e.gridPos.x - parent.gridPos.x, 2) + Math.pow(e.gridPos.z - parent.gridPos.z, 2));
-                                          if (d < minDist) { minDist = d; targetPos = e.gridPos; }
-                                      });
-                                  } else {
-                                      // Patrol near parent
-                                      for (let i = 0; i < 15; i++) {
-                                          const rx = parent.gridPos.x + Math.floor(Math.random() * 10 - 5);
-                                          const rz = parent.gridPos.z + Math.floor(Math.random() * 10 - 5);
-                                          const d = Math.sqrt(Math.pow(rx - parent.gridPos.x, 2) + Math.pow(rz - parent.gridPos.z, 2));
-                                          if (d <= range && rx >= 0 && rx < CITY_CONFIG.gridSize && rz >= 0 && rz < CITY_CONFIG.gridSize) {
-                                              if (dynamicRoadTileSet.has((rx << 16) | rz)) {
-                                                  targetPos = { x: rx, z: rz };
-                                                  break;
-                                              }
-                                          }
-                                      }
+                              if (currentDest !== targetKey) {
+                                  const path = findPath(u.gridPos, parent.gridPos);
+                                  modifiedUnit = { ...u, path, crawlerTargetId: null };
+                                  uChanged = true;
+                              }
+                          }
+                      } else {
+                          // HUNT / PATROL (host anchored).
+                          //
+                          // Target selection runs every tick rather than only when idle, so a
+                          // crawler mid-patrol breaks off the instant something enters the
+                          // host's radius. Every crawler measures range from the host and picks
+                          // the same nearest enemy, so the whole swarm converges on one target.
+                          let target: UnitData | null = null;
+                          let bestDist = Infinity;
+                          nextUnits.forEach(e => {
+                              if (e.team === u.team || e.team === 'neutral') return;
+                              if (e.health <= 0 || e.isStealthed) return;
+                              const d = Math.hypot(e.gridPos.x - parent.gridPos.x, e.gridPos.z - parent.gridPos.z);
+                              if (d <= range && d < bestDist) { bestDist = d; target = e; }
+                          });
+
+                          if (target) {
+                              // Keep re-pathing while it lives so a fleeing enemy stays hunted.
+                              const targetKey = `${target.gridPos.x},${target.gridPos.z}`;
+                              const currentDest = u.path.length > 0 ? u.path[u.path.length - 1] : null;
+
+                              if (currentDest !== targetKey) {
+                                  const path = findPath(u.gridPos, target.gridPos);
+                                  if (path.length > 0) {
+                                      modifiedUnit = { ...u, path, crawlerTargetId: target.id };
+                                      uChanged = true;
                                   }
+                              } else if (u.crawlerTargetId !== target.id) {
+                                  modifiedUnit = { ...u, crawlerTargetId: target.id };
+                                  uChanged = true;
+                              }
+                          } else if (u.crawlerTargetId) {
+                              // Prey died or left the radius: drop the chase and resume patrol.
+                              modifiedUnit = { ...u, path: [], crawlerTargetId: null };
+                              uChanged = true;
+                          } else if (u.path.length === 0) {
+                              // Idle patrol sweep somewhere inside the host's radius.
+                              let patrolPos: {x: number, z: number} | null = null;
+                              for (let i = 0; i < 15; i++) {
+                                  const angle = Math.random() * Math.PI * 2;
+                                  const d = range * (0.2 + Math.random() * 0.8);
+                                  const rx = Math.round(parent.gridPos.x + Math.cos(angle) * d);
+                                  const rz = Math.round(parent.gridPos.z + Math.sin(angle) * d);
+                                  if (isWalkable(rx, rz)) { patrolPos = { x: rx, z: rz }; break; }
+                              }
 
-                                  if (targetPos) {
-                                      const path = findPath(u.gridPos, targetPos);
-                                      if (path.length > 0) {
-                                          modifiedUnit = { ...u, path };
-                                          uChanged = true;
-                                      }
+                              if (patrolPos) {
+                                  const path = findPath(u.gridPos, patrolPos);
+                                  if (path.length > 0) {
+                                      modifiedUnit = { ...u, path };
+                                      uChanged = true;
                                   }
                               }
                           }
@@ -1216,7 +1271,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           });
       }, 1000);
       return () => clearInterval(interval);
-  }, [doctrines, findPath, dynamicRoadTileSet]);
+  }, []);
 
   const handleUnitSelect = (id: string) => {
       // If we just dragged, ignore click logic that might fire
@@ -1224,12 +1279,22 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       if (interactionMode === 'target') return; // Selection disabled in target mode
 
       if (targetingSourceId && targetingAbility === 'TETHER') {
-          setUnits(prev => prev.map(u => {
-              if (u.id === targetingSourceId) return { ...u, tetherTargetId: id };
-              return u;
-          }));
-          setTargetingSourceId(null);
-          setTargetingAbility(null);
+          const source = unitsRef.current.find(u => u.id === targetingSourceId);
+          const target = unitsRef.current.find(u => u.id === id);
+          if (source && target && isTetherableDrone(target) && target.team === source.team && target.id !== source.id) {
+              const dist = Math.hypot(source.gridPos.x - target.gridPos.x, source.gridPos.z - target.gridPos.z);
+              if (dist <= ABILITY_CONFIG.BANSHEE_TETHER_RANGE) {
+                  setUnits(prev => prev.map(u => {
+                      if (u.id === targetingSourceId) return { ...u, tetherTargetId: id };
+                      // One hardline per drone — drop any other Banshee already locked to it
+                      if (u.tetherTargetId === id && u.id !== targetingSourceId) return { ...u, tetherTargetId: null };
+                      return u;
+                  }));
+                  setTargetingSourceId(null);
+                  setTargetingAbility(null);
+              }
+          }
+          return;
       } else if (targetingSourceId && targetingAbility === 'CANNON') {
           const targetUnit = units.find(u => u.id === id);
           if(targetUnit) handleTileClick(targetUnit.gridPos.x, targetUnit.gridPos.z);
@@ -1442,6 +1507,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           }
           setTargetingSourceId(null);
           setTargetingAbility(null);
+      } else if (targetingSourceId && targetingAbility === 'TETHER') {
+          // Hardline targets a unit, not a tile — keep targeting until a drone is clicked or cancelled.
+          return;
       } else if (targetingSourceId && targetingAbility === 'DECOY') {
           // Phantom Decoy Logic
           const sourceUnit = unitsRef.current.find(u => u.id === targetingSourceId);
@@ -1531,7 +1599,20 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
               // Assign destinations for each unit
               unitsToMove.forEach(u => {
-                  const dest = findFreeTile(x, z);
+                  let dest = findFreeTile(x, z);
+                  const tetherHost = unitsRef.current.find(src => src.tetherTargetId === u.id);
+                  if (dest && tetherHost) {
+                      const leash = Math.hypot(dest.x - tetherHost.gridPos.x, dest.z - tetherHost.gridPos.z);
+                      if (leash > ABILITY_CONFIG.BANSHEE_TETHER_RANGE) {
+                          const dx = dest.x - tetherHost.gridPos.x;
+                          const dz = dest.z - tetherHost.gridPos.z;
+                          const scale = ABILITY_CONFIG.BANSHEE_TETHER_RANGE / leash;
+                          dest = findFreeTile(
+                              Math.round(tetherHost.gridPos.x + dx * scale),
+                              Math.round(tetherHost.gridPos.z + dz * scale)
+                          );
+                      }
+                  }
                   if (dest) {
                       const key = `${dest.x},${dest.z}`;
                       reserved.add(key);
@@ -1666,8 +1747,19 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       }
 
       if (action === 'HARDLINE_TETHER') {
-          setTargetingSourceId(unitId);
-          setTargetingAbility('TETHER');
+          if (targetingSourceId === unitId && targetingAbility === 'TETHER') {
+              setTargetingSourceId(null);
+              setTargetingAbility(null);
+          } else {
+              setTargetingSourceId(unitId);
+              setTargetingAbility('TETHER');
+          }
+          return;
+      }
+      if (action === 'DISCONNECT_TETHER') {
+          setUnits(prev => prev.map(u => u.id === unitId ? { ...u, tetherTargetId: null } : u));
+          setTargetingSourceId(null);
+          setTargetingAbility(null);
           return;
       }
       if (action === 'CANNON ATTACK') {
@@ -1701,21 +1793,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
       // Toggle Actions - Apply to all selected units of valid type
       setUnits(prev => {
-          let newDrones: any[] = [];
-          const getSpawnPos = (center: {x: number, z: number}) => {
-              const neighbors = [
-                  {x: center.x+1, z: center.z}, {x: center.x-1, z: center.z}, 
-                  {x: center.x, z: center.z+1}, {x: center.x, z: center.z-1},
-                  {x: center.x+1, z: center.z+1}, {x: center.x-1, z: center.z-1},
-                  {x: center.x+1, z: center.z-1}, {x: center.x-1, z: center.z+1}
-              ];
-              for (let n of neighbors) {
-                  if (n.x >= 0 && n.x < CITY_CONFIG.gridSize && n.z >= 0 && n.z < CITY_CONFIG.gridSize) {
-                      if (dynamicRoadTileSet.has((n.x << 16) | n.z)) return n;
-                  }
-              }
-              return { ...center };
-          };
+          let newDrones: UnitData[] = [];
           const nextUnits = prev.map(u => {
               if (!selectedUnitIds.has(u.id) && u.id !== unitId) return u;
               
@@ -1725,18 +1803,19 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
               if (action === 'TOGGLE_ANCHOR' && u.type === 'swarm_host') {
                   const anchoring = !u.isAnchored;
                   if (anchoring) {
+                      // Opening pair emerges from the host itself; the interval spawner in the
+                      // AI loop takes over from here and scatters the rest around the radius.
                       const rId = Math.floor(Math.random() * 100000);
-                      const idPrefix = `crawler-${u.id}-${Date.now()}-${rId}`;
-                      newDrones.push(
-                          { id: `${idPrefix}-1`, type: 'crawler_drone', unitClass: 'ordnance', team: u.team, gridPos: getSpawnPos(u.gridPos), path: [], visionRange: UNIT_STATS.crawler_drone.visionRange, health: UNIT_STATS.crawler_drone.maxHealth, maxHealth: UNIT_STATS.crawler_drone.maxHealth, battery: 100, maxBattery: 100, cooldowns: {}, parentId: u.id },
-                          { id: `${idPrefix}-2`, type: 'crawler_drone', unitClass: 'ordnance', team: u.team, gridPos: getSpawnPos(u.gridPos), path: [], visionRange: UNIT_STATS.crawler_drone.visionRange, health: UNIT_STATS.crawler_drone.maxHealth, maxHealth: UNIT_STATS.crawler_drone.maxHealth, battery: 100, maxBattery: 100, cooldowns: {}, parentId: u.id }
-                      );
+                      for (let i = 0; i < ABILITY_CONFIG.SWARM_HOST_INITIAL_DRONES; i++) {
+                          newDrones.push(createCrawler(u, findAdjacentSpawn(u.gridPos), `${rId}-${i}`));
+                      }
                   }
                   return { 
                       ...u, 
                       isAnchored: anchoring, 
                       path: [],
-                      cooldowns: { ...u.cooldowns, spawnWasp: anchoring ? 7000 : 0 } 
+                      anchorTime: anchoring ? Date.now() : undefined,
+                      cooldowns: { ...u.cooldowns, spawnCrawler: anchoring ? ABILITY_CONFIG.SWARM_HOST_SPAWN_INTERVAL : 0 } 
                   };
               }
               if (action === 'SMOKE SCREEN' && u.type === 'tank') return { ...u, cooldowns: { ...u.cooldowns, titanSmoke: ABILITY_CONFIG.TITAN_SMOKE_COOLDOWN }, smoke: { active: true, remainingTime: ABILITY_CONFIG.TITAN_SMOKE_DURATION } };
@@ -2376,21 +2455,29 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
               return anyBuildingChanged ? nextBuildings : prevBuildings;
           });
 
-          setStructuresState(prev => prev.map(s => {
-              if (s.type === 'ordnance_fab' && s.production?.active) {
-                   const p = s.production;
-                   // Apply Skunkworks production bonus (10%)
-                   const teamDoctrine = doctrines?.[s.team];
-                   const speedMult = (teamDoctrine?.selected === 'skunkworks') ? 1.1 : 1.0;
-                   
-                   const newProgress = p.progress + (100 * speedMult); 
-                   if (newProgress >= p.totalTime) {
-                       setStockpile(sp => ({ ...sp, [s.team]: { ...sp[s.team], [p.item]: sp[s.team][p.item] + 1 } }));
-                       return { ...s, production: { ...p, active: false, progress: 0 } };
-                   } else return { ...s, production: { ...p, progress: newProgress } };
-              }
-              return s;
-          }));
+          setStructuresState(prev => {
+              // Must return `prev` untouched when nothing advanced. Allocating a new array
+              // every tick re-derives dynamicRoadTileSet and findPath, which invalidates
+              // every consumer that keys off them.
+              let changed = false;
+              const next = prev.map(s => {
+                  if (s.type === 'ordnance_fab' && s.production?.active) {
+                       const p = s.production;
+                       // Apply Skunkworks production bonus (10%)
+                       const teamDoctrine = doctrines?.[s.team];
+                       const speedMult = (teamDoctrine?.selected === 'skunkworks') ? 1.1 : 1.0;
+
+                       const newProgress = p.progress + (100 * speedMult); 
+                       changed = true;
+                       if (newProgress >= p.totalTime) {
+                           setStockpile(sp => ({ ...sp, [s.team]: { ...sp[s.team], [p.item]: sp[s.team][p.item] + 1 } }));
+                           return { ...s, production: { ...p, active: false, progress: 0 } };
+                       } else return { ...s, production: { ...p, progress: newProgress } };
+                  }
+                  return s;
+              });
+              return changed ? next : prev;
+          });
 
           setStructuresState(prevStructs => {
               const structs = [...prevStructs];
@@ -2405,7 +2492,19 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   // Courier Delivery Events to be processed after map
                   const deliveries: { targetId: string, payload: 'eclipse' | 'he' }[] = [];
 
-                  prevUnits.forEach(u => { if (u.tetherTargetId) tetherSources.set(u.tetherTargetId, u); });
+                  prevUnits.forEach(u => {
+                      if (!u.tetherTargetId) return;
+                      tetherSources.set(u.tetherTargetId, u);
+                      if (u.type !== 'banshee' || !(u.secondaryBattery && u.secondaryBattery > 0)) return;
+                      const tethered = prevUnits.find(t => t.id === u.tetherTargetId && t.health > 0);
+                      if (!tethered || tethered.battery >= tethered.maxBattery) return;
+                      const amount = Math.min(
+                          ABILITY_CONFIG.BANSHEE_TETHER_CHARGE_RATE,
+                          u.secondaryBattery,
+                          tethered.maxBattery - tethered.battery
+                      );
+                      if (amount > 0) externalChargeMap.set(tethered.id, { amount, sourceId: u.id });
+                  });
 
                   damageEvents.forEach(evt => {
                       prevUnits.forEach(u => {
@@ -2545,21 +2644,35 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       if (u.type === 'ghost' && u.isDampenerActive) drain += ABILITY_CONFIG.DRAIN_STATIC_DOME;
                       if (u.type === 'sun_plate' && u.isDeployed) drain += ABILITY_CONFIG.DRAIN_STATIC_DOME;
 
-                      // Banshee Tether Logic
-                      if (u.type === 'banshee' && u.tetherTargetId && u.secondaryBattery && u.secondaryBattery > 0) {
+                      // Banshee Tether: drain the hardline pack when a drone is siphoning
+                      if (u.type === 'banshee' && u.tetherTargetId) {
                           const target = activeUnits.find(t => t.id === u.tetherTargetId);
-                          if (target) {
-                              const dist = Math.sqrt(Math.pow(u.gridPos.x - target.gridPos.x, 2) + Math.pow(u.gridPos.z - target.gridPos.z, 2));
-                              if (dist <= 8) { 
-                                  newUnit.secondaryBattery = Math.max(0, (u.secondaryBattery || 0) - ABILITY_CONFIG.BANSHEE_TETHER_CHARGE_RATE); 
-                                  uChanged = true;
-                              } else { 
-                                  newUnit.tetherTargetId = null; 
+                          if (!target) {
+                              newUnit.tetherTargetId = null;
+                              uChanged = true;
+                          } else {
+                              const siphon = externalChargeMap.get(u.tetherTargetId);
+                              if (siphon && siphon.sourceId === u.id) {
+                                  newUnit.secondaryBattery = Math.max(0, (u.secondaryBattery || 0) - siphon.amount);
                                   uChanged = true;
                               }
-                          } else { 
-                              newUnit.tetherTargetId = null; 
-                              uChanged = true;
+                          }
+                      }
+
+                      // Hard tether leash — if the Banshee pulls out of range, the drone follows
+                      const tetherHost = tetherSources.get(u.id);
+                      if (tetherHost) {
+                          const leashDist = Math.hypot(u.gridPos.x - tetherHost.gridPos.x, u.gridPos.z - tetherHost.gridPos.z);
+                          if (leashDist > ABILITY_CONFIG.BANSHEE_TETHER_RANGE) {
+                              const destKey = `${tetherHost.gridPos.x},${tetherHost.gridPos.z}`;
+                              const currentDest = u.path.length > 0 ? u.path[u.path.length - 1] : null;
+                              if (currentDest !== destKey) {
+                                  const followPath = findPath(u.gridPos, tetherHost.gridPos);
+                                  if (followPath.length > 0) {
+                                      newUnit.path = followPath;
+                                      uChanged = true;
+                                  }
+                              }
                           }
                       }
                       
@@ -2717,6 +2830,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   // Primary Action Menu Visibility
   // If multiple units are selected, only show menu for the first one for now (or improve to group commands later)
   const primarySelectionId = selectedUnitIds.size > 0 ? Array.from(selectedUnitIds)[0] : null;
+  const tetherTargetingSource = targetingAbility === 'TETHER' && targetingSourceId
+      ? units.find(src => src.id === targetingSourceId)
+      : undefined;
 
   const callbacksRef = useRef({ handleTileClick, handleRightClick, setHoverGridPos, handleUnitSelect, handleMoveStep, handleUnitAction, handleStructureClick, handleStructureAction });
   callbacksRef.current = { handleTileClick, handleRightClick, setHoverGridPos, handleUnitSelect, handleMoveStep, handleUnitAction, handleStructureClick, handleStructureAction };
@@ -2734,8 +2850,16 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   const stableEmptyArray = useMemo(() => [], []);
   const stableEmptyObject = useMemo(() => ({}), []);
 
+  // This group holds the whole city and sits at the origin. Keeping it clean is
+  // what lets the per-building matrix freezing below it actually take effect.
+  const mapRootRef = useRef<THREE.Group>(null);
+  useLayoutEffect(() => {
+    freezeContainer(mapRootRef.current);
+  }, []);
+
   return (
     <group
+        ref={mapRootRef}
         onPointerDown={handlePointerDown}
         onPointerUp={handlePointerUp}
         onPointerMove={handlePointerMove}
@@ -2758,7 +2882,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
             offset={offset} 
             onClick={handleTileClick} 
             onRightClick={handleRightClick} 
-            onHover={(x, z) => setHoverGridPos({x, z})}
+            onHover={stableHover}
             tileScale={0.95}
         />
 
@@ -2770,13 +2894,19 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
             <SelectionBox start={dragSelection.start} current={dragSelection.current} />
         )}
 
+        {/* One instanced collider stands in for every building's detail meshes. */}
+        <BuildingHitProxies
+            buildings={buildings}
+            onClick={stableTileClick}
+            onRightClick={stableRightClick}
+            onHover={stableHover}
+        />
+
         {buildings.map(b => ( 
             <Building 
                 key={b.id} 
                 data={b} 
-                onClick={stableTileClick} 
-                onRightClick={stableRightClick} 
-                onHover={stableHover}
+                hovered={!!hoverGridPos && hoverGridPos.x === b.gridX && hoverGridPos.z === b.gridZ}
             /> 
         ))}
         {structuresState.map(s => ( 
@@ -2799,7 +2929,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         ))}
         {units.map(u => {
              const isVisible = visibleUnitIds.has(u.id);
-             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onMoveStep={stableMoveStep} tileTypeMap={tileTypeMap} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} /> );
+             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onMoveStep={stableMoveStep} tileTypeMap={tileTypeMap} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && (!!u.tetherTargetId || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} /> );
         })}
         {decoys.map(d => (
             <Unit
@@ -2981,14 +3111,14 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                         <mesh>
                             <boxGeometry args={[tileSize, 1, tileSize]} />
                             <meshBasicMaterial 
-                                color={targetingAbility === 'DECOY' ? '#c084fc' : (targetingAbility === 'CANNON' ? "#ef4444" : "#10b981")} 
+                                color={targetingAbility === 'DECOY' ? '#c084fc' : (targetingAbility === 'CANNON' ? "#ef4444" : (targetingAbility === 'TETHER' ? "#38bdf8" : "#10b981"))} 
                                 wireframe 
                             />
                         </mesh>
                         <mesh rotation={[-Math.PI/2, 0, Math.PI/4]} position={[0, 0.05, 0]}>
                             <ringGeometry args={[tileSize * 0.3, tileSize * 0.35, 4]} />
                             <meshBasicMaterial 
-                                color={targetingAbility === 'DECOY' ? '#c084fc' : (targetingAbility === 'CANNON' ? "#ef4444" : "#10b981")} 
+                                color={targetingAbility === 'DECOY' ? '#c084fc' : (targetingAbility === 'CANNON' ? "#ef4444" : (targetingAbility === 'TETHER' ? "#38bdf8" : "#10b981"))} 
                                 side={THREE.DoubleSide} 
                             />
                         </mesh>

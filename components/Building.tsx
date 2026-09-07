@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState, useRef, useCallback } from 'react';
+import React, { useMemo, useState, useRef, useCallback, useLayoutEffect } from 'react';
 import { BuildingData } from '../types';
 import { Edges } from '@react-three/drei';
 import * as THREE from 'three';
@@ -7,12 +7,15 @@ import { TEAM_COLORS, CITY_CONFIG } from '../constants';
 import { useFrame } from '@react-three/fiber';
 import { globalFrustum } from '../frustum';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
+import { freezeSubtree, refreshSubtree, isSphereVisible, blockSubtreeRaycast, isSubtreeVisible } from '../perf';
 
 interface BuildingProps {
   data: BuildingData;
-  onClick?: (x: number, z: number) => void;
-  onRightClick?: (x: number, z: number) => void;
-  onHover?: (x: number, z: number) => void;
+  /**
+   * Driven by the map's hovered tile. Buildings carry no pointer handlers of their
+   * own; picking runs through the shared instanced collider in BuildingHitProxies.
+   */
+  hovered?: boolean;
 }
 
 // --- Sub-Components for Commercial Tower ---
@@ -21,9 +24,15 @@ const HologramRing = ({ radius, height, color }: { radius: number, height: numbe
   const groupRef = useRef<THREE.Group>(null);
   useFrame((state, delta) => {
     if (groupRef.current) {
+        // Parent building is matrix-frozen, so skip work while it is culled away.
+        if (!isSubtreeVisible(groupRef.current)) return;
+
         groupRef.current.rotation.y -= delta * 0.2;
         // Floating effect
         groupRef.current.position.y = height * 0.9 + Math.sin(state.clock.elapsedTime) * 0.2;
+
+        // Frozen ancestors will not propagate this change, so update it here.
+        refreshSubtree(groupRef.current);
     }
   });
 
@@ -53,20 +62,12 @@ const CommercialTower = ({
     data, 
     materialRef, 
     onBeforeCompile, 
-    onClick, 
-    onRightClick, 
-    onPointerOver, 
-    onPointerOut, 
     hovered,
     colors
 }: { 
     data: BuildingData; 
     materialRef: any; 
     onBeforeCompile: any; 
-    onClick: any; 
-    onRightClick: any; 
-    onPointerOver: any; 
-    onPointerOut: any; 
     hovered: boolean;
     colors: any;
 }) => {
@@ -80,12 +81,7 @@ const CommercialTower = ({
     const glowColor = data.owner ? TEAM_COLORS[data.owner] : data.color;
 
     return (
-        <group 
-            onClick={onClick}
-            onContextMenu={onRightClick}
-            onPointerOver={onPointerOver}
-            onPointerOut={onPointerOut}
-        >
+        <group>
             {/* Podium (Base) */}
             <mesh position={[0, podiumHeight / 2, 0]} castShadow receiveShadow>
                 <cylinderGeometry args={[radius * 1.4, radius * 1.6, podiumHeight, 8]} />
@@ -152,20 +148,12 @@ const HighTechBuilding = ({
     data, 
     materialRef, 
     onBeforeCompile, 
-    onClick, 
-    onRightClick, 
-    onPointerOver, 
-    onPointerOut, 
     hovered,
     colors
 }: { 
     data: BuildingData; 
     materialRef: any; 
     onBeforeCompile: any; 
-    onClick: any; 
-    onRightClick: any; 
-    onPointerOver: any; 
-    onPointerOut: any; 
     hovered: boolean;
     colors: any;
 }) => {
@@ -176,12 +164,7 @@ const HighTechBuilding = ({
     const coreRadius = Math.min(width, depth) * 0.35;
 
     return (
-        <group 
-            onClick={onClick}
-            onContextMenu={onRightClick}
-            onPointerOver={onPointerOver}
-            onPointerOut={onPointerOut}
-        >
+        <group>
             {/* Foundation */}
             <mesh position={[0, 0.25, 0]} castShadow receiveShadow>
                 <boxGeometry args={[width, 0.5, depth]} />
@@ -243,20 +226,12 @@ const IndustrialComplex = ({
     data, 
     materialRef, 
     onBeforeCompile, 
-    onClick, 
-    onRightClick, 
-    onPointerOver, 
-    onPointerOut, 
     hovered,
     colors
 }: { 
     data: BuildingData; 
     materialRef: any; 
     onBeforeCompile: any; 
-    onClick: any; 
-    onRightClick: any; 
-    onPointerOver: any; 
-    onPointerOut: any; 
     hovered: boolean;
     colors: any;
 }) => {
@@ -268,12 +243,7 @@ const IndustrialComplex = ({
     const reactorRadius = Math.min(width, depth) * 0.35;
     
     return (
-        <group 
-            onClick={onClick}
-            onContextMenu={onRightClick}
-            onPointerOver={onPointerOver}
-            onPointerOut={onPointerOut}
-        >
+        <group>
             {/* Foundation */}
             <mesh position={[0, 0.5, 0]} castShadow receiveShadow>
                 <boxGeometry args={[width, 1, depth]} />
@@ -367,20 +337,12 @@ const ResidentialBuilding = ({
     data,
     materialRef,
     onBeforeCompile,
-    onClick,
-    onRightClick,
-    onPointerOver,
-    onPointerOut,
     hovered,
     colors
 }: {
     data: BuildingData;
     materialRef: any;
     onBeforeCompile: any;
-    onClick: any;
-    onRightClick: any;
-    onPointerOver: any;
-    onPointerOut: any;
     hovered: boolean;
     colors: any;
 }) => {
@@ -393,12 +355,7 @@ const ResidentialBuilding = ({
     const coreDepth = depth * 0.65;
 
     return (
-        <group
-            onClick={onClick}
-            onContextMenu={onRightClick}
-            onPointerOver={onPointerOver}
-            onPointerOut={onPointerOut}
-        >
+        <group>
             {/* Core Hull (Capture Target) */}
             {/* Position: center is at y = height/2 so shader fill works from bottom up */}
             <mesh position={[0, height / 2, 0]} castShadow receiveShadow>
@@ -458,10 +415,26 @@ const ResidentialBuilding = ({
 
 // --- Main Building Component ---
 
-const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHover }) => {
-  const [hovered, setHovered] = useState(false);
+const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
   const fansRef = useRef<THREE.Group>(null);
+  const rootRef = useRef<THREE.Group>(null);
+
+  // A building never moves, so its matrices only need computing when its own
+  // markup changes (capture ring appearing, hover edges, owner swap).
+  useLayoutEffect(() => {
+    freezeSubtree(rootRef.current);
+    // Detail meshes are picked via the shared instanced collider, so keep the
+    // raycaster from ever descending into them.
+    blockSubtreeRaycast(rootRef.current);
+  });
+
+  // Radius covering the whole silhouette, plus slack so shadows cast by
+  // just-offscreen buildings do not pop in and out at the screen edge.
+  const cullRadius = useMemo(() => {
+    const [w, h, d] = data.scale;
+    return Math.max(w, h, d) * 1.5 + 30;
+  }, [data.scale]);
 
   // Calculate colors for different states
   const colors = useMemo(() => {
@@ -486,10 +459,15 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
   }, [data.gridX, data.gridZ]);
 
   useFrame((state, delta) => {
-    if (!materialRef.current) return;
+    // Hide the whole subtree when offscreen. Unlike per-mesh culling this also
+    // stops the render-list traversal from descending into it at all.
+    const onScreen = isSphereVisible(globalFrustum, worldPos, cullRadius);
+    if (rootRef.current && rootRef.current.visible !== onScreen) {
+        rootRef.current.visible = onScreen;
+    }
+    if (!onScreen) return;
 
-    // Distance culling for JS updates: skip if too far
-    if (!isPointInFrustum(worldPos, 20)) return;
+    if (!materialRef.current) return;
 
     const shader = materialRef.current.userData.shader;
     
@@ -522,6 +500,7 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
     // Rotate fans if server node
     if (data.type === 'server_node' && fansRef.current) {
         fansRef.current.rotation.y += delta * 2;
+        refreshSubtree(fansRef.current);
     }
   });
 
@@ -607,29 +586,8 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
     }
   }, [data.scale]);
 
-  const handleClick = (e: any) => {
-      e.stopPropagation();
-      if (onClick) onClick(data.gridX, data.gridZ);
-  };
-
-  const handleRightClick = (e: any) => {
-      e.stopPropagation();
-      if (onRightClick) onRightClick(data.gridX, data.gridZ);
-  };
-
-  const handlePointerOver = (e: any) => {
-      e.stopPropagation();
-      setHovered(true);
-      if (onHover) onHover(data.gridX, data.gridZ);
-  };
-
-  const handlePointerOut = (e: any) => {
-      e.stopPropagation(); 
-      setHovered(false); 
-  };
-
   return (
-    <group position={data.position}>
+    <group ref={rootRef} position={data.position}>
       {/* Foundation/Base Glow */}
       <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[data.scale[0] * 1.2, data.scale[2] * 1.2]} />
@@ -654,10 +612,6 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
               data={data}
               materialRef={materialRef}
               onBeforeCompile={onBeforeCompile}
-              onClick={handleClick}
-              onRightClick={handleRightClick}
-              onPointerOver={handlePointerOver}
-              onPointerOut={handlePointerOut}
               hovered={hovered}
               colors={colors}
           />
@@ -666,10 +620,6 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
               data={data}
               materialRef={materialRef}
               onBeforeCompile={onBeforeCompile}
-              onClick={handleClick}
-              onRightClick={handleRightClick}
-              onPointerOver={handlePointerOver}
-              onPointerOut={handlePointerOut}
               hovered={hovered}
               colors={colors}
           />
@@ -678,10 +628,6 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
               data={data}
               materialRef={materialRef}
               onBeforeCompile={onBeforeCompile}
-              onClick={handleClick}
-              onRightClick={handleRightClick}
-              onPointerOver={handlePointerOver}
-              onPointerOut={handlePointerOut}
               hovered={hovered}
               colors={colors}
           />
@@ -690,10 +636,6 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
               data={data}
               materialRef={materialRef}
               onBeforeCompile={onBeforeCompile}
-              onClick={handleClick}
-              onRightClick={handleRightClick}
-              onPointerOver={handlePointerOver}
-              onPointerOut={handlePointerOut}
               hovered={hovered}
               colors={colors}
           />
@@ -702,10 +644,6 @@ const Building: React.FC<BuildingProps> = ({ data, onClick, onRightClick, onHove
           <mesh
             castShadow
             receiveShadow
-            onClick={handleClick}
-            onContextMenu={handleRightClick}
-            onPointerOver={handlePointerOver}
-            onPointerOut={handlePointerOut}
             position={[0, data.scale[1] / 2, 0]} 
           >
             <boxGeometry args={data.scale} />

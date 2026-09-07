@@ -7,7 +7,7 @@ import DroneCamera from './components/DroneCamera';
 import Atmosphere from './components/Atmosphere';
 import UIOverlay from './components/UIOverlay';
 import { GameStats, UnitData, BuildingData, RoadTileData, MinimapData, StructureData, DoctrineState, DoctrineType } from './types';
-import { DOCTRINE_CONFIG } from './constants';
+import { DOCTRINE_CONFIG, CAMERA_FAR } from './constants';
 
 const INITIAL_STATS: GameStats = {
   blue: { 
@@ -57,10 +57,18 @@ function App() {
   // Update local stats from CityMap, but preserve App-level doctrine selection state
   // We sync unlockedTiers from the simulation (CityMap) to our App state
   const handleStatsUpdate = useCallback((newStats: GameStats) => {
-    setDoctrines(prev => ({
-        blue: { ...prev.blue, unlockedTiers: newStats.blue.doctrine?.unlockedTiers || prev.blue.unlockedTiers },
-        red: { ...prev.red, unlockedTiers: newStats.red.doctrine?.unlockedTiers || prev.red.unlockedTiers }
-    }));
+    // Only produce a new object when a tier actually unlocked. This runs on every stats
+    // update, so returning `prev` unchanged keeps consumers that depend on the doctrines
+    // identity from being invalidated several times a second.
+    setDoctrines(prev => {
+        const blueTiers = newStats.blue.doctrine?.unlockedTiers || prev.blue.unlockedTiers;
+        const redTiers = newStats.red.doctrine?.unlockedTiers || prev.red.unlockedTiers;
+        if (blueTiers === prev.blue.unlockedTiers && redTiers === prev.red.unlockedTiers) return prev;
+        return {
+            blue: { ...prev.blue, unlockedTiers: blueTiers },
+            red: { ...prev.red, unlockedTiers: redTiers }
+        };
+    });
 
     setStats(newStats); 
   }, []);
@@ -180,7 +188,7 @@ function App() {
         className="w-full h-full relative bg-black" 
         onContextMenu={(e) => e.preventDefault()}
     >
-      <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 50, 50], fov: 45 }}>
+      <Canvas shadows dpr={[1, 2]} camera={{ position: [0, 50, 50], fov: 45, far: CAMERA_FAR }}>
         <Suspense fallback={null}>
           <Atmosphere />
           <CityMap 

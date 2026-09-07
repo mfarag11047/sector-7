@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState, useRef, useLayoutEffect, useEffect } from 'react';
+import React, { useMemo, useState, useRef, useLayoutEffect, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
 import { RoadTileData } from '../types';
 
@@ -331,6 +331,12 @@ const SingleTypeRoads: React.FC<{
     );
 };
 
+// Stable across renders: passing freshly built Colors in JSX invalidates the
+// instance-matrix effect below and rewrites every road tile on each render.
+const COLOR_MAIN = new THREE.Color('#ffffff');
+const COLOR_STREET = new THREE.Color('#94a3b8');
+const COLOR_OPEN = new THREE.Color('#ffffff');
+
 // --- MAIN EXPORTED COMPONENT ---
 export const InstancedRoads: React.FC<{ 
     tiles: RoadTileData[]; 
@@ -366,7 +372,7 @@ export const InstancedRoads: React.FC<{
     const gridSize = Math.round((offset * 2) / tileSize);
     const mid = Math.floor(gridSize / 2);
 
-    const getMainRotation = (tile: RoadTileData) => {
+    const getMainRotation = useCallback((tile: RoadTileData) => {
         // Texture has vertical lines.
         // Rotation 0 aligns texture lines with World Z (North-South).
         // Rotation 90 aligns texture lines with World X (East-West).
@@ -379,17 +385,19 @@ export const InstancedRoads: React.FC<{
         
         // Default
         return 0;
-    };
+    }, [mid]);
 
     // Handler wrapper
-    const handleHover = (x: number, z: number) => { if(onHover) onHover(x, z); };
+    const onHoverRef = useRef(onHover);
+    onHoverRef.current = onHover;
+    const handleHover = useCallback((x: number, z: number) => { onHoverRef.current?.(x, z); }, []);
 
     return (
         <group>
             {mainTiles.length > 0 && (
                 <SingleTypeRoads 
                     tiles={mainTiles} tileSize={tileSize} offset={offset} 
-                    texture={texGlow} baseColor={new THREE.Color('#ffffff')}
+                    texture={texGlow} baseColor={COLOR_MAIN}
                     onClick={onClick} onRightClick={onRightClick} onHover={handleHover}
                     getRotation={getMainRotation}
                     tileScale={tileScale}
@@ -398,7 +406,7 @@ export const InstancedRoads: React.FC<{
             {streetTiles.length > 0 && (
                 <SingleTypeRoads 
                     tiles={streetTiles} tileSize={tileSize} offset={offset} 
-                    texture={texConcrete} baseColor={new THREE.Color('#94a3b8')} // Lighten the concrete slightly
+                    texture={texConcrete} baseColor={COLOR_STREET} // Lighten the concrete slightly
                     onClick={onClick} onRightClick={onRightClick} onHover={handleHover}
                     tileScale={tileScale}
                     randomRotation={true}
@@ -407,7 +415,7 @@ export const InstancedRoads: React.FC<{
             {openTiles.length > 0 && (
                 <SingleTypeRoads 
                     tiles={openTiles} tileSize={tileSize} offset={offset} 
-                    texture={texHex} baseColor={new THREE.Color('#ffffff')}
+                    texture={texHex} baseColor={COLOR_OPEN}
                     onClick={onClick} onRightClick={onRightClick} onHover={handleHover}
                     tileScale={tileScale}
                     randomRotation={true}

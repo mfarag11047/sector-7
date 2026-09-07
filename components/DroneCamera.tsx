@@ -3,6 +3,7 @@ import React, { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { updateGlobalFrustum } from '../frustum';
+import { freezeContainer } from '../perf';
 import { CAMERA_SPEED, CITY_CONFIG, CAMERA_ZOOM_SPEED, MIN_ZOOM, MAX_ZOOM } from '../constants';
 
 interface DroneCameraProps {
@@ -10,7 +11,20 @@ interface DroneCameraProps {
 }
 
 const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef }) => {
-  const { camera, gl } = useThree();
+  const { camera, gl, scene, raycaster } = useThree();
+
+  // The scene root never moves. Leaving it auto-updating dirties it every frame,
+  // which forces matrix updates through every subtree below it.
+  useEffect(() => {
+    freezeContainer(scene);
+  }, [scene]);
+
+  // Dev-only handle for performance profiling from the console.
+  useEffect(() => {
+    if ((import.meta as any).env?.DEV) {
+      (window as any).__GAME3D = { scene, gl, camera, raycaster, THREE };
+    }
+  }, [scene, gl, camera, raycaster]);
   
   // Position State
   const positionRef = useRef(new THREE.Vector3(0, 80, 80)); 

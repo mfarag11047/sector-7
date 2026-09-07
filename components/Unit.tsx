@@ -87,6 +87,8 @@ interface UnitProps {
   cargo?: number;
   constructionTargetId?: string | null; // Mason target
   isTargetingMode?: boolean;
+  showTetherRange?: boolean;
+  isTetherCandidate?: boolean;
   ammoState?: 'empty' | 'loading' | 'armed' | 'awaiting_delivery';
   loadedAmmo?: 'eclipse' | 'he' | null;
   missileInventory?: { eclipse: number; he: number }; // Added
@@ -112,7 +114,7 @@ interface UnitProps {
 }
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, onMoveStep, tileTypeMap, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, ammoState, loadedAmmo, missileInventory, loadingProgress, courierPayload, jammerActive, tetherTargetId, isJammed, isHacked, hackType, teamCompute, firingLaserAt, lastAttackTime,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, onMoveStep, tileTypeMap, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, isTetherCandidate, ammoState, loadedAmmo, missileInventory, loadingProgress, courierPayload, jammerActive, tetherTargetId, isJammed, isHacked, hackType, teamCompute, firingLaserAt, lastAttackTime,
   isStunned, globalSpeedModifier = 1.0, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -692,6 +694,24 @@ const Unit: React.FC<UnitProps> = ({
 
       {isHelios && (<group position={[0, -hoverHeight + 0.3, 0]}> <mesh rotation={[-Math.PI/2, 0, 0]} raycast={() => null}><ringGeometry args={[ABILITY_CONFIG.HELIOS_RADIUS * tileSize - 0.5, ABILITY_CONFIG.HELIOS_RADIUS * tileSize, 16]} /><meshBasicMaterial color="#facc15" transparent opacity={0.5} side={THREE.DoubleSide} /></mesh><mesh rotation={[-Math.PI/2, 0, 0]} raycast={() => null}><circleGeometry args={[ABILITY_CONFIG.HELIOS_RADIUS * tileSize, 16]} /><meshBasicMaterial color="#facc15" transparent opacity={0.05} depthWrite={false} /></mesh></group>)}
       {isBanshee && jammerActive && (<group><mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.2, 0]} raycast={() => null}><ringGeometry args={[ABILITY_CONFIG.BANSHEE_JAMMER_RADIUS * tileSize, ABILITY_CONFIG.BANSHEE_JAMMER_RADIUS * tileSize + 0.2, 16]} /><meshBasicMaterial color="#ffffff" transparent opacity={0.3} side={THREE.DoubleSide} /></mesh><mesh rotation={[0, Date.now() * 0.001, 0]} raycast={() => null}><sphereGeometry args={[ABILITY_CONFIG.BANSHEE_JAMMER_RADIUS * tileSize, 16, 16]} /><meshBasicMaterial color="#ffffff" wireframe transparent opacity={0.05} /></mesh></group>)}
+      {showTetherRange && (
+        <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.2, 0]} raycast={() => null}>
+          <ringGeometry args={[ABILITY_CONFIG.BANSHEE_TETHER_RANGE * tileSize, ABILITY_CONFIG.BANSHEE_TETHER_RANGE * tileSize + 0.35, 48]} />
+          <meshBasicMaterial color="#38bdf8" transparent opacity={0.45} side={THREE.DoubleSide} />
+        </mesh>
+      )}
+      {isTetherCandidate && (
+        <group>
+          <mesh position={[0, -hoverHeight / 2, 0]}>
+            <cylinderGeometry args={[tileSize * 0.55, tileSize * 0.55, Math.max(hoverHeight + 2, 4), 12]} />
+            <meshBasicMaterial color="#38bdf8" transparent opacity={0.12} depthWrite={false} />
+          </mesh>
+          <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, -hoverHeight + 0.25, 0]}>
+            <ringGeometry args={[tileSize * 0.45, tileSize * 0.6, 24]} />
+            <meshBasicMaterial color="#38bdf8" transparent opacity={0.7} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
+      )}
       {isHacked && hackerPos && (<group><Line points={[[0, 1, 0],[hackerPos.x - meshRef.current!.position.x, hackerPos.y - meshRef.current!.position.y, hackerPos.z - meshRef.current!.position.z]]} color="#c084fc" lineWidth={1} transparent opacity={0.5}/><mesh position={[0, 1.5, 0]} raycast={() => null}><octahedronGeometry args={[0.5]} /><meshBasicMaterial color="#c084fc" wireframe /></mesh></group>)}
       {isJammed && (<mesh position={[0, 2, 0]} raycast={() => null}><sphereGeometry args={[1]} /><meshBasicMaterial color="#ffffff" wireframe transparent opacity={0.3} /></mesh>)}
       {isHacked && hackType === 'drain' && (<group><mesh position={[0, 1, 0]} rotation={[Math.random(), Math.random(), Math.random()]} raycast={() => null}><planeGeometry args={[0.5, 0.5]} /><meshBasicMaterial color="#3b82f6" side={THREE.DoubleSide} /></mesh><pointLight color="#3b82f6" intensity={2} distance={3} /></group>)}
@@ -804,7 +824,10 @@ const Unit: React.FC<UnitProps> = ({
                   {isBanshee && (
                       <>
                         <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TOGGLE_JAMMER'); }} className={`text-[10px] ${jammerActive ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>Toggle Jammer</button>
-                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('HARDLINE_TETHER'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left">Tether</button>
+                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('HARDLINE_TETHER'); }} className={`text-[10px] ${tetherTargetId || isTargetingMode ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>{tetherTargetId ? 'Retether' : 'Tether'}</button>
+                        {tetherTargetId && (
+                          <button onClick={(e) => { e.stopPropagation(); handleMenuAction('DISCONNECT_TETHER'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left">Disconnect</button>
+                        )}
                       </>
                   )}
                   {isSunPlate && (

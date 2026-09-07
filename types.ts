@@ -115,6 +115,7 @@ export interface UnitData {
   anchorTime?: number; // Added for Swarm Host spawn delay logic
   lastSpawnTime?: number; // Added for Swarm Host interval logic
   spawnedUnitIds?: string[]; // Added to track child units
+  crawlerTargetId?: string | null; // Enemy a Crawler Drone is currently hunting
   jammerActive?: boolean;
   tetherTargetId?: string | null;
   isHacked?: boolean;
@@ -151,6 +152,7 @@ export interface UnitData {
     smogShell?: number;
     mainCannon?: number;
     spawnWasp?: number; 
+    spawnCrawler?: number; // Swarm Host periodic Crawler Drone production
   };
   repairTargetId?: string | null;
   surveillance?: {
