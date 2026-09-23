@@ -497,7 +497,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           const blockId = `block-${blockCounter}`;
           const dist = Math.sqrt(Math.pow(x - gridSize/2, 2) + Math.pow(z - gridSize/2, 2));
           let type: BuildingData['type'] = 'residential';
-          if (dist < 12 && Math.random() < 0.25) { type = 'server_node'; } 
+          if (dist < ABILITY_CONFIG.CENTER_THREAT_RADIUS && Math.random() < 0.25) { type = 'server_node'; } 
           else { if (dist < 10) type = 'commercial'; else if (dist < 20) type = 'hightech'; else if (Math.random() > 0.5) type = 'industrial'; }
 
           const tentativeBuildings: BuildingData[] = [];
@@ -794,11 +794,18 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       }
   };
 
+  // Guard positions stay hidden per team until one of that team's units walks into vision.
+  const knownGuardsRef = useRef<{ blue: Set<string>; red: Set<string> }>({ blue: new Set(), red: new Set() });
+
   const visibleUnitIds = useMemo(() => {
     const visible = new Set<string>();
+    const teamKey = playerTeam === 'blue' || playerTeam === 'red' ? playerTeam : null;
     units.forEach(u => {
-        // Always show friendly units AND defense drones (they are map features)
-        if (u.team === playerTeam || u.type === 'defense_drone') { visible.add(u.id); return; }
+        if (u.team === playerTeam) { visible.add(u.id); return; }
+        if (u.type === 'defense_drone' && teamKey && knownGuardsRef.current[teamKey].has(u.id)) {
+            visible.add(u.id);
+            return;
+        }
         const friendlies = units.filter(f => f.team === playerTeam);
         const inHE = clouds.some(c => c.type === 'he' && Math.sqrt(Math.pow(u.gridPos.x - c.gridPos.x, 2) + Math.pow(u.gridPos.z - c.gridPos.z, 2)) <= c.radius);
         if (inHE) return; 
@@ -812,7 +819,10 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
             const dist = Math.sqrt(Math.pow(u.gridPos.x - f.gridPos.x, 2) + Math.pow(u.gridPos.z - f.gridPos.z, 2));
             return dist <= f.visionRange;
         });
-        if (isDetected) visible.add(u.id);
+        if (isDetected) {
+            visible.add(u.id);
+            if (u.type === 'defense_drone' && teamKey) knownGuardsRef.current[teamKey].add(u.id);
+        }
     });
     return visible;
   }, [units, playerTeam, clouds]);

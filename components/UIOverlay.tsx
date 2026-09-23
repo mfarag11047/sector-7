@@ -219,11 +219,13 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
 const MinimapBackground = React.memo(({ 
     roadTiles, 
     buildings, 
-    structures 
+    structures,
+    revealedServerIds
 }: { 
     roadTiles: any[], 
     buildings: any[], 
-    structures: any[] 
+    structures: any[],
+    revealedServerIds?: Set<string>
 }) => {
     return (
         <g>
@@ -238,7 +240,8 @@ const MinimapBackground = React.memo(({
                     fill={t.type === 'main' ? '#1e293b' : '#0f172a'}
                 />
             ))}
-            {/* Buildings Layer */}
+            {/* Buildings Layer. Unscouted server nodes use the generic building color so
+                their tiles don't give away the sentinel standing on them. */}
             {buildings.map((b) => (
                 <rect 
                     key={b.id}
@@ -246,7 +249,7 @@ const MinimapBackground = React.memo(({
                     y={b.gridZ}
                     width={1}
                     height={1}
-                    fill={b.owner ? TEAM_COLORS[b.owner] : (b.type === 'server_node' ? '#1e3a8a' : '#64748b')}
+                    fill={b.owner ? TEAM_COLORS[b.owner] : (b.type === 'server_node' && revealedServerIds?.has(b.id) ? '#1e3a8a' : '#64748b')}
                     opacity={0.8}
                 />
             ))}
@@ -503,14 +506,27 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
   const activeDoctrine = activeStats.doctrine?.selected || null;
   const unlockedTiers = activeStats.doctrine?.unlockedTiers || 0;
 
+  // Sentinel positions stay hidden per team until one of that team's units scouts them.
+  const knownGuardsRef = useRef<{ blue: Set<string>; red: Set<string> }>({ blue: new Set(), red: new Set() });
+
   // Fog of War Logic for Minimap Units
   // 1. Always show own units
-  // 2. Show enemy unit ONLY if distance to any friendly unit is < friendly.visionRange
-  const visibleUnits = useMemo(() => {
+  // 2. Show an enemy unit only while a friendly unit is within vision range
+  // 3. A scouted sentinel stays revealed for that team
+  const { visibleUnits, revealedServerKey } = useMemo(() => {
     const friendlies = minimapData.units.filter(u => u.team === playerTeam);
-    
-    return minimapData.units.filter(targetUnit => {
-        if (targetUnit.team === playerTeam || targetUnit.type === 'defense_drone') return true;
+    const teamKey = playerTeam === 'blue' || playerTeam === 'red' ? playerTeam : null;
+    const known = teamKey ? knownGuardsRef.current[teamKey] : null;
+
+    const inFriendlyVision = (x: number, z: number, rangeLimit?: number) => friendlies.some(friendly => {
+        const dist = Math.hypot(friendly.gridPos.x - x, friendly.gridPos.z - z);
+        const range = rangeLimit ?? (friendly.visionRange || 2);
+        return dist <= range;
+    });
+
+    const visible = minimapData.units.filter(targetUnit => {
+        if (targetUnit.team === playerTeam) return true;
+        if (targetUnit.type === 'defense_drone' && known?.has(targetUnit.id)) return true;
 
         // Check for Ghost protection on targetUnit
         const protectingGhosts = minimapData.units.filter(g => 
@@ -526,19 +542,30 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
         });
 
         // Enemy Unit Check against ALL friendly units using the specific vision range of the friendly
-        const isDetected = friendlies.some(friendly => {
-            const dx = friendly.gridPos.x - targetUnit.gridPos.x;
-            const dz = friendly.gridPos.z - targetUnit.gridPos.z;
-            const dist = Math.hypot(dx, dz);
+        const isDetected = inFriendlyVision(
+            targetUnit.gridPos.x,
+            targetUnit.gridPos.z,
+            isProtected ? 2 : undefined
+        );
 
-            // Dampener Rule: Limit detection to 2 blocks if protected (Visual line of sight), otherwise use full range
-            const detectionRange = isProtected ? 2 : (friendly.visionRange || 2);
-            return dist <= detectionRange; 
-        });
-
+        if (isDetected && targetUnit.type === 'defense_drone' && known) known.add(targetUnit.id);
         return isDetected;
     });
-  }, [minimapData.units, playerTeam]);
+
+    const revealed: string[] = [];
+    minimapData.buildings.forEach(b => {
+        if (b.type !== 'server_node') return;
+        const guard = minimapData.units.find(u => u.type === 'defense_drone' && u.gridPos.x === b.gridX && u.gridPos.z === b.gridZ);
+        if ((guard && known?.has(guard.id)) || inFriendlyVision(b.gridX, b.gridZ)) revealed.push(b.id);
+    });
+
+    return { visibleUnits: visible, revealedServerKey: revealed.sort().join('|') };
+  }, [minimapData.units, minimapData.buildings, playerTeam]);
+
+  const revealedServerIds = useMemo(
+    () => new Set(revealedServerKey ? revealedServerKey.split('|') : []),
+    [revealedServerKey]
+  );
 
   // Selected Unit Path Visualization (First unit only for now)
   const selectedUnitPath = useMemo(() => {
@@ -732,7 +759,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
               <MinimapBackground 
                   roadTiles={minimapData.roadTiles} 
                   buildings={minimapData.buildings} 
-                  structures={minimapData.structures || []} 
+                  structures={minimapData.structures || []}
+                  revealedServerIds={revealedServerIds}
               />
 
               {/* Selected Unit Path Trail */}
@@ -787,6 +815,27 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                   gridSize={gridSize} 
                   tileSize={CITY_CONFIG.tileSize} 
               />
+
+              {/* Known danger band around the central server nodes. Drawn last so the
+                  warning mark stays readable over the camera viewfinder. Exact guard
+                  positions stay hidden until a unit scouts them. */}
+              <g>
+                  <circle
+                      cx={gridSize / 2}
+                      cy={gridSize / 2}
+                      r={ABILITY_CONFIG.CENTER_THREAT_RADIUS}
+                      fill="#ef4444"
+                      fillOpacity={0.14}
+                      stroke="#f97316"
+                      strokeWidth={0.35}
+                      strokeDasharray="1.4 0.9"
+                  />
+                  <g transform={`translate(${gridSize / 2}, ${gridSize / 2})`}>
+                      <polygon points="0,-3.6 3.2,2.6 -3.2,2.6" fill="#f97316" stroke="#fff7ed" strokeWidth={0.2} />
+                      <rect x={-0.28} y={-1.2} width={0.56} height={1.7} rx={0.1} fill="#1c1917" />
+                      <rect x={-0.28} y={0.85} width={0.56} height={0.56} rx={0.1} fill="#1c1917" />
+                  </g>
+              </g>
            </svg>
            
            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/40 pointer-events-none">
