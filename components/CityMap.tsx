@@ -1005,7 +1005,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
         const interval = setInterval(() => {
             // Filter real units (hide active decoys source)
-            const realUnits = unitsRef.current.filter(u => !u.decoyActive);
+            const realUnits = unitsRef.current;
             
             // Create fake units from decoys
             const fakeUnits: UnitData[] = decoys.map(d => ({
@@ -1108,6 +1108,8 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
     const teamKey = playerTeam === 'blue' || playerTeam === 'red' ? playerTeam : null;
     units.forEach(u => {
         if (u.team === playerTeam) { visible.add(u.id); return; }
+        // Phantom Decoy cloaks the real Ghost from the other team entirely.
+        if (u.decoyActive) return;
         if (u.type === 'defense_drone' && teamKey && knownGuardsRef.current[teamKey].has(u.id)) {
             visible.add(u.id);
             return;
@@ -1621,6 +1623,14 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   };
 
   const handleMoveStep = (id: string) => {
+      if (id.startsWith('decoy-')) {
+          setDecoys(prev => prev.map(d => {
+              if (d.id !== id || !d.path || d.path.length === 0) return d;
+              const [nx, nz] = d.path[0].split(',').map(Number);
+              return { ...d, gridPos: { x: nx, z: nz }, path: d.path.slice(1) };
+          }));
+          return;
+      }
       setUnits(prev => prev.map(u => {
           if (u.id !== id) return u;
           if (u.path.length === 0) return u;
@@ -2101,9 +2111,47 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           return;
       }
 
-      if (action === 'PHANTOM_DECOY_INIT' && compute >= COMPUTE_GATES.PHANTOM_DECOY) {
-           setTargetingSourceId(unitId);
-           setTargetingAbility('DECOY');
+      if (action === 'PHANTOM_DECOY_INIT' && unit.type === 'ghost') {
+           if (unit.decoyActive) {
+               setUnits(prev => prev.map(u => u.id === unitId ? { ...u, decoyActive: false, isStealthed: false } : u));
+               setDecoys(prev => prev.filter(d => d.ownerId !== unitId));
+               return;
+           }
+           if (compute < COMPUTE_GATES.PHANTOM_DECOY || unit.battery <= 1) return;
+
+           const directions = [
+               {x: 1, z: 0}, {x: -1, z: 0}, {x: 0, z: 1}, {x: 0, z: -1},
+               {x: 1, z: 1}, {x: -1, z: 1}, {x: 1, z: -1}, {x: -1, z: -1},
+           ];
+           const now = Date.now();
+           const spawned: DecoyData[] = [];
+           for (const dir of directions) {
+               if (spawned.length >= ABILITY_CONFIG.PHANTOM_DECOY_COUNT) break;
+               const path: string[] = [];
+               let x = unit.gridPos.x;
+               let z = unit.gridPos.z;
+               for (let step = 0; step < ABILITY_CONFIG.PHANTOM_DECOY_SCATTER; step++) {
+                   const nx = x + dir.x;
+                   const nz = z + dir.z;
+                   if (!isWalkable(nx, nz)) break;
+                   path.push(`${nx},${nz}`);
+                   x = nx;
+                   z = nz;
+               }
+               if (path.length === 0) continue;
+               spawned.push({
+                   id: `decoy-${unitId}-${spawned.length}-${now}`,
+                   team: unit.team as 'blue' | 'red',
+                   gridPos: { x: unit.gridPos.x, z: unit.gridPos.z },
+                   createdAt: now,
+                   ownerId: unitId,
+                   path,
+               });
+           }
+           if (spawned.length === 0) return;
+
+           setDecoys(prev => [...prev.filter(d => d.ownerId !== unitId), ...spawned]);
+           setUnits(prev => prev.map(u => u.id === unitId ? { ...u, decoyActive: true, decoyStartTime: now, isStealthed: true } : u));
            return;
       }
 
@@ -2313,21 +2361,14 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   useEffect(() => {
     const timer = setInterval(() => {
         const now = Date.now();
-        setDecoys(prev => prev.filter(d => now - d.createdAt < ABILITY_CONFIG.DECOY_DURATION));
+        setDecoys(prev => prev.filter(d => {
+            if (d.ownerId) {
+                const owner = unitsRef.current.find(u => u.id === d.ownerId);
+                return !!owner && !!owner.decoyActive && owner.health > 0;
+            }
+            return now - d.createdAt < ABILITY_CONFIG.DECOY_DURATION;
+        }));
         setExplosions(prev => prev.filter(e => now - e.createdAt < e.duration));
-        
-        // Restore units whose decoy time has expired
-        setUnits(prev => {
-            let changed = false;
-            const next = prev.map(u => {
-                if (u.decoyActive && u.decoyStartTime && (now - u.decoyStartTime >= ABILITY_CONFIG.DECOY_DURATION)) {
-                    changed = true;
-                    return { ...u, decoyActive: false, decoyStartTime: undefined };
-                }
-                return u;
-            });
-            return changed ? next : prev;
-        });
 
     }, 500); 
     return () => clearInterval(timer);
@@ -2634,6 +2675,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       if (u.type === 'ghost' && u.isDampenerActive) drain += ABILITY_CONFIG.GHOST_SPEED_PENALTY; // Assuming dampener consumes power or just slows? using drain var.
                       // Note: Constants for drain might be missing, using closest or 0
                       if (u.type === 'ghost' && u.isDampenerActive) drain += ABILITY_CONFIG.DRAIN_STATIC_DOME;
+                      if (u.type === 'ghost' && u.decoyActive) {
+                          drain += ABILITY_CONFIG.PHANTOM_DECOY_DRAIN * (isMoving ? 1 : ABILITY_CONFIG.PHANTOM_DECOY_STILL_FACTOR);
+                      }
                       if (u.type === 'sun_plate' && u.isDeployed) drain += ABILITY_CONFIG.DRAIN_STATIC_DOME;
 
                       // Banshee Tether: drain the hardline pack when a drone is siphoning
@@ -2696,6 +2740,11 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                               newUnit.battery = Math.max(0, newUnit.battery - drain); 
                               if (newUnit.battery !== u.battery) uChanged = true; 
                           }
+                      }
+                      if (u.decoyActive && newUnit.battery <= 0) {
+                          newUnit.decoyActive = false;
+                          newUnit.isStealthed = false;
+                          uChanged = true;
                       }
 
                       // External Charging (Helios/Sunplate/Tether)
@@ -2775,7 +2824,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                                let targetId: string | null = null;
                                let minDist = 999;
                                for (const enemy of nextUnits) {
-                                   if (enemy.team === attacker.team || enemy.team === 'neutral') continue;
+                                   if (enemy.team === attacker.team || enemy.team === 'neutral' || enemy.decoyActive) continue;
                                    
                                    // Check if target is obscured by Nano Cloud
                                    const targetObscured = isPointInCloud(enemy.gridPos, activeClouds, 'nano');
@@ -2923,7 +2972,10 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
              const isVisible = visibleUnitIds.has(u.id);
              return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onMoveStep={stableMoveStep} tileTypeMap={tileTypeMap} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && (!!u.tetherTargetId || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} /> );
         })}
-        {decoys.map(d => (
+        {decoys.map(d => {
+            const seen = d.team === playerTeam || units.some(f => f.team === playerTeam && Math.hypot(f.gridPos.x - d.gridPos.x, f.gridPos.z - d.gridPos.z) <= (f.visionRange || 2));
+            if (!seen) return null;
+            return (
             <Unit
                 key={d.id}
                 id={d.id}
@@ -2935,12 +2987,12 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                 onSelect={stableUnitSelect} // Decoys not selectable
                 tileSize={CITY_CONFIG.tileSize}
                 offset={offset}
-                path={stableEmptyArray}
+                path={d.path ?? stableEmptyArray}
                 onMoveStep={stableMoveStep}
                 tileTypeMap={tileTypeMap}
                 onDoubleClick={stableDoubleClick}
                 visionRange={0}
-                visible={true} // Decoys always visible (they are meant to be seen)
+                visible={true}
                 actionMenuOpen={false}
                 onAction={stableUnitAction}
                 health={100}
@@ -2951,7 +3003,8 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                 teamCompute={0}
                 isDecoy={true}
             />
-        ))}
+            );
+        })}
         
         {/* Projectiles */}
         {projectiles.map(p => <ProjectileMesh key={p.id} projectile={p} flightRef={flightRef} />)}

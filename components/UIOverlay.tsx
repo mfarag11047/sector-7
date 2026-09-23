@@ -526,6 +526,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
 
     const visible = minimapData.units.filter(targetUnit => {
         if (targetUnit.team === playerTeam) return true;
+        if (targetUnit.decoyActive) return false;
         if (targetUnit.type === 'defense_drone' && known?.has(targetUnit.id)) return true;
 
         // Check for Ghost protection on targetUnit

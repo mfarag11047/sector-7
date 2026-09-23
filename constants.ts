@@ -60,6 +60,10 @@ export const ABILITY_CONFIG = {
   GHOST_SPEED_PENALTY: 0.5, 
   GHOST_DECOY_RANGE: 10, // Added range for Phantom Decoy
   DECOY_DURATION: 15000, // Reduced to 15 seconds
+  PHANTOM_DECOY_COUNT: 4, // Projections spawned around the cloaked Ghost
+  PHANTOM_DECOY_SCATTER: 6, // Tiles each projection runs after leaving the Ghost
+  PHANTOM_DECOY_DRAIN: 4.0, // Battery lost per 100ms tick while cloaked and moving
+  PHANTOM_DECOY_STILL_FACTOR: 0.25, // Drain multiplier while the cloaked Ghost holds still
   GUARDIAN_TROPHY_RANGE: 2, 
   GUARDIAN_TROPHY_COOLDOWN: 10000, 
   GUARDIAN_REPAIR_RATE: 15, 

@@ -243,6 +243,8 @@ export interface DecoyData {
   team: 'blue' | 'red';
   gridPos: { x: number; z: number };
   createdAt: number;
+  ownerId?: string; // Ghost whose Phantom Decoy spawned this projection
+  path?: string[]; // Scatter route, starting from the owner's tile
 }
 
 export interface CloudData {

@@ -52,6 +52,7 @@ interface UnitProps {
   actionMenuOpen: boolean;
   onAction: (id: string, action: string) => void;
   isDecoy?: boolean;
+  decoyActive?: boolean;
   health: number;
   maxHealth: number;
   battery: number;
@@ -114,7 +115,7 @@ interface UnitProps {
 }
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, onMoveStep, tileTypeMap, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, isTetherCandidate, ammoState, loadedAmmo, missileInventory, loadingProgress, courierPayload, jammerActive, tetherTargetId, isJammed, isHacked, hackType, teamCompute, firingLaserAt, lastAttackTime,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, onMoveStep, tileTypeMap, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, isTetherCandidate, ammoState, loadedAmmo, missileInventory, loadingProgress, courierPayload, jammerActive, tetherTargetId, isJammed, isHacked, hackType, teamCompute, firingLaserAt, lastAttackTime,
   isStunned, globalSpeedModifier = 1.0, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -176,6 +177,32 @@ const Unit: React.FC<UnitProps> = ({
         meshRef.current.position.copy(logicalWorldPos);
     }
   }, []);
+
+  const bodyRef = useRef<THREE.Group>(null);
+
+  // Owner-only cloak. Tinting is limited to the body group, which is remounted
+  // when the cloak ends so the Ghost's materials come back solid.
+  useLayoutEffect(() => {
+    const root = bodyRef.current;
+    if (!root || !decoyActive) return;
+    root.traverse(obj => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.material) return;
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      for (const mat of mats) {
+        const tinted = mat as THREE.MeshStandardMaterial;
+        if (tinted.opacity === 0) continue;
+        tinted.transparent = true;
+        tinted.opacity = 0.32;
+        tinted.depthWrite = false;
+        if (tinted.color) tinted.color.set('#7dd3fc');
+        if (tinted.emissive) {
+          tinted.emissive.set('#38bdf8');
+          tinted.emissiveIntensity = 0.85;
+        }
+      }
+    });
+  });
 
   const lastProcessedTargetRef = useRef<string | null>(null);
 
@@ -624,7 +651,19 @@ const Unit: React.FC<UnitProps> = ({
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      {renderModel()}
+      <group ref={bodyRef} key={decoyActive ? 'cloaked' : 'solid'}>
+        {renderModel()}
+      </group>
+
+      {decoyActive && (
+        <group>
+          <mesh position={[0, 0.8, 0]} userData={{ cloakShell: true }} raycast={() => null}>
+            <capsuleGeometry args={[0.7, 1.2, 4, 10]} />
+            <meshBasicMaterial color="#38bdf8" transparent opacity={0.16} depthWrite={false} blending={THREE.AdditiveBlending} />
+          </mesh>
+          <pointLight color="#38bdf8" intensity={1.4} distance={8} decay={2} />
+        </group>
+      )}
 
       {/* Swarm Host Anchor Range */}
       {isSwarmHost && isAnchored && (
@@ -811,7 +850,7 @@ const Unit: React.FC<UnitProps> = ({
                   {isGhost && (
                       <>
                         <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TOGGLE DAMPENER'); }} className={`text-[10px] ${isDampenerActive ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>Toggle Dampener</button>
-                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('PHANTOM_DECOY_INIT'); }} disabled={teamCompute < COMPUTE_GATES.PHANTOM_DECOY} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left">Phantom Decoy</button>
+                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('PHANTOM_DECOY_INIT'); }} disabled={!decoyActive && teamCompute < COMPUTE_GATES.PHANTOM_DECOY} className={`text-[10px] ${decoyActive ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>{decoyActive ? 'Phantom Decoy (On)' : 'Phantom Decoy'}</button>
                       </>
                   )}
                   {isBanshee && (
