@@ -271,6 +271,9 @@ export interface Projectile {
     startPos?: { x: number, y: number, z: number };
     startTime?: number;
     lockedTargetId?: string | null; // For swarm homing
+    // Aim point refreshed by the sim. The mesh steers toward this every frame
+    // so homing stays smooth while collision still runs on the slow tick.
+    guidePos?: { x: number, y: number, z: number };
     phase?: 'ascent' | 'cruise' | 'terminal';
 }
 

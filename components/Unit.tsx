@@ -118,6 +118,12 @@ const Unit: React.FC<UnitProps> = ({
   isStunned, globalSpeedModifier = 1.0, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
+  const moveScratch = useRef({
+    waypoint: new THREE.Vector3(),
+    dir: new THREE.Vector3(),
+    look: new THREE.Vector3(),
+    orient: new THREE.Object3D(),
+  });
   const radarRef = useRef<THREE.Group>(null);
   const tetherLineRef = useRef<THREE.BufferGeometry>(null);
   const laserRef = useRef<THREE.BufferGeometry>(null);
@@ -186,18 +192,6 @@ const Unit: React.FC<UnitProps> = ({
       (tz * tileSize) - offset
     );
   }, [gridPos, path, tileSize, offset, hoverHeight]);
-
-  // Calculate Flight Target (Next Destination in Path) for Air Units
-  const flightTargetPos = useMemo(() => {
-    if (!isAir || path.length === 0) return null;
-    const nextKey = path[0];
-    const [fx, fz] = nextKey.split(',').map(Number);
-    return new THREE.Vector3(
-        (fx * tileSize) - offset,
-        hoverHeight,
-        (fz * tileSize) - offset
-    );
-  }, [path, isAir, tileSize, offset, hoverHeight]);
 
   // Determine Speed multiplier
   const speedMultiplier = useMemo(() => {
@@ -373,52 +367,51 @@ const Unit: React.FC<UnitProps> = ({
         if (path.length > 0 && !isDisabled && !isDeployed && !isAnchored && !(isBallista && ammoState === 'loading')) {
              const meshPos = meshRef.current.position;
              const moveDist = BASE_SPEED * speedMultiplier * delta;
+             const scratch = moveScratch.current;
 
-             if (isAir && flightTargetPos) {
-                 const distToTarget = meshPos.distanceTo(flightTargetPos);
+             // path[0] is the next logical tile. Once that step is already
+             // reported, keep walking toward path[1] so the model doesn't
+             // sit on the tile center waiting for React to drop path[0].
+             let waypointKey = path[0];
+             if (lastProcessedTargetRef.current === waypointKey && path.length > 1) {
+                 waypointKey = path[1];
+             }
+             const [wx, wz] = waypointKey.split(',').map(Number);
+             const waypoint = scratch.waypoint.set(
+                 (wx * tileSize) - offset,
+                 hoverHeight,
+                 (wz * tileSize) - offset
+             );
 
-                 if (distToTarget <= moveDist) {
-                     meshPos.copy(flightTargetPos);
-                 } else {
-                     const dir = new THREE.Vector3().subVectors(flightTargetPos, meshPos).normalize();
-                     meshPos.add(dir.multiplyScalar(moveDist));
-                     const lookTarget = flightTargetPos.clone();
-                     lookTarget.y = meshPos.y; 
-                     meshRef.current.lookAt(lookTarget);
-                 }
+             const dist = meshPos.distanceTo(waypoint);
+             if (moveDist > 0 && dist > moveDist) {
+                 scratch.dir.subVectors(waypoint, meshPos).normalize();
+                 meshPos.add(scratch.dir.multiplyScalar(moveDist));
+             } else if (dist <= moveDist) {
+                 meshPos.copy(waypoint);
+             }
 
+             if (dist > 0.05) {
+                 scratch.look.set(waypoint.x, meshPos.y, waypoint.z);
+                 scratch.orient.position.copy(meshPos);
+                 scratch.orient.lookAt(scratch.look);
+                 meshRef.current.quaternion.slerp(scratch.orient.quaternion, 1 - Math.exp(-delta * 14));
+             }
+
+             if (isAir) {
                  const cx = Math.round((meshPos.x + offset) / tileSize);
                  const cz = Math.round((meshPos.z + offset) / tileSize);
-                 const nextKey = path[0];
-                 const [nx, nz] = nextKey.split(',').map(Number);
-                 if (cx === nx && cz === nz) {
-                      if (lastProcessedTargetRef.current !== nextKey) {
-                            lastProcessedTargetRef.current = nextKey;
-                            onMoveStep(id);
-                      }
+                 const stepKey = `${cx},${cz}`;
+                 if (stepKey === path[0] && lastProcessedTargetRef.current !== path[0]) {
+                     lastProcessedTargetRef.current = path[0];
+                     onMoveStep(id);
                  }
-             } else {
-                 const lookTarget = targetWorldPos.clone();
-                 lookTarget.y = meshRef.current.position.y;
-                 meshRef.current.lookAt(lookTarget);
-
-                 const dist = meshPos.distanceTo(targetWorldPos);
-
-                 if (dist <= moveDist) {
-                    const currentTargetKey = path[0];
-
-                    if (lastProcessedTargetRef.current !== currentTargetKey) {
-                        meshPos.copy(targetWorldPos);
-                        lastProcessedTargetRef.current = currentTargetKey;
-                        onMoveStep(id);
-                    }
-                } else {
-                    const dir = new THREE.Vector3().subVectors(targetWorldPos, meshPos).normalize();
-                    meshPos.add(dir.multiplyScalar(moveDist));
-                }
+             } else if (dist <= moveDist && waypointKey === path[0] && lastProcessedTargetRef.current !== path[0]) {
+                 lastProcessedTargetRef.current = path[0];
+                 onMoveStep(id);
              }
         } else {
-            meshRef.current.position.lerp(targetWorldPos, 0.1);
+            meshRef.current.position.lerp(targetWorldPos, 1 - Math.exp(-delta * 10));
         }
     }
   });

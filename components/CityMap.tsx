@@ -281,44 +281,243 @@ const CloudMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number; 
     );
 };
 
-// Projectile Component
-const ProjectileMesh: React.FC<{ projectile: Projectile }> = ({ projectile }) => {
-    const meshRef = useRef<THREE.Group>(null);
+// Ballistic missiles are a closed-form arc, so the mesh can follow the same
+// curve the sim uses without waiting for the 10 Hz tick.
+const sampleBallistic = (p: Projectile, nowMs: number) => {
+    const start = p.startPos!;
+    const target = p.targetPos!;
+    const totalDuration = (p.maxDistance / ABILITY_CONFIG.MISSILE_CRUISE_SPEED) * 1000;
+    const elapsed = nowMs - (p.startTime || nowMs);
+    const t = Math.min(1, Math.max(0, totalDuration > 0 ? elapsed / totalDuration : 1));
+    const peakHeight = Math.min(120, p.maxDistance * 0.5);
+    const x = start.x + (target.x - start.x) * t;
+    const z = start.z + (target.z - start.z) * t;
+    const y = 4 * peakHeight * t * (1 - t) + start.y * (1 - t) + target.y * t;
 
-    useFrame((state, delta) => {
-        if (meshRef.current) {
-            // Update position directly
-            meshRef.current.position.set(projectile.position.x, projectile.position.y, projectile.position.z);
-            
-            if ((projectile.trajectory === 'ballistic' || projectile.trajectory === 'swarm' || projectile.payload === 'titan_drop') && projectile.velocity) {
-                 // Calculate forward vector based on velocity for proper orientation
-                 if (Math.abs(projectile.velocity.x) > 0.001 || Math.abs(projectile.velocity.y) > 0.001 || Math.abs(projectile.velocity.z) > 0.001) {
-                     const velocityVec = new THREE.Vector3(projectile.velocity.x, projectile.velocity.y, projectile.velocity.z);
-                     const lookTarget = new THREE.Vector3().copy(meshRef.current.position).add(velocityVec);
-                     
-                     // Smooth rotation using slerp for ballistics, instant for swarm to avoid jitters
-                     const dummy = new THREE.Object3D();
-                     dummy.position.copy(meshRef.current.position);
-                     dummy.lookAt(lookTarget);
-                     
-                     if (projectile.trajectory === 'ballistic') {
-                         meshRef.current.quaternion.slerp(dummy.quaternion, delta * 8);
-                     } else {
-                         meshRef.current.quaternion.copy(dummy.quaternion);
-                     }
-                 }
+    const tNext = Math.min(1, t + 0.01);
+    const x2 = start.x + (target.x - start.x) * tNext;
+    const z2 = start.z + (target.z - start.z) * tNext;
+    const y2 = 4 * peakHeight * tNext * (1 - tNext) + start.y * (1 - tNext) + target.y * tNext;
+    return { x, y, z, vx: x2 - x, vy: y2 - y, vz: z2 - z };
+};
+
+type LiveFlight = { shot: Projectile; impacted: boolean };
+
+type FlightEvent =
+    | { kind: 'explosion'; position: { x: number; y: number; z: number }; radius: number; duration: number }
+    | { kind: 'damage'; position: { x: number; y: number; z: number }; radius: number; damage: number; team: UnitData['team'] }
+    | { kind: 'cloud'; cloudType: 'nano' | 'eclipse'; position: { x: number; y: number; z: number }; team: CloudData['team'] }
+    | { kind: 'titan'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' };
+
+const cloneProjectile = (p: Projectile): Projectile => ({
+    ...p,
+    position: { ...p.position },
+    velocity: { ...p.velocity },
+    startPos: p.startPos ? { ...p.startPos } : undefined,
+    targetPos: p.targetPos ? { ...p.targetPos } : undefined,
+});
+
+const flightUnitY = (u: UnitData) => {
+    if (['wasp', 'drone', 'helios'].includes(u.type)) return 75.0;
+    if (u.type === 'defense_drone') return 12.0;
+    return 1.5;
+};
+
+// Steps a shot by one displayed frame and reports a hit on that same pose.
+// The mesh reads this object, so the detonation is where the model is.
+const advanceFlight = (
+    p: Projectile,
+    dt: number,
+    now: number,
+    offset: number,
+    tileSize: number,
+    gridSize: number,
+    units: UnitData[],
+    buildings: BuildingData[],
+    structures: StructureData[],
+): FlightEvent[] | null => {
+    if (p.trajectory === 'ballistic' && p.startPos && p.startTime && p.targetPos) {
+        const pose = sampleBallistic(p, now);
+        p.position = { x: pose.x, y: pose.y, z: pose.z };
+        p.velocity = { x: pose.vx, y: pose.vy, z: pose.vz };
+        const totalDuration = (p.maxDistance / ABILITY_CONFIG.MISSILE_CRUISE_SPEED) * 1000;
+        const t = totalDuration > 0 ? (now - p.startTime) / totalDuration : 1;
+        if (t < 1) return null;
+
+        const events: FlightEvent[] = [];
+        const isNuke = p.payload === 'nuke';
+        events.push({
+            kind: 'explosion',
+            position: p.targetPos,
+            radius: isNuke ? 12 : (p.payload === 'nano_canister' ? 2 : 8),
+            duration: isNuke ? 2000 : (p.payload === 'nano_canister' ? 500 : 1200),
+        });
+        if (isNuke) {
+            events.push({ kind: 'damage', position: p.targetPos, damage: 500, radius: 8 * tileSize, team: p.team });
+        } else if ((p.payload || 'he') === 'he') {
+            events.push({ kind: 'damage', position: p.targetPos, damage: 150, radius: 4 * tileSize, team: p.team });
+        }
+        if (p.payload === 'nano_cloud_master') events.push({ kind: 'cloud', cloudType: 'nano', position: p.targetPos, team: p.team });
+        else if (p.payload === 'eclipse') events.push({ kind: 'cloud', cloudType: 'eclipse', position: p.targetPos, team: p.team });
+        return events;
+    }
+
+    if (p.trajectory === 'swarm' && p.targetPos && p.startPos) {
+        let targetLocation = p.targetPos;
+        let hasUnitTarget = false;
+
+        if (p.lockedTargetId) {
+            const lockedUnit = units.find(u => u.id === p.lockedTargetId && u.health > 0);
+            if (lockedUnit) {
+                targetLocation = {
+                    x: (lockedUnit.gridPos.x * CITY_CONFIG.tileSize) - offset,
+                    y: flightUnitY(lockedUnit),
+                    z: (lockedUnit.gridPos.z * CITY_CONFIG.tileSize) - offset,
+                };
+                hasUnitTarget = true;
             } else {
-                 // Standard Direct Projectile
-                 if (Math.abs(projectile.velocity.x) > 0.01 || Math.abs(projectile.velocity.y) > 0.01 || Math.abs(projectile.velocity.z) > 0.01) {
-                    const target = new THREE.Vector3(
-                        projectile.position.x + projectile.velocity.x,
-                        projectile.position.y + projectile.velocity.y,
-                        projectile.position.z + projectile.velocity.z
-                    );
-                    meshRef.current.lookAt(target);
-                }
+                p.lockedTargetId = null;
             }
         }
+
+        if (!hasUnitTarget) {
+            let closestDist = 6 * CITY_CONFIG.tileSize;
+            let bestCandidateId: string | null = null;
+            for (const u of units) {
+                if (u.team === p.team || u.team === 'neutral' || u.health <= 0) continue;
+                const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
+                const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
+                const dist = Math.hypot(p.position.x - uX, p.position.z - uZ);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    bestCandidateId = u.id;
+                }
+            }
+            if (bestCandidateId) {
+                p.lockedTargetId = bestCandidateId;
+                hasUnitTarget = true;
+            }
+        }
+
+        const timeAlive = now - (p.startTime || 0);
+        if (timeAlive > 500) {
+            const dx = targetLocation.x - p.position.x;
+            const dy = targetLocation.y - p.position.y;
+            const dz = targetLocation.z - p.position.z;
+            const distToTarget = Math.hypot(dx, dy, dz) || 1;
+            const speed = ABILITY_CONFIG.WASP_MISSILE_SPEED;
+            const turnRate = hasUnitTarget ? 8.0 : 2.0;
+            p.velocity.x += ((dx / distToTarget) * speed - p.velocity.x) * turnRate * dt;
+            p.velocity.y += ((dy / distToTarget) * speed - p.velocity.y) * turnRate * dt;
+            p.velocity.z += ((dz / distToTarget) * speed - p.velocity.z) * turnRate * dt;
+        } else {
+            p.velocity.y -= 5 * dt;
+        }
+
+        p.position.x += p.velocity.x * dt;
+        p.position.y += p.velocity.y * dt;
+        p.position.z += p.velocity.z * dt;
+
+        let hit = Math.hypot(p.position.x - targetLocation.x, p.position.y - targetLocation.y, p.position.z - targetLocation.z) < 2.0;
+        if (p.position.y <= 0.5) hit = true;
+        if (!hit) {
+            for (const u of units) {
+                if (u.team === p.team || u.health <= 0) continue;
+                const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
+                const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
+                const dist = Math.hypot(p.position.x - uX, p.position.y - flightUnitY(u), p.position.z - uZ);
+                if (dist < 1.5) { hit = true; break; }
+            }
+        }
+        if (Math.hypot(p.position.x - p.startPos.x, p.position.z - p.startPos.z) > 100) hit = true;
+        if (!hit) return null;
+        return [
+            { kind: 'explosion', position: { ...p.position }, radius: 1.5, duration: 300 },
+            { kind: 'damage', position: { ...p.position }, damage: p.damage, radius: 1.5, team: p.team },
+        ];
+    }
+
+    const speed = Math.hypot(p.velocity.x, p.velocity.y, p.velocity.z);
+    const moveAmount = speed * dt;
+    const stepSize = CITY_CONFIG.tileSize * 0.4;
+    const steps = Math.max(1, Math.ceil(moveAmount / stepSize));
+    const stepX = (p.velocity.x * dt) / steps;
+    const stepY = (p.velocity.y * dt) / steps;
+    const stepZ = (p.velocity.z * dt) / steps;
+    let hit = false;
+
+    if (speed > 0) {
+        for (let i = 0; i < steps; i++) {
+            p.position.x += stepX;
+            p.position.y += stepY;
+            p.position.z += stepZ;
+            p.distanceTraveled += Math.hypot(stepX, stepY, stepZ);
+
+            if (p.position.y <= 0.5) { hit = true; break; }
+
+            if (p.payload === 'titan_drop') {
+                if (p.position.y <= 0.5) { hit = true; break; }
+            } else {
+                if (p.distanceTraveled >= p.maxDistance) { hit = true; break; }
+                const gx = Math.round((p.position.x + offset) / CITY_CONFIG.tileSize);
+                const gz = Math.round((p.position.z + offset) / CITY_CONFIG.tileSize);
+                if (gx >= 0 && gx < gridSize && gz >= 0 && gz < gridSize) {
+                    const building = buildings.find(b => b.gridX === gx && b.gridZ === gz);
+                    if (building && p.position.y > 0 && p.position.y < building.scale[1]) { hit = true; break; }
+                    const structure = structures.find(s => s.gridPos.x === gx && s.gridPos.z === gz && !s.isBlueprint);
+                    if (structure && p.position.y > 0 && p.position.y < STRUCTURE_INFO[structure.type].height) { hit = true; break; }
+                }
+                for (const u of units) {
+                    if (u.team === p.team || u.health <= 0) continue;
+                    const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
+                    const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
+                    if (Math.hypot(p.position.x - uX, p.position.z - uZ) < CITY_CONFIG.tileSize * 0.8) { hit = true; break; }
+                }
+            }
+            if (hit) break;
+        }
+    }
+
+    if (!hit) return null;
+    const events: FlightEvent[] = [
+        { kind: 'explosion', position: { ...p.position }, radius: 3, duration: 500 },
+    ];
+    if (p.payload === 'titan_drop' && p.targetPos) {
+        events.push({ kind: 'titan', position: p.targetPos, team: p.team as 'blue' | 'red' });
+    } else if (p.payload === 'nano_cloud_master') {
+        events.push({ kind: 'cloud', cloudType: 'nano', position: { ...p.position }, team: p.team });
+        events.push({ kind: 'damage', position: { ...p.position }, damage: p.damage, radius: 3, team: p.team });
+    } else {
+        events.push({ kind: 'damage', position: { ...p.position }, damage: p.damage, radius: 3, team: p.team });
+    }
+    return events;
+};
+
+// Projectile Component
+// Draws the same pose the flight step just resolved, so impact and the model match.
+const ProjectileMesh: React.FC<{ projectile: Projectile; flightRef: React.MutableRefObject<Map<string, LiveFlight>> }> = ({ projectile, flightRef }) => {
+    const meshRef = useRef<THREE.Group>(null);
+    const orient = useRef(new THREE.Object3D());
+    const lookTarget = useRef(new THREE.Vector3());
+
+    useLayoutEffect(() => {
+        const pos = flightRef.current.get(projectile.id)?.shot.position ?? projectile.position;
+        meshRef.current?.position.set(pos.x, pos.y, pos.z);
+    }, [flightRef, projectile.id]);
+
+    useFrame((_, delta) => {
+        const group = meshRef.current;
+        const live = flightRef.current.get(projectile.id);
+        if (!group || !live) return;
+        const { x, y, z } = live.shot.position;
+        const { x: vx, y: vy, z: vz } = live.shot.velocity;
+        group.position.set(x, y, z);
+        if (vx * vx + vy * vy + vz * vz < 1e-6) return;
+        lookTarget.current.set(x + vx, y + vy, z + vz);
+        orient.current.position.set(x, y, z);
+        orient.current.lookAt(lookTarget.current);
+        const turn = projectile.trajectory === 'swarm' ? 12 : (projectile.trajectory === 'ballistic' ? 10 : 18);
+        group.quaternion.slerp(orient.current.quaternion, 1 - Math.exp(-Math.min(delta, 0.05) * turn));
     });
 
     if (projectile.payload === 'titan_drop') {
@@ -647,7 +846,115 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   const cloudsRef = useRef(clouds);
   const structuresRef = useRef(structuresState);
   const selectedUnitIdsRef = useRef(selectedUnitIds);
-  const projectilesRef = useRef(projectiles);
+  const flightRef = useRef(new Map<string, LiveFlight>());
+  const flightIds = new Set(projectiles.map(p => p.id));
+  for (const id of flightRef.current.keys()) {
+      if (!flightIds.has(id)) flightRef.current.delete(id);
+  }
+  for (const p of projectiles) {
+      if (!flightRef.current.has(p.id)) flightRef.current.set(p.id, { shot: cloneProjectile(p), impacted: false });
+  }
+
+  useFrame((_, delta) => {
+      const dt = Math.min(Math.max(delta, 0), 0.05);
+      if (dt <= 0 || flightRef.current.size === 0) return;
+      const now = Date.now();
+      const units = unitsRef.current;
+      const buildings = buildingsRef.current;
+      const structures = structuresRef.current;
+      const events: FlightEvent[] = [];
+      const impactedIds: string[] = [];
+
+      for (const [id, live] of flightRef.current) {
+          if (live.impacted) continue;
+          const produced = advanceFlight(live.shot, dt, now, offset, tileSize, gridSize, units, buildings, structures);
+          if (!produced) continue;
+          live.impacted = true;
+          impactedIds.push(id);
+          events.push(...produced);
+      }
+      if (impactedIds.length === 0) return;
+
+      const drop = new Set(impactedIds);
+      setProjectiles(prev => prev.filter(p => !drop.has(p.id)));
+
+      const explosions: Explosion[] = [];
+      const damages: Extract<FlightEvent, { kind: 'damage' }>[] = [];
+      for (const event of events) {
+          if (event.kind === 'explosion') {
+              explosions.push({
+                  id: `exp-${now}-${Math.random()}`,
+                  position: event.position,
+                  radius: event.radius,
+                  duration: event.duration,
+                  createdAt: now,
+              });
+          } else if (event.kind === 'damage') {
+              damages.push(event);
+          } else if (event.kind === 'cloud') {
+              const radius = event.cloudType === 'nano' ? ABILITY_CONFIG.NANO_CLOUD_RADIUS : ABILITY_CONFIG.ECLIPSE_RADIUS;
+              const duration = event.cloudType === 'nano' ? ABILITY_CONFIG.NANO_CLOUD_DURATION : ABILITY_CONFIG.ECLIPSE_DURATION;
+              setClouds(prev => [...prev, {
+                  id: `cloud-${now}-${Math.random()}`,
+                  type: event.cloudType,
+                  gridPos: {
+                      x: Math.round((event.position.x + offset) / CITY_CONFIG.tileSize),
+                      z: Math.round((event.position.z + offset) / CITY_CONFIG.tileSize),
+                  },
+                  radius,
+                  duration,
+                  createdAt: now,
+                  team: event.team,
+              }]);
+          } else if (event.kind === 'titan') {
+              const targetPos = event.position;
+              const team = event.team;
+              setTimeout(() => {
+                  const gridX = Math.round((targetPos.x + offset) / tileSize);
+                  const gridZ = Math.round((targetPos.z + offset) / tileSize);
+                  setUnits(prev => [...prev, {
+                      id: `titan-${Date.now()}`,
+                      type: 'titan_dropped',
+                      unitClass: 'armor',
+                      team,
+                      gridPos: { x: gridX, z: gridZ },
+                      path: [],
+                      visionRange: UNIT_STATS.tank.visionRange,
+                      health: UNIT_STATS.tank.maxHealth * 1.5,
+                      maxHealth: UNIT_STATS.tank.maxHealth * 1.5,
+                      battery: 100,
+                      maxBattery: 100,
+                      cooldowns: {},
+                      charges: { smoke: 3, aps: 2 },
+                  }]);
+              }, 200);
+          }
+      }
+      if (explosions.length > 0) setExplosions(prev => [...prev, ...explosions]);
+      if (damages.length > 0) {
+          setUnits(prev => {
+              let changed = false;
+              const next = prev.map(u => {
+                  if (u.health <= 0) return u;
+                  let health = u.health;
+                  for (const evt of damages) {
+                      if (u.team === evt.team) continue;
+                      const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
+                      const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
+                      const dist = Math.hypot(evt.position.x - uX, evt.position.z - uZ);
+                      const damageRadius = evt.radius || (CITY_CONFIG.tileSize * 1.5);
+                      if (dist <= damageRadius) {
+                          health -= evt.damage * (1 - (dist / damageRadius));
+                      }
+                  }
+                  if (health === u.health) return u;
+                  changed = true;
+                  return { ...u, health: Math.max(0, health) };
+              });
+              return changed ? next : prev;
+          });
+      }
+  }, -1);
 
   useEffect(() => { unitsRef.current = units; }, [units]);
   useEffect(() => { blocksRef.current = blocks; }, [blocks]);
@@ -655,7 +962,6 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   useEffect(() => { cloudsRef.current = clouds; }, [clouds]);
   useEffect(() => { structuresRef.current = structuresState; }, [structuresState]);
   useEffect(() => { selectedUnitIdsRef.current = selectedUnitIds; }, [selectedUnitIds]);
-  useEffect(() => { projectilesRef.current = projectiles; }, [projectiles]);
 
   // Expose Cheats
   useEffect(() => {
@@ -2032,14 +2338,8 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       const TICK_RATE = 100; // 10 ticks per second for logic
       const timer = setInterval(() => {
           const now = Date.now();
-          const dT = TICK_RATE / 1000;
-          const activeProjs = projectilesRef.current;
           let newExplosions: Explosion[] = [];
           let damageEvents: {id: string, damage: number, position: {x: number, y: number, z: number}, radius: number, team: UnitData['team'] }[] = [];
-          const nextProjs: Projectile[] = [];
-          let projsChanged = false;
-          const currentBuildings = buildingsRef.current;
-          const currentStructures = structuresRef.current;
           const currentUnitsRef = unitsRef.current; 
           const explodedCrawlerIds = new Set<string>();
 
@@ -2079,324 +2379,6 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
               }
           });
 
-          // Helper to get unit target height
-          const getTargetY = (u: UnitData) => {
-              if (['wasp', 'drone', 'helios'].includes(u.type)) return 75.0;
-              if (u.type === 'defense_drone') return 12.0;
-              return 1.5;
-          };
-
-          activeProjs.forEach(p => {
-              let nextP: Projectile = { ...p, position: { ...p.position } }; 
-              
-              // Handle Ballistic Missile Logic
-              if (p.trajectory === 'ballistic' && p.startPos && p.startTime && p.targetPos) {
-                  const duration = ABILITY_CONFIG.MISSILE_CRUISE_SPEED * 100; // Simplified travel time base for math consistency
-                  const elapsed = now - p.startTime;
-                  const totalDuration = (p.maxDistance / ABILITY_CONFIG.MISSILE_CRUISE_SPEED) * 1000;
-                  const t = Math.min(1, elapsed / totalDuration);
-                  
-                  if (t >= 1) {
-                      // Impact
-                       projsChanged = true;
-                       
-                       const isNuke = p.payload === 'nuke';
-                       // Reduce impact explosion size for nano canisters to avoid clutter
-                       const explosionRadius = isNuke ? 12 : (p.payload === 'nano_canister' ? 2 : 8);
-                       const explosionDuration = isNuke ? 2000 : (p.payload === 'nano_canister' ? 500 : 1200);
-                       
-                       newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: p.targetPos, radius: explosionRadius, duration: explosionDuration, createdAt: now });
-                       
-                       // Damage Events
-                       const cloudType = p.payload || 'he';
-                       if (isNuke) {
-                           damageEvents.push({ id: `nuke-dmg-${now}`, damage: 500, position: p.targetPos, radius: 8 * tileSize, team: p.team as UnitData['team'] });
-                       } else if (cloudType === 'he') {
-                           damageEvents.push({ id: `he-dmg-${now}`, damage: 150, position: p.targetPos, radius: 4 * tileSize, team: p.team as UnitData['team'] });
-                       }
-
-                       // Create Cloud (if applicable)
-                       if (cloudType !== 'nuke' && cloudType !== 'titan_drop' && cloudType !== 'he') {
-                           if (cloudType === 'nano_cloud_master') {
-                               setClouds(prev => [...prev, {
-                                   id: `cloud-${Date.now()}-${Math.random()}`,
-                                   type: 'nano',
-                                   gridPos: { x: Math.round((p.targetPos!.x + offset) / CITY_CONFIG.tileSize), z: Math.round((p.targetPos!.z + offset) / CITY_CONFIG.tileSize) },
-                                   radius: ABILITY_CONFIG.NANO_CLOUD_RADIUS,
-                                   duration: ABILITY_CONFIG.NANO_CLOUD_DURATION,
-                                   createdAt: Date.now(),
-                                   team: p.team as CloudData['team']
-                               }]);
-                           } else if (cloudType === 'eclipse') {
-                               setClouds(prev => [...prev, {
-                                   id: `cloud-${Date.now()}-${Math.random()}`,
-                                   type: 'eclipse',
-                                   gridPos: { x: Math.round((p.targetPos!.x + offset) / CITY_CONFIG.tileSize), z: Math.round((p.targetPos!.z + offset) / CITY_CONFIG.tileSize) },
-                                   radius: ABILITY_CONFIG.ECLIPSE_RADIUS,
-                                   duration: ABILITY_CONFIG.ECLIPSE_DURATION,
-                                   createdAt: Date.now(),
-                                   team: p.team as CloudData['team']
-                               }]);
-                           }
-                           // 'nano_canister' payloads just explode without spawning a cloud, effectively "dummy" rounds
-                       }
-                  } else {
-                      // Calculate Parabolic Position
-                      // Linear X/Z
-                      const lx = p.startPos.x + (p.targetPos.x - p.startPos.x) * t;
-                      const lz = p.startPos.z + (p.targetPos.z - p.startPos.z) * t;
-                      
-                      // Parabolic Y
-                      // Peak height relative to distance, but capped
-                      const peakHeight = Math.min(120, p.maxDistance * 0.5); 
-                      // Parabola eq: y(t) = -4 * (peak - midpoint_height) * (t - 0.5)^2 + peak
-                      // Simplified: 4 * peak * t * (1 - t) + startY * (1-t) + endY * t
-                      // This gives a nice arc from startY to endY peaking in middle
-                      const py = 4 * peakHeight * t * (1 - t) + p.startPos.y * (1 - t) + p.targetPos.y * t;
-
-                      // Calculate Velocity for rotation (derivative approximation)
-                      const dt = 0.01;
-                      const tNext = t + dt;
-                      const lxNext = p.startPos.x + (p.targetPos.x - p.startPos.x) * tNext;
-                      const lzNext = p.startPos.z + (p.targetPos.z - p.startPos.z) * tNext;
-                      const pyNext = 4 * peakHeight * tNext * (1 - tNext) + p.startPos.y * (1 - tNext) + p.targetPos.y * tNext;
-                      
-                      nextP.velocity = { 
-                          x: lxNext - lx, 
-                          y: pyNext - py, 
-                          z: lzNext - lz 
-                      };
-
-                      nextP.position = { x: lx, y: py, z: lz };
-                      nextProjs.push(nextP);
-                      projsChanged = true;
-                  }
-              } else if (p.trajectory === 'swarm' && p.targetPos) {
-                  // === WASP SWARM MICRODRONE BEHAVIOR ===
-                  
-                  // 1. Determine Target (Locked Unit OR Ground Location)
-                  let targetLocation = p.targetPos;
-                  let hasUnitTarget = false;
-
-                  // If we already locked onto a unit, check if it's still alive/visible
-                  if (p.lockedTargetId) {
-                      const lockedUnit = currentUnitsRef.find(u => u.id === p.lockedTargetId && u.health > 0);
-                      if (lockedUnit) {
-                          targetLocation = { 
-                              x: (lockedUnit.gridPos.x * CITY_CONFIG.tileSize) - offset, 
-                              y: getTargetY(lockedUnit), 
-                              z: (lockedUnit.gridPos.z * CITY_CONFIG.tileSize) - offset 
-                          };
-                          hasUnitTarget = true;
-                      } else {
-                          // Target lost, revert to ground target
-                          nextP.lockedTargetId = null;
-                      }
-                  } 
-                  
-                  // If no lock, scan for closest enemy within wider range (6 tiles)
-                  if (!hasUnitTarget) {
-                      let closestDist = 6 * CITY_CONFIG.tileSize; // Scan range
-                      let bestCandidateId = null;
-                      
-                      for (const u of currentUnitsRef) {
-                          if (u.team === p.team || u.team === 'neutral' || u.health <= 0) continue;
-                          
-                          const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
-                          const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
-                          const dist = Math.sqrt((p.position.x - uX)**2 + (p.position.z - uZ)**2);
-                          
-                          if (dist < closestDist) {
-                              closestDist = dist;
-                              bestCandidateId = u.id;
-                          }
-                      }
-                      
-                      if (bestCandidateId) {
-                          nextP.lockedTargetId = bestCandidateId;
-                          hasUnitTarget = true;
-                          // Don't update targetLocation yet, momentum carries it this frame, steers next frame
-                      }
-                  }
-
-                  // 2. Movement Logic (Steering)
-                  // Phase check: First 0.5s is 'ascent' (dumb fire direction), then 'cruise' (homing)
-                  const timeAlive = now - (p.startTime || 0);
-                  const isHomingPhase = timeAlive > 500;
-
-                  if (isHomingPhase) {
-                      // Desired Velocity Vector towards target
-                      const dx = targetLocation.x - p.position.x;
-                      const dy = targetLocation.y - p.position.y;
-                      const dz = targetLocation.z - p.position.z;
-                      const distToTarget = Math.sqrt(dx*dx + dy*dy + dz*dz);
-                      
-                      // Normalize desired
-                      const speed = ABILITY_CONFIG.WASP_MISSILE_SPEED;
-                      const desiredVx = (dx / distToTarget) * speed;
-                      const desiredVy = (dy / distToTarget) * speed;
-                      const desiredVz = (dz / distToTarget) * speed;
-
-                      // Steering Force (Desired - Current)
-                      const turnRate = hasUnitTarget ? 8.0 : 2.0; // Turn faster if locked
-                      const steerX = (desiredVx - p.velocity.x) * turnRate * dT;
-                      const steerY = (desiredVy - p.velocity.y) * turnRate * dT;
-                      const steerZ = (desiredVz - p.velocity.z) * turnRate * dT;
-
-                      nextP.velocity.x += steerX;
-                      nextP.velocity.y += steerY;
-                      nextP.velocity.z += steerZ;
-                  } else {
-                      // Apply slight gravity/arc during ascent
-                      nextP.velocity.y -= 5 * dT;
-                  }
-
-                  // Update Position
-                  nextP.position.x += nextP.velocity.x * dT;
-                  nextP.position.y += nextP.velocity.y * dT;
-                  nextP.position.z += nextP.velocity.z * dT;
-
-                  // 3. Collision Detection
-                  let hit = false;
-                  
-                  // Proximity Detonation Check (Fixes infinite circling)
-                  const distToTarget = Math.sqrt((nextP.position.x - targetLocation.x)**2 + (nextP.position.y - targetLocation.y)**2 + (nextP.position.z - targetLocation.z)**2);
-                  if (distToTarget < 2.0) hit = true;
-
-                  // Ground/Building Collision
-                  const gx = Math.round((nextP.position.x + offset) / CITY_CONFIG.tileSize);
-                  const gz = Math.round((nextP.position.z + offset) / CITY_CONFIG.tileSize);
-                  if (nextP.position.y <= 0.5) hit = true; // Hit floor
-                  
-                  // Unit Collision
-                  if (!hit) {
-                      for (const u of currentUnitsRef) {
-                          if (u.team === p.team) continue;
-                          if (u.health <= 0) continue;
-                          const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
-                          const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
-                          const uY = getTargetY(u);
-                          // 3D Distance check
-                          const dist = Math.sqrt((nextP.position.x - uX)**2 + (nextP.position.y - uY)**2 + (nextP.position.z - uZ)**2);
-                          if (dist < 1.5) { hit = true; break; }
-                      }
-                  }
-
-                  // Distance limit
-                  const dTraveled = Math.sqrt((nextP.position.x - p.startPos!.x)**2 + (nextP.position.z - p.startPos!.z)**2);
-                  if (dTraveled > 100) hit = true;
-
-                  if (hit) {
-                      projsChanged = true;
-                      newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: nextP.position, radius: 1.5, duration: 300, createdAt: now });
-                      // Deal Area Damage (small)
-                      damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: p.damage, position: nextP.position, radius: 1.5, team: p.team as UnitData['team'] });
-                  } else {
-                      projsChanged = true;
-                      nextProjs.push(nextP);
-                  }
-
-              } else {
-                  // Standard Direct Fire Logic
-                  const moveAmount = Math.sqrt(p.velocity.x**2 + p.velocity.y**2 + p.velocity.z**2) * dT;
-                  const stepSize = CITY_CONFIG.tileSize * 0.4;
-                  const steps = Math.ceil(moveAmount / stepSize);
-                  const stepX = (p.velocity.x * dT) / steps;
-                  const stepY = (p.velocity.y * dT) / steps;
-                  const stepZ = (p.velocity.z * dT) / steps;
-                  let hit = false;
-                  
-                  for(let i=0; i<steps; i++) {
-                      nextP.position.x += stepX;
-                      nextP.position.y += stepY;
-                      nextP.position.z += stepZ;
-                      nextP.distanceTraveled += Math.sqrt(stepX**2 + stepY**2 + stepZ**2);
-                      
-                      // Explicit ground check
-                      if (nextP.position.y <= 0.5) { hit = true; break; }
-
-                      // Special Handling for Orbital Drop (Titan Drop)
-                      if (p.payload === 'titan_drop') {
-                          // Impact ground check
-                          if (nextP.position.y <= 0.5) {
-                              hit = true;
-                              // Spawn Logic: Delay actual unit spawn slightly for visual effect
-                              setTimeout(() => {
-                                  if (p.targetPos) {
-                                      const gridX = Math.round((p.targetPos.x + offset) / tileSize);
-                                      const gridZ = Math.round((p.targetPos.z + offset) / tileSize);
-                                      setUnits(prev => [...prev, {
-                                          id: `titan-${Date.now()}`,
-                                          type: 'titan_dropped', 
-                                          unitClass: 'armor',
-                                          team: p.team as 'blue' | 'red',
-                                          gridPos: { x: gridX, z: gridZ },
-                                          path: [],
-                                          visionRange: UNIT_STATS.tank.visionRange,
-                                          health: UNIT_STATS.tank.maxHealth * 1.5,
-                                          maxHealth: UNIT_STATS.tank.maxHealth * 1.5,
-                                          battery: 100,
-                                          maxBattery: 100,
-                                          cooldowns: {},
-                                          charges: { smoke: 3, aps: 2 }
-                                      }]);
-                                  }
-                              }, 200);
-                              break;
-                          }
-                      } else {
-                          // Standard Projectile Max Distance Check
-                          if (nextP.distanceTraveled >= nextP.maxDistance) { hit = true; break; }
-                          
-                          // Building Collision Check
-                          const gx = Math.round((nextP.position.x + offset) / CITY_CONFIG.tileSize);
-                          const gz = Math.round((nextP.position.z + offset) / CITY_CONFIG.tileSize);
-                          if (gx >= 0 && gx < gridSize && gz >= 0 && gz < gridSize) {
-                               const b = currentBuildings.find(b => b.gridX === gx && b.gridZ === gz);
-                               if (b && nextP.position.y > 0 && nextP.position.y < b.scale[1]) { hit = true; break; }
-                               const s = currentStructures.find(s => s.gridPos.x === gx && s.gridPos.z === gz && !s.isBlueprint);
-                               if (s) {
-                                   const info = STRUCTURE_INFO[s.type];
-                                   if (nextP.position.y > 0 && nextP.position.y < info.height) { hit = true; break; }
-                               }
-                          }
-                          
-                          // Unit Collision Check
-                          for (const u of currentUnitsRef) {
-                              if (u.team === nextP.team) continue;
-                              if (u.health <= 0) continue;
-                              const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
-                              const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
-                              const dist = Math.sqrt((nextP.position.x - uX)**2 + (nextP.position.z - uZ)**2);
-                              if (dist < CITY_CONFIG.tileSize * 0.8) { hit = true; break; }
-                          }
-                      }
-                      if (hit) break;
-                  }
-                  if (hit) {
-                      projsChanged = true;
-                      newExplosions.push({ id: `exp-${now}-${Math.random()}`, position: nextP.position, radius: 3, duration: 500, createdAt: now });
-                      
-                      if (p.payload === 'nano_cloud_master') {
-                           setClouds(prev => [...prev, {
-                               id: `cloud-${Date.now()}-${Math.random()}`,
-                               type: 'nano',
-                               gridPos: { x: Math.round((nextP.position.x + offset) / CITY_CONFIG.tileSize), z: Math.round((nextP.position.z + offset) / CITY_CONFIG.tileSize) },
-                               radius: ABILITY_CONFIG.NANO_CLOUD_RADIUS,
-                               duration: ABILITY_CONFIG.NANO_CLOUD_DURATION,
-                               createdAt: Date.now(),
-                               team: p.team as CloudData['team']
-                           }]);
-                      } else if (p.payload !== 'titan_drop') {
-                          damageEvents.push({ id: `dmg-${now}-${Math.random()}`, damage: nextP.damage, position: nextP.position, radius: 3, team: nextP.team as UnitData['team'] });
-                      }
-                  } else {
-                      if (steps > 0) projsChanged = true;
-                      nextProjs.push(nextP);
-                  }
-              }
-          });
-          if (projsChanged) setProjectiles(nextProjs);
           if (newExplosions.length > 0) setExplosions(prev => [...prev, ...newExplosions]);
 
           setClouds(prev => {
@@ -2972,7 +2954,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         ))}
         
         {/* Projectiles */}
-        {projectiles.map(p => <ProjectileMesh key={p.id} projectile={p} />)}
+        {projectiles.map(p => <ProjectileMesh key={p.id} projectile={p} flightRef={flightRef} />)}
         
         {/* Explosions */}
         {explosions.map(e => <ExplosionMesh key={e.id} explosion={e} />)}
