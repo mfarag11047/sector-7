@@ -13,12 +13,13 @@ const createHexTexture = () => {
     canvas.height = 512;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-        // Dark Base (Lighter than before)
-        ctx.fillStyle = '#1e293b'; // Slate 800 (was 950)
+        // Open ground. Kept in the night palette, without a per-tile vignette that
+        // reads as a shadow whenever the camera isn't looking into the light.
+        ctx.fillStyle = '#334155';
         ctx.fillRect(0, 0, 512, 512);
         
         // Hex Lines
-        ctx.strokeStyle = '#334155'; // Slate 700
+        ctx.strokeStyle = '#64748b';
         ctx.lineWidth = 2;
         
         const r = 32;
@@ -50,12 +51,6 @@ const createHexTexture = () => {
             }
         }
         
-        // Add vignette/shadow at edges
-        const grad = ctx.createRadialGradient(256, 256, 150, 256, 256, 300);
-        grad.addColorStop(0, 'rgba(0,0,0,0)');
-        grad.addColorStop(1, 'rgba(0,0,0,0.7)');
-        ctx.fillStyle = grad;
-        ctx.fillRect(0,0,512,512);
     }
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = THREE.RepeatWrapping;
@@ -173,7 +168,7 @@ const createHighwayGlowTexture = () => {
     canvas.height = 256;
     const ctx = canvas.getContext('2d');
     if (ctx) {
-        ctx.fillStyle = '#0f172a'; // Very Dark Asphalt for Highway
+        ctx.fillStyle = '#1e293b';
         ctx.fillRect(0, 0, 256, 256);
         
         // Glow Settings
@@ -323,8 +318,8 @@ const SingleTypeRoads: React.FC<{
             <boxGeometry args={[tileSize * tileScale, 0.2, tileSize * tileScale]} />
             <meshStandardMaterial 
                 map={texture} 
-                roughness={0.8} 
-                metalness={0.2}
+                roughness={0.95} 
+                metalness={0.05}
                 color={baseColor}
             />
         </instancedMesh>

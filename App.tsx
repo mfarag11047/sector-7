@@ -1,6 +1,7 @@
 
 import React, { Suspense, useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Canvas } from '@react-three/fiber';
+import * as THREE from 'three';
 import { Loader } from '@react-three/drei';
 import CityMap from './components/CityMap';
 import DroneCamera from './components/DroneCamera';
@@ -188,7 +189,13 @@ function App() {
         className="w-full h-full relative bg-black" 
         onContextMenu={(e) => e.preventDefault()}
     >
-      <Canvas shadows dpr={[1, 2]} style={{ overflow: 'clip' }} camera={{ position: [0, 50, 50], fov: 45, far: CAMERA_FAR }}>
+      <Canvas
+        shadows
+        dpr={[1, 2]}
+        style={{ overflow: 'clip' }}
+        gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.22 }}
+        camera={{ position: [0, 50, 50], fov: 45, far: CAMERA_FAR }}
+      >
         <Suspense fallback={null}>
           <Atmosphere />
           <CityMap 
