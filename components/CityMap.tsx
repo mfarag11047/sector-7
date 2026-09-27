@@ -1252,11 +1252,19 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   const dynamicRoadTileSet = useMemo(() => {
     const set = new Set<number>();
     roadTiles.forEach(t => { set.add((t.x << 16) | t.z); });
+    // A structure owns its whole tile. Walls, turrets, and sites under construction
+    // are solid blocks: friendly and enemy pathing both have to go around them.
     structuresState.forEach(s => { set.delete((s.gridPos.x << 16) | s.gridPos.z); });
     set.delete((baseA_Coord.x << 16) | baseA_Coord.z);
     set.delete((baseB_Coord.x << 16) | baseB_Coord.z);
     return set;
   }, [roadTiles, structuresState, baseA_Coord, baseB_Coord]);
+
+  const structureTileSet = useMemo(() => {
+    const set = new Set<string>();
+    structuresState.forEach(s => set.add(`${s.gridPos.x},${s.gridPos.z}`));
+    return set;
+  }, [structuresState]);
 
   const findPath = useCallback((start: {x: number, z: number}, end: {x: number, z: number}) => {
       const startId = (start.x << 16) | start.z;
@@ -1302,6 +1310,53 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       }
       return { ...center };
   }, [isWalkable]);
+
+  const rerouteAroundBlocks = useCallback((from: {x: number, z: number}, path: string[]) => {
+      if (path.length === 0) return [] as string[];
+      const [gx, gz] = path[path.length - 1].split(',').map(Number);
+      if (!isWalkable(gx, gz)) return [] as string[];
+      return findPath(from, { x: gx, z: gz });
+  }, [findPath, isWalkable]);
+
+  // A wall placed on an existing route pulls that unit off the tile and sends them around it.
+  useEffect(() => {
+      const settle = <T extends { gridPos: { x: number, z: number }, path?: string[] }>(entity: T): T | null => {
+          const path = entity.path ?? [];
+          const onBlock = structureTileSet.has(`${entity.gridPos.x},${entity.gridPos.z}`);
+          const pathBlocked = path.some(step => {
+              const [x, z] = step.split(',').map(Number);
+              return structureTileSet.has(step) || !isWalkable(x, z);
+          });
+          if (!onBlock && !pathBlocked) return null;
+          let gridPos = entity.gridPos;
+          if (onBlock) {
+              const spot = findAdjacentSpawn(entity.gridPos);
+              if (isWalkable(spot.x, spot.z)) gridPos = spot;
+          }
+          const nextPath = rerouteAroundBlocks(gridPos, path);
+          return { ...entity, gridPos, path: nextPath };
+      };
+      setUnits(prev => {
+          let changed = false;
+          const next = prev.map(u => {
+              const settled = settle(u);
+              if (!settled) return u;
+              changed = true;
+              return settled;
+          });
+          return changed ? next : prev;
+      });
+      setDecoys(prev => {
+          let changed = false;
+          const next = prev.map(d => {
+              const settled = settle(d);
+              if (!settled) return d;
+              changed = true;
+              return settled;
+          });
+          return changed ? next : prev;
+      });
+  }, [dynamicRoadTileSet, structureTileSet, isWalkable, findAdjacentSpawn, rerouteAroundBlocks]);
 
   // Somewhere out in the host's detection radius, so periodically produced drones
   // fan out across the perimeter instead of piling up against the host.
@@ -1702,6 +1757,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           setDecoys(prev => prev.map(d => {
               if (d.id !== id || !d.path || d.path.length === 0) return d;
               const [nx, nz] = d.path[0].split(',').map(Number);
+              if (!isWalkable(nx, nz)) return { ...d, path: rerouteAroundBlocks(d.gridPos, d.path) };
               return { ...d, gridPos: { x: nx, z: nz }, path: d.path.slice(1) };
           }));
           return;
@@ -1711,6 +1767,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           if (u.path.length === 0) return u;
           const nextKey = u.path[0];
           const [nx, nz] = nextKey.split(',').map(Number);
+          if (!isWalkable(nx, nz)) return { ...u, path: rerouteAroundBlocks(u.gridPos, u.path) };
           
           let newSurveillance = u.surveillance;
           

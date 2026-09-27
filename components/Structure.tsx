@@ -660,171 +660,118 @@ const DefenseTurretModel = ({ color, teamColor }: { color: string, teamColor: st
     )
 }
 
-const WallTier1Model = ({ color, teamColor, width }: { color: string, teamColor: string, width: number }) => {
+const wallSpan = (tileSize: number) => tileSize * 0.97;
+
+// Low square of tank traps. The curb closes every side of the tile; the teeth fill the interior.
+const WallTier1Model = ({ color, teamColor, tileSize }: { color: string, teamColor: string, tileSize: number }) => {
+    const span = wallSpan(tileSize);
+    const curb = 0.9;
+    const count = 4;
+    const inner = span - curb * 2 - 1.2;
+    const step = inner / (count - 1);
+    const origin = -inner / 2;
+    const teeth = [];
+    for (let i = 0; i < count; i++) {
+        for (let j = 0; j < count; j++) {
+            teeth.push({
+                x: origin + i * step,
+                z: origin + j * step,
+                h: 1.15 + ((i + j * 2) % 3) * 0.42,
+            });
+        }
+    }
+    const sides = [
+        { pos: [0, 0.4, span / 2 - curb / 2] as [number, number, number], size: [span, 0.8, curb] as [number, number, number] },
+        { pos: [0, 0.4, -span / 2 + curb / 2] as [number, number, number], size: [span, 0.8, curb] as [number, number, number] },
+        { pos: [span / 2 - curb / 2, 0.4, 0] as [number, number, number], size: [curb, 0.8, span] as [number, number, number] },
+        { pos: [-span / 2 + curb / 2, 0.4, 0] as [number, number, number], size: [curb, 0.8, span] as [number, number, number] },
+    ];
+    const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+
     return (
         <group>
-            {[-1, 1].map((dir, i) => (
-                <group key={i} position={[dir * (width / 2 - 1), 2, 0]}>
-                    <mesh>
-                        <boxGeometry args={[1.5, 4, 1.5]} />
-                        <meshStandardMaterial color="#334155" metalness={0.8} />
-                        <Edges color="#475569" />
-                    </mesh>
-                    <mesh position={[0, -2.5, 0]}>
-                        <boxGeometry args={[2, 1, 2]} />
-                        <meshStandardMaterial color="#1e293b" />
-                    </mesh>
-                    <mesh position={[0, 2.1, 0]}>
-                        <cylinderGeometry args={[0.4, 0.4, 0.4, 8]} />
-                        <meshStandardMaterial color="#475569" />
-                    </mesh>
-                    <mesh position={[0, 2.4, 0]}>
-                        <sphereGeometry args={[0.3]} />
-                        <meshBasicMaterial color="#ef4444" />
-                    </mesh>
-                    
-                    <mesh position={[-dir * 0.76, 0, 0]}>
-                        <boxGeometry args={[0.1, 3, 0.5]} />
-                        <meshStandardMaterial color="#0f172a" />
-                    </mesh>
-                    <mesh position={[-dir * 0.8, 0, 0]} rotation={[0, dir * Math.PI/2, 0]}>
-                        <planeGeometry args={[0.1, 2.8]} />
-                        <meshBasicMaterial color={color} toneMapped={false} />
-                    </mesh>
-                </group>
-            ))}
-
-            <mesh position={[0, 2, 0]}>
-                <planeGeometry args={[width - 3, 3]} />
-                <meshBasicMaterial color={color} transparent opacity={0.3} side={THREE.DoubleSide} />
+            <mesh position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                <planeGeometry args={[span, span]} />
+                <meshStandardMaterial color="#0f172a" />
             </mesh>
-            <group position={[0, 2, 0]}>
-                 {[0.5, 0, -0.5, -1].map((y, i) => (
-                     <mesh key={`h-${i}`} position={[0, y, 0]}>
-                         <boxGeometry args={[width - 3, 0.05, 0.05]} />
-                         <meshBasicMaterial color={color} toneMapped={false} />
-                     </mesh>
-                 ))}
-                 {[-3, -1.5, 0, 1.5, 3].map((x, i) => (
-                     <mesh key={`v-${i}`} position={[x, 0, 0]}>
-                         <boxGeometry args={[0.05, 3, 0.05]} />
-                         <meshBasicMaterial color={color} toneMapped={false} />
-                     </mesh>
-                 ))}
-            </group>
-            
-            <mesh position={[0, 2, 0]} rotation={[0, 0, 0.1]}>
-                 <planeGeometry args={[width-4, 0.1]} />
-                 <meshBasicMaterial color="#ffffff" transparent opacity={0.8} />
+            <mesh position={[0, 0.7, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                <planeGeometry args={[span - curb * 1.4, span - curb * 1.4]} />
+                <meshBasicMaterial color={teamColor} transparent opacity={0.18} side={THREE.DoubleSide} depthWrite={false} />
             </mesh>
-             <mesh position={[0, 1, 0]} rotation={[0, 0, -0.1]}>
-                 <planeGeometry args={[width-4, 0.1]} />
-                 <meshBasicMaterial color="#ffffff" transparent opacity={0.8} />
-            </mesh>
-        </group>
-    )
-}
-
-const WallTier2Model = ({ color, teamColor, width }: { color: string, teamColor: string, width: number }) => {
-    return (
-        <group>
-            {/* Main Wall Mass */}
-            <mesh position={[0, 2, 0]}>
-                <boxGeometry args={[width, 4, 1.2]} />
-                <meshStandardMaterial color="#334155" metalness={0.7} roughness={0.3} />
-                <Edges color="#1e293b" threshold={30} />
-            </mesh>
-
-            {/* Segment Separators (Grooves) */}
-            {[-1, 1].map((x, i) => (
-                <mesh key={i} position={[x * (width / 6), 2, 0]}>
-                    <boxGeometry args={[0.1, 4.1, 1.3]} />
-                    <meshStandardMaterial color="#0f172a" />
+            {sides.map((side, i) => (
+                <mesh key={i} position={side.pos}>
+                    <boxGeometry args={side.size} />
+                    <meshStandardMaterial color="#1e293b" metalness={0.7} roughness={0.35} />
+                    <Edges color={color} />
                 </mesh>
             ))}
-
-            {/* Heavy Feet */}
-            {[-1.5, -0.5, 0.5, 1.5].map((x, i) => (
-                <group key={i} position={[x * (width / 4), 0, 0]}>
-                    {/* Front Foot */}
-                    <mesh position={[0, 0.5, 0.7]}>
-                        <boxGeometry args={[0.5, 1, 0.6]} />
-                        <meshStandardMaterial color="#475569" metalness={0.6} />
+            {teeth.map((tooth, i) => (
+                <mesh key={i} position={[tooth.x, tooth.h / 2, tooth.z]} rotation={[0, Math.PI / 4, 0]}>
+                    <coneGeometry args={[0.72, tooth.h, 4]} />
+                    <meshStandardMaterial color="#334155" metalness={0.75} roughness={0.25} />
+                </mesh>
+            ))}
+            {corners.map(([sx, sz], i) => (
+                <group key={i} position={[sx * (span / 2 - 0.7), 0, sz * (span / 2 - 0.7)]}>
+                    <mesh position={[0, 1.15, 0]}>
+                        <boxGeometry args={[1.1, 2.3, 1.1]} />
+                        <meshStandardMaterial color="#334155" metalness={0.8} />
+                        <Edges color={color} />
                     </mesh>
-                    <mesh position={[0, 0.25, 0.9]} rotation={[Math.PI/4, 0, 0]}>
-                        <boxGeometry args={[0.5, 0.5, 0.2]} />
-                        <meshStandardMaterial color="#475569" />
-                    </mesh>
-                    
-                    {/* Back Foot */}
-                    <mesh position={[0, 0.5, -0.7]}>
-                        <boxGeometry args={[0.5, 1, 0.6]} />
-                        <meshStandardMaterial color="#475569" metalness={0.6} />
-                    </mesh>
-                    <mesh position={[0, 0.25, -0.9]} rotation={[-Math.PI/4, 0, 0]}>
-                        <boxGeometry args={[0.5, 0.5, 0.2]} />
-                        <meshStandardMaterial color="#475569" />
+                    <mesh position={[0, 2.45, 0]}>
+                        <sphereGeometry args={[0.28, 10, 10]} />
+                        <meshBasicMaterial color="#ef4444" toneMapped={false} />
                     </mesh>
                 </group>
             ))}
-
-            {/* Spikes on Top */}
-            {Array.from({ length: 8 }).map((_, i) => {
-                const x = (i - 3.5) * (width / 8);
-                return (
-                    <mesh key={i} position={[x, 4.3, 0]} rotation={[0, Math.PI/4, 0]}>
-                        <coneGeometry args={[0.3, 0.6, 4]} />
-                        <meshStandardMaterial color="#94a3b8" metalness={0.8} roughness={0.2} />
-                    </mesh>
-                );
-            })}
-
-            {/* Glowing Vents */}
-            {/* Front Side */}
-            <group position={[0, 0, 0.61]}>
-                {[-1.2, 0, 1.2].map((x, i) => (
-                    <group key={i} position={[x, 0, 0]}>
-                        {/* Upper Vent (Blue/Team) */}
-                        <mesh position={[0, 3, 0]}>
-                            <boxGeometry args={[0.8, 0.2, 0.05]} />
-                            <meshBasicMaterial color={teamColor} />
-                        </mesh>
-                        {/* Lower Vent (Orange/Accent) */}
-                        <mesh position={[0, 1.5, 0]}>
-                            <boxGeometry args={[0.4, 0.15, 0.05]} />
-                            <meshBasicMaterial color="#f97316" />
-                        </mesh>
-                        {/* Armored Plate */}
-                        <mesh position={[0, 2.2, 0.05]}>
-                            <boxGeometry args={[1, 1, 0.1]} />
-                            <meshStandardMaterial color="#475569" metalness={0.5} />
-                        </mesh>
-                    </group>
-                ))}
-            </group>
-
-            {/* Back Side (Mirrored Vents) */}
-            <group position={[0, 0, -0.61]} rotation={[0, Math.PI, 0]}>
-                {[-1.2, 0, 1.2].map((x, i) => (
-                    <group key={i} position={[x, 0, 0]}>
-                        <mesh position={[0, 3, 0]}>
-                            <boxGeometry args={[0.8, 0.2, 0.05]} />
-                            <meshBasicMaterial color={teamColor} />
-                        </mesh>
-                        <mesh position={[0, 1.5, 0]}>
-                            <boxGeometry args={[0.4, 0.15, 0.05]} />
-                            <meshBasicMaterial color="#f97316" />
-                        </mesh>
-                         <mesh position={[0, 2.2, 0.05]}>
-                            <boxGeometry args={[1, 1, 0.1]} />
-                            <meshStandardMaterial color="#475569" metalness={0.5} />
-                        </mesh>
-                    </group>
-                ))}
-            </group>
         </group>
-    )
-}
+    );
+};
+
+// Tall armored block. A solid mass on every face, so the tile reads as a bastion rather than a fence.
+const WallTier2Model = ({ teamColor, tileSize }: { color: string, teamColor: string, tileSize: number }) => {
+    const span = wallSpan(tileSize);
+    const height = 3.6;
+    const merlons = 5;
+    const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+
+    return (
+        <group>
+            <mesh position={[0, height / 2, 0]}>
+                <boxGeometry args={[span, height, span]} />
+                <meshStandardMaterial color="#334155" metalness={0.72} roughness={0.32} />
+                <Edges color="#0f172a" threshold={20} />
+            </mesh>
+            {[0, 1, 2, 3].map(face => (
+                <group key={face} rotation={[0, face * Math.PI / 2, 0]}>
+                    <mesh position={[0, height * 0.62, span / 2 + 0.05]}>
+                        <boxGeometry args={[span * 0.78, 0.22, 0.08]} />
+                        <meshBasicMaterial color={teamColor} toneMapped={false} />
+                    </mesh>
+                    <mesh position={[0, height * 0.32, span / 2 + 0.06]}>
+                        <boxGeometry args={[1.6, 0.28, 0.08]} />
+                        <meshBasicMaterial color="#f97316" toneMapped={false} />
+                    </mesh>
+                    {Array.from({ length: merlons }).map((_, i) => {
+                        const x = (i - (merlons - 1) / 2) * (span / merlons);
+                        return (
+                            <mesh key={i} position={[x, height + 0.32, span / 2 - 0.45]}>
+                                <boxGeometry args={[span / merlons * 0.52, 0.64, 0.9]} />
+                                <meshStandardMaterial color="#475569" metalness={0.6} roughness={0.4} />
+                            </mesh>
+                        );
+                    })}
+                </group>
+            ))}
+            {corners.map(([sx, sz], i) => (
+                <mesh key={i} position={[sx * (span / 2 - 0.35), height + 0.85, sz * (span / 2 - 0.35)]} rotation={[0, Math.PI / 4, 0]}>
+                    <coneGeometry args={[0.38, 0.95, 4]} />
+                    <meshStandardMaterial color="#94a3b8" metalness={0.85} roughness={0.2} />
+                </mesh>
+            ))}
+        </group>
+    );
+};
 
 const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0 }) => {
   const config = STRUCTURE_INFO[data.type];
@@ -1036,49 +983,54 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
 
     // 2. Specialized Existing Models
     if (data.type === 'wall_tier1') {
+        const span = wallSpan(tileSize);
+        const raised = Math.max(0.2, 2.4 * buildRatio);
         return (
             <group>
             {data.isBlueprint && (
                 <group>
-                    <mesh position={[0, config.height / 2, 0]}>
-                        <boxGeometry args={[tileSize * 0.9, config.height, tileSize * 0.15]} />
-                        <meshBasicMaterial color={teamColor} wireframe transparent opacity={0.45} />
+                    <mesh position={[0, 1.2, 0]}>
+                        <boxGeometry args={[span, 2.4, span]} />
+                        <meshBasicMaterial color={teamColor} wireframe transparent opacity={0.4} />
                     </mesh>
-                    <mesh position={[0, Math.max(0.15, config.height * buildRatio) / 2, 0]}>
-                        <boxGeometry args={[tileSize * 0.7, Math.max(0.15, config.height * buildRatio), tileSize * 0.12]} />
+                    <mesh position={[0, raised / 2, 0]}>
+                        <boxGeometry args={[span * 0.92, raised, span * 0.92]} />
                         <meshStandardMaterial color="#94a3b8" emissive={teamColor} emissiveIntensity={0.35} />
                     </mesh>
                 </group>
             )}
             
             {!data.isBlueprint && (
-                <WallTier1Model color={config.color} teamColor={teamColor} width={tileSize * 0.9} />
+                <WallTier1Model color={config.color} teamColor={teamColor} tileSize={tileSize} />
             )}
-            {renderProgressBar(config.height + 2)}
+            {renderProgressBar(4)}
             </group>
         );
     }
 
     if (data.type === 'wall_tier2') {
+        const span = wallSpan(tileSize);
+        const fullHeight = 3.6;
+        const raised = Math.max(0.25, fullHeight * buildRatio);
         return (
             <group>
             {data.isBlueprint && (
                 <group>
-                    <mesh position={[0, config.height / 2, 0]}>
-                        <boxGeometry args={[tileSize, config.height, tileSize * 0.5]} />
-                        <meshBasicMaterial color="#94a3b8" wireframe transparent opacity={0.45} />
+                    <mesh position={[0, fullHeight / 2, 0]}>
+                        <boxGeometry args={[span, fullHeight, span]} />
+                        <meshBasicMaterial color="#94a3b8" wireframe transparent opacity={0.4} />
                     </mesh>
-                    <mesh position={[0, Math.max(0.2, config.height * buildRatio) / 2, 0]}>
-                        <boxGeometry args={[tileSize * 0.92, Math.max(0.2, config.height * buildRatio), tileSize * 0.35]} />
+                    <mesh position={[0, raised / 2, 0]}>
+                        <boxGeometry args={[span * 0.94, raised, span * 0.94]} />
                         <meshStandardMaterial color="#334155" emissive={teamColor} emissiveIntensity={0.25} />
                     </mesh>
                 </group>
             )}
             
             {!data.isBlueprint && (
-                <WallTier2Model color={config.color} teamColor={teamColor} width={tileSize} />
+                <WallTier2Model color={config.color} teamColor={teamColor} tileSize={tileSize} />
             )}
-            {renderProgressBar(config.height + 2)}
+            {renderProgressBar(fullHeight + 1.5)}
             </group>
         );
     }
