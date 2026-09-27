@@ -3,7 +3,7 @@ import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges, Html } from '@react-three/drei';
 import { StructureData, StructureType, UnitType } from '../types';
-import { STRUCTURE_INFO, TEAM_COLORS, UNIT_CLASSES, UNIT_STATS } from '../constants';
+import { ABILITY_CONFIG, STRUCTURE_INFO, TEAM_COLORS, UNIT_CLASSES, UNIT_STATS } from '../constants';
 import * as THREE from 'three';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 
@@ -940,6 +940,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                             {engineeringItems.map(type => {
                                 const info = STRUCTURE_INFO[type];
                                 const canAfford = (resources || 0) >= info.cost;
+                                const trips = Math.max(1, Math.ceil(info.maxProgress / ABILITY_CONFIG.MASON_BUILD_AMOUNT));
                                 return (
                                     <button
                                         key={type}
@@ -952,9 +953,12 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                                 : 'opacity-50 text-slate-500 cursor-not-allowed'}
                                         `}
                                     >
-                                        <div className="flex gap-2 items-center">
-                                            <span style={{ color: info.color }}>■</span>
-                                            {info.label}
+                                        <div className="flex flex-col">
+                                            <div className="flex gap-2 items-center">
+                                                <span style={{ color: info.color }}>■</span>
+                                                {info.label}
+                                            </div>
+                                            <span className="text-[9px] text-slate-500 pl-5">{trips} {trips === 1 ? 'trip' : 'trips'} · {info.maxHealth} hp</span>
                                         </div>
                                         <span>{info.cost}</span>
                                     </button>
@@ -974,28 +978,36 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
   };
 
   const renderProgressBar = (heightOffset: number = 4) => {
-    if (!data.isBlueprint) return null;
+    if (!data.isBlueprint || data.maxProgress <= 0) return null;
     const pct = Math.min(100, Math.floor((data.constructionProgress / data.maxProgress) * 100));
+    const haulSize = ABILITY_CONFIG.MASON_BUILD_AMOUNT;
+    const haulsDone = Math.min(Math.ceil(data.maxProgress / haulSize), Math.round(data.constructionProgress / haulSize));
+    const haulsNeeded = Math.max(1, Math.ceil(data.maxProgress / haulSize));
     
     return (
-        <Html position={[0, heightOffset, 0]} center zIndexRange={[100, 0]}>
+        <Html position={[0, heightOffset, 0]} center zIndexRange={[100, 0]} distanceFactor={28}>
             <div className="flex flex-col items-center pointer-events-none select-none">
-                 <div className="bg-slate-900/80 backdrop-blur border border-slate-600 px-2 py-1 rounded mb-1 shadow-lg">
-                     <div className="text-[10px] font-mono text-yellow-400 font-bold whitespace-nowrap mb-0.5">
-                         CONSTRUCTING {pct}%
+                 <div className="bg-slate-950/95 border-2 border-yellow-400 px-3 py-1.5 rounded shadow-[0_0_16px_rgba(250,204,21,0.45)]">
+                     <div className="text-[12px] font-mono text-yellow-300 font-bold whitespace-nowrap">
+                         BUILDING {pct}%
                      </div>
-                     <div className="w-16 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                     <div className="text-[10px] font-mono text-white whitespace-nowrap">
+                         Haul {haulsDone}/{haulsNeeded}
+                     </div>
+                     <div className="w-24 h-2 bg-slate-700 rounded-full overflow-hidden mt-1">
                          <div 
                             className="h-full bg-yellow-400 transition-all duration-300"
-                            style={{ width: `${pct}%` }}
+                            style={{ width: `${Math.max(pct, 4)}%` }}
                          />
                      </div>
                  </div>
-                 <div className="w-px h-4 bg-yellow-400/50"></div>
+                 <div className="w-0.5 h-6 bg-yellow-400"></div>
             </div>
         </Html>
     );
   };
+
+  const buildRatio = data.maxProgress > 0 ? Math.min(1, data.constructionProgress / data.maxProgress) : 1;
 
   // Determine which model to render
   const renderModel = () => {
@@ -1027,10 +1039,16 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
         return (
             <group>
             {data.isBlueprint && (
-                <mesh position={[0, config.height/2, 0]}>
-                    <boxGeometry args={[tileSize * 0.9, config.height, tileSize * 0.1]} />
-                    <meshBasicMaterial color={teamColor} wireframe transparent opacity={0.3} />
-                </mesh>
+                <group>
+                    <mesh position={[0, config.height / 2, 0]}>
+                        <boxGeometry args={[tileSize * 0.9, config.height, tileSize * 0.15]} />
+                        <meshBasicMaterial color={teamColor} wireframe transparent opacity={0.45} />
+                    </mesh>
+                    <mesh position={[0, Math.max(0.15, config.height * buildRatio) / 2, 0]}>
+                        <boxGeometry args={[tileSize * 0.7, Math.max(0.15, config.height * buildRatio), tileSize * 0.12]} />
+                        <meshStandardMaterial color="#94a3b8" emissive={teamColor} emissiveIntensity={0.35} />
+                    </mesh>
+                </group>
             )}
             
             {!data.isBlueprint && (
@@ -1045,10 +1063,16 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
         return (
             <group>
             {data.isBlueprint && (
-                <mesh position={[0, config.height/2, 0]}>
-                    <boxGeometry args={[tileSize, config.height, tileSize * 0.5]} />
-                    <meshBasicMaterial color="#94a3b8" wireframe transparent opacity={0.3} />
-                </mesh>
+                <group>
+                    <mesh position={[0, config.height / 2, 0]}>
+                        <boxGeometry args={[tileSize, config.height, tileSize * 0.5]} />
+                        <meshBasicMaterial color="#94a3b8" wireframe transparent opacity={0.45} />
+                    </mesh>
+                    <mesh position={[0, Math.max(0.2, config.height * buildRatio) / 2, 0]}>
+                        <boxGeometry args={[tileSize * 0.92, Math.max(0.2, config.height * buildRatio), tileSize * 0.35]} />
+                        <meshStandardMaterial color="#334155" emissive={teamColor} emissiveIntensity={0.25} />
+                    </mesh>
+                </group>
             )}
             
             {!data.isBlueprint && (
@@ -1060,6 +1084,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
     }
     
     if (data.type === 'defense') {
+        const turretHeight = Math.max(0.25, 2.2 * buildRatio);
         return (
             <group>
                 <mesh position={[0, 0.2, 0]}>
@@ -1067,6 +1092,12 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                     <meshStandardMaterial color="#1e293b" />
                     <Edges color={teamColor} />
                 </mesh>
+                {data.isBlueprint && (
+                    <mesh position={[0, 1 + turretHeight / 2, 0]}>
+                        <cylinderGeometry args={[0.35, 0.5, turretHeight, 8]} />
+                        <meshStandardMaterial color="#ef4444" emissive={teamColor} emissiveIntensity={0.4} />
+                    </mesh>
+                )}
                 
                 {!data.isBlueprint && (
                     <group scale={[2.5, 2.5, 2.5]} position={[0, 1, 0]}>

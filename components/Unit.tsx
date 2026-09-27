@@ -3,7 +3,7 @@ import React, { useRef, useMemo, useState, useEffect, useLayoutEffect } from 're
 import { useFrame, useThree } from '@react-three/fiber';
 import { Edges, Float, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
-import { TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, UNIT_STATS, COMPUTE_GATES } from '../constants';
+import { TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, UNIT_STATS } from '../constants';
 import { UnitType, UnitClass } from '../types';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 
@@ -115,7 +115,7 @@ interface UnitProps {
 }
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, onMoveStep, tileTypeMap, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, isTetherCandidate, ammoState, loadedAmmo, missileInventory, loadingProgress, courierPayload, jammerActive, tetherTargetId, isJammed, isHacked, hackType, teamCompute, firingLaserAt, lastAttackTime,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, onMoveStep, tileTypeMap, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, isTetherCandidate, ammoState, loadedAmmo, missileInventory, loadingProgress, courierPayload, jammerActive, tetherTargetId, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime,
   isStunned, globalSpeedModifier = 1.0, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -393,7 +393,7 @@ const Unit: React.FC<UnitProps> = ({
 
         if (path.length > 0 && !isDisabled && !isDeployed && !isAnchored && !(isBallista && ammoState === 'loading')) {
              const meshPos = meshRef.current.position;
-             const moveDist = BASE_SPEED * speedMultiplier * delta;
+             const moveDist = BASE_SPEED * speedMultiplier * Math.min(delta, 0.05);
              const scratch = moveScratch.current;
 
              // path[0] is the next logical tile. Once that step is already
@@ -659,7 +659,7 @@ const Unit: React.FC<UnitProps> = ({
         <group>
           <mesh position={[0, 0.8, 0]} userData={{ cloakShell: true }} raycast={() => null}>
             <capsuleGeometry args={[0.7, 1.2, 4, 10]} />
-            <meshBasicMaterial color="#38bdf8" transparent opacity={0.16} depthWrite={false} blending={THREE.AdditiveBlending} />
+            <meshBasicMaterial color="#7dd3fc" transparent opacity={0.45} depthWrite={false} blending={THREE.AdditiveBlending} />
           </mesh>
           <pointLight color="#38bdf8" intensity={1.4} distance={8} decay={2} />
         </group>
@@ -830,8 +830,8 @@ const Unit: React.FC<UnitProps> = ({
 
       {/* Action Menu (Over unit) */}
       {actionMenuOpen && (
-        <Html position={[0, 4, 0]} center zIndexRange={[100, 0]}>
-           <div className="flex flex-col gap-1 pointer-events-none">
+        <Html position={[0, 4, 0]} center zIndexRange={[100, 0]} style={{ pointerEvents: 'auto' }}>
+           <div className="flex flex-col gap-1 pointer-events-auto" onMouseDown={(e) => e.preventDefault()} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
               <div className="bg-slate-900/80 backdrop-blur border border-cyan-500/50 p-2 rounded flex flex-col gap-1 pointer-events-auto min-w-[120px]">
                   
                   {/* Unit Label Header */}
@@ -850,7 +850,7 @@ const Unit: React.FC<UnitProps> = ({
                   {isGhost && (
                       <>
                         <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TOGGLE DAMPENER'); }} className={`text-[10px] ${isDampenerActive ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>Toggle Dampener</button>
-                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('PHANTOM_DECOY_INIT'); }} disabled={!decoyActive && teamCompute < COMPUTE_GATES.PHANTOM_DECOY} className={`text-[10px] ${decoyActive ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>{decoyActive ? 'Phantom Decoy (On)' : 'Phantom Decoy'}</button>
+                        <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); handleMenuAction('PHANTOM_DECOY_INIT'); }} className={`text-[10px] ${decoyActive ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>{decoyActive ? 'Phantom Decoy (On)' : 'Phantom Decoy'}</button>
                       </>
                   )}
                   {isBanshee && (

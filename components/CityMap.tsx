@@ -306,6 +306,7 @@ type LiveFlight = { shot: Projectile; impacted: boolean };
 type FlightEvent =
     | { kind: 'explosion'; position: { x: number; y: number; z: number }; radius: number; duration: number }
     | { kind: 'damage'; position: { x: number; y: number; z: number }; radius: number; damage: number; team: UnitData['team'] }
+    | { kind: 'decoy'; id: string }
     | { kind: 'cloud'; cloudType: 'nano' | 'eclipse'; position: { x: number; y: number; z: number }; team: CloudData['team'] }
     | { kind: 'titan'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' };
 
@@ -325,6 +326,13 @@ const flightUnitY = (u: UnitData) => {
 
 // Steps a shot by one displayed frame and reports a hit on that same pose.
 // The mesh reads this object, so the detonation is where the model is.
+const decoyWorld = (d: DecoyData, offset: number, tileSize: number) => ({
+    x: (d.gridPos.x * tileSize) - offset,
+    y: 1.5,
+    z: (d.gridPos.z * tileSize) - offset,
+});
+
+// A cloaked Ghost is not a target. Shots can lock and strike the projections instead.
 const advanceFlight = (
     p: Projectile,
     dt: number,
@@ -335,6 +343,7 @@ const advanceFlight = (
     units: UnitData[],
     buildings: BuildingData[],
     structures: StructureData[],
+    decoys: DecoyData[],
 ): FlightEvent[] | null => {
     if (p.trajectory === 'ballistic' && p.startPos && p.startTime && p.targetPos) {
         const pose = sampleBallistic(p, now);
@@ -367,13 +376,17 @@ const advanceFlight = (
         let hasUnitTarget = false;
 
         if (p.lockedTargetId) {
-            const lockedUnit = units.find(u => u.id === p.lockedTargetId && u.health > 0);
+            const lockedUnit = units.find(u => u.id === p.lockedTargetId && u.health > 0 && !u.decoyActive);
+            const lockedDecoy = decoys.find(d => d.id === p.lockedTargetId);
             if (lockedUnit) {
                 targetLocation = {
                     x: (lockedUnit.gridPos.x * CITY_CONFIG.tileSize) - offset,
                     y: flightUnitY(lockedUnit),
                     z: (lockedUnit.gridPos.z * CITY_CONFIG.tileSize) - offset,
                 };
+                hasUnitTarget = true;
+            } else if (lockedDecoy) {
+                targetLocation = decoyWorld(lockedDecoy, offset, tileSize);
                 hasUnitTarget = true;
             } else {
                 p.lockedTargetId = null;
@@ -384,13 +397,22 @@ const advanceFlight = (
             let closestDist = 6 * CITY_CONFIG.tileSize;
             let bestCandidateId: string | null = null;
             for (const u of units) {
-                if (u.team === p.team || u.team === 'neutral' || u.health <= 0) continue;
+                if (u.team === p.team || u.team === 'neutral' || u.health <= 0 || u.decoyActive) continue;
                 const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
                 const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
                 const dist = Math.hypot(p.position.x - uX, p.position.z - uZ);
                 if (dist < closestDist) {
                     closestDist = dist;
                     bestCandidateId = u.id;
+                }
+            }
+            for (const d of decoys) {
+                if (d.team === p.team) continue;
+                const pos = decoyWorld(d, offset, tileSize);
+                const dist = Math.hypot(p.position.x - pos.x, p.position.z - pos.z);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    bestCandidateId = d.id;
                 }
             }
             if (bestCandidateId) {
@@ -422,18 +444,31 @@ const advanceFlight = (
         if (p.position.y <= 0.5) hit = true;
         if (!hit) {
             for (const u of units) {
-                if (u.team === p.team || u.health <= 0) continue;
+                if (u.team === p.team || u.health <= 0 || u.decoyActive) continue;
                 const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
                 const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
                 const dist = Math.hypot(p.position.x - uX, p.position.y - flightUnitY(u), p.position.z - uZ);
                 if (dist < 1.5) { hit = true; break; }
             }
         }
+        if (!hit) {
+            for (const d of decoys) {
+                if (d.team === p.team) continue;
+                const pos = decoyWorld(d, offset, tileSize);
+                if (Math.hypot(p.position.x - pos.x, p.position.y - pos.y, p.position.z - pos.z) < 1.5) { hit = true; break; }
+            }
+        }
         if (Math.hypot(p.position.x - p.startPos.x, p.position.z - p.startPos.z) > 100) hit = true;
         if (!hit) return null;
+        const struckDecoy = decoys.find(d => {
+            if (d.team === p.team) return false;
+            const pos = decoyWorld(d, offset, tileSize);
+            return Math.hypot(p.position.x - pos.x, p.position.z - pos.z) < CITY_CONFIG.tileSize * 0.8;
+        });
         return [
             { kind: 'explosion', position: { ...p.position }, radius: 1.5, duration: 300 },
             { kind: 'damage', position: { ...p.position }, damage: p.damage, radius: 1.5, team: p.team },
+            ...(struckDecoy ? [{ kind: 'decoy' as const, id: struckDecoy.id }] : []),
         ];
     }
 
@@ -468,10 +503,17 @@ const advanceFlight = (
                     if (structure && p.position.y > 0 && p.position.y < STRUCTURE_INFO[structure.type].height) { hit = true; break; }
                 }
                 for (const u of units) {
-                    if (u.team === p.team || u.health <= 0) continue;
+                    if (u.team === p.team || u.health <= 0 || u.decoyActive) continue;
                     const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
                     const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
                     if (Math.hypot(p.position.x - uX, p.position.z - uZ) < CITY_CONFIG.tileSize * 0.8) { hit = true; break; }
+                }
+                if (!hit) {
+                    for (const d of decoys) {
+                        if (d.team === p.team) continue;
+                        const pos = decoyWorld(d, offset, tileSize);
+                        if (Math.hypot(p.position.x - pos.x, p.position.z - pos.z) < CITY_CONFIG.tileSize * 0.8) { hit = true; break; }
+                    }
                 }
             }
             if (hit) break;
@@ -490,6 +532,12 @@ const advanceFlight = (
     } else {
         events.push({ kind: 'damage', position: { ...p.position }, damage: p.damage, radius: 3, team: p.team });
     }
+    const struckDecoy = decoys.find(d => {
+        if (d.team === p.team) return false;
+        const pos = decoyWorld(d, offset, tileSize);
+        return Math.hypot(p.position.x - pos.x, p.position.z - pos.z) < CITY_CONFIG.tileSize * 0.8;
+    });
+    if (struckDecoy) events.push({ kind: 'decoy', id: struckDecoy.id });
     return events;
 };
 
@@ -809,6 +857,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
   const [baseMenuOpen, setBaseMenuOpen] = useState<'blue' | 'red' | null>(null);
   const [placementMode, setPlacementMode] = useState<{type: StructureType, cost: number} | null>(null);
+  const placementModeRef = useRef(placementMode);
+  placementModeRef.current = placementMode;
+  const pointerStartRef = useRef<THREE.Vector3 | null>(null);
   const [hoverGridPos, setHoverGridPosRaw] = useState<{x: number, z: number} | null>(null);
 
   // Pointer moves fire far faster than the hover highlight can change. Writing a
@@ -825,7 +876,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
     hoverGridPosRef.current = pos;
     setHoverGridPosRaw(pos);
   }, []);
-  const [teamResources, setTeamResources] = useState<{blue: number, red: number}>({ blue: 1000, red: 1000 });
+  const [teamResources, setTeamResources] = useState<{blue: number, red: number}>({ blue: 2500, red: 2500 });
   const [teamCompute, setTeamCompute] = useState<{blue: number, red: number}>({ blue: 0, red: 0 });
   const [stockpile, setStockpile] = useState<{blue: {eclipse: number, he: number}, red: {eclipse: number, he: number}}>({ blue: { eclipse: 0, he: 0 }, red: { eclipse: 0, he: 0 } });
   
@@ -841,6 +892,8 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   const didDragRef = useRef(false);
 
   const unitsRef = useRef(units);
+  const decoysRef = useRef(decoys);
+  decoysRef.current = decoys;
   const blocksRef = useRef(blocks);
   const buildingsRef = useRef(buildings);
   const cloudsRef = useRef(clouds);
@@ -867,7 +920,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
       for (const [id, live] of flightRef.current) {
           if (live.impacted) continue;
-          const produced = advanceFlight(live.shot, dt, now, offset, tileSize, gridSize, units, buildings, structures);
+          const produced = advanceFlight(live.shot, dt, now, offset, tileSize, gridSize, units, buildings, structures, decoysRef.current);
           if (!produced) continue;
           live.impacted = true;
           impactedIds.push(id);
@@ -880,6 +933,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
       const explosions: Explosion[] = [];
       const damages: Extract<FlightEvent, { kind: 'damage' }>[] = [];
+      const poppedDecoys: string[] = [];
       for (const event of events) {
           if (event.kind === 'explosion') {
               explosions.push({
@@ -891,6 +945,8 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
               });
           } else if (event.kind === 'damage') {
               damages.push(event);
+          } else if (event.kind === 'decoy') {
+              poppedDecoys.push(event.id);
           } else if (event.kind === 'cloud') {
               const radius = event.cloudType === 'nano' ? ABILITY_CONFIG.NANO_CLOUD_RADIUS : ABILITY_CONFIG.ECLIPSE_RADIUS;
               const duration = event.cloudType === 'nano' ? ABILITY_CONFIG.NANO_CLOUD_DURATION : ABILITY_CONFIG.ECLIPSE_DURATION;
@@ -931,11 +987,15 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           }
       }
       if (explosions.length > 0) setExplosions(prev => [...prev, ...explosions]);
+      if (poppedDecoys.length > 0) {
+          const gone = new Set(poppedDecoys);
+          setDecoys(prev => prev.filter(d => !gone.has(d.id)));
+      }
       if (damages.length > 0) {
           setUnits(prev => {
               let changed = false;
               const next = prev.map(u => {
-                  if (u.health <= 0) return u;
+                  if (u.health <= 0 || u.decoyActive) return u;
                   let health = u.health;
                   for (const evt of damages) {
                       if (u.team === evt.team) continue;
@@ -1048,6 +1108,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           }
 
           didDragRef.current = false;
+          pointerStartRef.current = e.point.clone();
           setDragSelection({ start: e.point.clone(), current: e.point.clone(), active: true });
       }
   };
@@ -1065,6 +1126,20 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
   const handlePointerUp = (e: any) => {
       if (interactionMode === 'target') return;
+
+      const button = e.button ?? e.nativeEvent?.button ?? 0;
+      if (button === 0 && placementModeRef.current && e.point) {
+          const start = pointerStartRef.current;
+          const draggedFar = !!start && start.distanceTo(e.point) > tileSize;
+          didDragRef.current = false;
+          setDragSelection(prev => prev ? { ...prev, active: false } : prev);
+          if (!draggedFar) {
+              const gx = Math.round((e.point.x + offset) / tileSize);
+              const gz = Math.round((e.point.z + offset) / tileSize);
+              commitPlacement(gx, gz);
+          }
+          return;
+      }
 
       if (dragSelection && dragSelection.active) {
           if (didDragRef.current) {
@@ -1658,14 +1733,115 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   };
 
   const checkIsValidPlacement = (x: number, z: number) => {
+      if (x < 0 || z < 0 || x >= gridSize || z >= gridSize) return false;
       if (Math.abs(x - baseA_Coord.x) <= 1 && Math.abs(z - baseA_Coord.z) <= 1) return false;
       if (Math.abs(x - baseB_Coord.x) <= 1 && Math.abs(z - baseB_Coord.z) <= 1) return false;
       if (structuresState.some(s => s.gridPos.x === x && s.gridPos.z === z)) return false;
       if (buildings.some(b => b.gridX === x && b.gridZ === z)) return false;
-      return true;
+      // The structure occupies its own tile, so the Mason needs a road beside it.
+      const beside = [
+          {x: x + 1, z}, {x: x - 1, z}, {x, z: z + 1}, {x, z: z - 1},
+          {x: x + 1, z: z + 1}, {x: x - 1, z: z - 1}, {x: x + 1, z: z - 1}, {x: x - 1, z: z + 1},
+      ];
+      return beside.some(n => isWalkable(n.x, n.z));
+  };
+
+  const findPlacementSpot = (x: number, z: number) => {
+      if (checkIsValidPlacement(x, z)) return { x, z };
+      let best: { x: number, z: number } | null = null;
+      let bestDist = 99;
+      for (let dz = -2; dz <= 2; dz++) {
+          for (let dx = -2; dx <= 2; dx++) {
+              if (dx === 0 && dz === 0) continue;
+              const dist = Math.hypot(dx, dz);
+              if (dist >= bestDist) continue;
+              if (!checkIsValidPlacement(x + dx, z + dz)) continue;
+              bestDist = dist;
+              best = { x: x + dx, z: z + dz };
+          }
+      }
+      return best;
+  };
+
+  const commitPlacement = (x: number, z: number) => {
+      const mode = placementModeRef.current;
+      if (!mode) return;
+      const spot = findPlacementSpot(x, z);
+      if (!spot || teamResources[playerTeam] < mode.cost) return;
+      placementModeRef.current = null;
+      setPlacementMode(null);
+      setDepotMenuOpenId(null);
+      setTeamResources(prev => ({ ...prev, [playerTeam]: prev[playerTeam] - mode.cost }));
+      const isWallOrTurret = mode.type === 'wall_tier1' || mode.type === 'wall_tier2' || mode.type === 'defense';
+      const blueprintId = `struct-${Date.now()}`;
+      const blueprint: StructureData = {
+          id: blueprintId,
+          type: mode.type,
+          team: playerTeam,
+          gridPos: spot,
+          isBlueprint: isWallOrTurret,
+          constructionProgress: 0,
+          maxProgress: STRUCTURE_INFO[mode.type].maxProgress || 100,
+          health: STRUCTURE_INFO[mode.type].maxHealth,
+          maxHealth: STRUCTURE_INFO[mode.type].maxHealth,
+      };
+      const depot = structuresRef.current.find(s => s.type === 'builder' && s.team === playerTeam && !s.isBlueprint);
+      setStructuresState(prev => {
+          const next = [...prev, blueprint];
+          structuresRef.current = next;
+          return next;
+      });
+
+      if (!isWallOrTurret || !depot) return;
+
+      setUnits(prev => {
+          let changed = false;
+          const next = prev.map(u => {
+              if (u.type !== 'mason' || u.team !== playerTeam || u.health <= 0) return u;
+              let cargo = u.cargo || 0;
+              let goal = spot;
+              let constructionTargetId: string | null = blueprintId;
+              if (cargo <= 0) {
+                  const atDepot = Math.hypot(u.gridPos.x - depot.gridPos.x, u.gridPos.z - depot.gridPos.z) < ABILITY_CONFIG.MASON_SITE_RANGE;
+                  if (atDepot) {
+                      cargo = ABILITY_CONFIG.MASON_CARGO_CAPACITY;
+                  } else {
+                      goal = depot.gridPos;
+                      constructionTargetId = null;
+                  }
+              }
+              if (Math.hypot(u.gridPos.x - goal.x, u.gridPos.z - goal.z) < ABILITY_CONFIG.MASON_SITE_RANGE) {
+                  if (cargo !== (u.cargo || 0) || u.constructionTargetId !== constructionTargetId) {
+                      changed = true;
+                      return { ...u, cargo, constructionTargetId, path: [] };
+                  }
+                  return u;
+              }
+              const beside = [
+                  {x: goal.x + 1, z: goal.z}, {x: goal.x - 1, z: goal.z},
+                  {x: goal.x, z: goal.z + 1}, {x: goal.x, z: goal.z - 1},
+                  {x: goal.x + 1, z: goal.z + 1}, {x: goal.x - 1, z: goal.z - 1},
+                  {x: goal.x + 1, z: goal.z - 1}, {x: goal.x - 1, z: goal.z + 1},
+              ].filter(n => isWalkable(n.x, n.z) && !(n.x === spot.x && n.z === spot.z))
+               .sort((a, b) => Math.hypot(u.gridPos.x - a.x, u.gridPos.z - a.z) - Math.hypot(u.gridPos.x - b.x, u.gridPos.z - b.z));
+              for (const n of beside) {
+                  const path = findPath(u.gridPos, n);
+                  if (path.length > 0) {
+                      changed = true;
+                      return { ...u, cargo, path, constructionTargetId };
+                  }
+              }
+              return u;
+          });
+          return changed ? next : prev;
+      });
   };
 
   const handleTileClick = (x: number, z: number) => {
+      if (placementModeRef.current) {
+          commitPlacement(x, z);
+          return;
+      }
       // If we just dragged, ignore click events generated
       if (didDragRef.current) return;
 
@@ -1674,15 +1850,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           return;
       }
 
-      if (placementMode) {
-          if (!checkIsValidPlacement(x, z)) return;
-          if (teamResources[playerTeam] >= placementMode.cost) {
-              setTeamResources(prev => ({...prev, [playerTeam]: prev[playerTeam] - placementMode.cost}));
-              const isWallOrTurret = placementMode.type === 'wall_tier1' || placementMode.type === 'wall_tier2' || placementMode.type === 'defense';
-              setStructuresState(prev => [...prev, { id: `struct-${Date.now()}`, type: placementMode.type, team: playerTeam, gridPos: {x, z}, isBlueprint: isWallOrTurret, constructionProgress: 0, maxProgress: STRUCTURE_INFO[placementMode.type].maxProgress || 100, health: STRUCTURE_INFO[placementMode.type].maxHealth, maxHealth: STRUCTURE_INFO[placementMode.type].maxHealth }]);
-              setPlacementMode(null);
-          }
-      } else if (targetingSourceId && targetingAbility === 'SURVEILLANCE') {
+      if (targetingSourceId && targetingAbility === 'SURVEILLANCE') {
           const unit = units.find(u => u.id === targetingSourceId);
           if (unit) {
               const path = findPath(unit.gridPos, { x, z });
@@ -1987,8 +2155,6 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       const unit = unitsRef.current.find(u => u.id === unitId);
       if (!unit) return;
       
-      const compute = teamCompute[unit.team as 'blue' | 'red'];
-      
       // Ballista Load Logic (Inventory -> Armed)
       if (action.startsWith('LOAD_AMMO_')) {
           const type = action.replace('LOAD_AMMO_', '').toLowerCase() as 'eclipse' | 'he';
@@ -2117,38 +2283,50 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                setDecoys(prev => prev.filter(d => d.ownerId !== unitId));
                return;
            }
-           if (compute < COMPUTE_GATES.PHANTOM_DECOY || unit.battery <= 1) return;
+           if (unit.battery <= 1) return;
 
            const directions = [
                {x: 1, z: 0}, {x: -1, z: 0}, {x: 0, z: 1}, {x: 0, z: -1},
                {x: 1, z: 1}, {x: -1, z: 1}, {x: 1, z: -1}, {x: -1, z: -1},
            ];
            const now = Date.now();
+           const origin = unit.gridPos;
+           const claimed = new Set<string>([`${origin.x},${origin.z}`]);
            const spawned: DecoyData[] = [];
            for (const dir of directions) {
                if (spawned.length >= ABILITY_CONFIG.PHANTOM_DECOY_COUNT) break;
                const path: string[] = [];
-               let x = unit.gridPos.x;
-               let z = unit.gridPos.z;
+               let x = origin.x;
+               let z = origin.z;
                for (let step = 0; step < ABILITY_CONFIG.PHANTOM_DECOY_SCATTER; step++) {
-                   const nx = x + dir.x;
-                   const nz = z + dir.z;
-                   if (!isWalkable(nx, nz)) break;
-                   path.push(`${nx},${nz}`);
-                   x = nx;
-                   z = nz;
+                   const candidates = [
+                       { x: x + dir.x, z: z + dir.z },
+                       { x: x + Math.sign(dir.x), z },
+                       { x, z: z + Math.sign(dir.z) },
+                       { x: x + 1, z }, { x: x - 1, z }, { x, z: z + 1 }, { x, z: z - 1 },
+                       { x: x + 1, z: z + 1 }, { x: x - 1, z: z - 1 }, { x: x + 1, z: z - 1 }, { x: x - 1, z: z + 1 },
+                   ];
+                   const next = candidates.find(n => {
+                       const key = `${n.x},${n.z}`;
+                       return !claimed.has(key) && isWalkable(n.x, n.z);
+                   });
+                   if (!next) break;
+                   const key = `${next.x},${next.z}`;
+                   claimed.add(key);
+                   path.push(key);
+                   x = next.x;
+                   z = next.z;
                }
                if (path.length === 0) continue;
                spawned.push({
                    id: `decoy-${unitId}-${spawned.length}-${now}`,
                    team: unit.team as 'blue' | 'red',
-                   gridPos: { x: unit.gridPos.x, z: unit.gridPos.z },
+                   gridPos: { x: origin.x, z: origin.z },
                    createdAt: now,
                    ownerId: unitId,
                    path,
                });
            }
-           if (spawned.length === 0) return;
 
            setDecoys(prev => [...prev.filter(d => d.ownerId !== unitId), ...spawned]);
            setUnits(prev => prev.map(u => u.id === unitId ? { ...u, decoyActive: true, decoyStartTime: now, isStealthed: true } : u));
@@ -2251,91 +2429,102 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       }
   };
 
-  // Mason AI Loop
+  // Mason AI Loop — one haul per depot visit, then straight back for the next.
   useEffect(() => {
+    const besideTiles = (goal: {x: number, z: number}, from: {x: number, z: number}) => ([
+        {x: goal.x + 1, z: goal.z}, {x: goal.x - 1, z: goal.z},
+        {x: goal.x, z: goal.z + 1}, {x: goal.x, z: goal.z - 1},
+        {x: goal.x + 1, z: goal.z + 1}, {x: goal.x - 1, z: goal.z - 1},
+        {x: goal.x + 1, z: goal.z - 1}, {x: goal.x - 1, z: goal.z + 1},
+    ].filter(n => dynamicRoadTileSet.has((n.x << 16) | n.z))
+      .sort((a, b) => Math.hypot(from.x - a.x, from.z - a.z) - Math.hypot(from.x - b.x, from.z - b.z)));
+
+    const pathToGoal = (from: {x: number, z: number}, goal: {x: number, z: number}) => {
+        if (Math.hypot(from.x - goal.x, from.z - goal.z) < ABILITY_CONFIG.MASON_SITE_RANGE) return [] as string[];
+        for (const tile of besideTiles(goal, from)) {
+            if (tile.x === from.x && tile.z === from.z) return [] as string[];
+            const path = findPath(from, tile);
+            if (path.length > 0) return path;
+        }
+        return [] as string[];
+    };
+
+    const droppedLoad = new Set<string>();
     const timer = setInterval(() => {
-        setUnits(prevUnits => {
-            let unitsChanged = false;
-            const nextUnits = prevUnits.map(u => {
-                if (u.type !== 'mason') return u;
-                const activeStructs = structuresRef.current;
-                const blueprints = activeStructs.filter(s => s.isBlueprint && s.team === u.team && s.constructionProgress < s.maxProgress);
-                const depot = activeStructs.find(s => s.type === 'builder' && s.team === u.team);
-                if (!depot) return u;
-                let uChanged = false;
-                let newUnit = { ...u };
-                let constructionTarget = null;
-                let targetPos: {x: number, z: number} | null = null;
-                let actionType: 'build' | 'load' = 'load';
-                if (newUnit.cargo && newUnit.cargo > 0) {
-                    if (blueprints.length > 0) {
-                        let closest = blueprints[0];
-                        let minDst = 9999;
-                        blueprints.forEach(bp => {
-                            const d = Math.sqrt(Math.pow(u.gridPos.x - bp.gridPos.x, 2) + Math.pow(u.gridPos.z - bp.gridPos.z, 2));
-                            if (d < minDst) { minDst = d; closest = bp; }
-                        });
-                        targetPos = closest.gridPos;
-                        constructionTarget = closest.id;
-                        actionType = 'build';
-                    }
-                } else if (depot) {
-                    targetPos = depot.gridPos;
-                    actionType = 'load';
+        const activeStructs = structuresRef.current;
+        const deliveries: { id: string }[] = [];
+        const patches = new Map<string, { cargo: number, path: string[], constructionTargetId: string | null, fromX: number, fromZ: number, pathLen: number }>();
+        unitsRef.current.forEach(u => {
+            if (u.type !== 'mason' || u.health <= 0) return;
+            const blueprints = activeStructs.filter(s => s.isBlueprint && s.team === u.team && s.constructionProgress < s.maxProgress);
+            const depot = activeStructs.find(s => s.type === 'builder' && s.team === u.team && !s.isBlueprint);
+            if (!depot || blueprints.length === 0) {
+                if (u.constructionTargetId) {
+                    patches.set(u.id, { cargo: u.cargo || 0, path: u.path, constructionTargetId: null, fromX: u.gridPos.x, fromZ: u.gridPos.z, pathLen: u.path.length });
                 }
-                if (targetPos) {
-                     const dist = Math.sqrt(Math.pow(u.gridPos.x - targetPos.x, 2) + Math.pow(u.gridPos.z - targetPos.z, 2));
-                     if (dist < 1.5) {
-                         if (actionType === 'build') { newUnit.cargo = Math.max(0, newUnit.cargo - ABILITY_CONFIG.MASON_BUILD_AMOUNT); } 
-                         else { newUnit.cargo = 100; }
-                         newUnit.path = []; 
-                         uChanged = true;
-                     } else {
-                         if (newUnit.path.length === 0) {
-                             let path = findPath(newUnit.gridPos, targetPos);
-                             if (path.length === 0) {
-                                  const neighbors = [{x: targetPos.x+1, z: targetPos.z}, {x: targetPos.x-1, z: targetPos.z}, {x: targetPos.x, z: targetPos.z+1}, {x: targetPos.x, z: targetPos.z-1}].filter(n => {
-                                      const nId = (n.x << 16) | n.z;
-                                      return dynamicRoadTileSet.has(nId);
-                                  }).sort((a, b) => {
-                                      const da = Math.sqrt(Math.pow(u.gridPos.x - a.x, 2) + Math.pow(u.gridPos.z - a.z, 2));
-                                      const db = Math.sqrt(Math.pow(u.gridPos.x - b.x, 2) + Math.pow(u.gridPos.z - b.z, 2));
-                                      return da - db;
-                                  });
-                                  for (const n of neighbors) { const p = findPath(newUnit.gridPos, n); if (p.length > 0) { path = p; break; } }
-                             }
-                             if (path.length > 0) { newUnit.path = path; uChanged = true; }
-                         }
-                     }
-                }
-                if (newUnit.constructionTargetId !== constructionTarget) { newUnit.constructionTargetId = constructionTarget; uChanged = true; }
-                if (uChanged) { unitsChanged = true; return newUnit; }
-                return u;
+                return;
+            }
+            let closest = blueprints[0];
+            let minDst = Infinity;
+            blueprints.forEach(bp => {
+                const d = Math.hypot(u.gridPos.x - bp.gridPos.x, u.gridPos.z - bp.gridPos.z);
+                if (d < minDst) { minDst = d; closest = bp; }
             });
-            return unitsChanged ? nextUnits : prevUnits;
+            const carrying = (u.cargo || 0) > 0;
+            const goal = carrying ? closest.gridPos : depot.gridPos;
+            const atGoal = Math.hypot(u.gridPos.x - goal.x, u.gridPos.z - goal.z) < ABILITY_CONFIG.MASON_SITE_RANGE;
+            let cargo = u.cargo || 0;
+            let path = u.path;
+            if ((u.cargo || 0) === 0) droppedLoad.delete(u.id);
+            if (atGoal && carrying) {
+                if (!droppedLoad.has(u.id)) {
+                    droppedLoad.add(u.id);
+                    deliveries.push({ id: closest.id });
+                }
+                cargo = 0;
+                path = pathToGoal(u.gridPos, depot.gridPos);
+            } else if (atGoal && !carrying) {
+                cargo = ABILITY_CONFIG.MASON_CARGO_CAPACITY;
+                path = pathToGoal(u.gridPos, closest.gridPos);
+            } else if (path.length === 0) {
+                path = pathToGoal(u.gridPos, goal);
+            }
+            if (cargo !== (u.cargo || 0) || path !== u.path || u.constructionTargetId !== closest.id) {
+                patches.set(u.id, { cargo, path, constructionTargetId: closest.id, fromX: u.gridPos.x, fromZ: u.gridPos.z, pathLen: u.path.length });
+            }
         });
-        setStructuresState(prevStructs => {
-             const activeUnits = unitsRef.current; 
-             const masons = activeUnits.filter(u => u.type === 'mason' && u.cargo && u.cargo > 0);
-             if (masons.length === 0) return prevStructs;
-             let structChanged = false;
-             const nextStructs = prevStructs.map(s => {
-                 if (!s.isBlueprint) return s;
-                 const builders = masons.filter(m => Math.sqrt(Math.pow(m.gridPos.x - s.gridPos.x, 2) + Math.pow(m.gridPos.z - s.gridPos.z, 2)) === 0);
-                 if (builders.length > 0) {
-                     const progressAdded = builders.length * ABILITY_CONFIG.MASON_BUILD_AMOUNT;
-                     const newProgress = Math.min(s.maxProgress, s.constructionProgress + progressAdded);
-                     if (newProgress !== s.constructionProgress) {
-                         structChanged = true;
-                         const finished = newProgress >= s.maxProgress;
-                         return { ...s, constructionProgress: newProgress, isBlueprint: !finished };
-                     }
-                 }
-                 return s;
-             });
-             return structChanged ? nextStructs : prevStructs;
+        if (patches.size > 0) {
+            setUnits(prev => {
+                let changed = false;
+                const next = prev.map(u => {
+                    const patch = patches.get(u.id);
+                    if (!patch) return u;
+                    if (u.gridPos.x !== patch.fromX || u.gridPos.z !== patch.fromZ) return u;
+                    if (u.path.length !== patch.pathLen) return u;
+                    changed = true;
+                    return { ...u, cargo: patch.cargo, path: patch.path, constructionTargetId: patch.constructionTargetId };
+                });
+                return changed ? next : prev;
+            });
+        }
+        if (deliveries.length === 0) return;
+        setStructuresState(prev => {
+            let changed = false;
+            const counts = new Map<string, number>();
+            deliveries.forEach(d => counts.set(d.id, (counts.get(d.id) || 0) + 1));
+            const next = prev.map(s => {
+                const hauls = counts.get(s.id) || 0;
+                if (!hauls || !s.isBlueprint) return s;
+                const constructionProgress = Math.min(s.maxProgress, s.constructionProgress + hauls * ABILITY_CONFIG.MASON_BUILD_AMOUNT);
+                if (constructionProgress === s.constructionProgress) return s;
+                changed = true;
+                return { ...s, constructionProgress, isBlueprint: constructionProgress < s.maxProgress };
+            });
+            if (!changed) return prev;
+            structuresRef.current = next;
+            return next;
         });
-    }, 500); 
+    }, 400);
     return () => clearInterval(timer);
   }, [findPath, dynamicRoadTileSet]);
 
@@ -2561,7 +2750,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   drones.forEach(drone => {
                       const building = activeBuildings.find(b => b.gridX === drone.gridPos.x && b.gridZ === drone.gridPos.z);
                       if (building && building.captureProgress > 0 && building.capturingTeam) {
-                          const enemies = prevUnits.filter(u => u.team === building.capturingTeam && u.health > 0 && Math.abs(u.gridPos.x - drone.gridPos.x) <= ABILITY_CONFIG.DEFENSE_DRONE_RANGE && Math.abs(u.gridPos.z - drone.gridPos.z) <= ABILITY_CONFIG.DEFENSE_DRONE_RANGE);
+                          const enemies = prevUnits.filter(u => u.team === building.capturingTeam && u.health > 0 && !u.decoyActive && Math.abs(u.gridPos.x - drone.gridPos.x) <= ABILITY_CONFIG.DEFENSE_DRONE_RANGE && Math.abs(u.gridPos.z - drone.gridPos.z) <= ABILITY_CONFIG.DEFENSE_DRONE_RANGE);
                           if (enemies.length > 0) {
                               const target = enemies[0];
                               damageMap.set(target.id, (damageMap.get(target.id) || 0) + ABILITY_CONFIG.DEFENSE_DRONE_DAMAGE);
@@ -2911,6 +3100,13 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           rotation={[-Math.PI / 2, 0, 0]} 
           position={[0, -0.1, 0]} 
           receiveShadow 
+          onClick={(e) => {
+              if (!placementMode) return;
+              e.stopPropagation();
+              const gx = Math.round((e.point.x + offset) / tileSize);
+              const gz = Math.round((e.point.z + offset) / tileSize);
+              handleTileClick(gx, gz);
+          }}
         >
             <planeGeometry args={[gridSize * tileSize, gridSize * tileSize]} />
             <meshStandardMaterial color="#1e293b" roughness={1} metalness={0} />

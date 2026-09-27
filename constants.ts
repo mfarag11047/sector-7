@@ -29,7 +29,7 @@ export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: st
   guardian: { unitClass: 'support', cost: 200, captureMultiplier: 0.2, label: 'Guardian UGV', visionRange: 3, speedMod: 0.6, maxHealth: 150, attackDamage: 0, attackCooldown: 0 },
   mule: { unitClass: 'ordnance', cost: 250, captureMultiplier: 0.0, label: '"Mule" Field Fabricator', visionRange: 3, speedMod: 0.9, maxHealth: 60, attackDamage: 0, attackCooldown: 0 },
   wasp: { unitClass: 'air', cost: 200, captureMultiplier: 0.0, label: '"Wasp" Swarm Launcher', visionRange: 5, speedMod: 1.5, maxHealth: 40, attackDamage: 5, attackCooldown: 500 },
-  mason: { unitClass: 'builder', cost: 150, captureMultiplier: 0.0, label: '"Mason" Combat Engineer', visionRange: 2, speedMod: 0.8, maxHealth: 150, attackDamage: 0, attackCooldown: 0 },
+  mason: { unitClass: 'builder', cost: 150, captureMultiplier: 0.0, label: '"Mason" Combat Engineer', visionRange: 2, speedMod: 0.7, maxHealth: 150, attackDamage: 0, attackCooldown: 0 },
   helios: { unitClass: 'support', cost: 100, captureMultiplier: 0.0, label: '"Helios" Microwave Drone', visionRange: 4, speedMod: 1.3, maxHealth: 60, attackDamage: 0, attackCooldown: 0 },
   sun_plate: { unitClass: 'armor', cost: 400, captureMultiplier: 0.0, label: '"Sun-Plate" Armored Array', visionRange: 2, speedMod: 0.5, maxHealth: 500, attackDamage: 0, attackCooldown: 0 },
   ballista: { unitClass: 'support', cost: 350, captureMultiplier: 0.0, label: '"Ballista" Launch Platform', visionRange: 3, speedMod: 0.4, maxHealth: 100, attackDamage: 0, attackCooldown: 0 },
@@ -117,8 +117,8 @@ export const ABILITY_CONFIG = {
 
   // Mason / Wall Abilities
   MASON_CARGO_CAPACITY: 100,
-  MASON_LOAD_TIME: 2000, 
-  MASON_BUILD_AMOUNT: 100, 
+  MASON_BUILD_AMOUNT: 100, // Progress added per haul. Dragons Teeth is one haul; Bulwark is three.
+  MASON_SITE_RANGE: 1.5, // Mason builds and loads from the tile beside the structure 
   WALL_TIER1_SLOW_FACTOR: 0.25, 
 
   // Battery / Solar Logic
