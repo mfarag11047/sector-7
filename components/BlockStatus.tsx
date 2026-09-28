@@ -14,10 +14,10 @@ interface BlockStatusProps {
 const BlockStatus: React.FC<BlockStatusProps> = ({ block, buildings }) => {
   if (!block.owner) return null;
 
-  const { position, defenseBonus, outputBonus } = useMemo(() => {
+  const { position, defenseBonus } = useMemo(() => {
     // Filter buildings that belong to this block
     const blockBuildings = buildings.filter(b => block.buildingIds.includes(b.id));
-    if (blockBuildings.length === 0) return { position: [0,0,0] as [number, number, number], defenseBonus: 0, outputBonus: 0 };
+    if (blockBuildings.length === 0) return { position: [0,0,0] as [number, number, number], defenseBonus: 0 };
 
     // Calculate center
     let sumX = 0;
@@ -36,12 +36,10 @@ const BlockStatus: React.FC<BlockStatusProps> = ({ block, buildings }) => {
     // Stats calculation
     const count = blockBuildings.length;
     const def = Math.round((BLOCK_BONUS.BASE_DEFENSE + (count * BLOCK_BONUS.DEFENSE_PER_BUILDING)) * 100);
-    const out = Math.round((BLOCK_BONUS.RESOURCE_MULTIPLIER - 1) * 100);
 
     return {
       position: [centerX, maxY + 5, centerZ] as [number, number, number],
       defenseBonus: def,
-      outputBonus: out
     };
   }, [block, buildings]);
 
@@ -70,8 +68,8 @@ const BlockStatus: React.FC<BlockStatusProps> = ({ block, buildings }) => {
               </div>
               <div className="flex gap-4 text-[11px] font-mono whitespace-nowrap">
                 <div className="flex flex-col items-center">
-                  <span className="text-white font-bold text-sm">+{outputBonus}%</span>
-                  <span className="opacity-70 text-[9px]">OUTPUT</span>
+                  <span className="text-white font-bold text-sm">LIVE</span>
+                  <span className="opacity-70 text-[9px]">GRID</span>
                 </div>
                 <div className="w-px bg-white/20"></div>
                 <div className="flex flex-col items-center">

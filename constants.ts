@@ -7,12 +7,18 @@ export const CITY_CONFIG: CityConfig = {
   buildingDensity: 0.15, // Adjusted for clumping
 };
 
+// Command bases are always-on energy grid sources for their team.
+export const TEAM_BASES = {
+  blue: { x: 4, z: 4 },
+  red: { x: CITY_CONFIG.gridSize - 5, z: CITY_CONFIG.gridSize - 5 },
+};
+
 export const BUILDING_VALUES = {
-  residential: { captureSpeed: 20, income: 5, label: 'Residential' },
-  industrial: { captureSpeed: 12, income: 15, label: 'Industrial' },
-  commercial: { captureSpeed: 8, income: 30, label: 'Commercial' },
-  hightech: { captureSpeed: 5, income: 60, label: 'High-Tech' },
-  server_node: { captureSpeed: 5, income: 0, label: 'Server Node' }, // 3x slower capture, gives Compute instead of income
+  residential: { captureSpeed: 20, income: 0, label: 'Residential' },
+  industrial: { captureSpeed: 12, income: 0, label: 'Industrial' },
+  commercial: { captureSpeed: 8, income: 0, label: 'Commercial' },
+  hightech: { captureSpeed: 5, income: 0, label: 'High-Tech' },
+  server_node: { captureSpeed: 5, income: 0, label: 'Server Node' }, // Slower capture. Grants Compute and extends the energy grid.
 };
 
 export const COMPUTE_GATES = {
@@ -123,8 +129,13 @@ export const ABILITY_CONFIG = {
 
   // Battery / Solar Logic
   BATTERY_MAX: 100,
-  BATTERY_DRAIN_MOVE: 0.2, 
-  BATTERY_DRAIN_IDLE: 0.01, 
+  // Off-grid travel budget. A 100-cell unit can push roughly 15 tiles past the grid before it stops.
+  BATTERY_DRAIN_MOVE: 0.55,
+  BATTERY_DRAIN_IDLE: 0.01,
+  // Captured buildings and the command base power friendly units inside this radius (tiles).
+  ENERGY_GRID_RADIUS: 6,
+  // Cells restored per logic tick while a unit is standing in its own grid.
+  ENERGY_GRID_CHARGE_RATE: 1, 
   
   // Static Ability Drains 
   DRAIN_STATIC_JAMMER: 1.5, 
@@ -210,7 +221,6 @@ export const STRUCTURE_INFO: Record<StructureType, { label: string, color: strin
 
 // Fortification / Block Bonuses
 export const BLOCK_BONUS = {
-  RESOURCE_MULTIPLIER: 1.5, 
   BASE_DEFENSE: 0.20, 
   DEFENSE_PER_BUILDING: 0.05, 
 };

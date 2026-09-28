@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
-import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, BUILDING_VALUES, BLOCK_BONUS, UNIT_STATS, ABILITY_CONFIG, STRUCTURE_COST, BUILD_RADIUS, STRUCTURE_INFO, COMPUTE_GATES, TIER_UNLOCK_COSTS, DOCTRINE_CONFIG } from '../constants';
+import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, BUILDING_VALUES, TEAM_BASES, UNIT_STATS, ABILITY_CONFIG, STRUCTURE_COST, BUILD_RADIUS, STRUCTURE_INFO, COMPUTE_GATES, TIER_UNLOCK_COSTS, DOCTRINE_CONFIG } from '../constants';
 import { BuildingData, UnitData, BuildingBlock, GameStats, TeamStats, RoadType, RoadTileData, StructureData, UnitClass, DecoyData, UnitType, StructureType, CloudData, Projectile, Explosion, DoctrineState, MinimapMissile } from '../types';
 import Building from './Building';
 import Structure from './Structure';
@@ -14,6 +14,7 @@ import { Edges, Html, Line, Float, Instance, Instances } from '@react-three/drei
 import { useFrame } from '@react-three/fiber';
 import { Zap, Ban } from 'lucide-react';
 import { freezeContainer } from '../perf';
+import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 
 const isTetherableDrone = (u: UnitData) => u.type === 'drone' || u.type === 'helios';
 
@@ -697,6 +698,66 @@ const SelectionBox: React.FC<{ start: THREE.Vector3, current: THREE.Vector3 }> =
 };
 
 
+const isInsideEnergyGrid = (
+  pos: { x: number; z: number },
+  team: UnitData['team'],
+  buildings: BuildingData[],
+  blueBase: { x: number; z: number },
+  redBase: { x: number; z: number },
+) => {
+  if (team !== 'blue' && team !== 'red') return false;
+  const radiusSq = ABILITY_CONFIG.ENERGY_GRID_RADIUS * ABILITY_CONFIG.ENERGY_GRID_RADIUS;
+  const base = team === 'blue' ? blueBase : redBase;
+  const baseDx = pos.x - base.x;
+  const baseDz = pos.z - base.z;
+  if (baseDx * baseDx + baseDz * baseDz <= radiusSq) return true;
+  for (let i = 0; i < buildings.length; i++) {
+    const building = buildings[i];
+    if (building.owner !== team) continue;
+    const dx = pos.x - building.gridX;
+    const dz = pos.z - building.gridZ;
+    if (dx * dx + dz * dz <= radiusSq) return true;
+  }
+  return false;
+};
+
+const EnergyGridField: React.FC<{
+  buildings: BuildingData[];
+  playerTeam: 'blue' | 'red';
+  tileSize: number;
+  offset: number;
+}> = ({ buildings, playerTeam, tileSize, offset }) => {
+  const sources = useMemo(() => {
+    const base = TEAM_BASES[playerTeam];
+    const owned = buildings
+      .filter(building => building.owner === playerTeam)
+      .map(building => ({ id: building.id, x: building.gridX, z: building.gridZ }));
+    return [{ id: `base-${playerTeam}`, x: base.x, z: base.z }, ...owned];
+  }, [buildings, playerTeam]);
+
+  const arcs = useMemo(
+    () => outerEnergyGridPolylines(
+      sources.map(source => ({ x: source.x, z: source.z })),
+      ABILITY_CONFIG.ENERGY_GRID_RADIUS,
+    ),
+    [sources],
+  );
+
+  return (
+    <group>
+      {arcs.map((points, index) => (
+        <Line
+          key={index}
+          points={points.map(point => [(point.x * tileSize) - offset, 0.35, (point.z * tileSize) - offset])}
+          color={ENERGY_GRID_COLOR}
+          lineWidth={3}
+          raycast={() => undefined}
+        />
+      ))}
+    </group>
+  );
+};
+
 interface CityMapProps {
   onStatsUpdate: (stats: GameStats) => void;
   onMapInit?: (data: { roadTiles: RoadTileData[], gridSize: number }) => void;
@@ -713,8 +774,8 @@ interface CityMapProps {
 const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine }) => {
   const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
   const offset = (gridSize * tileSize) / 2;
-  const baseA_Coord = useMemo(() => ({ x: 4, z: 4 }), []);
-  const baseB_Coord = useMemo(() => ({ x: gridSize - 5, z: gridSize - 5 }), [gridSize]);
+  const baseA_Coord = TEAM_BASES.blue;
+  const baseB_Coord = TEAM_BASES.red;
 
   // Map Generation State
   const { initialBuildings, initialBlocks, roadTiles, roadTileSet, tileTypeMap, initialDrones } = useMemo(() => {
@@ -1228,20 +1289,17 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   }, [units, playerTeam, clouds]);
 
   const calculateStats = useCallback((
-    currentBuildings: BuildingData[], currentUnits: UnitData[], currentBlocks: BuildingBlock[], currentResources: {blue: number, red: number}, currentStockpile: {blue: {eclipse: number, he: number}, red: {eclipse: number, he: number}}
+    currentBuildings: BuildingData[], currentUnits: UnitData[], _currentBlocks: BuildingBlock[], currentResources: {blue: number, red: number}, currentStockpile: {blue: {eclipse: number, he: number}, red: {eclipse: number, he: number}}
   ): GameStats => {
     const teams: ('blue' | 'red')[] = ['blue', 'red'];
     const result = { blue: {} as TeamStats, red: {} as TeamStats };
     
     teams.forEach(team => {
-      let income = 0;
+      // Captured buildings extend the energy grid. Core income waits for capture nodes.
+      const income = 0;
       const teamBuildings = { residential: 0, commercial: 0, industrial: 0, hightech: 0, server_node: 0 };
       currentBuildings.filter(b => b.owner === team).forEach(b => {
         teamBuildings[b.type]++;
-        const config = BUILDING_VALUES[b.type];
-        const block = currentBlocks.find(blk => blk.id === b.blockId);
-        const isBlockOwned = block && block.owner === team;
-        income += config.income * (isBlockOwned ? BLOCK_BONUS.RESOURCE_MULTIPLIER : 1);
       });
 
       // Update CP Accumulator based on income
@@ -2931,12 +2989,14 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       if (newUnit.health <= 0) return newUnit;
 
                       const isMoving = u.path.length > 0;
+                      const onEnergyGrid = isInsideEnergyGrid(u.gridPos, u.team, buildingsRef.current, baseA_Coord, baseB_Coord);
+                      const isInfantry = u.unitClass === 'infantry';
                       
-                      // Battery Drain Calculation
-                      let drain = isMoving ? ABILITY_CONFIG.BATTERY_DRAIN_MOVE : ABILITY_CONFIG.BATTERY_DRAIN_IDLE;
+                      // Vehicles and drones spend battery to move outside the grid. Infantry walk for free; their abilities still cost power.
+                      const locomotionDrain = (isInfantry || onEnergyGrid) ? 0 : (isMoving ? ABILITY_CONFIG.BATTERY_DRAIN_MOVE : ABILITY_CONFIG.BATTERY_DRAIN_IDLE);
+                      let drain = locomotionDrain;
                       if (u.type === 'banshee' && u.jammerActive) drain += ABILITY_CONFIG.DRAIN_STATIC_JAMMER;
-                      if (u.type === 'ghost' && u.isDampenerActive) drain += ABILITY_CONFIG.GHOST_SPEED_PENALTY; // Assuming dampener consumes power or just slows? using drain var.
-                      // Note: Constants for drain might be missing, using closest or 0
+                      if (u.type === 'ghost' && u.isDampenerActive) drain += ABILITY_CONFIG.GHOST_SPEED_PENALTY;
                       if (u.type === 'ghost' && u.isDampenerActive) drain += ABILITY_CONFIG.DRAIN_STATIC_DOME;
                       if (u.type === 'ghost' && u.decoyActive) {
                           drain += ABILITY_CONFIG.PHANTOM_DECOY_DRAIN * (isMoving ? 1 : ABILITY_CONFIG.PHANTOM_DECOY_STILL_FACTOR);
@@ -3004,10 +3064,16 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                               if (newUnit.battery !== u.battery) uChanged = true; 
                           }
                       }
-                      if (u.decoyActive && newUnit.battery <= 0) {
-                          newUnit.decoyActive = false;
-                          newUnit.isStealthed = false;
-                          uChanged = true;
+                      if (u.unitClass === 'infantry' && newUnit.battery <= 0) {
+                          if (u.decoyActive) {
+                              newUnit.decoyActive = false;
+                              newUnit.isStealthed = false;
+                              uChanged = true;
+                          }
+                          if (u.isDampenerActive) {
+                              newUnit.isDampenerActive = false;
+                              uChanged = true;
+                          }
                       }
 
                       // External Charging (Helios/Sunplate/Tether)
@@ -3019,6 +3085,12 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       if (externalChargeMap.has(u.id)) { 
                           chargeAmount += externalChargeMap.get(u.id)!.amount; 
                           status = 1; 
+                      }
+
+                      // Friendly buildings and the command base feed the grid. Nano clouds block solar, not this link.
+                      if (onEnergyGrid && newUnit.battery < newUnit.maxBattery) {
+                          chargeAmount += ABILITY_CONFIG.ENERGY_GRID_CHARGE_RATE;
+                          status = Math.max(status, 1);
                       }
                       
                       // Only process wireless charging if NOT obscured by Nano Cloud
@@ -3213,6 +3285,12 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
             onHover={stableHover}
         />
 
+        <EnergyGridField
+            buildings={buildings}
+            playerTeam={playerTeam}
+            tileSize={tileSize}
+            offset={offset}
+        />
         {buildings.map(b => ( 
             <Building 
                 key={b.id} 

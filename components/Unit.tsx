@@ -158,8 +158,9 @@ const Unit: React.FC<UnitProps> = ({
   // Safety check to prevent crash if unit type is unknown
   if (!unitStats) return null;
 
-  // Updated isDisabled Logic
-  const isDisabled = battery <= 0 || (isHacked && hackType === 'drain') || isStunned;
+  // Vehicles and drones stop when their battery is empty. Infantry keep moving; their battery only powers abilities.
+  const needsLocomotionPower = unitClass !== 'infantry';
+  const isDisabled = (needsLocomotionPower && battery <= 0) || (isHacked && hackType === 'drain') || isStunned;
 
   // Floating height difference
   // Raised ground units to 1.2 to clear the Base platform (height 1.0)
@@ -798,8 +799,8 @@ const Unit: React.FC<UnitProps> = ({
           </group>
       )}
 
-      {/* Stats Overlay - Always visible if damaged or selected or charging */}
-      {(health < maxHealth || battery < maxBattery || isSelected || (chargingStatus && chargingStatus > 0)) && (
+      {/* Health is always shown. Mechanical units always show battery; infantry only when an ability is drawing it. */}
+      {!isDecoy && (
         <Html position={[0, 4, 0]} center zIndexRange={[50, 0]}>
             <div className="flex flex-col items-center pointer-events-none" style={{ width: '32px' }}>
                 {/* Health */}
@@ -807,7 +808,7 @@ const Unit: React.FC<UnitProps> = ({
                     <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${(health / maxHealth) * 100}%` }} />
                 </div>
                 {/* Battery */}
-                {maxBattery > 0 && (
+                {maxBattery > 0 && (needsLocomotionPower || battery < maxBattery || isSelected || (chargingStatus && chargingStatus > 0) || isDampenerActive || decoyActive) && (
                     <div className="w-full h-1 bg-slate-900 rounded-sm border border-slate-800 overflow-hidden">
                         <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${(battery / maxBattery) * 100}%` }} />
                     </div>

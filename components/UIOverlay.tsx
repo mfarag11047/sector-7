@@ -1,7 +1,8 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { GameStats, TeamStats, MinimapData, DoctrineType, DoctrineState } from '../types';
-import { BUILDING_COLORS, TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG } from '../constants';
+import { BUILDING_COLORS, TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG, TEAM_BASES } from '../constants';
+import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 
 interface ManualSection {
   title: string;
@@ -12,7 +13,7 @@ const MANUAL_DATA: ManualSection[] = [
   {
     title: "Mission Objectives",
     items: [
-      { label: "Sector Capture", description: "Position units adjacent to buildings to begin extraction of sector data. Once progress reaches 100%, the building is claimed." },
+      { label: "Sector Capture", description: "Stand next to a building until capture reaches 100%. Claiming it extends your energy grid instead of paying cores." },
       { label: "Domination", description: "Neutralize enemy buildings by standing near them until their capture progress returns to zero." },
     ]
   },
@@ -21,13 +22,13 @@ const MANUAL_DATA: ManualSection[] = [
     items: [
       { label: "Clumping", description: "Buildings exist in organic clusters of 3-6. All buildings in a block share the same economic tier." },
       { label: "Fortification", description: "Capturing an entire block grants a Defense Bonus based on the number of buildings, slowing enemy capture." },
-      { label: "Resource Bonus", description: "Fully controlled blocks generate +50% Energy Cores for your faction." },
+      { label: "Energy Grid", description: `Your base and each captured building power friendly vehicles and drones within ${ABILITY_CONFIG.ENERGY_GRID_RADIUS} tiles. Inside that radius they move without spending battery and refill their cells. Past the radius they run on battery until the next building is captured. Infantry walk without battery, but abilities such as the Ghost's still spend it.` },
     ]
   },
   {
     title: "Compute System",
     items: [
-      { label: "Server Nodes", description: "Special blue buildings that provide Compute capability instead of income. Capture takes 3x longer." },
+      { label: "Server Nodes", description: "Special blue buildings that provide Compute and also extend your energy grid. Capture takes longer than a normal building." },
       { label: "Ability Gating", description: "Advanced abilities (Nuke, Hack, Decoy) require holding a specific number of Server Nodes to activate." },
       { label: "Thresholds", description: "1: Decoy | 2: APS/Trophy | 3: Hack | 4: WMD Launch" },
     ]
@@ -176,11 +177,13 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
       <div className="flex justify-between items-center relative z-10">
         <div className="flex flex-col">
             {isVisible ? (
-                <span className="text-emerald-400 font-mono text-sm font-bold">+{stats.income}/s</span>
+                <span className="text-cyan-300 font-mono text-sm font-bold" title="Captured buildings feeding your energy grid">
+                  {Object.values(stats.buildings).reduce((sum, count) => sum + count, 0)}
+                </span>
             ) : (
-                <span className="text-slate-600 font-mono text-sm">--/s</span>
+                <span className="text-slate-600 font-mono text-sm">--</span>
             )}
-          <span className="text-slate-500 text-[10px] uppercase">Income</span>
+          <span className="text-slate-500 text-[10px] uppercase">Grid</span>
         </div>
         
         <div className="flex flex-col items-end">
@@ -591,6 +594,17 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
     };
   }, [minimapData.selectedUnitIds, minimapData.units]);
 
+  const energyGridOutline = useMemo(() => {
+    const base = TEAM_BASES[playerTeam];
+    const centers = [
+      { x: base.x + 0.5, z: base.z + 0.5 },
+      ...minimapData.buildings
+        .filter(building => building.owner === playerTeam)
+        .map(building => ({ x: building.gridX + 0.5, z: building.gridZ + 0.5 })),
+    ];
+    return outerEnergyGridPolylines(centers, ABILITY_CONFIG.ENERGY_GRID_RADIUS);
+  }, [minimapData.buildings, playerTeam]);
+
   return (
     <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 z-50">
       {/* Targeting Overlay */}
@@ -764,6 +778,20 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                   structures={minimapData.structures || []}
                   revealedServerIds={revealedServerIds}
               />
+
+              {/* Outer rim of the friendly energy grid. Interior overlaps stay blank. */}
+              {energyGridOutline.map((points, index) => (
+                  <polyline
+                      key={`grid-edge-${index}`}
+                      points={points.map(point => `${point.x},${point.z}`).join(' ')}
+                      fill="none"
+                      stroke={ENERGY_GRID_COLOR}
+                      strokeWidth={1.75}
+                      strokeLinejoin="round"
+                      strokeLinecap="round"
+                      vectorEffect="non-scaling-stroke"
+                  />
+              ))}
 
               {/* Selected Unit Path Trail */}
               {selectedUnitPath && (
