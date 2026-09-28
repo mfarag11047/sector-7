@@ -229,6 +229,15 @@ export interface GameStats {
   red: TeamStats;
 }
 
+export interface MinimapMissile {
+    id: string;
+    team: 'blue' | 'red' | 'neutral';
+    x: number;
+    z: number;
+    targetX: number;
+    targetZ: number;
+}
+
 export interface MinimapData {
     units: UnitData[];
     buildings: BuildingData[];
@@ -236,6 +245,7 @@ export interface MinimapData {
     roadTiles: RoadTileData[];
     gridSize: number;
     selectedUnitIds?: string[];
+    missiles?: MinimapMissile[];
 }
 
 export interface DecoyData {

@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
 import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, BUILDING_VALUES, BLOCK_BONUS, UNIT_STATS, ABILITY_CONFIG, STRUCTURE_COST, BUILD_RADIUS, STRUCTURE_INFO, COMPUTE_GATES, TIER_UNLOCK_COSTS, DOCTRINE_CONFIG } from '../constants';
-import { BuildingData, UnitData, BuildingBlock, GameStats, TeamStats, RoadType, RoadTileData, StructureData, UnitClass, DecoyData, UnitType, StructureType, CloudData, Projectile, Explosion, DoctrineState } from '../types';
+import { BuildingData, UnitData, BuildingBlock, GameStats, TeamStats, RoadType, RoadTileData, StructureData, UnitClass, DecoyData, UnitType, StructureType, CloudData, Projectile, Explosion, DoctrineState, MinimapMissile } from '../types';
 import Building from './Building';
 import Structure from './Structure';
 import Base from './Base';
@@ -700,7 +700,7 @@ const SelectionBox: React.FC<{ start: THREE.Vector3, current: THREE.Vector3 }> =
 interface CityMapProps {
   onStatsUpdate: (stats: GameStats) => void;
   onMapInit?: (data: { roadTiles: RoadTileData[], gridSize: number }) => void;
-  onMinimapUpdate?: (data: { units: UnitData[], buildings: BuildingData[], structures: StructureData[], selectedUnitIds?: string[] }) => void;
+  onMinimapUpdate?: (data: { units: UnitData[], buildings: BuildingData[], structures: StructureData[], selectedUnitIds?: string[], missiles?: MinimapMissile[] }) => void;
   playerTeam?: 'blue' | 'red';
   interactionMode?: 'select' | 'target';
   onMapTarget?: (location: {x: number, z: number}) => void;
@@ -1083,11 +1083,28 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                 cooldowns: {}
             }));
 
+            const now = Date.now();
+            const missiles: MinimapMissile[] = [];
+            for (const live of flightRef.current.values()) {
+                const shot = live.shot;
+                if (live.impacted || shot.trajectory !== 'ballistic' || !shot.startPos || !shot.targetPos) continue;
+                const pose = sampleBallistic(shot, now);
+                missiles.push({
+                    id: shot.id,
+                    team: shot.team,
+                    x: (pose.x + offset) / tileSize,
+                    z: (pose.z + offset) / tileSize,
+                    targetX: (shot.targetPos.x + offset) / tileSize,
+                    targetZ: (shot.targetPos.z + offset) / tileSize,
+                });
+            }
+
             onMinimapUpdate({ 
                 units: [...realUnits, ...fakeUnits], 
                 buildings: buildingsRef.current,
                 structures: [staticBaseBlue, staticBaseRed, ...structuresRef.current],
-                selectedUnitIds: Array.from(selectedUnitIdsRef.current)
+                selectedUnitIds: Array.from(selectedUnitIdsRef.current),
+                missiles,
             });
         }, 100); 
         

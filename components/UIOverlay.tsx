@@ -493,6 +493,7 @@ interface UIOverlayProps {
 const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef, onSelectDoctrine, onTriggerDoctrine, interactionMode }) => {
   const [isIntelOpen, setIsIntelOpen] = useState(false);
   const [isDoctrineOpen, setIsDoctrineOpen] = useState(false);
+  const [minimapExpanded, setMinimapExpanded] = useState(false);
 
   // Minimap Scale / Viewbox
   const gridSize = minimapData.gridSize || 40;
@@ -751,7 +752,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
         </div>
 
         {/* Live Mini Map */}
-        <div className="w-56 h-56 bg-slate-950/95 backdrop-blur border-2 border-slate-800 rounded-xl relative overflow-hidden pointer-events-auto shadow-2xl group cursor-crosshair">
+        <div className={`${minimapExpanded ? 'w-[28rem] h-[28rem]' : 'w-56 h-56'} bg-slate-950/95 backdrop-blur border-2 border-slate-800 rounded-xl relative overflow-hidden pointer-events-auto shadow-2xl group cursor-crosshair transition-[width,height] duration-200`}>
            <svg 
               className="w-full h-full" 
               viewBox={`0 0 ${gridSize} ${gridSize}`} 
@@ -837,11 +838,60 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                       <rect x={-0.28} y={0.85} width={0.56} height={0.56} rx={0.1} fill="#1c1917" />
                   </g>
               </g>
+
+              {/* Airborne ballistic missiles. The owner sees the path to impact; the other team only sees the live position. */}
+              {(minimapData.missiles || []).map((m) => {
+                  const color = m.team === 'red' ? '#f87171' : (m.team === 'blue' ? '#38bdf8' : '#fbbf24');
+                  const showTrajectory = m.team === playerTeam;
+                  return (
+                      <g key={`missile-${m.id}`}>
+                          {showTrajectory && (
+                              <>
+                                  <line
+                                      x1={m.x}
+                                      y1={m.z}
+                                      x2={m.targetX}
+                                      y2={m.targetZ}
+                                      stroke={color}
+                                      strokeWidth={0.28}
+                                      strokeDasharray="0.55 0.35"
+                                      opacity={0.95}
+                                  />
+                                  <circle cx={m.targetX} cy={m.targetZ} r={0.45} fill="none" stroke={color} strokeWidth={0.18} />
+                              </>
+                          )}
+                          <polygon
+                              points={`${m.x},${m.z - 0.62} ${m.x + 0.42},${m.z} ${m.x},${m.z + 0.62} ${m.x - 0.42},${m.z}`}
+                              fill={color}
+                              stroke="#fff7ed"
+                              strokeWidth={0.08}
+                          />
+                      </g>
+                  );
+              })}
            </svg>
            
            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/40 pointer-events-none">
              <span className="text-cyan-400 text-[10px] font-mono tracking-tighter">TACTICAL VIEWPORT</span>
            </div>
+           <button
+             type="button"
+             onClick={() => setMinimapExpanded((expanded) => !expanded)}
+             className="absolute top-1.5 right-1.5 z-20 w-6 h-6 flex items-center justify-center rounded bg-slate-900/90 border border-slate-600 text-cyan-300 hover:text-white hover:border-cyan-400 cursor-pointer transition-colors"
+             title={minimapExpanded ? 'Shrink minimap' : 'Expand minimap'}
+             aria-label={minimapExpanded ? 'Shrink minimap' : 'Expand minimap'}
+             aria-pressed={minimapExpanded}
+           >
+             {minimapExpanded ? (
+               <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                 <path d="M6 2v4H2M10 2v4h4M6 14v-4H2M10 14v-4h4" />
+               </svg>
+             ) : (
+               <svg viewBox="0 0 16 16" className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                 <path d="M6 2H2v4M10 2h4v4M6 14H2v-4M10 14h4v-4" />
+               </svg>
+             )}
+           </button>
         </div>
       </div>
     </div>
