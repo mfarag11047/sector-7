@@ -14,11 +14,11 @@ export const TEAM_BASES = {
 };
 
 export const BUILDING_VALUES = {
-  residential: { captureSpeed: 20, income: 0, label: 'Residential' },
-  industrial: { captureSpeed: 12, income: 0, label: 'Industrial' },
-  commercial: { captureSpeed: 8, income: 0, label: 'Commercial' },
-  hightech: { captureSpeed: 5, income: 0, label: 'High-Tech' },
-  server_node: { captureSpeed: 5, income: 0, label: 'Server Node' }, // Slower capture. Grants Compute and extends the energy grid.
+  residential: { captureSpeed: 5, income: 0, label: 'Residential' },
+  industrial: { captureSpeed: 3, income: 0, label: 'Industrial' },
+  commercial: { captureSpeed: 2, income: 0, label: 'Commercial' },
+  hightech: { captureSpeed: 1, income: 0, label: 'High-Tech' },
+  server_node: { captureSpeed: 0.7, income: 0, label: 'Server Node' }, // Slowest capture. Grants Compute and extends the energy grid.
 };
 
 export const COMPUTE_GATES = {
@@ -132,8 +132,9 @@ export const ABILITY_CONFIG = {
   // Off-grid travel budget. A 100-cell unit can push roughly 15 tiles past the grid before it stops.
   BATTERY_DRAIN_MOVE: 0.55,
   BATTERY_DRAIN_IDLE: 0.01,
-  // Captured buildings and the command base power friendly units inside this radius (tiles).
-  ENERGY_GRID_RADIUS: 6,
+  // Command base charging pocket, in tiles. Captured buildings use the smaller radius.
+  ENERGY_GRID_BASE_RADIUS: 6,
+  ENERGY_GRID_BUILDING_RADIUS: 4,
   // Cells restored per logic tick while a unit is standing in its own grid.
   ENERGY_GRID_CHARGE_RATE: 1, 
   

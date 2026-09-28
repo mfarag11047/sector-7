@@ -133,7 +133,7 @@ const CommercialTower = ({
             {/* Top Cap */}
             <mesh position={[0, height, 0]}>
                 <cylinderGeometry args={[radius * 1.1, radius * 1.1, height * 0.05, 16]} />
-                <meshStandardMaterial color="#1e293b" />
+                <meshStandardMaterial color={data.owner ? TEAM_COLORS[data.owner] : "#1e293b"} emissive={data.owner ? TEAM_COLORS[data.owner] : "#000000"} emissiveIntensity={data.owner ? 0.45 : 0} />
             </mesh>
 
             {/* Hologram */}
@@ -214,7 +214,7 @@ const HighTechBuilding = ({
             {/* Roof */}
             <mesh position={[0, height, 0]}>
                 <boxGeometry args={[width, 0.2, depth]} />
-                <meshStandardMaterial color="#0f172a" />
+                <meshStandardMaterial color={data.owner ? TEAM_COLORS[data.owner] : "#0f172a"} emissive={data.owner ? TEAM_COLORS[data.owner] : "#000000"} emissiveIntensity={data.owner ? 0.45 : 0} />
             </mesh>
         </group>
     );
@@ -266,7 +266,7 @@ const IndustrialComplex = ({
             {/* Reactor Top Cap */}
             <mesh position={[0, height + 0.5, 0]}>
                 <cylinderGeometry args={[reactorRadius * 0.8, reactorRadius, 0.5, 8]} />
-                <meshStandardMaterial color="#334155" />
+                <meshStandardMaterial color={data.owner ? TEAM_COLORS[data.owner] : "#334155"} emissive={data.owner ? TEAM_COLORS[data.owner] : "#000000"} emissiveIntensity={data.owner ? 0.45 : 0} />
             </mesh>
 
             {/* Smokestack 1 */}
@@ -397,7 +397,7 @@ const ResidentialBuilding = ({
                 {/* Main Plate */}
                 <mesh position={[0, 0.05, 0]}>
                     <boxGeometry args={[width * 0.7, 0.1, depth * 0.7]} />
-                    <meshStandardMaterial color="#1e293b" />
+                    <meshStandardMaterial color={data.owner ? TEAM_COLORS[data.owner] : "#1e293b"} emissive={data.owner ? TEAM_COLORS[data.owner] : "#000000"} emissiveIntensity={data.owner ? 0.45 : 0} />
                 </mesh>
                 {/* AC Units */}
                 <mesh position={[width * 0.15, 0.25, -depth * 0.15]}>
@@ -419,6 +419,10 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
   const fansRef = useRef<THREE.Group>(null);
   const rootRef = useRef<THREE.Group>(null);
+  const ringRef = useRef<THREE.Mesh>(null);
+  const visualProgressRef = useRef(0);
+  const fillSettledRef = useRef(!!data.owner && !data.capturingTeam);
+  const fillHoldUntilRef = useRef(0);
 
   // A building never moves, so its matrices only need computing when its own
   // markup changes (capture ring appearing, hover edges, owner swap).
@@ -482,12 +486,36 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
 
     if (!uProgress || !uBaseColor || !uGlowColor || !uTeamColor || !uHasOwner || !uHeight) return;
 
-    if (uProgress.value !== undefined) {
-        uProgress.value = THREE.MathUtils.lerp(
-            uProgress.value,
-            data.captureProgress / 100.0,
-            delta * 2
-        );
+    // Logical progress drops to 0 the instant capture completes. Finish the climb to
+    // the roof, hold the full team color briefly, then let the body fill recede.
+    const reported = data.captureProgress / 100;
+    let goal = reported;
+    if (data.owner && !data.capturingTeam) {
+        if (!fillSettledRef.current) {
+            goal = 1;
+            if (visualProgressRef.current > 0.98) {
+                if (fillHoldUntilRef.current === 0) fillHoldUntilRef.current = state.clock.elapsedTime + 0.4;
+                if (state.clock.elapsedTime >= fillHoldUntilRef.current) fillSettledRef.current = true;
+            }
+        } else {
+            goal = 0;
+        }
+    } else if (!data.capturingTeam) {
+        fillSettledRef.current = false;
+        fillHoldUntilRef.current = 0;
+        goal = 0;
+    } else {
+        fillSettledRef.current = false;
+        fillHoldUntilRef.current = 0;
+    }
+    visualProgressRef.current = THREE.MathUtils.damp(visualProgressRef.current, goal, 5, delta);
+    if (uProgress.value !== undefined) uProgress.value = visualProgressRef.current;
+
+    const fillTeam = data.capturingTeam || data.owner;
+    const uFillColor = shader.uniforms.uFillColor;
+    if (uFillColor?.value?.set) {
+        if (fillTeam) uFillColor.value.set(TEAM_COLORS[fillTeam]);
+        else uFillColor.value.copy(colors.glow);
     }
     
     if (uBaseColor.value && uBaseColor.value.copy) uBaseColor.value.copy(hovered ? colors.hover : colors.base);
@@ -496,6 +524,18 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
     
     if (uHasOwner.value !== undefined) uHasOwner.value = !!data.owner;
     if (uHeight.value !== undefined) uHeight.value = data.scale[1];
+
+    if (ringRef.current) {
+        const climbing = !!data.capturingTeam || (!!data.owner && !fillSettledRef.current);
+        ringRef.current.visible = climbing && visualProgressRef.current > 0.02;
+        ringRef.current.position.y = visualProgressRef.current * data.scale[1];
+        const ringMaterial = ringRef.current.material as THREE.MeshBasicMaterial;
+        if (fillTeam && ringMaterial?.color) ringMaterial.color.set(TEAM_COLORS[fillTeam]);
+        ringRef.current.updateMatrix();
+        if (ringRef.current.parent) {
+            ringRef.current.matrixWorld.multiplyMatrices(ringRef.current.parent.matrixWorld, ringRef.current.matrix);
+        }
+    }
     
     // Rotate fans if server node
     if (data.type === 'server_node' && fansRef.current) {
@@ -512,6 +552,7 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
     shader.uniforms.uProgress = { value: 0 };
     shader.uniforms.uBaseColor = { value: new THREE.Color() };
     shader.uniforms.uGlowColor = { value: new THREE.Color() };
+    shader.uniforms.uFillColor = { value: new THREE.Color() };
     shader.uniforms.uTeamColor = { value: new THREE.Color() };
     shader.uniforms.uHasOwner = { value: false };
     shader.uniforms.uHeight = { value: data.scale[1] };
@@ -519,12 +560,14 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
     // Inject vertex position varying
     shader.vertexShader = `
       varying vec3 vPos;
+      varying vec3 vNorm;
       ${shader.vertexShader}
     `.replace(
       '#include <begin_vertex>',
       `
       #include <begin_vertex>
       vPos = position;
+      vNorm = normal;
       `
     );
 
@@ -533,10 +576,12 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
       uniform float uProgress;
       uniform vec3 uBaseColor;
       uniform vec3 uGlowColor;
+      uniform vec3 uFillColor;
       uniform vec3 uTeamColor;
       uniform float uHeight;
       uniform bool uHasOwner;
       varying vec3 vPos;
+      varying vec3 vNorm;
       ${shader.fragmentShader}
     `.replace(
       '#include <color_fragment>',
@@ -550,13 +595,13 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
       
       vec3 finalColor = uBaseColor;
       
-      // Fill Effect: Pixels below progress level use the glowing color
+      // Fill Effect: team color climbs from the ground and is allowed to reach the roof
       if (normalizedY <= uProgress) {
-        finalColor = uGlowColor;
+        finalColor = uFillColor;
       }
       
-      // Roof Logic: Top face (approx top 2% of height) turns team color if owned
-      if (uHasOwner && vPos.y > (h * 0.48)) {
+      // Roof Logic: only the upward face stays the owner's color after the fill recedes
+      if (uHasOwner && vNorm.y > 0.5) {
         finalColor = uTeamColor;
       }
 
@@ -571,12 +616,12 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
 
       // Add glow emission to filled area
       if (normY_e <= uProgress) {
-          totalEmissiveRadiance += uGlowColor * 0.6;
+          totalEmissiveRadiance += uFillColor * 0.6;
       }
       
       // Add emission to team-colored roof
-      if (uHasOwner && vPos.y > (h_e * 0.48)) {
-          totalEmissiveRadiance += uTeamColor * 0.4;
+      if (uHasOwner && vNorm.y > 0.5) {
+          totalEmissiveRadiance += uTeamColor * 0.55;
       }
       `
     );
@@ -598,11 +643,16 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
         />
       </mesh>
 
-      {/* Capture Ring Indicator */}
-      {data.capturingTeam && (
-          <mesh position={[0, (data.captureProgress / 100) * data.scale[1], 0]} rotation={[-Math.PI/2, 0, 0]}>
-              <ringGeometry args={[data.scale[0] * 0.6, data.scale[0] * 0.7, 16]} />
-              <meshBasicMaterial color={TEAM_COLORS[data.capturingTeam]} transparent opacity={0.6} side={THREE.DoubleSide} />
+      {/* Capture Ring Indicator. Height is driven by the smoothed fill so it can reach the roof. */}
+      <mesh ref={ringRef} visible={false} rotation={[-Math.PI / 2, 0, 0]}>
+          <ringGeometry args={[data.scale[0] * 0.6, data.scale[0] * 0.7, 16]} />
+          <meshBasicMaterial color="#ffffff" transparent opacity={0.6} side={THREE.DoubleSide} />
+      </mesh>
+
+      {data.owner && data.type === 'server_node' && (
+          <mesh position={[0, data.scale[1] + 0.04, 0]}>
+              <boxGeometry args={[data.scale[0] * 0.92, 0.1, data.scale[2] * 0.92]} />
+              <meshBasicMaterial color={TEAM_COLORS[data.owner]} toneMapped={false} />
           </mesh>
       )}
 

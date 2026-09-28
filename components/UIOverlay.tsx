@@ -22,7 +22,7 @@ const MANUAL_DATA: ManualSection[] = [
     items: [
       { label: "Clumping", description: "Buildings exist in organic clusters of 3-6. All buildings in a block share the same economic tier." },
       { label: "Fortification", description: "Capturing an entire block grants a Defense Bonus based on the number of buildings, slowing enemy capture." },
-      { label: "Energy Grid", description: `Your base and each captured building power friendly vehicles and drones within ${ABILITY_CONFIG.ENERGY_GRID_RADIUS} tiles. Inside that radius they move without spending battery and refill their cells. Past the radius they run on battery until the next building is captured. Infantry walk without battery, but abilities such as the Ghost's still spend it.` },
+      { label: "Energy Grid", description: `Your command base powers vehicles and drones within ${ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS} tiles. Each captured building adds a smaller ${ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS}-tile field. Inside that coverage they move without spending battery and refill their cells. Past it they run on battery until the next building is captured. Infantry walk without battery, but abilities such as the Ghost's still spend it.` },
     ]
   },
   {
@@ -596,13 +596,13 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
 
   const energyGridOutline = useMemo(() => {
     const base = TEAM_BASES[playerTeam];
-    const centers = [
-      { x: base.x + 0.5, z: base.z + 0.5 },
+    const circles = [
+      { x: base.x + 0.5, z: base.z + 0.5, radius: ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS },
       ...minimapData.buildings
         .filter(building => building.owner === playerTeam)
-        .map(building => ({ x: building.gridX + 0.5, z: building.gridZ + 0.5 })),
+        .map(building => ({ x: building.gridX + 0.5, z: building.gridZ + 0.5, radius: ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS })),
     ];
-    return outerEnergyGridPolylines(centers, ABILITY_CONFIG.ENERGY_GRID_RADIUS);
+    return outerEnergyGridPolylines(circles);
   }, [minimapData.buildings, playerTeam]);
 
   return (

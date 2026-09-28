@@ -706,17 +706,18 @@ const isInsideEnergyGrid = (
   redBase: { x: number; z: number },
 ) => {
   if (team !== 'blue' && team !== 'red') return false;
-  const radiusSq = ABILITY_CONFIG.ENERGY_GRID_RADIUS * ABILITY_CONFIG.ENERGY_GRID_RADIUS;
+  const baseRadiusSq = ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS * ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS;
+  const buildingRadiusSq = ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS * ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS;
   const base = team === 'blue' ? blueBase : redBase;
   const baseDx = pos.x - base.x;
   const baseDz = pos.z - base.z;
-  if (baseDx * baseDx + baseDz * baseDz <= radiusSq) return true;
+  if (baseDx * baseDx + baseDz * baseDz <= baseRadiusSq) return true;
   for (let i = 0; i < buildings.length; i++) {
     const building = buildings[i];
     if (building.owner !== team) continue;
     const dx = pos.x - building.gridX;
     const dz = pos.z - building.gridZ;
-    if (dx * dx + dz * dz <= radiusSq) return true;
+    if (dx * dx + dz * dz <= buildingRadiusSq) return true;
   }
   return false;
 };
@@ -731,17 +732,11 @@ const EnergyGridField: React.FC<{
     const base = TEAM_BASES[playerTeam];
     const owned = buildings
       .filter(building => building.owner === playerTeam)
-      .map(building => ({ id: building.id, x: building.gridX, z: building.gridZ }));
-    return [{ id: `base-${playerTeam}`, x: base.x, z: base.z }, ...owned];
+      .map(building => ({ x: building.gridX, z: building.gridZ, radius: ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS }));
+    return [{ x: base.x, z: base.z, radius: ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS }, ...owned];
   }, [buildings, playerTeam]);
 
-  const arcs = useMemo(
-    () => outerEnergyGridPolylines(
-      sources.map(source => ({ x: source.x, z: source.z })),
-      ABILITY_CONFIG.ENERGY_GRID_RADIUS,
-    ),
-    [sources],
-  );
+  const arcs = useMemo(() => outerEnergyGridPolylines(sources), [sources]);
 
   return (
     <group>
@@ -2772,7 +2767,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   });
                   if (bluePower === 0 && redPower === 0) {
                       if (b.captureProgress > 0 && b.capturingTeam) {
-                          const newProgress = Math.max(0, b.captureProgress - 10);
+                          const newProgress = Math.max(0, b.captureProgress - 4);
                           if (newProgress !== b.captureProgress) { anyBuildingChanged = true; return { ...b, captureProgress: newProgress, capturingTeam: newProgress === 0 ? null : b.capturingTeam }; }
                       }
                       return b;

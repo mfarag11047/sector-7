@@ -3,9 +3,14 @@ export const ENERGY_GRID_COLOR = '#facc15';
 const TAU = Math.PI * 2;
 
 export type GridPoint = { x: number; z: number };
+export type GridCircle = GridPoint & { radius: number };
 
 // Angles use atan2(z, x): 0 is +x and increases toward +z.
 function addWrapped(intervals: [number, number][], start: number, end: number) {
+  if (end - start >= TAU - 1e-6) {
+    intervals.push([0, TAU]);
+    return;
+  }
   const norm = (angle: number) => ((angle % TAU) + TAU) % TAU;
   const a = norm(start);
   const b = norm(end);
@@ -38,28 +43,47 @@ function visibleArcs(covered: [number, number][]) {
   return gaps.filter(([start, end]) => end - start > 1e-3);
 }
 
-// Outer rim of a union of equal-radius circles. Arcs buried inside another circle are omitted.
+// Outer rim of a union of circles that can have different radii. Arcs buried inside another circle are omitted.
 export function outerEnergyGridPolylines(
-  centers: GridPoint[],
-  radius: number,
+  circles: GridCircle[],
   fullCircleSegments = 56,
 ): GridPoint[][] {
-  const unique: GridPoint[] = [];
-  for (const center of centers) {
-    if (unique.some(existing => (existing.x - center.x) ** 2 + (existing.z - center.z) ** 2 < 1e-4)) continue;
-    unique.push(center);
+  const unique: GridCircle[] = [];
+  for (const circle of circles) {
+    const existing = unique.find(other => (other.x - circle.x) ** 2 + (other.z - circle.z) ** 2 < 1e-4);
+    if (existing) {
+      existing.radius = Math.max(existing.radius, circle.radius);
+      continue;
+    }
+    unique.push({ ...circle });
   }
 
   const polylines: GridPoint[][] = [];
   for (let i = 0; i < unique.length; i++) {
+    const radius = unique[i].radius;
     const covered: [number, number][] = [];
     for (let j = 0; j < unique.length; j++) {
       if (i === j) continue;
       const dx = unique[j].x - unique[i].x;
       const dz = unique[j].z - unique[i].z;
       const distance = Math.hypot(dx, dz);
-      if (distance < 1e-6 || distance >= radius * 2) continue;
-      const half = Math.acos(Math.min(1, Math.max(-1, distance / (2 * radius))));
+      const otherRadius = unique[j].radius;
+      if (distance < 1e-6) {
+        if (radius <= otherRadius) addWrapped(covered, 0, TAU);
+        continue;
+      }
+      if (distance >= radius + otherRadius) continue;
+      if (distance + radius <= otherRadius) {
+        addWrapped(covered, 0, TAU);
+        continue;
+      }
+      const cosHalf = (distance * distance + radius * radius - otherRadius * otherRadius) / (2 * distance * radius);
+      if (cosHalf >= 1) continue;
+      if (cosHalf <= -1) {
+        addWrapped(covered, 0, TAU);
+        continue;
+      }
+      const half = Math.acos(cosHalf);
       const mid = Math.atan2(dz, dx);
       addWrapped(covered, mid - half, mid + half);
     }
