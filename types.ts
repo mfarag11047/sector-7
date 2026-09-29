@@ -155,6 +155,7 @@ export interface UnitData {
     spawnCrawler?: number; // Swarm Host periodic Crawler Drone production
   };
   repairTargetId?: string | null;
+  repairTargetIds?: string[];
   surveillance?: {
     active: boolean;
     status: 'traveling' | 'active' | 'returning';

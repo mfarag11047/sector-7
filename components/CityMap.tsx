@@ -319,6 +319,13 @@ const cloneProjectile = (p: Projectile): Projectile => ({
     targetPos: p.targetPos ? { ...p.targetPos } : undefined,
 });
 
+// Trophy systems stop heavy ordnance only. Small-arms fire and swarm darts are not shots it can catch.
+const isHeavyOrdnance = (p: Projectile) => {
+    if (p.trajectory === 'ballistic' && (p.payload === 'eclipse' || p.payload === 'he' || p.payload === 'nuke')) return true;
+    if (p.trajectory === 'direct' && !p.payload && p.damage >= ABILITY_CONFIG.TITAN_CANNON_DAMAGE) return true;
+    return false;
+};
+
 const flightUnitY = (u: UnitData) => {
     if (['wasp', 'drone', 'helios'].includes(u.type)) return 75.0;
     if (u.type === 'defense_drone') return 12.0;
@@ -956,6 +963,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   const structuresRef = useRef(structuresState);
   const selectedUnitIdsRef = useRef(selectedUnitIds);
   const flightRef = useRef(new Map<string, LiveFlight>());
+  const trophyReadyRef = useRef(new Map<string, number>());
   const flightIds = new Set(projectiles.map(p => p.id));
   for (const id of flightRef.current.keys()) {
       if (!flightIds.has(id)) flightRef.current.delete(id);
@@ -973,14 +981,50 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       const structures = structuresRef.current;
       const events: FlightEvent[] = [];
       const impactedIds: string[] = [];
+      const trophyFired: string[] = [];
+      const trophyRadius = ABILITY_CONFIG.GUARDIAN_TROPHY_RANGE * tileSize;
 
       for (const [id, live] of flightRef.current) {
           if (live.impacted) continue;
           const produced = advanceFlight(live.shot, dt, now, offset, tileSize, gridSize, units, buildings, structures, decoysRef.current);
-          if (!produced) continue;
+
+          let intercepted = false;
+          if (isHeavyOrdnance(live.shot)) {
+              let best: UnitData | null = null;
+              let bestDist = trophyRadius;
+              for (const guardian of units) {
+                  if (guardian.type !== 'guardian' || guardian.health <= 0 || guardian.team === live.shot.team) continue;
+                  if (trophyFired.includes(guardian.id)) continue;
+                  if ((trophyReadyRef.current.get(guardian.id) ?? 0) > now) continue;
+                  const gx = (guardian.gridPos.x * tileSize) - offset;
+                  const gz = (guardian.gridPos.z * tileSize) - offset;
+                  const dist = Math.hypot(live.shot.position.x - gx, live.shot.position.z - gz);
+                  if (dist <= bestDist) {
+                      bestDist = dist;
+                      best = guardian;
+                  }
+              }
+              if (best) {
+                  intercepted = true;
+                  trophyFired.push(best.id);
+                  trophyReadyRef.current.set(best.id, now + ABILITY_CONFIG.GUARDIAN_TROPHY_COOLDOWN);
+                  live.impacted = true;
+                  impactedIds.push(id);
+                  events.push({ kind: 'explosion', position: { ...live.shot.position }, radius: 2.2, duration: 450 });
+              }
+          }
+
+          if (intercepted || !produced) continue;
           live.impacted = true;
           impactedIds.push(id);
           events.push(...produced);
+      }
+
+      if (trophyFired.length > 0) {
+          const cooldown = ABILITY_CONFIG.GUARDIAN_TROPHY_COOLDOWN;
+          setUnits(prev => prev.map(u => trophyFired.includes(u.id)
+              ? { ...u, cooldowns: { ...u.cooldowns, trophySystem: cooldown } }
+              : u));
       }
       if (impactedIds.length === 0) return;
 
@@ -2899,6 +2943,33 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       if (activeUnits.length !== beforeCount) unitsChanged = true;
                   }
 
+                  const repairAssignments = new Map<string, string[]>();
+                  const healByTarget = new Map<string, number>();
+                  const healPerTick = ABILITY_CONFIG.GUARDIAN_REPAIR_RATE * (TICK_RATE / 1000);
+                  for (const guardian of activeUnits) {
+                      if (guardian.type !== 'guardian') continue;
+                      const previous = guardian.repairTargetIds || [];
+                      const wounded = (unit: UnitData) => unit.health > 0 && unit.health < unit.maxHealth && !unit.decoyActive;
+                      const inRange = (unit: UnitData) => unit.team === guardian.team && unit.id !== guardian.id && wounded(unit)
+                          && Math.hypot(unit.gridPos.x - guardian.gridPos.x, unit.gridPos.z - guardian.gridPos.z) <= ABILITY_CONFIG.GUARDIAN_REPAIR_RANGE;
+                      const kept = previous.filter(id => {
+                          const ally = activeUnits.find(unit => unit.id === id);
+                          return !!ally && inRange(ally);
+                      });
+                      const openSlots = ABILITY_CONFIG.GUARDIAN_REPAIR_SLOTS - kept.length;
+                      const newcomers = openSlots > 0
+                          ? activeUnits
+                              .filter(unit => inRange(unit) && !kept.includes(unit.id))
+                              .sort((a, b) => (a.health / a.maxHealth) - (b.health / b.maxHealth)
+                                  || Math.hypot(a.gridPos.x - guardian.gridPos.x, a.gridPos.z - guardian.gridPos.z) - Math.hypot(b.gridPos.x - guardian.gridPos.x, b.gridPos.z - guardian.gridPos.z))
+                              .slice(0, openSlots)
+                              .map(unit => unit.id)
+                          : [];
+                      const ids = [...kept, ...newcomers];
+                      repairAssignments.set(guardian.id, ids);
+                      for (const id of ids) healByTarget.set(id, (healByTarget.get(id) || 0) + healPerTick);
+                  }
+
                   const chargers = activeUnits.filter(u => (u.type === 'helios') || (u.type === 'sun_plate' && u.isDeployed));
                   
                   // Clouds for visual obscuration logic (Charging & Targeting)
@@ -2976,8 +3047,24 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       // Apply accumulated damage
                       const dmg = (damageMap.get(u.id) || 0) + (unitRetaliationMap.get(u.id) || 0);
                       if (dmg > 0) {
-                          newUnit.health = Math.max(0, u.health - dmg);
+                          newUnit.health = Math.max(0, newUnit.health - dmg);
                           uChanged = true;
+                      }
+
+                      const repairHeal = healByTarget.get(u.id) || 0;
+                      if (repairHeal > 0 && newUnit.health > 0 && newUnit.health < newUnit.maxHealth) {
+                          newUnit.health = Math.min(newUnit.maxHealth, newUnit.health + repairHeal);
+                          uChanged = true;
+                      }
+
+                      if (newUnit.type === 'guardian') {
+                          const ids = repairAssignments.get(u.id) || [];
+                          const prevIds = u.repairTargetIds || [];
+                          if (ids.length !== prevIds.length || ids.some((id, index) => prevIds[index] !== id)) {
+                              newUnit.repairTargetIds = ids;
+                              newUnit.repairTargetId = ids[0] ?? null;
+                              uChanged = true;
+                          }
                       }
 
                       // If dead from damage, handled by filter later, but we update ref

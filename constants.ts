@@ -72,8 +72,9 @@ export const ABILITY_CONFIG = {
   PHANTOM_DECOY_STILL_FACTOR: 0.25, // Drain multiplier while the cloaked Ghost holds still
   GUARDIAN_TROPHY_RANGE: 2, 
   GUARDIAN_TROPHY_COOLDOWN: 10000, 
-  GUARDIAN_REPAIR_RATE: 15, 
+  GUARDIAN_REPAIR_RATE: 15, // Health per second restored to each tethered ally
   GUARDIAN_REPAIR_RANGE: 2, 
+  GUARDIAN_REPAIR_SLOTS: 3, 
   GUARDIAN_DRAIN_RATE: 8.0,
   
   // Titan Tank Abilities

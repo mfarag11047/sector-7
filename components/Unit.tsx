@@ -70,6 +70,7 @@ interface UnitProps {
       mainCannon?: number;
   };
   repairTargetId?: string | null; // Added for smooth visual lookup
+  repairTargetIds?: string[];
   repairTargetPos?: THREE.Vector3;
   hackerPos?: THREE.Vector3;
   smoke?: {
@@ -115,7 +116,7 @@ interface UnitProps {
 }
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, onMoveStep, tileTypeMap, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, isTetherCandidate, ammoState, loadedAmmo, missileInventory, loadingProgress, courierPayload, jammerActive, tetherTargetId, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, onMoveStep, tileTypeMap, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, isTetherCandidate, ammoState, loadedAmmo, missileInventory, loadingProgress, courierPayload, jammerActive, tetherTargetId, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime,
   isStunned, globalSpeedModifier = 1.0, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -127,6 +128,7 @@ const Unit: React.FC<UnitProps> = ({
   });
   const radarRef = useRef<THREE.Group>(null);
   const tetherLineRef = useRef<THREE.BufferGeometry>(null);
+  const repairBeamRefs = useRef<(THREE.Mesh | null)[]>([]);
   const laserRef = useRef<THREE.BufferGeometry>(null);
   const constructionLineRef = useRef<THREE.BufferGeometry>(null);
   const scene = useThree((state) => state.scene); // Access scene for lookups
@@ -342,9 +344,8 @@ const Unit: React.FC<UnitProps> = ({
     }
 
     if (tetherLineRef.current && meshRef.current) {
-        const targetId = tetherTargetId || repairTargetId;
-        if (targetId) {
-            const targetObj = scene.getObjectByName(`unit-${targetId}`);
+        if (tetherTargetId) {
+            const targetObj = scene.getObjectByName(`unit-${tetherTargetId}`);
             if (targetObj) {
                 const start = new THREE.Vector3(0, 1.5, 0); 
                 const targetWorld = new THREE.Vector3();
@@ -356,16 +357,42 @@ const Unit: React.FC<UnitProps> = ({
                 const localEnd = diffWorld.applyQuaternion(meshRef.current.quaternion.clone().invert());
                 tetherLineRef.current.setFromPoints([start, localEnd]);
                 tetherLineRef.current.attributes.position.needsUpdate = true;
-            } else if (repairTargetPos) {
-                const start = new THREE.Vector3(0, 1.5, 0);
-                const end = new THREE.Vector3().subVectors(repairTargetPos, meshRef.current.position);
-                end.y = 0.5; 
-                tetherLineRef.current.setFromPoints([start, end.applyQuaternion(meshRef.current.quaternion.clone().invert())]);
-                tetherLineRef.current.attributes.position.needsUpdate = true;
             }
         } else {
             tetherLineRef.current.setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
             tetherLineRef.current.attributes.position.needsUpdate = true;
+        }
+    }
+
+    if (isGuardian && meshRef.current) {
+        const ids = repairTargetIds && repairTargetIds.length > 0 ? repairTargetIds : (repairTargetId ? [repairTargetId] : []);
+        const up = new THREE.Vector3(0, 1, 0);
+        for (let i = 0; i < ABILITY_CONFIG.GUARDIAN_REPAIR_SLOTS; i++) {
+            const beam = repairBeamRefs.current[i];
+            if (!beam) continue;
+            const targetObj = ids[i] ? scene.getObjectByName(`unit-${ids[i]}`) : null;
+            if (!targetObj) {
+                beam.visible = false;
+                continue;
+            }
+            const start = new THREE.Vector3(0, 1.6, 0);
+            const targetWorld = new THREE.Vector3();
+            targetObj.getWorldPosition(targetWorld);
+            const sourceWorld = new THREE.Vector3();
+            meshRef.current.getWorldPosition(sourceWorld);
+            const localEnd = new THREE.Vector3().subVectors(targetWorld, sourceWorld);
+            localEnd.y += 0.6;
+            localEnd.applyQuaternion(meshRef.current.quaternion.clone().invert());
+            const span = new THREE.Vector3().subVectors(localEnd, start);
+            const length = span.length();
+            if (length < 0.05) {
+                beam.visible = false;
+                continue;
+            }
+            beam.visible = true;
+            beam.position.copy(start).add(localEnd).multiplyScalar(0.5);
+            beam.scale.set(1, length, 1);
+            beam.quaternion.setFromUnitVectors(up, span.multiplyScalar(1 / length));
         }
     }
 
@@ -698,7 +725,19 @@ const Unit: React.FC<UnitProps> = ({
       )}
 
       {/* Lines, Effects, Html overlays */}
-      {(tetherTargetId || isGuardian) && (<line><bufferGeometry ref={tetherLineRef} /><lineBasicMaterial color="#38bdf8" linewidth={2} transparent opacity={0.6} /></line>)}
+      {tetherTargetId && (<line><bufferGeometry ref={tetherLineRef} /><lineBasicMaterial color="#38bdf8" linewidth={2} transparent opacity={0.6} /></line>)}
+      {isGuardian && Array.from({ length: ABILITY_CONFIG.GUARDIAN_REPAIR_SLOTS }, (_, i) => (
+          <mesh key={`repair-${i}`} ref={(node) => { repairBeamRefs.current[i] = node; }} visible={false} raycast={() => null}>
+              <cylinderGeometry args={[0.08, 0.08, 1, 6]} />
+              <meshBasicMaterial color="#4ade80" transparent opacity={0.85} depthWrite={false} />
+          </mesh>
+      ))}
+      {isGuardian && isSelected && (
+          <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.2, 0]} raycast={() => null}>
+              <ringGeometry args={[ABILITY_CONFIG.GUARDIAN_REPAIR_RANGE * tileSize - 0.35, ABILITY_CONFIG.GUARDIAN_REPAIR_RANGE * tileSize, 48]} />
+              <meshBasicMaterial color="#4ade80" transparent opacity={0.35} side={THREE.DoubleSide} depthWrite={false} />
+          </mesh>
+      )}
       {isMason && constructionTargetId && (<line><bufferGeometry ref={constructionLineRef} /><lineBasicMaterial color="#f97316" linewidth={4} transparent opacity={0.8} /></line>)}
       {isDefenseDrone && (<line><bufferGeometry ref={laserRef} /><lineBasicMaterial color="#ef4444" linewidth={3} transparent opacity={0.8} /></line>)}
       
@@ -781,22 +820,13 @@ const Unit: React.FC<UnitProps> = ({
           </group>
       )}
 
-      {/* Guardian Repair Beam */}
-      {isGuardian && repairTargetPos && (
-          <group>
-            <Line
-                points={[[0, 1.5, 0], [repairTargetPos.x - logicalWorldPos.x, repairTargetPos.y - logicalWorldPos.y + 0.5, repairTargetPos.z - logicalWorldPos.z]]}
-                color="#4ade80"
-                lineWidth={2}
-                dashed
-                dashScale={2}
-            />
-            {/* Target marker */}
-            <mesh position={[repairTargetPos.x - logicalWorldPos.x, repairTargetPos.y - logicalWorldPos.y, repairTargetPos.z - logicalWorldPos.z]}>
-                <octahedronGeometry args={[0.5]} />
-                <meshBasicMaterial color="#4ade80" wireframe />
-            </mesh>
-          </group>
+      {/* Guardian Repair Beam fallback when only a world position is known */}
+      {isGuardian && !repairTargetIds?.length && repairTargetPos && (
+          <Line
+              points={[[0, 1.5, 0], [repairTargetPos.x - logicalWorldPos.x, repairTargetPos.y - logicalWorldPos.y + 0.5, repairTargetPos.z - logicalWorldPos.z]]}
+              color="#4ade80"
+              lineWidth={2}
+          />
       )}
 
       {/* Health is always shown. Mechanical units always show battery; infantry only when an ability is drawing it. */}
@@ -909,8 +939,10 @@ const Unit: React.FC<UnitProps> = ({
                    {isGuardian && (
                        <>
                            <div className="text-[9px] text-slate-400 uppercase font-mono mb-1">Status</div>
-                           <div className="text-[10px] text-emerald-400 px-2 py-1 bg-slate-900/50 rounded mb-1">Auto-Repair Active</div>
-                           <div className="text-[10px] text-blue-400 px-2 py-1 bg-slate-900/50 rounded">Trophy System Online</div>
+                           <div className="text-[10px] text-emerald-400 px-2 py-1 bg-slate-900/50 rounded mb-1">Repair {(repairTargetIds?.length || 0)}/{ABILITY_CONFIG.GUARDIAN_REPAIR_SLOTS}</div>
+                           <div className={`text-[10px] px-2 py-1 bg-slate-900/50 rounded ${(cooldowns?.trophySystem || 0) > 0 ? 'text-amber-300' : 'text-sky-300'}`}>
+                               {(cooldowns?.trophySystem || 0) > 0 ? `Trophy ${Math.ceil((cooldowns?.trophySystem || 0) / 1000)}s` : 'Trophy Ready'}
+                           </div>
                        </>
                    )}
 
