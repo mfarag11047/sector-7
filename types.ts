@@ -61,7 +61,7 @@ export interface BuildingData {
   position: [number, number, number];
   scale: [number, number, number];
   color: string;
-  type: 'residential' | 'commercial' | 'industrial' | 'hightech' | 'server_node';
+  type: 'residential' | 'commercial' | 'industrial' | 'hightech' | 'server_node' | 'core_node';
   height: number;
   blockId: string;
   owner: 'blue' | 'red' | null;
@@ -217,6 +217,7 @@ export interface TeamStats {
     industrial: number;
     hightech: number;
     server_node: number;
+    core_node: number;
   };
   stockpile: {
       eclipse: number;

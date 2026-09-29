@@ -18,7 +18,9 @@ export const BUILDING_VALUES = {
   industrial: { captureSpeed: 3, income: 0, label: 'Industrial' },
   commercial: { captureSpeed: 2, income: 0, label: 'Commercial' },
   hightech: { captureSpeed: 1, income: 0, label: 'High-Tech' },
-  server_node: { captureSpeed: 0.7, income: 0, label: 'Server Node' }, // Slowest capture. Grants Compute and extends the energy grid.
+  server_node: { captureSpeed: 0.7, income: 0, label: 'Server Node' }, // Slowest building capture. Grants Compute and extends the energy grid.
+  // A dedicated core site. Much slower than any building, and the only source of core income.
+  core_node: { captureSpeed: 0.2, income: 5, label: 'Core Node' },
 };
 
 export const COMPUTE_GATES = {
@@ -235,6 +237,7 @@ export const BUILDING_COLORS = {
   industrial: '#f59e0b',
   hightech: '#10b981',
   server_node: '#2563eb', // Server Node Blue
+  core_node: '#fbbf24',
 };
 
 export const TEAM_COLORS = {

@@ -721,7 +721,7 @@ const isInsideEnergyGrid = (
   if (baseDx * baseDx + baseDz * baseDz <= baseRadiusSq) return true;
   for (let i = 0; i < buildings.length; i++) {
     const building = buildings[i];
-    if (building.owner !== team) continue;
+    if (building.owner !== team || building.type === 'core_node') continue;
     const dx = pos.x - building.gridX;
     const dz = pos.z - building.gridZ;
     if (dx * dx + dz * dz <= buildingRadiusSq) return true;
@@ -738,7 +738,7 @@ const EnergyGridField: React.FC<{
   const sources = useMemo(() => {
     const base = TEAM_BASES[playerTeam];
     const owned = buildings
-      .filter(building => building.owner === playerTeam)
+      .filter(building => building.owner === playerTeam && building.type !== 'core_node')
       .map(building => ({ x: building.gridX, z: building.gridZ, radius: ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS }));
     return [{ x: base.x, z: base.z, radius: ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS }, ...owned];
   }, [buildings, playerTeam]);
@@ -798,6 +798,68 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
     const buildingMap = new Map<string, string>(); 
     const occupied = new Set([...reservedSet]);
     let blockCounter = 0;
+
+    // Roads sit on every 6th line, so the lot between them is a 5x5 city block.
+    // The core stands on the center tile of that lot.
+    const ROAD_STRIDE = 6;
+    const blockIndexOf = (coord: number) => Math.floor(coord / ROAD_STRIDE);
+    const blockCenter = (index: number) => index * ROAD_STRIDE + 3;
+    const lastBlockIndex = Math.floor((gridSize - 1) / ROAD_STRIDE) - 1;
+    const keepBlockEmpty = (ix: number, iz: number) => {
+      if (ix < 0 || iz < 0 || ix > lastBlockIndex || iz > lastBlockIndex) return;
+      for (let x = ix * ROAD_STRIDE + 1; x <= ix * ROAD_STRIDE + 5; x++) {
+        for (let z = iz * ROAD_STRIDE + 1; z <= iz * ROAD_STRIDE + 5; z++) {
+          occupied.add(`${x},${z}`);
+        }
+      }
+      // One tile sits past the outer road. A building there would still reach a corner node.
+      const edge = lastBlockIndex * ROAD_STRIDE + ROAD_STRIDE + 1;
+      if (edge < gridSize && iz === lastBlockIndex) {
+        for (let x = ix * ROAD_STRIDE + 1; x <= ix * ROAD_STRIDE + 5; x++) occupied.add(`${x},${edge}`);
+      }
+      if (edge < gridSize && ix === lastBlockIndex) {
+        for (let z = iz * ROAD_STRIDE + 1; z <= iz * ROAD_STRIDE + 5; z++) occupied.add(`${edge},${z}`);
+      }
+    };
+    const blueBlock = { ix: blockIndexOf(baseA_Coord.x), iz: blockIndexOf(baseA_Coord.z) };
+    const redBlock = { ix: blockIndexOf(baseB_Coord.x), iz: blockIndexOf(baseB_Coord.z) };
+    // Two city blocks toward the middle of the map, plus the two corners that have no base.
+    const corePlacements: { ix: number; iz: number; clearSurroundings: boolean }[] = [
+      { ix: blueBlock.ix + 2, iz: blueBlock.iz + 2, clearSurroundings: false },
+      { ix: redBlock.ix - 2, iz: redBlock.iz - 2, clearSurroundings: false },
+      { ix: blueBlock.ix, iz: redBlock.iz, clearSurroundings: true },
+      { ix: redBlock.ix, iz: blueBlock.iz, clearSurroundings: true },
+    ];
+    for (const node of corePlacements) {
+      if (node.clearSurroundings) {
+        for (let dx = -1; dx <= 1; dx++) {
+          for (let dz = -1; dz <= 1; dz++) {
+            if (dx === 0 && dz === 0) continue;
+            keepBlockEmpty(node.ix + dx, node.iz + dz);
+          }
+        }
+      }
+      keepBlockEmpty(node.ix, node.iz);
+      const x = blockCenter(node.ix);
+      const z = blockCenter(node.iz);
+      const height = 6;
+      const blockId = `core-${x}-${z}`;
+      buildingMap.set(`${x},${z}`, blockId);
+      _buildings.push({
+        id: blockId,
+        gridX: x,
+        gridZ: z,
+        position: [(x * tileSize) - offset, 0, (z * tileSize) - offset],
+        scale: [3.4, height, 3.4],
+        color: BUILDING_COLORS.core_node,
+        type: 'core_node',
+        height,
+        blockId,
+        owner: null,
+        captureProgress: 0,
+        capturingTeam: null,
+      });
+    }
     
     for (let x = 0; x < gridSize; x++) {
       for (let z = 0; z < gridSize; z++) {
@@ -1334,11 +1396,12 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
     const result = { blue: {} as TeamStats, red: {} as TeamStats };
     
     teams.forEach(team => {
-      // Captured buildings extend the energy grid. Core income waits for capture nodes.
-      const income = 0;
-      const teamBuildings = { residential: 0, commercial: 0, industrial: 0, hightech: 0, server_node: 0 };
+      // Captured buildings extend the energy grid. Only core nodes pay cores.
+      let income = 0;
+      const teamBuildings = { residential: 0, commercial: 0, industrial: 0, hightech: 0, server_node: 0, core_node: 0 };
       currentBuildings.filter(b => b.owner === team).forEach(b => {
         teamBuildings[b.type]++;
+        income += BUILDING_VALUES[b.type].income;
       });
 
       // Update CP Accumulator based on income

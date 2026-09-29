@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { GameStats, TeamStats, MinimapData, DoctrineType, DoctrineState } from '../types';
-import { BUILDING_COLORS, TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG, TEAM_BASES } from '../constants';
+import { BUILDING_COLORS, TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG, TEAM_BASES, BUILDING_VALUES } from '../constants';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 
 interface ManualSection {
@@ -31,6 +31,14 @@ const MANUAL_DATA: ManualSection[] = [
       { label: "Server Nodes", description: "Special blue buildings that provide Compute and also extend your energy grid. Capture takes longer than a normal building." },
       { label: "Ability Gating", description: "Advanced abilities (Nuke, Hack, Decoy) require holding a specific number of Server Nodes to activate." },
       { label: "Thresholds", description: "1: Decoy | 2: APS/Trophy | 3: Hack | 4: WMD Launch" },
+    ]
+  },
+  {
+    title: "Core Nodes",
+    items: [
+      { label: "Capture Sites", description: "Each node sits in the middle of a city block, the 5x5 lot between the roads. One is two city blocks in front of each command base. The other two occupy the far corner blocks, and the city blocks around those are empty so no captured building can power a grid beside them." },
+      { label: "Slow Capture", description: "A core node takes much longer to capture than a building. Hold the tile beside it until the node fills with your team color." },
+      { label: "Core Income", description: `Each node you hold pays ${BUILDING_VALUES.core_node.income} cores per second. Buildings still extend the energy grid and do not pay cores.` },
     ]
   }
 ];
@@ -163,8 +171,8 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
                 {/* Resource Stat */}
                 <EditableStat 
                     value={Math.floor(stats.resources)}
-                    label="CORES"
-                    baseColor={baseColor}
+                    label={stats.income > 0 ? `CORES +${stats.income}/s` : 'CORES'}
+                    baseColor={stats.income > 0 ? 'text-amber-300' : baseColor}
                     onSave={(val) => (window as any).GAME_CHEATS?.setResources(team, val)}
                 />
             </>
@@ -178,7 +186,7 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
         <div className="flex flex-col">
             {isVisible ? (
                 <span className="text-cyan-300 font-mono text-sm font-bold" title="Captured buildings feeding your energy grid">
-                  {Object.values(stats.buildings).reduce((sum, count) => sum + count, 0)}
+                  {Object.entries(stats.buildings).reduce((sum, [type, count]) => type === 'core_node' ? sum : sum + count, 0)}
                 </span>
             ) : (
                 <span className="text-slate-600 font-mono text-sm">--</span>
@@ -199,7 +207,7 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
       <div className="flex gap-1 mt-1 relative z-10">
         {Object.entries(stats.buildings).map(([type, count]) => {
            // Skip rendering Server Node count in the generic buildings bar since it has a dedicated spot
-           if (type === 'server_node') return null;
+           if (type === 'server_node' || type === 'core_node') return null;
 
            return (
                <div key={type} className="flex-1 bg-slate-800/50 rounded flex flex-col items-center py-1 border border-slate-700/50" title={type}>
@@ -252,7 +260,7 @@ const MinimapBackground = React.memo(({
                     y={b.gridZ}
                     width={1}
                     height={1}
-                    fill={b.owner ? TEAM_COLORS[b.owner] : (b.type === 'server_node' && revealedServerIds?.has(b.id) ? '#1e3a8a' : '#64748b')}
+                    fill={b.owner ? TEAM_COLORS[b.owner] : (b.type === 'core_node' ? BUILDING_COLORS.core_node : (b.type === 'server_node' && revealedServerIds?.has(b.id) ? '#1e3a8a' : '#64748b'))}
                     opacity={0.8}
                 />
             ))}
@@ -599,7 +607,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
     const circles = [
       { x: base.x + 0.5, z: base.z + 0.5, radius: ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS },
       ...minimapData.buildings
-        .filter(building => building.owner === playerTeam)
+        .filter(building => building.owner === playerTeam && building.type !== 'core_node')
         .map(building => ({ x: building.gridX + 0.5, z: building.gridZ + 0.5, radius: ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS })),
     ];
     return outerEnergyGridPolylines(circles);
