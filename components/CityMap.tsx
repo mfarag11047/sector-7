@@ -3404,7 +3404,6 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         })}
         {decoys.map(d => {
             const seen = d.team === playerTeam || units.some(f => f.team === playerTeam && Math.hypot(f.gridPos.x - d.gridPos.x, f.gridPos.z - d.gridPos.z) <= (f.visionRange || 2));
-            if (!seen) return null;
             return (
             <Unit
                 key={d.id}
@@ -3422,7 +3421,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                 tileTypeMap={tileTypeMap}
                 onDoubleClick={stableDoubleClick}
                 visionRange={0}
-                visible={true}
+                visible={seen}
                 actionMenuOpen={false}
                 onAction={stableUnitAction}
                 health={100}

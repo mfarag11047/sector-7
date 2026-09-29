@@ -208,6 +208,9 @@ const Unit: React.FC<UnitProps> = ({
   });
 
   const lastProcessedTargetRef = useRef<string | null>(null);
+  // Fog of war unmounts the model, but the unit still has to finish its path.
+  const simPos = useRef(new THREE.Vector3());
+  const simReady = useRef(false);
 
   const BASE_SPEED = 12; // Units per second
 
@@ -395,6 +398,45 @@ const Unit: React.FC<UnitProps> = ({
             beam.quaternion.setFromUnitVectors(up, span.multiplyScalar(1 / length));
         }
     }
+
+    if (!meshRef.current) {
+        const gx = (gridPos.x * tileSize) - offset;
+        const gz = (gridPos.z * tileSize) - offset;
+        if (!simReady.current) {
+            simPos.current.set(gx, hoverHeight, gz);
+            simReady.current = true;
+        }
+        if (path.length > 0 && speedMultiplier > 0 && !isDeployed && !isAnchored && !(isBallista && ammoState === 'loading')) {
+            const moveDist = BASE_SPEED * speedMultiplier * Math.min(delta, 0.05);
+            const scratch = moveScratch.current;
+            let waypointKey = path[0];
+            if (lastProcessedTargetRef.current === waypointKey && path.length > 1) waypointKey = path[1];
+            const [wx, wz] = waypointKey.split(',').map(Number);
+            const waypoint = scratch.waypoint.set((wx * tileSize) - offset, hoverHeight, (wz * tileSize) - offset);
+            const dist = simPos.current.distanceTo(waypoint);
+            if (moveDist > 0 && dist > moveDist) {
+                scratch.dir.subVectors(waypoint, simPos.current).normalize();
+                simPos.current.add(scratch.dir.multiplyScalar(moveDist));
+            } else if (dist <= moveDist) {
+                simPos.current.copy(waypoint);
+            }
+            if (isAir) {
+                const cx = Math.round((simPos.current.x + offset) / tileSize);
+                const cz = Math.round((simPos.current.z + offset) / tileSize);
+                const stepKey = `${cx},${cz}`;
+                if (stepKey === path[0] && lastProcessedTargetRef.current !== path[0]) {
+                    lastProcessedTargetRef.current = path[0];
+                    onMoveStep(id);
+                }
+            } else if (dist <= moveDist && waypointKey === path[0] && lastProcessedTargetRef.current !== path[0]) {
+                lastProcessedTargetRef.current = path[0];
+                onMoveStep(id);
+            }
+        }
+        return;
+    }
+
+    simReady.current = false;
 
     if (meshRef.current) {
         if (isDefenseDrone) {
