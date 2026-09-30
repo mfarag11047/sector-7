@@ -131,24 +131,20 @@ const DoctrineIcon: React.FC<{ type: DoctrineType | null, className?: string }> 
     return null;
 };
 
-const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left' | 'right'; isVisible: boolean }> = ({ team, stats, align, isVisible }) => {
+const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left' | 'right'; isVisible: boolean }> = ({ team, stats, isVisible }) => {
   const isBlue = team === 'blue';
-  const baseColor = isBlue ? 'text-blue-400' : 'text-red-400';
-  const borderColor = isBlue ? 'border-blue-500' : 'border-red-500';
-  const bgGradient = isBlue ? 'from-blue-500/10' : 'from-red-500/10';
+  const baseColor = isBlue ? 'text-cyan-300' : 'text-rose-400';
   
   return (
     <div className={`
-      bg-slate-900/90 backdrop-blur-md border-t-2 ${borderColor} p-3 rounded-b-lg shadow-xl pointer-events-auto min-w-[300px] z-50
+      hud-plate hud-corners backdrop-blur-md p-3 pointer-events-auto min-w-[300px] z-50
       flex flex-col gap-2 relative overflow-hidden transition-all duration-300
-      ${!isVisible ? 'opacity-80 grayscale-[0.8]' : 'opacity-100'}
+      ${!isVisible ? 'opacity-90' : 'opacity-100'}
     `}>
-      {/* Background decoration */}
-      <div className={`absolute top-0 ${align === 'left' ? 'left-0' : 'right-0'} w-full h-full bg-gradient-to-b ${bgGradient} to-transparent opacity-30 pointer-events-none`}></div>
 
-      <div className="flex justify-between items-baseline border-b border-slate-700/50 pb-2 relative z-10">
+      <div className="flex justify-between items-baseline border-b border-cyan-400/25 pb-2 relative z-10">
         <div className="flex items-center gap-2">
-            <h2 className={`text-xl font-bold font-mono uppercase tracking-widest ${baseColor}`}>
+            <h2 className={`text-xl font-bold font-mono uppercase tracking-widest ${baseColor} ${isBlue ? 'hud-glow-blue' : 'hud-glow-red'}`}>
             {team} TEAM
             </h2>
             {/* Doctrine Indicator */}
@@ -172,7 +168,7 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
                 <EditableStat 
                     value={Math.floor(stats.resources)}
                     label={stats.income > 0 ? `CORES +${stats.income}/s` : 'CORES'}
-                    baseColor={stats.income > 0 ? 'text-amber-300' : baseColor}
+                    baseColor="hud-glow-amber"
                     onSave={(val) => (window as any).GAME_CHEATS?.setResources(team, val)}
                 />
             </>
@@ -191,7 +187,7 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
             ) : (
                 <span className="text-slate-600 font-mono text-sm">--</span>
             )}
-          <span className="text-slate-500 text-[10px] uppercase">Grid</span>
+          <span className="hud-label text-[10px] uppercase">Grid</span>
         </div>
         
         <div className="flex flex-col items-end">
@@ -200,27 +196,8 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
            ) : (
                 <span className="text-slate-600 font-mono text-sm">--</span>
            )}
-           <span className="text-slate-500 text-[10px] uppercase">Units</span>
+           <span className="hud-label text-[10px] uppercase">Units</span>
         </div>
-      </div>
-
-      <div className="flex gap-1 mt-1 relative z-10">
-        {Object.entries(stats.buildings).map(([type, count]) => {
-           // Skip rendering Server Node count in the generic buildings bar since it has a dedicated spot
-           if (type === 'server_node' || type === 'core_node') return null;
-
-           return (
-               <div key={type} className="flex-1 bg-slate-800/50 rounded flex flex-col items-center py-1 border border-slate-700/50" title={type}>
-                  <div 
-                    className="w-2 h-2 rounded-full mb-1" 
-                    style={{ backgroundColor: BUILDING_COLORS[type as keyof typeof BUILDING_COLORS] }}
-                  ></div>
-                  <span className="text-xs text-slate-300 font-mono leading-none">
-                      {isVisible ? count : '-'}
-                  </span>
-               </div>
-           );
-        })}
       </div>
     </div>
   );
@@ -334,9 +311,9 @@ const DoctrineHUD: React.FC<{
     
     // Theme Colors
     const theme = {
-        heavy_metal: 'border-orange-500 text-orange-400 bg-orange-900/40',
-        shadow_ops: 'border-purple-500 text-purple-400 bg-purple-900/40',
-        skunkworks: 'border-cyan-500 text-cyan-400 bg-cyan-900/40',
+        heavy_metal: 'border-amber-400 text-amber-300',
+        shadow_ops: 'border-fuchsia-400 text-fuchsia-300',
+        skunkworks: 'border-cyan-300 text-cyan-200',
     }[type];
 
     const canAfford2 = resources >= config.tier2_cost;
@@ -345,13 +322,13 @@ const DoctrineHUD: React.FC<{
     const isUnlocked3 = unlockedTiers >= 3;
 
     return (
-        <div className={`p-3 rounded-lg border-2 ${theme} backdrop-blur-md shadow-lg flex flex-col gap-2 min-w-[200px] animate-in slide-in-from-bottom-4 duration-300 pointer-events-auto`}>
-            <div className="flex justify-between items-center border-b border-white/20 pb-1 mb-1">
+        <div className={`hud-plate hud-corners p-3 border-2 ${theme} backdrop-blur-md flex flex-col gap-2 min-w-[200px] animate-in slide-in-from-bottom-4 duration-300 pointer-events-auto relative overflow-hidden`}>
+            <div className="flex justify-between items-center border-b border-white/20 pb-1 mb-1 relative z-10">
                 <span className="text-xs font-mono font-bold uppercase tracking-wider text-white">Active Protocols</span>
                 <DoctrineIcon type={type} className="text-sm" />
             </div>
             
-            <div className="flex gap-2">
+            <div className="flex gap-2 relative z-10">
                 {/* Tier 2 Button */}
                 <button
                     disabled={!isUnlocked2 || !canAfford2}
@@ -425,9 +402,9 @@ const DoctrineCard: React.FC<{
     
     // Theme Colors
     const colors = {
-        heavy_metal: 'border-orange-500 text-orange-400 bg-orange-900/20',
-        shadow_ops: 'border-purple-500 text-purple-400 bg-purple-900/20',
-        skunkworks: 'border-cyan-500 text-cyan-400 bg-cyan-900/20',
+        heavy_metal: 'border-amber-400 text-amber-300',
+        shadow_ops: 'border-fuchsia-400 text-fuchsia-300',
+        skunkworks: 'border-cyan-300 text-cyan-200',
     };
     const theme = colors[type];
 
@@ -437,10 +414,10 @@ const DoctrineCard: React.FC<{
     return (
         <div 
             className={`
-                relative p-4 rounded-xl border-2 transition-all duration-300 flex flex-col gap-4
-                ${active ? `${theme} bg-opacity-40 shadow-[0_0_30px_rgba(0,0,0,0.5)] scale-105` : 
-                  locked ? 'border-slate-800 bg-slate-900/50 text-slate-600 grayscale cursor-not-allowed' :
-                  `border-slate-700 bg-slate-800/50 hover:bg-slate-800 hover:border-white/50 cursor-pointer hover:scale-105`
+                hud-plate hud-corners relative p-4 border transition-all duration-300 flex flex-col gap-4
+                ${active ? `${theme} scale-105` : 
+                  locked ? 'border-slate-700 text-slate-600 grayscale cursor-not-allowed' :
+                  `hover:border-cyan-200 cursor-pointer hover:scale-105`
                 }
             `}
             onClick={() => !locked && !active && onSelect()}
@@ -617,7 +594,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
     <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 z-50">
       {/* Targeting Overlay */}
       {interactionMode === 'target' && (
-          <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-red-900/80 border border-red-500 px-6 py-2 rounded-lg text-white font-mono font-bold animate-pulse z-[60] shadow-[0_0_20px_rgba(239,68,68,0.6)]">
+          <div className="absolute top-24 left-1/2 -translate-x-1/2 hud-alert hud-corners px-6 py-2 text-sm font-mono font-bold tracking-widest z-[60]">
               TARGETING ACTIVE - CLICK MAP
           </div>
       )}
@@ -629,7 +606,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
         <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-2 pointer-events-auto z-50">
              <button 
                 onClick={toggleTeam}
-                className="bg-slate-900 border border-slate-700 hover:border-white px-3 py-1 rounded text-[10px] text-slate-400 font-mono uppercase tracking-widest transition-colors"
+                className="hud-plate hud-corners px-3 py-1 text-[10px] text-cyan-200 font-mono uppercase tracking-widest transition-colors hover:text-white"
                 title="Admin: Switch Player Team"
              >
                 Playing As: <span className={playerTeam === 'blue' ? 'text-blue-400' : 'text-red-400'}>{playerTeam.toUpperCase()}</span>
@@ -639,14 +616,14 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
         <TeamPanel team="blue" stats={stats.blue} align="left" isVisible={playerTeam === 'blue'} />
         
         <div className="mt-8 flex flex-col items-center gap-2 pointer-events-auto">
-            <h1 className="text-slate-500 font-mono text-[10px] tracking-[0.3em] uppercase opacity-50">Sector 7 Conflict</h1>
+            <h1 className="hud-label font-mono text-[10px] uppercase">Sector 7 Conflict</h1>
             <div className="flex gap-2">
                 <button 
                     onClick={() => setIsIntelOpen(!isIntelOpen)}
-                    className={`w-8 h-8 flex items-center justify-center rounded border transition-all pointer-events-auto ${
+                    className={`w-8 h-8 flex items-center justify-center border transition-all pointer-events-auto hud-corners ${
                     isIntelOpen 
-                        ? 'bg-cyan-500 text-slate-900 border-cyan-400' 
-                        : 'bg-slate-900/50 text-slate-400 border-slate-700 hover:text-cyan-400 hover:border-cyan-500'
+                        ? 'bg-cyan-400 text-slate-950 border-cyan-200' 
+                        : 'hud-plate text-cyan-200 hover:text-white'
                     }`}
                     title="Manual / Intel"
                 >
@@ -654,10 +631,10 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                 </button>
                 <button 
                     onClick={() => setIsDoctrineOpen(!isDoctrineOpen)}
-                    className={`w-8 h-8 flex items-center justify-center rounded border transition-all pointer-events-auto ${
+                    className={`w-8 h-8 flex items-center justify-center border transition-all pointer-events-auto hud-corners ${
                     isDoctrineOpen 
-                        ? 'bg-orange-500 text-slate-900 border-orange-400' 
-                        : 'bg-slate-900/50 text-slate-400 border-slate-700 hover:text-orange-400 hover:border-orange-500'
+                        ? 'bg-amber-400 text-slate-950 border-amber-200' 
+                        : 'hud-plate text-amber-300 hover:text-white'
                     }`}
                     title="Doctrine Protocols"
                 >
@@ -672,8 +649,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
       {/* Manual / Intel Modal */}
       {isIntelOpen && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[100]">
-          <div className="w-full max-w-2xl bg-slate-900/95 backdrop-blur-xl border border-cyan-500/50 p-8 rounded-2xl pointer-events-auto shadow-[0_0_50px_rgba(6,182,212,0.2)] animate-in fade-in zoom-in duration-200">
-            <div className="flex justify-between items-center mb-6 border-b border-cyan-500/20 pb-4">
+          <div className="hud-plate hud-corners w-full max-w-2xl backdrop-blur-xl p-8 pointer-events-auto relative overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="relative flex justify-between items-center mb-6 border-b border-cyan-500/20 pb-4">
               <h2 className="text-2xl font-bold text-cyan-400 font-mono tracking-widest uppercase flex items-center gap-3">
                 <span className="w-4 h-4 bg-cyan-500 rounded-sm"></span>
                 Operations Manual
@@ -686,7 +663,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-h-[60vh] overflow-y-auto pr-4">
+            <div className="relative grid grid-cols-1 md:grid-cols-2 gap-8 max-h-[60vh] overflow-y-auto pr-4">
               {MANUAL_DATA.map((section, idx) => (
                 <div key={idx} className="space-y-4">
                   <h3 className="text-fuchsia-400 font-mono text-sm uppercase tracking-widest border-l-2 border-fuchsia-500 pl-3">
@@ -712,8 +689,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
       {/* Doctrine Selection Modal */}
       {isDoctrineOpen && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[100] bg-black/60 backdrop-blur-sm">
-          <div className="w-full max-w-4xl bg-slate-950/95 border border-slate-700 p-8 rounded-2xl pointer-events-auto shadow-2xl animate-in fade-in slide-in-from-bottom-10 duration-300">
-            <div className="flex justify-between items-center mb-8 border-b border-slate-700 pb-4">
+          <div className="hud-plate hud-corners w-full max-w-4xl p-8 pointer-events-auto relative overflow-hidden animate-in fade-in slide-in-from-bottom-10 duration-300">
+            <div className="relative flex justify-between items-center mb-8 border-b border-slate-600/60 pb-4">
                 <div>
                     <h2 className="text-3xl font-bold text-white font-mono tracking-widest uppercase mb-1">
                         Faction Doctrine
@@ -728,7 +705,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                 </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6">
                 {(Object.keys(DOCTRINE_CONFIG) as DoctrineType[]).map((key) => (
                     <DoctrineCard 
                         key={key} 
@@ -752,11 +729,11 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
       {/* Bottom Interface */}
       <div className="flex justify-between items-end z-50">
         <div className="flex flex-col gap-2">
-            <div className="bg-slate-900/90 backdrop-blur-md border border-slate-700 p-3 rounded-lg pointer-events-auto max-w-sm shadow-2xl">
-              <h3 className="text-slate-400 text-[10px] font-mono uppercase mb-2 border-b border-slate-700 pb-1 flex justify-between">
+            <div className="hud-plate hud-corners backdrop-blur-md p-3 pointer-events-auto max-w-sm relative overflow-hidden">
+              <h3 className="relative hud-label text-[10px] font-mono uppercase mb-2 border-b border-cyan-400/25 pb-1 flex justify-between">
                 System Message
               </h3>
-              <p className="text-xs text-cyan-500 font-mono leading-relaxed">
+              <p className="relative text-xs text-cyan-200 font-mono leading-relaxed hud-glow-cyan">
                 &gt; COMMAND: Select unit to initiate movement.<br/>
                 &gt; ALERT: Capture Server Nodes to unlock abilities.
               </p>
@@ -774,7 +751,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
         </div>
 
         {/* Live Mini Map */}
-        <div className={`${minimapExpanded ? 'w-[28rem] h-[28rem]' : 'w-56 h-56'} bg-slate-950/95 backdrop-blur border-2 border-slate-800 rounded-xl relative overflow-hidden pointer-events-auto shadow-2xl group cursor-crosshair transition-[width,height] duration-200`}>
+        <div className={`${minimapExpanded ? 'w-[28rem] h-[28rem]' : 'w-56 h-56'} hud-plate hud-corners backdrop-blur relative overflow-hidden pointer-events-auto group cursor-crosshair transition-[width,height] duration-200`}>
            <svg 
               className="w-full h-full" 
               viewBox={`0 0 ${gridSize} ${gridSize}`} 
@@ -913,7 +890,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
            <button
              type="button"
              onClick={() => setMinimapExpanded((expanded) => !expanded)}
-             className="absolute top-1.5 right-1.5 z-20 w-6 h-6 flex items-center justify-center rounded bg-slate-900/90 border border-slate-600 text-cyan-300 hover:text-white hover:border-cyan-400 cursor-pointer transition-colors"
+             className="absolute top-1.5 right-1.5 z-20 w-6 h-6 flex items-center justify-center hud-plate hud-corners text-cyan-200 hover:text-white cursor-pointer transition-colors"
              title={minimapExpanded ? 'Shrink minimap' : 'Expand minimap'}
              aria-label={minimapExpanded ? 'Shrink minimap' : 'Expand minimap'}
              aria-pressed={minimapExpanded}

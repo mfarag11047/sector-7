@@ -270,8 +270,8 @@ const Base: React.FC<BaseProps> = ({
       {/* Construction Menu Overlay */}
       {menuOpen && (
         <Html position={[0, 10, 0]} center zIndexRange={[200, 0]}>
-          <div className="bg-slate-900/95 border border-cyan-500 rounded-lg shadow-[0_0_30px_rgba(6,182,212,0.3)] backdrop-blur min-w-[220px] overflow-hidden flex flex-col pointer-events-auto">
-             <div className="bg-slate-800 px-3 py-2 border-b border-slate-700 flex justify-between items-center">
+          <div className="hud-plate hud-corners hud-menu backdrop-blur min-w-[220px] overflow-hidden flex flex-col pointer-events-auto">
+             <div className="px-3 py-2 border-b border-cyan-400/30 flex justify-between items-center">
                 <span className="text-cyan-400 font-mono font-bold text-xs uppercase">Base Construction</span>
                 <span className={`text-[10px] font-mono ${resources > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {resources} Cores

@@ -62,7 +62,7 @@ const BlockStatus: React.FC<BlockStatusProps> = ({ block, buildings }) => {
             className="flex flex-col items-center pointer-events-none select-none"
             style={{ color: color, textShadow: `0 0 10px ${color}` }}
           >
-            <div className="bg-slate-900/90 backdrop-blur-md border border-current px-4 py-2 rounded-lg flex flex-col items-center gap-1 shadow-[0_0_15px_rgba(0,0,0,0.5)] min-w-[120px]">
+            <div className="hud-plate hud-corners backdrop-blur-md px-4 py-2 flex flex-col items-center gap-1 min-w-[120px]">
               <div className="text-xs font-mono font-bold uppercase tracking-wider mb-1 whitespace-nowrap">
                 BLOCK SECURED
               </div>

@@ -842,8 +842,8 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
 
     return (
         <Html position={[0, 15, 0]} center zIndexRange={[200, 0]}>
-            <div className="bg-slate-900/95 border border-yellow-500 rounded-lg shadow-[0_0_30px_rgba(234,179,8,0.3)] backdrop-blur min-w-[220px] overflow-hidden flex flex-col pointer-events-auto">
-                <div className="bg-slate-800 px-3 py-2 border-b border-slate-700 flex justify-between items-center">
+            <div className="hud-plate hud-corners hud-menu backdrop-blur min-w-[220px] overflow-hidden flex flex-col pointer-events-auto">
+                <div className="px-3 py-2 border-b border-cyan-400/30 flex justify-between items-center">
                     <span className="text-yellow-400 font-mono font-bold text-xs uppercase">{config.label}</span>
                     <span className="text-[10px] text-white font-mono">{Math.floor(resources || 0)} Cores</span>
                 </div>
@@ -934,16 +934,16 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
     return (
         <Html position={[0, heightOffset, 0]} center zIndexRange={[100, 0]} distanceFactor={28}>
             <div className="flex flex-col items-center pointer-events-none select-none">
-                 <div className="bg-slate-950/95 border-2 border-yellow-400 px-3 py-1.5 rounded shadow-[0_0_16px_rgba(250,204,21,0.45)]">
+                 <div className="hud-plate hud-corners px-3 py-1.5">
                      <div className="text-[12px] font-mono text-yellow-300 font-bold whitespace-nowrap">
                          BUILDING {pct}%
                      </div>
                      <div className="text-[10px] font-mono text-white whitespace-nowrap">
                          Haul {haulsDone}/{haulsNeeded}
                      </div>
-                     <div className="w-24 h-2 bg-slate-700 rounded-full overflow-hidden mt-1">
+                     <div className="hud-meter w-24 h-2 mt-1">
                          <div 
-                            className="h-full bg-yellow-400 transition-all duration-300"
+                            className="hud-meter-cell h-full transition-all duration-300"
                             style={{ width: `${Math.max(pct, 4)}%` }}
                          />
                      </div>

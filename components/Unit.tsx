@@ -876,19 +876,19 @@ const Unit: React.FC<UnitProps> = ({
         <Html position={[0, 4, 0]} center zIndexRange={[50, 0]}>
             <div className="flex flex-col items-center pointer-events-none" style={{ width: '32px' }}>
                 {/* Health */}
-                <div className="w-full h-1 bg-slate-900 rounded-sm border border-slate-800 overflow-hidden mb-0.5">
-                    <div className="h-full bg-emerald-500 transition-all duration-300" style={{ width: `${(health / maxHealth) * 100}%` }} />
+                <div className="hud-meter w-full h-1 mb-0.5">
+                    <div className="hud-meter-hp h-full transition-all duration-300" style={{ width: `${(health / maxHealth) * 100}%` }} />
                 </div>
                 {/* Battery */}
                 {maxBattery > 0 && (needsLocomotionPower || battery < maxBattery || isSelected || (chargingStatus && chargingStatus > 0) || isDampenerActive || decoyActive) && (
-                    <div className="w-full h-1 bg-slate-900 rounded-sm border border-slate-800 overflow-hidden">
-                        <div className="h-full bg-blue-500 transition-all duration-300" style={{ width: `${(battery / maxBattery) * 100}%` }} />
+                    <div className="hud-meter w-full h-1">
+                        <div className="hud-meter-cell h-full transition-all duration-300" style={{ width: `${(battery / maxBattery) * 100}%` }} />
                     </div>
                 )}
                 {/* Secondary Battery (Banshee) */}
                 {secondaryBattery !== undefined && maxSecondaryBattery !== undefined && (
-                    <div className="w-full h-1 bg-slate-900 rounded-sm border border-slate-800 overflow-hidden mt-0.5">
-                        <div className="h-full bg-fuchsia-500 transition-all duration-300" style={{ width: `${(secondaryBattery / maxSecondaryBattery) * 100}%` }} />
+                    <div className="hud-meter w-full h-1 mt-0.5">
+                        <div className="hud-meter-sec h-full transition-all duration-300" style={{ width: `${(secondaryBattery / maxSecondaryBattery) * 100}%` }} />
                     </div>
                 )}
                 {/* Charging Icon */}
@@ -905,7 +905,7 @@ const Unit: React.FC<UnitProps> = ({
       {actionMenuOpen && (
         <Html position={[0, 4, 0]} center zIndexRange={[100, 0]} style={{ pointerEvents: 'auto' }}>
            <div className="flex flex-col gap-1 pointer-events-auto" onMouseDown={(e) => e.preventDefault()} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-              <div className="bg-slate-900/80 backdrop-blur border border-cyan-500/50 p-2 rounded flex flex-col gap-1 pointer-events-auto min-w-[120px]">
+              <div className="hud-plate hud-corners hud-menu backdrop-blur p-2 flex flex-col gap-1 pointer-events-auto min-w-[120px]">
                   
                   {/* Unit Label Header */}
                   <div className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider border-b border-cyan-500/30 pb-1 mb-1 text-center whitespace-nowrap">

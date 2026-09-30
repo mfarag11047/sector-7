@@ -5,6 +5,9 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Neon Command: Sector 7</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet" />
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       body, html {
@@ -30,6 +33,95 @@
       ::-webkit-scrollbar-thumb {
         background: #38bdf8; 
         border-radius: 4px;
+      }
+
+      /* Cyberpunk HUD skin. Frames and glow only; components keep their layout. */
+      .hud-plate,
+      .hud-menu {
+        background-color: rgba(4, 7, 14, 0.94);
+        background-image: repeating-linear-gradient(
+          180deg,
+          rgba(255, 255, 255, 0.018) 0px,
+          rgba(255, 255, 255, 0.018) 1px,
+          transparent 1px,
+          transparent 3px
+        );
+        border: 1px solid rgba(34, 211, 238, 0.62);
+        border-radius: 2px;
+        box-shadow:
+          0 0 0 1px rgba(0, 0, 0, 0.9),
+          0 0 14px rgba(34, 211, 238, 0.22),
+          0 12px 28px rgba(0, 0, 0, 0.55);
+        font-family: "Share Tech Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      .hud-corners { position: relative; }
+      .hud-corners::before {
+        content: "";
+        position: absolute;
+        inset: -1px;
+        pointer-events: none;
+        z-index: 4;
+        background:
+          linear-gradient(#a5f3fc, #a5f3fc) left top / 11px 2px no-repeat,
+          linear-gradient(#a5f3fc, #a5f3fc) left top / 2px 11px no-repeat,
+          linear-gradient(#a5f3fc, #a5f3fc) right top / 11px 2px no-repeat,
+          linear-gradient(#a5f3fc, #a5f3fc) right top / 2px 11px no-repeat,
+          linear-gradient(#a5f3fc, #a5f3fc) left bottom / 11px 2px no-repeat,
+          linear-gradient(#a5f3fc, #a5f3fc) left bottom / 2px 11px no-repeat,
+          linear-gradient(#a5f3fc, #a5f3fc) right bottom / 11px 2px no-repeat,
+          linear-gradient(#a5f3fc, #a5f3fc) right bottom / 2px 11px no-repeat;
+      }
+      .hud-well {
+        background: rgba(0, 0, 0, 0.55);
+        border: 1px solid rgba(34, 211, 238, 0.28);
+        border-radius: 2px;
+        box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.65);
+      }
+      .hud-label {
+        color: #67e8f9;
+        letter-spacing: 0.16em;
+        text-shadow: 0 0 8px rgba(34, 211, 238, 0.65);
+      }
+      .hud-glow-cyan { text-shadow: 0 0 8px rgba(34, 211, 238, 0.8); }
+      .hud-glow-amber { color: #fbbf24; text-shadow: 0 0 8px rgba(251, 191, 36, 0.75); }
+      .hud-glow-magenta { color: #e879f9; text-shadow: 0 0 8px rgba(232, 121, 249, 0.7); }
+      .hud-glow-blue { text-shadow: 0 0 10px rgba(56, 189, 248, 0.85); }
+      .hud-glow-red { text-shadow: 0 0 10px rgba(248, 113, 113, 0.8); }
+      .hud-meter {
+        background: #05080f;
+        border: 1px solid rgba(103, 232, 249, 0.45);
+        box-shadow: 0 0 6px rgba(34, 211, 238, 0.28);
+        overflow: hidden;
+      }
+      .hud-meter-hp {
+        background: repeating-linear-gradient(90deg, #22d3ee 0 3px, rgba(34, 211, 238, 0.15) 3px 4px);
+        box-shadow: 0 0 6px #22d3ee;
+      }
+      .hud-meter-cell {
+        background: repeating-linear-gradient(90deg, #fbbf24 0 3px, rgba(251, 191, 36, 0.15) 3px 4px);
+        box-shadow: 0 0 6px #fbbf24;
+      }
+      .hud-meter-sec {
+        background: repeating-linear-gradient(90deg, #e879f9 0 3px, rgba(232, 121, 249, 0.15) 3px 4px);
+        box-shadow: 0 0 6px #e879f9;
+      }
+      .hud-menu button {
+        border: 1px solid rgba(34, 211, 238, 0.38);
+        border-radius: 2px;
+        box-shadow: inset 0 0 10px rgba(34, 211, 238, 0.05);
+        letter-spacing: 0.04em;
+      }
+      .hud-menu button:hover:not(:disabled) {
+        border-color: rgba(165, 243, 252, 0.95);
+        box-shadow: 0 0 10px rgba(34, 211, 238, 0.35);
+      }
+      .hud-alert {
+        background:
+          repeating-linear-gradient(-45deg, rgba(251, 191, 36, 0.16) 0 6px, rgba(0, 0, 0, 0.2) 6px 12px),
+          rgba(8, 6, 2, 0.92);
+        border: 1px solid rgba(251, 191, 36, 0.85);
+        box-shadow: 0 0 16px rgba(251, 191, 36, 0.28);
+        color: #fde68a;
       }
     </style>
   <script type="importmap">
