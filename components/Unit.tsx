@@ -48,7 +48,7 @@ interface UnitProps {
     startTime?: number;
   };
   isDampenerActive?: boolean;
-  isDeployed?: boolean; // Sun-Plate
+  isDeployed?: boolean; // Battery Mule anchor
   actionMenuOpen: boolean;
   onAction: (id: string, action: string) => void;
   isDecoy?: boolean;
@@ -90,7 +90,10 @@ interface UnitProps {
   constructionTargetId?: string | null; // Mason target
   isTargetingMode?: boolean;
   showTetherRange?: boolean;
+  showBatteryRange?: boolean;
   isTetherCandidate?: boolean;
+  isBatteryLinkCandidate?: boolean;
+  batteryTetherIds?: string[];
   ammoState?: 'empty' | 'loading' | 'armed' | 'awaiting_delivery';
   loadedAmmo?: 'eclipse' | 'he' | null;
   missileInventory?: { eclipse: number; he: number }; // Added
@@ -116,7 +119,7 @@ interface UnitProps {
 }
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, onMoveStep, tileTypeMap, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, isTetherCandidate, ammoState, loadedAmmo, missileInventory, loadingProgress, courierPayload, jammerActive, tetherTargetId, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, onMoveStep, tileTypeMap, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, loadingProgress, courierPayload, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime,
   isStunned, globalSpeedModifier = 1.0, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -128,6 +131,7 @@ const Unit: React.FC<UnitProps> = ({
   });
   const radarRef = useRef<THREE.Group>(null);
   const tetherLineRef = useRef<THREE.BufferGeometry>(null);
+  const batteryLineRefs = useRef<(THREE.BufferGeometry | null)[]>([]);
   const repairBeamRefs = useRef<(THREE.Mesh | null)[]>([]);
   const laserRef = useRef<THREE.BufferGeometry>(null);
   const constructionLineRef = useRef<THREE.BufferGeometry>(null);
@@ -367,6 +371,29 @@ const Unit: React.FC<UnitProps> = ({
         }
     }
 
+    if (isSunPlate && meshRef.current) {
+        const ids = batteryTetherIds || [];
+        for (let i = 0; i < ABILITY_CONFIG.BATTERY_MULE_SLOTS; i++) {
+            const geom = batteryLineRefs.current[i];
+            if (!geom) continue;
+            const targetObj = ids[i] ? scene.getObjectByName(`unit-${ids[i]}`) : null;
+            if (!targetObj) {
+                geom.setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, 0)]);
+            } else {
+                const start = new THREE.Vector3(0, 1.2, 0);
+                const targetWorld = new THREE.Vector3();
+                targetObj.getWorldPosition(targetWorld);
+                const sourceWorld = new THREE.Vector3();
+                meshRef.current.getWorldPosition(sourceWorld);
+                const diffWorld = new THREE.Vector3().subVectors(targetWorld, sourceWorld);
+                diffWorld.y += 0.6;
+                const localEnd = diffWorld.applyQuaternion(meshRef.current.quaternion.clone().invert());
+                geom.setFromPoints([start, localEnd]);
+            }
+            geom.attributes.position.needsUpdate = true;
+        }
+    }
+
     if (isGuardian && meshRef.current) {
         const ids = repairTargetIds && repairTargetIds.length > 0 ? repairTargetIds : (repairTargetId ? [repairTargetId] : []);
         const up = new THREE.Vector3(0, 1, 0);
@@ -550,7 +577,47 @@ const Unit: React.FC<UnitProps> = ({
     if (isBanshee) return (<group scale={[2.8, 2.8, 2.8]}> {[0.9, 0, -1.1].map((z, i) => ( <group key={i}> <mesh position={[-0.65, 0.35, z]} rotation={[0, 0, Math.PI/2]}><cylinderGeometry args={[0.35, 0.35, 0.3, 8]} /><meshStandardMaterial color="#0f172a" roughness={0.9} /></mesh> <mesh position={[-0.81, 0.35, z]} rotation={[0, 0, Math.PI/2]}><cylinderGeometry args={[0.2, 0.2, 0.05, 8]} /><meshStandardMaterial color="#334155" /></mesh> <mesh position={[0.65, 0.35, z]} rotation={[0, 0, Math.PI/2]}><cylinderGeometry args={[0.35, 0.35, 0.3, 8]} /><meshStandardMaterial color="#0f172a" roughness={0.9} /></mesh> <mesh position={[0.81, 0.35, z]} rotation={[0, 0, Math.PI/2]}><cylinderGeometry args={[0.2, 0.2, 0.05, 8]} /><meshStandardMaterial color="#334155" /></mesh> </group> ))} <mesh position={[0, 0.5, -0.1]}><boxGeometry args={[1.0, 0.4, 2.8]} /><meshStandardMaterial color="#1e293b" /></mesh> <group position={[0, 0.9, 1.0]}> <mesh><boxGeometry args={[1.1, 0.8, 0.9]} /><meshStandardMaterial color="#334155" metalness={0.6} roughness={0.3} /><Edges color="#475569" /></mesh> <mesh position={[0, 0.15, 0.46]}><planeGeometry args={[1.0, 0.35]} /><meshStandardMaterial color="#0f172a" metalness={0.9} roughness={0.1} /></mesh> <mesh position={[0.3, 0.41, 0.2]}><boxGeometry args={[0.15, 0.05, 0.05]} /><meshBasicMaterial color="#f97316" /></mesh> <mesh position={[-0.3, 0.41, 0.2]}><boxGeometry args={[0.15, 0.05, 0.05]} /><meshBasicMaterial color="#f97316" /></mesh> <mesh position={[0.4, -0.1, 0.46]}><boxGeometry args={[0.15, 0.1, 0.02]} /><meshBasicMaterial color="#06b6d4" toneMapped={false} /></mesh> <mesh position={[-0.4, -0.1, 0.46]}><boxGeometry args={[0.15, 0.1, 0.02]} /><meshBasicMaterial color="#06b6d4" toneMapped={false} /></mesh> <mesh position={[0, -0.3, 0.5]}><boxGeometry args={[1.15, 0.3, 0.2]} /><meshStandardMaterial color="#1e293b" /></mesh> </group> <group position={[0, 1.1, -0.5]}> <mesh><boxGeometry args={[1.2, 1.2, 1.6]} /><meshStandardMaterial color="#334155" metalness={0.5} roughness={0.4} /><Edges color="#1e293b" /></mesh> {[-1, 1].map((side) => ( <group key={side} position={[side * 0.61, 0, 0]} rotation={[0, side * Math.PI/2, 0]}> <mesh><planeGeometry args={[1.0, 0.8]} /><meshStandardMaterial color="#0f172a" /></mesh> {[0.2, 0, -0.2].map((y, i) => ( <group key={i} position={[0, y, 0.01]}> <mesh position={[-0.2, 0, 0]}><planeGeometry args={[0.3, 0.05]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> <mesh position={[0.2, 0, 0]}><planeGeometry args={[0.3, 0.05]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> </group> ))} </group> ))} <group position={[-0.65, 0, 0.6]}> <mesh position={[0, 0, 0]}><cylinderGeometry args={[0.02, 0.02, 1.2]} /><meshStandardMaterial color="#94a3b8" /></mesh> {[-0.4, -0.2, 0, 0.2, 0.4].map((y, i) => ( <mesh key={i} position={[0.05, y, 0]} rotation={[0, 0, Math.PI/2]}><cylinderGeometry args={[0.01, 0.01, 0.1]} /><meshStandardMaterial color="#94a3b8" /></mesh> ))} </group> <mesh position={[0.3, 0.61, -0.4]}><boxGeometry args={[0.4, 0.1, 0.4]} /><meshStandardMaterial color="#475569" /></mesh> </group> <group position={[0, 1.7, -0.5]} ref={radarRef}> <mesh position={[0, 0, 0]}><cylinderGeometry args={[0.3, 0.4, 0.3]} /><meshStandardMaterial color="#1e293b" /></mesh> <group position={[0, 0.6, 0]} rotation={[0.2, 0, 0]}> <mesh><boxGeometry args={[1.4, 0.9, 0.2]} /><meshStandardMaterial color="#334155" metalness={0.6} /><Edges color="#475569" /></mesh> <mesh position={[0, 0, 0.11]}><planeGeometry args={[1.3, 0.8]} /><meshStandardMaterial color="#1e293b" /></mesh> <mesh position={[0, 0, 0.12]}><boxGeometry args={[1.3, 0.02, 0.01]} /><meshBasicMaterial color="#475569" /></mesh> <mesh position={[0, 0, 0.12]} rotation={[0, 0, Math.PI/2]}><boxGeometry args={[0.8, 0.02, 0.01]} /><meshBasicMaterial color="#475569" /></mesh> <mesh position={[0, 0, 0.3]}><boxGeometry args={[0.2, 0.2, 0.2]} /><meshStandardMaterial color="#0f172a" /></mesh> {[-0.6, 0.6].map(x => ( <mesh key={x} position={[x, 0.4, 0.1]}><boxGeometry args={[0.05, 0.05, 0.02]} /><meshBasicMaterial color="#f97316" toneMapped={false} /></mesh> ))} </group> </group> <group position={[0.4, 1.7, 0.4]} rotation={[0, -Math.PI/4, -Math.PI/6]}> <mesh><cylinderGeometry args={[0.3, 0.1, 0.1, 8]} /><meshStandardMaterial color="#475569" /></mesh> <mesh position={[0, 0.05, 0]}><circleGeometry args={[0.28, 8]} /><meshStandardMaterial color="#1e293b" /></mesh> </group> <group position={[-0.5, 1.7, 0.5]}> <mesh position={[0, 0.4, 0]}><cylinderGeometry args={[0.02, 0.02, 0.8]} /><meshStandardMaterial color="#94a3b8" /></mesh> <mesh position={[0, 0.8, 0]}><sphereGeometry args={[0.03]} /><meshBasicMaterial color={teamColor} /></mesh> </group> <group position={[-0.5, 1.7, 0.3]}> <mesh position={[0, 0.3, 0]}><cylinderGeometry args={[0.02, 0.02, 0.6]} /><meshStandardMaterial color="#94a3b8" /></mesh> </group> </group>);
     if (isCourier) { const payloadColor = courierPayload === 'eclipse' ? '#c084fc' : '#ffffff'; return ( <group scale={[2.2, 2.2, 2.2]}> <mesh position={[0, 0.3, 0]}><boxGeometry args={[0.9, 0.4, 1.8]} /><meshStandardMaterial color="#475569" metalness={0.6} /><Edges color={teamColor} /></mesh> {[[-0.5, -0.6], [0.5, -0.6], [-0.5, 0.6], [0.5, 0.6]].map((pos, i) => (<mesh key={i} position={[pos[0], 0.2, pos[1]]} rotation={[0, 0, Math.PI/2]}><cylinderGeometry args={[0.2, 0.2, 0.2, 12]} /><meshStandardMaterial color="#1e293b" /></mesh>))} <mesh position={[0, 0.6, 0.5]}><boxGeometry args={[0.8, 0.4, 0.6]} /><meshStandardMaterial color="#334155" /><Edges color="#000000" /></mesh> {courierPayload && (<mesh position={[0, 0.5, -0.4]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.25, 0.25, 0.8, 8]} /><meshStandardMaterial color={payloadColor} emissive={payloadColor} emissiveIntensity={0.5} /><Edges color="#000000" /></mesh>)} <mesh position={[0, 0.9, 0.5]}><sphereGeometry args={[0.1, 6, 6]} /><meshBasicMaterial color="#f59e0b" /></mesh> </group> ); }
     if (isHelios) return (<Float speed={2} rotationIntensity={0.1} floatIntensity={0.2}> <group scale={[2.6, 2.6, 2.6]}> <group position={[0, 0, 0]}> <mesh><boxGeometry args={[0.9, 0.5, 0.9]} /><meshStandardMaterial color="#334155" metalness={0.7} roughness={0.3} /><Edges color="#000000" /></mesh> <mesh position={[0.5, 0, 0]}><boxGeometry args={[0.15, 0.3, 0.6]} /><meshStandardMaterial color="#1e293b" /><Edges color="#475569" /></mesh> <mesh position={[-0.5, 0, 0]}><boxGeometry args={[0.15, 0.3, 0.6]} /><meshStandardMaterial color="#1e293b" /><Edges color="#475569" /></mesh> <mesh position={[0.53, 0, 0]} rotation={[0, 0, Math.PI/2]}><planeGeometry args={[0.2, 0.5]} /><meshBasicMaterial color="#facc15" /> </mesh> <mesh position={[-0.53, 0, 0]} rotation={[0, 0, -Math.PI/2]}><planeGeometry args={[0.2, 0.5]} /><meshBasicMaterial color="#facc15" /> </mesh> <mesh position={[0, 0.26, 0.46]}><boxGeometry args={[0.6, 0.05, 0.05]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> </group> <group position={[0, 0.3, 0]}> <mesh position={[0, -0.05, 0]}><cylinderGeometry args={[0.1, 0.1, 0.1, 8]} /><meshStandardMaterial color="#475569" /></mesh> {[[-0.24, -0.24], [0.24, -0.24], [-0.24, 0.24], [0.24, 0.24]].map((pos, i) => ( <group key={i} position={[pos[0], 0, pos[1]]}> <mesh><boxGeometry args={[0.45, 0.05, 0.45]} /><meshStandardMaterial color="#0f172a" metalness={0.8} roughness={0.2} /><Edges color="#38bdf8" linewidth={1} /></mesh> <mesh position={[0, 0.03, 0]} rotation={[-Math.PI/2, 0, 0]}><planeGeometry args={[0.4, 0.4]} /><meshBasicMaterial color="#0ea5e9" wireframe transparent opacity={0.2} /></mesh> </group> ))} </group> <group position={[0, -0.15, 0.55]} rotation={[0, 0, 0]}> <mesh rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.4, 0.2, 0.3, 16]} /><meshStandardMaterial color="#1e293b" /><Edges color="#334155" /></mesh> <mesh position={[0, 0, 0.16]} rotation={[Math.PI/2, 0, 0]}><circleGeometry args={[0.35, 16]} /><meshBasicMaterial color="#ffedd5" /></mesh> <mesh position={[0, 0, 0.17]} rotation={[Math.PI/2, 0, 0]}><ringGeometry args={[0.1, 0.35, 16]} /><meshBasicMaterial color="#f97316" transparent opacity={0.8} /></mesh> <mesh position={[0, 0, 0.3]} rotation={[Math.PI/2, 0, 0]}><coneGeometry args={[0.05, 0.4, 16]} /><meshStandardMaterial color="#c2410c" /></mesh> <group position={[0, 0, 0]}> <mesh position={[0, 0, 0.25]} rotation={[0, 0, Math.PI/4]}><ringGeometry args={[0.4, 0.45, 4]} /><meshBasicMaterial color="#fdba74" transparent opacity={0.3} side={THREE.DoubleSide} /></mesh> <mesh position={[0, 0, 0.45]} scale={[1.3, 1.3, 1]} rotation={[0, 0, 0]}><ringGeometry args={[0.4, 0.42, 16]} /><meshBasicMaterial color="#fdba74" transparent opacity={0.15} side={THREE.DoubleSide} /></mesh> </group> </group> {[[ -0.35, -0.35], [0.35, -0.35], [-0.35, 0.35], [0.35, 0.35] ].map((pos, i) => ( <group key={i} position={[pos[0], -0.25, pos[1]]}> <mesh><cylinderGeometry args={[0.1, 0.08, 0.2]} /><meshStandardMaterial color="#0f172a" /></mesh> <mesh position={[0, -0.3, 0]} rotation={[Math.PI, 0, 0]}><coneGeometry args={[0.08, 0.5, 8, 1, true]} /><meshBasicMaterial color="#0ea5e9" transparent opacity={0.8} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh> </group> ))} </group> </Float>);
-    if (isSunPlate) { const chargeRadius = ABILITY_CONFIG.SUNPLATE_RADIUS * tileSize; const Panel = ({ offset, rotation }: { offset: [number, number, number], rotation: [number, number, number] }) => ( <group position={offset} rotation={rotation}> <mesh position={[0, 0, 0]}><boxGeometry args={[0.1, 0.1, 0.4]} /><meshStandardMaterial color="#64748b" /></mesh> <group position={[0, 0.05, 0.6]}> <mesh><boxGeometry args={[0.9, 0.05, 1.2]} /><meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.2} /><Edges color="#475569" /></mesh> <mesh position={[0, 0.03, 0]} rotation={[-Math.PI/2, 0, 0]}><planeGeometry args={[0.8, 1.1]} /><meshStandardMaterial color="#0f172a" /></mesh> <mesh position={[0, 0.04, 0]} rotation={[-Math.PI/2, 0, 0]}><planeGeometry args={[0.8, 1.1, 3, 4]} /><meshBasicMaterial color="#38bdf8" wireframe transparent opacity={0.4} /></mesh> </group> </group> ); return ( <group scale={[2.8, 2.8, 2.8]}> <mesh position={[0, 0.4, 0]}><boxGeometry args={[1.6, 0.6, 1.6]} /><meshStandardMaterial color="#334155" metalness={0.7} roughness={0.3} /><Edges color={teamColor} /></mesh> {[[-0.9, -0.7], [0.9, -0.7], [-0.9, 0.7], [0.9, 0.7]].map((pos, i) => ( <group key={i} position={[pos[0], 0.3, pos[1]]}> <mesh><boxGeometry args={[0.5, 0.6, 0.8]} /><meshStandardMaterial color="#1e293b" /><Edges color="#334155" /></mesh> <mesh position={[pos[0] > 0 ? 0.26 : -0.26, -0.1, 0]} rotation={[0, Math.PI/2, 0]}><ringGeometry args={[0.15, 0.2, 8]} /><meshBasicMaterial color={teamColor} side={THREE.DoubleSide} toneMapped={false} /></mesh> </group> ))} {[[-1.2, -1.2], [1.2, -1.2], [-1.2, 1.2], [1.2, 1.2]].map((pos, i) => { const rotY = Math.atan2(pos[0], pos[1]); const yPos = isDeployed ? 0.1 : 0.4; return ( <group key={`leg-${i}`} position={[pos[0] * (isDeployed ? 0.9 : 0.6), yPos, pos[1] * (isDeployed ? 0.9 : 0.6)]} rotation={[0, rotY, 0]}> <mesh rotation={[isDeployed ? -Math.PI/4 : 0, 0, 0]}><boxGeometry args={[0.2, 0.6, 0.2]} /><meshStandardMaterial color="#475569" /></mesh> <mesh position={[0, -0.3, 0]}><cylinderGeometry args={[0.2, 0.3, 0.1, 6]} /><meshStandardMaterial color="#1e293b" /></mesh> </group> ) })} <group position={[0, 0.8, 0]}> <mesh><cylinderGeometry args={[0.5, 0.6, 0.4, 8]} /><meshStandardMaterial color="#1e293b" /><Edges color="#38bdf8" /></mesh> <mesh position={[0, 0.21, 0]} rotation={[-Math.PI/2, 0, 0]}><circleGeometry args={[0.3, 16]} /><meshBasicMaterial color="#38bdf8" /></mesh> <Panel offset={[0, 0, -0.5]} rotation={[isDeployed ? -Math.PI/4 : -Math.PI/1.8, 0, 0]} /> <Panel offset={[0, 0, 0.5]} rotation={[isDeployed ? Math.PI/4 : Math.PI/1.8, Math.PI, 0]} /> <Panel offset={[0.5, 0, 0]} rotation={[isDeployed ? Math.PI/4 : Math.PI/1.8, -Math.PI/2, 0]} /> <Panel offset={[-0.5, 0, 0]} rotation={[isDeployed ? Math.PI/4 : Math.PI/1.8, Math.PI/2, 0]} /> </group> {isDeployed && !isInNanoCloud && ( <group> <mesh position={[0, 0.1, 0]} rotation={[-Math.PI/2, 0, 0]} raycast={() => null}><circleGeometry args={[chargeRadius / 1.4, 16]} /><meshBasicMaterial color="#facc15" transparent opacity={0.1} depthWrite={false} /></mesh> <mesh position={[0, 0.15, 0]} rotation={[-Math.PI/2, 0, 0]} raycast={() => null}><ringGeometry args={[(chargeRadius / 1.4) - 0.5, (chargeRadius / 1.4), 16]} /><meshBasicMaterial color="#facc15" transparent opacity={0.5} side={THREE.DoubleSide} /></mesh> <mesh position={[0, 1.2, 0]} rotation={[Math.PI/2, 0, Date.now() * 0.001]}><ringGeometry args={[0.8, 0.9, 16]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.6} side={THREE.DoubleSide} /></mesh> </group> )} </group> ); }
+    if (isSunPlate) {
+        const planted = !!isDeployed;
+        return (
+            <group scale={[2.6, 2.6, 2.6]}>
+                {[-0.9, 0.9].map((x) => (
+                    <mesh key={x} position={[x, 0.28, 0]}>
+                        <boxGeometry args={[0.46, 0.42, 2.5]} />
+                        <meshStandardMaterial color="#1e293b" metalness={0.5} roughness={0.55} />
+                        <Edges color="#0f172a" />
+                    </mesh>
+                ))}
+                <mesh position={[0, planted ? 0.48 : 0.62, -0.05]}>
+                    <boxGeometry args={[1.4, 0.5, 2.3]} />
+                    <meshStandardMaterial color="#334155" metalness={0.65} roughness={0.35} />
+                    <Edges color={teamColor} />
+                </mesh>
+                {[-0.4, 0, 0.4].map((x, cell) => (
+                    <mesh key={cell} position={[x, planted ? 0.9 : 1.05, -0.2]}>
+                        <boxGeometry args={[0.32, 0.46, 1.2]} />
+                        <meshStandardMaterial color="#422006" emissive="#facc15" emissiveIntensity={planted ? 0.9 : 0.28} />
+                        <Edges color="#facc15" />
+                    </mesh>
+                ))}
+                <mesh position={[0, planted ? 0.88 : 1.02, 0.82]}>
+                    <boxGeometry args={[1.1, 0.46, 0.62]} />
+                    <meshStandardMaterial color="#475569" metalness={0.45} roughness={0.4} />
+                    <Edges color="#0f172a" />
+                </mesh>
+                <mesh position={[0, planted ? 0.95 : 1.1, 1.14]}>
+                    <planeGeometry args={[0.7, 0.18]} />
+                    <meshBasicMaterial color={teamColor} />
+                </mesh>
+                {planted && [[-0.75, -1.0], [0.75, -1.0], [-0.75, 1.0], [0.75, 1.0]].map(([x, z], pad) => (
+                    <mesh key={pad} position={[x, 0.06, z]}>
+                        <cylinderGeometry args={[0.16, 0.22, 0.08, 6]} />
+                        <meshStandardMaterial color="#facc15" emissive="#facc15" emissiveIntensity={0.45} />
+                    </mesh>
+                ))}
+            </group>
+        );
+    }
     if (isBallista) {
         return (
             <group scale={[2.8, 2.8, 2.8]}>
@@ -768,6 +835,12 @@ const Unit: React.FC<UnitProps> = ({
 
       {/* Lines, Effects, Html overlays */}
       {tetherTargetId && (<line><bufferGeometry ref={tetherLineRef} /><lineBasicMaterial color="#38bdf8" linewidth={2} transparent opacity={0.6} /></line>)}
+      {isSunPlate && Array.from({ length: ABILITY_CONFIG.BATTERY_MULE_SLOTS }, (_, i) => (
+          <line key={`battery-link-${i}`}>
+              <bufferGeometry ref={(node) => { batteryLineRefs.current[i] = node as THREE.BufferGeometry | null; }} />
+              <lineBasicMaterial color="#facc15" transparent opacity={0.9} />
+          </line>
+      ))}
       {isGuardian && Array.from({ length: ABILITY_CONFIG.GUARDIAN_REPAIR_SLOTS }, (_, i) => (
           <mesh key={`repair-${i}`} ref={(node) => { repairBeamRefs.current[i] = node; }} visible={false} raycast={() => null}>
               <cylinderGeometry args={[0.08, 0.08, 1, 6]} />
@@ -814,6 +887,12 @@ const Unit: React.FC<UnitProps> = ({
           <meshBasicMaterial color="#38bdf8" transparent opacity={0.45} side={THREE.DoubleSide} />
         </mesh>
       )}
+      {showBatteryRange && (
+        <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.15, 0]} raycast={() => null}>
+          <ringGeometry args={[ABILITY_CONFIG.BATTERY_MULE_RANGE * tileSize, ABILITY_CONFIG.BATTERY_MULE_RANGE * tileSize + 0.45, 64]} />
+          <meshBasicMaterial color="#facc15" transparent opacity={0.45} side={THREE.DoubleSide} />
+        </mesh>
+      )}
       {isTetherCandidate && (
         <group>
           <mesh position={[0, -hoverHeight / 2, 0]}>
@@ -823,6 +902,18 @@ const Unit: React.FC<UnitProps> = ({
           <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, -hoverHeight + 0.25, 0]}>
             <ringGeometry args={[tileSize * 0.45, tileSize * 0.6, 24]} />
             <meshBasicMaterial color="#38bdf8" transparent opacity={0.7} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
+      )}
+      {isBatteryLinkCandidate && (
+        <group>
+          <mesh position={[0, 0.4, 0]}>
+            <cylinderGeometry args={[tileSize * 0.5, tileSize * 0.5, 2.2, 12]} />
+            <meshBasicMaterial color="#facc15" transparent opacity={0.14} depthWrite={false} />
+          </mesh>
+          <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.3, 0]}>
+            <ringGeometry args={[tileSize * 0.4, tileSize * 0.55, 24]} />
+            <meshBasicMaterial color="#facc15" transparent opacity={0.75} side={THREE.DoubleSide} />
           </mesh>
         </group>
       )}
@@ -871,22 +962,25 @@ const Unit: React.FC<UnitProps> = ({
           />
       )}
 
-      {/* Health is always shown. Mechanical units always show battery; infantry only when an ability is drawing it. */}
-      {!isDecoy && (
+      {/* Bars stay hidden until the unit is selected, or that meter drops below full.
+          The action menu occupies this same anchor, so its own copy of the bars is shown instead. */}
+      {!isDecoy && !actionMenuOpen && (isSelected || health < maxHealth || (maxBattery > 0 && battery < maxBattery) || (secondaryBattery !== undefined && maxSecondaryBattery !== undefined && secondaryBattery < maxSecondaryBattery) || (chargingStatus !== undefined && chargingStatus > 0 && !isInNanoCloud)) && (
         <Html position={[0, 4, 0]} center zIndexRange={[50, 0]}>
             <div className="flex flex-col items-center pointer-events-none" style={{ width: '32px' }}>
                 {/* Health */}
+                {(isSelected || health < maxHealth) && (
                 <div className="hud-meter w-full h-1 mb-0.5">
                     <div className="hud-meter-hp h-full transition-all duration-300" style={{ width: `${(health / maxHealth) * 100}%` }} />
                 </div>
+                )}
                 {/* Battery */}
-                {maxBattery > 0 && (needsLocomotionPower || battery < maxBattery || isSelected || (chargingStatus && chargingStatus > 0) || isDampenerActive || decoyActive) && (
+                {maxBattery > 0 && (isSelected || battery < maxBattery) && (
                     <div className="hud-meter w-full h-1">
                         <div className="hud-meter-cell h-full transition-all duration-300" style={{ width: `${(battery / maxBattery) * 100}%` }} />
                     </div>
                 )}
                 {/* Secondary Battery (Banshee) */}
-                {secondaryBattery !== undefined && maxSecondaryBattery !== undefined && (
+                {secondaryBattery !== undefined && maxSecondaryBattery !== undefined && (isSelected || secondaryBattery < maxSecondaryBattery) && (
                     <div className="hud-meter w-full h-1 mt-0.5">
                         <div className="hud-meter-sec h-full transition-all duration-300" style={{ width: `${(secondaryBattery / maxSecondaryBattery) * 100}%` }} />
                     </div>
@@ -910,6 +1004,30 @@ const Unit: React.FC<UnitProps> = ({
                   {/* Unit Label Header */}
                   <div className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider border-b border-cyan-500/30 pb-1 mb-1 text-center whitespace-nowrap">
                       {unitStats.label}
+                  </div>
+                  <div className="relative z-10 flex flex-col gap-1 mb-1">
+                      <div className="flex items-center gap-1">
+                          <span className="text-[8px] font-mono text-cyan-300 w-5 leading-none">HP</span>
+                          <div className="hud-meter flex-1 h-2">
+                              <div className="hud-meter-hp h-full" style={{ width: `${(health / maxHealth) * 100}%` }} />
+                          </div>
+                      </div>
+                      {maxBattery > 0 && (
+                          <div className="flex items-center gap-1">
+                              <span className="text-[8px] font-mono text-amber-300 w-5 leading-none">EN</span>
+                              <div className="hud-meter flex-1 h-2">
+                                  <div className="hud-meter-cell h-full" style={{ width: `${(battery / maxBattery) * 100}%` }} />
+                              </div>
+                          </div>
+                      )}
+                      {secondaryBattery !== undefined && maxSecondaryBattery !== undefined && (
+                          <div className="flex items-center gap-1">
+                              <span className="text-[8px] font-mono text-fuchsia-300 w-5 leading-none">SEC</span>
+                              <div className="hud-meter flex-1 h-2">
+                                  <div className="hud-meter-sec h-full" style={{ width: `${(secondaryBattery / maxSecondaryBattery) * 100}%` }} />
+                              </div>
+                          </div>
+                      )}
                   </div>
 
                   {/* Actions based on unit type */}
@@ -936,7 +1054,13 @@ const Unit: React.FC<UnitProps> = ({
                       </>
                   )}
                   {isSunPlate && (
-                      <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TOGGLE ARRAY'); }} className={`text-[10px] ${isDeployed ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>Toggle Array</button>
+                      <>
+                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TOGGLE_ANCHOR'); }} className={`text-[10px] ${isDeployed ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>{isDeployed ? 'Unanchor' : 'Anchor Down'}</button>
+                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('BATTERY_TETHER'); }} disabled={!isDeployed} className={`text-[10px] ${isDeployed ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-slate-900 text-slate-500'} px-2 py-1 rounded text-left flex justify-between`}><span>{isTargetingMode ? 'Select Vehicle' : 'Tether'}</span><span>{(batteryTetherIds || []).length}/{ABILITY_CONFIG.BATTERY_MULE_SLOTS}</span></button>
+                        {(batteryTetherIds || []).length > 0 && (
+                          <button onClick={(e) => { e.stopPropagation(); handleMenuAction('DISCONNECT_BATTERY'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left">Disconnect</button>
+                        )}
+                      </>
                   )}
                   {isDrone && (
                       <button onClick={(e) => { e.stopPropagation(); handleMenuAction('LOITERING SURVEILLANCE'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left">Surveillance</button>

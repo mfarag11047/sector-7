@@ -106,11 +106,12 @@ export interface UnitData {
   // Existing extended fields
   secondaryBattery?: number;
   maxSecondaryBattery?: number;
-  chargingStatus?: number; // 0=none, 1=helios, 2=sunplate
+  chargingStatus?: number; // 0=none, 1=helios or grid, 2=battery mule tether
   cargo?: number;
   constructionTargetId?: string | null;
   isDampenerActive?: boolean;
-  isDeployed?: boolean;
+  isDeployed?: boolean; // Battery Mule anchor. While planted it cannot move.
+  batteryTetherIds?: string[]; // Vehicles the anchored Battery Mule is feeding
   isAnchored?: boolean; // Added for Swarm Host
   anchorTime?: number; // Added for Swarm Host spawn delay logic
   lastSpawnTime?: number; // Added for Swarm Host interval logic

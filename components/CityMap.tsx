@@ -17,6 +17,7 @@ import { freezeContainer } from '../perf';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 
 const isTetherableDrone = (u: UnitData) => u.type === 'drone' || u.type === 'helios';
+const isBatteryLinkable = (u: UnitData) => u.health > 0 && u.maxBattery > 0 && u.unitClass !== 'infantry' && u.type !== 'sun_plate' && u.type !== 'defense_drone' && u.type !== 'crawler_drone';
 
 // Helper to check if a grid position is inside any cloud of a specific type (optional)
 const isPointInCloud = (pos: {x: number, z: number}, clouds: CloudData[], type?: string): boolean => {
@@ -955,12 +956,12 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
     { id: 'u11', type: 'wasp', unitClass: 'air', team: 'blue', gridPos: { x: 5, z: 7 }, path: [], visionRange: UNIT_STATS.wasp.visionRange, health: UNIT_STATS.wasp.maxHealth, maxHealth: UNIT_STATS.wasp.maxHealth, cooldowns: { swarmLaunch: 0 }, charges: { swarm: ABILITY_CONFIG.WASP_MAX_CHARGES }, battery: 100, maxBattery: 100 },
     { id: 'u12', type: 'mason', unitClass: 'builder', team: 'blue', gridPos: { x: 3, z: 6 }, path: [], visionRange: UNIT_STATS.mason.visionRange, health: UNIT_STATS.mason.maxHealth, maxHealth: UNIT_STATS.mason.maxHealth, cooldowns: {}, cargo: 0, constructionTargetId: null, battery: 100, maxBattery: 100 },
     { id: 'u13', type: 'helios', unitClass: 'support', team: 'blue', gridPos: { x: 2, z: 6 }, path: [], visionRange: UNIT_STATS.helios.visionRange, health: UNIT_STATS.helios.maxHealth, maxHealth: UNIT_STATS.helios.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100 },
-    { id: 'u14', type: 'sun_plate', unitClass: 'armor', team: 'blue', gridPos: { x: 4, z: 5 }, path: [], visionRange: UNIT_STATS.sun_plate.visionRange, health: UNIT_STATS.sun_plate.maxHealth, maxHealth: UNIT_STATS.sun_plate.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, isDeployed: false },
+    { id: 'u14', type: 'sun_plate', unitClass: 'armor', team: 'blue', gridPos: { x: 4, z: 5 }, path: [], visionRange: UNIT_STATS.sun_plate.visionRange, health: UNIT_STATS.sun_plate.maxHealth, maxHealth: UNIT_STATS.sun_plate.maxHealth, cooldowns: {}, battery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, maxBattery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, isDeployed: false, batteryTetherIds: [] },
     { id: 'u15', type: 'ballista', unitClass: 'support', team: 'blue', gridPos: { x: 5, z: 5 }, path: [], visionRange: UNIT_STATS.ballista.visionRange, health: UNIT_STATS.ballista.maxHealth, maxHealth: UNIT_STATS.ballista.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, ammoState: 'empty', loadedAmmo: null, missileInventory: { eclipse: 1, he: 1 }, loadingProgress: 0 },
     { id: 'u16', type: 'wasp', unitClass: 'air', team: 'red', gridPos: { x: gridSize - 6, z: gridSize - 8 }, path: [], visionRange: UNIT_STATS.wasp.visionRange, health: UNIT_STATS.wasp.maxHealth, maxHealth: UNIT_STATS.wasp.maxHealth, cooldowns: { swarmLaunch: 0 }, charges: { swarm: ABILITY_CONFIG.WASP_MAX_CHARGES }, battery: 100, maxBattery: 100 },
     { id: 'u17', type: 'mason', unitClass: 'builder', team: 'red', gridPos: { x: gridSize - 4, z: gridSize - 7 }, path: [], visionRange: UNIT_STATS.mason.visionRange, health: UNIT_STATS.mason.maxHealth, maxHealth: UNIT_STATS.mason.maxHealth, cooldowns: {}, cargo: 0, constructionTargetId: null, battery: 100, maxBattery: 100 },
     { id: 'u18', type: 'helios', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 3, z: gridSize - 7 }, path: [], visionRange: UNIT_STATS.helios.visionRange, health: UNIT_STATS.helios.maxHealth, maxHealth: UNIT_STATS.helios.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100 },
-    { id: 'u19', type: 'sun_plate', unitClass: 'armor', team: 'red', gridPos: { x: gridSize - 5, z: gridSize - 6 }, path: [], visionRange: UNIT_STATS.sun_plate.visionRange, health: UNIT_STATS.sun_plate.maxHealth, maxHealth: UNIT_STATS.sun_plate.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, isDeployed: false },
+    { id: 'u19', type: 'sun_plate', unitClass: 'armor', team: 'red', gridPos: { x: gridSize - 5, z: gridSize - 6 }, path: [], visionRange: UNIT_STATS.sun_plate.visionRange, health: UNIT_STATS.sun_plate.maxHealth, maxHealth: UNIT_STATS.sun_plate.maxHealth, cooldowns: {}, battery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, maxBattery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, isDeployed: false, batteryTetherIds: [] },
     { id: 'u20', type: 'ballista', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 6, z: gridSize - 6 }, path: [], visionRange: UNIT_STATS.ballista.visionRange, health: UNIT_STATS.ballista.maxHealth, maxHealth: UNIT_STATS.ballista.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, ammoState: 'empty', loadedAmmo: null, missileInventory: { eclipse: 1, he: 1 }, loadingProgress: 0 },
     { id: 'u21', type: 'banshee', unitClass: 'support', team: 'blue', gridPos: { x: 6, z: 6 }, path: [], visionRange: UNIT_STATS.banshee.visionRange, health: UNIT_STATS.banshee.maxHealth, maxHealth: UNIT_STATS.banshee.maxHealth, cooldowns: {}, battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, jammerActive: false },
     { id: 'u22', type: 'banshee', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 7, z: gridSize - 7 }, path: [], visionRange: UNIT_STATS.banshee.visionRange, health: UNIT_STATS.banshee.maxHealth, maxHealth: UNIT_STATS.banshee.maxHealth, cooldowns: {}, battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, jammerActive: false },
@@ -978,7 +979,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   const [dragSelection, setDragSelection] = useState<{start: THREE.Vector3, current: THREE.Vector3, active: boolean} | null>(null);
   
   const [targetingSourceId, setTargetingSourceId] = useState<string | null>(null);
-  const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'CANNON' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'SWARM' | null>(null);
+  const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'BATTERY_TETHER' | 'CANNON' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'SWARM' | null>(null);
 
   const [baseMenuOpen, setBaseMenuOpen] = useState<'blue' | 'red' | null>(null);
   const [placementMode, setPlacementMode] = useState<{type: StructureType, cost: number} | null>(null);
@@ -1920,6 +1921,32 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
               }
           }
           return;
+      }
+      if (targetingSourceId && targetingAbility === 'BATTERY_TETHER') {
+          const source = unitsRef.current.find(u => u.id === targetingSourceId);
+          const target = unitsRef.current.find(u => u.id === id);
+          if (source && source.type === 'sun_plate' && source.isDeployed && target && isBatteryLinkable(target) && target.team === source.team) {
+              const dist = Math.hypot(source.gridPos.x - target.gridPos.x, source.gridPos.z - target.gridPos.z);
+              if (dist <= ABILITY_CONFIG.BATTERY_MULE_RANGE) {
+                  setUnits(prev => {
+                      const sourceLinks = prev.find(u => u.id === source.id)?.batteryTetherIds || [];
+                      const removing = sourceLinks.includes(target.id);
+                      const adding = !removing && sourceLinks.length < ABILITY_CONFIG.BATTERY_MULE_SLOTS;
+                      return prev.map(u => {
+                          if (u.id === source.id) {
+                              if (removing) return { ...u, batteryTetherIds: sourceLinks.filter(linkId => linkId !== target.id) };
+                              if (!adding) return u;
+                              return { ...u, batteryTetherIds: [...sourceLinks, target.id] };
+                          }
+                          if (adding && u.batteryTetherIds?.includes(target.id)) {
+                              return { ...u, batteryTetherIds: u.batteryTetherIds.filter(linkId => linkId !== target.id) };
+                          }
+                          return u;
+                      });
+                  });
+              }
+          }
+          return;
       } else if (targetingSourceId && targetingAbility === 'CANNON') {
           const targetUnit = units.find(u => u.id === id);
           if(targetUnit) handleTileClick(targetUnit.gridPos.x, targetUnit.gridPos.z);
@@ -2235,8 +2262,8 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           }
           setTargetingSourceId(null);
           setTargetingAbility(null);
-      } else if (targetingSourceId && targetingAbility === 'TETHER') {
-          // Hardline targets a unit, not a tile — keep targeting until a drone is clicked or cancelled.
+      } else if (targetingSourceId && (targetingAbility === 'TETHER' || targetingAbility === 'BATTERY_TETHER')) {
+          // Tethers target a unit, not a tile — keep targeting until a vehicle is clicked or cancelled.
           return;
       } else if (targetingSourceId && targetingAbility === 'DECOY') {
           // Phantom Decoy Logic
@@ -2268,7 +2295,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           setTargetingAbility(null);
       } else if (selectedUnitIds.size > 0) {
           // MOVEMENT LOGIC for Multiple Units
-          const unitsToMove = units.filter(u => selectedUnitIds.has(u.id) && u.team === playerTeam);
+          const unitsToMove = units.filter(u => selectedUnitIds.has(u.id) && u.team === playerTeam && !(u.type === 'sun_plate' && u.isDeployed));
           
           if (unitsToMove.length > 0) {
               // 1. Identify Occupied Tiles (by units NOT in selection, and destination of moving units)
@@ -2488,6 +2515,24 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           setTargetingAbility(null);
           return;
       }
+      if (action === 'BATTERY_TETHER') {
+          const mule = unitsRef.current.find(u => u.id === unitId);
+          if (!mule || mule.type !== 'sun_plate' || !mule.isDeployed) return;
+          if (targetingSourceId === unitId && targetingAbility === 'BATTERY_TETHER') {
+              setTargetingSourceId(null);
+              setTargetingAbility(null);
+          } else {
+              setTargetingSourceId(unitId);
+              setTargetingAbility('BATTERY_TETHER');
+          }
+          return;
+      }
+      if (action === 'DISCONNECT_BATTERY') {
+          setUnits(prev => prev.map(u => u.id === unitId ? { ...u, batteryTetherIds: [] } : u));
+          setTargetingSourceId(null);
+          setTargetingAbility(null);
+          return;
+      }
       if (action === 'CANNON ATTACK') {
           setTargetingSourceId(unitId);
           setTargetingAbility('CANNON');
@@ -2575,7 +2620,10 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
               
               if (action === 'TOGGLE_JAMMER' && u.type === 'banshee') return { ...u, jammerActive: !u.jammerActive };
               if (action === 'TOGGLE DAMPENER' && u.type === 'ghost') return { ...u, isDampenerActive: !u.isDampenerActive };
-              if (action === 'TOGGLE ARRAY' && u.type === 'sun_plate') return { ...u, isDeployed: !u.isDeployed };
+              if (action === 'TOGGLE_ANCHOR' && u.type === 'sun_plate') {
+                  const anchoring = !u.isDeployed;
+                  return { ...u, isDeployed: anchoring, path: [], batteryTetherIds: anchoring ? (u.batteryTetherIds || []) : [] };
+              }
               if (action === 'TOGGLE_ANCHOR' && u.type === 'swarm_host') {
                   const anchoring = !u.isAnchored;
                   if (anchoring) {
@@ -2646,6 +2694,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   id: `u-${Date.now()}`, type: type, unitClass: stats.unitClass, team: playerTeam as UnitData['team'], gridPos: spawnPos, path: [], visionRange: stats.visionRange, health: stats.maxHealth, maxHealth: stats.maxHealth, battery: 100, maxBattery: 100, cooldowns: {},
                   ...(type === 'mason' ? { cargo: 100 } : {}),
                   ...(type === 'banshee' ? { battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY } : {}),
+                  ...(type === 'sun_plate' ? { battery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, maxBattery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, isDeployed: false, batteryTetherIds: [] as string[] } : {}),
                   ...(type === 'wasp' ? { charges: { swarm: ABILITY_CONFIG.WASP_MAX_CHARGES } } : {}),
                   ...(type === 'tank' ? { charges: { smoke: ABILITY_CONFIG.MAX_CHARGES_SMOKE, aps: ABILITY_CONFIG.MAX_CHARGES_APS } } : {}),
                   ...(type === 'ballista' ? { missileInventory: { eclipse: 1, he: 1 }, ammoState: 'empty' as const } : {}), // New Ballistas start with 1 of each
@@ -2943,6 +2992,8 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   const unitRetaliationMap = new Map<string, number>();
                   const droneTargets = new Map<string, string>();
                   const externalChargeMap = new Map<string, { amount: number, sourceId?: string }>();
+                  const muleChargeMap = new Map<string, { amount: number, sourceId: string }>();
+                  const muleDrain = new Map<string, number>();
                   const tetherSources = new Map<string, UnitData>();
                   
                   // Courier Delivery Events to be processed after map
@@ -2960,6 +3011,22 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                           tethered.maxBattery - tethered.battery
                       );
                       if (amount > 0) externalChargeMap.set(tethered.id, { amount, sourceId: u.id });
+                  });
+
+                  prevUnits.forEach(mule => {
+                      if (mule.type !== 'sun_plate' || !mule.isDeployed || mule.health <= 0) return;
+                      let remaining = mule.battery;
+                      for (const linkId of mule.batteryTetherIds || []) {
+                          const target = prevUnits.find(t => t.id === linkId && t.health > 0 && t.team === mule.team);
+                          if (!target || target.battery >= target.maxBattery || muleChargeMap.has(target.id)) continue;
+                          const dist = Math.hypot(target.gridPos.x - mule.gridPos.x, target.gridPos.z - mule.gridPos.z);
+                          if (dist > ABILITY_CONFIG.BATTERY_MULE_RANGE) continue;
+                          const amount = Math.min(ABILITY_CONFIG.BATTERY_MULE_CHARGE_RATE, remaining, target.maxBattery - target.battery);
+                          if (amount <= 0) continue;
+                          remaining -= amount;
+                          muleChargeMap.set(target.id, { amount, sourceId: mule.id });
+                          muleDrain.set(mule.id, (muleDrain.get(mule.id) || 0) + amount);
+                      }
                   });
 
                   damageEvents.forEach(evt => {
@@ -3033,7 +3100,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       for (const id of ids) healByTarget.set(id, (healByTarget.get(id) || 0) + healPerTick);
                   }
 
-                  const chargers = activeUnits.filter(u => (u.type === 'helios') || (u.type === 'sun_plate' && u.isDeployed));
+                  const chargers = activeUnits.filter(u => u.type === 'helios');
                   
                   // Clouds for visual obscuration logic (Charging & Targeting)
                   const activeClouds = cloudsRef.current.filter(c => c.type === 'nano');
@@ -3146,7 +3213,20 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       if (u.type === 'ghost' && u.decoyActive) {
                           drain += ABILITY_CONFIG.PHANTOM_DECOY_DRAIN * (isMoving ? 1 : ABILITY_CONFIG.PHANTOM_DECOY_STILL_FACTOR);
                       }
-                      if (u.type === 'sun_plate' && u.isDeployed) drain += ABILITY_CONFIG.DRAIN_STATIC_DOME;
+                      if (u.type === 'sun_plate') {
+                          const previousLinks = u.batteryTetherIds || [];
+                          const keptLinks = u.isDeployed
+                              ? previousLinks.filter(linkId => {
+                                  const target = activeUnits.find(t => t.id === linkId);
+                                  return !!target && target.team === u.team && target.health > 0
+                                      && Math.hypot(target.gridPos.x - u.gridPos.x, target.gridPos.z - u.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE;
+                              })
+                              : [];
+                          if (keptLinks.length !== previousLinks.length || keptLinks.some((linkId, index) => previousLinks[index] !== linkId)) {
+                              newUnit.batteryTetherIds = keptLinks;
+                              uChanged = true;
+                          }
+                      }
 
                       // Banshee Tether: drain the hardline pack when a drone is siphoning
                       if (u.type === 'banshee' && u.tetherTargetId) {
@@ -3209,6 +3289,13 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                               if (newUnit.battery !== u.battery) uChanged = true; 
                           }
                       }
+                      if (u.type === 'sun_plate' && u.isDeployed) {
+                          const paid = muleDrain.get(u.id) || 0;
+                          if (paid > 0) {
+                              newUnit.battery = Math.max(0, newUnit.battery - paid);
+                              uChanged = true;
+                          }
+                      }
                       if (u.unitClass === 'infantry' && newUnit.battery <= 0) {
                           if (u.decoyActive) {
                               newUnit.decoyActive = false;
@@ -3231,6 +3318,10 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                           chargeAmount += externalChargeMap.get(u.id)!.amount; 
                           status = 1; 
                       }
+                      if (muleChargeMap.has(u.id)) {
+                          chargeAmount += muleChargeMap.get(u.id)!.amount;
+                          status = 2;
+                      }
 
                       // Friendly buildings and the command base feed the grid. Nano clouds block solar, not this link.
                       if (onEnergyGrid && newUnit.battery < newUnit.maxBattery) {
@@ -3246,9 +3337,6 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                               if (charger.type === 'helios' && dist <= ABILITY_CONFIG.HELIOS_RADIUS) { 
                                   chargeAmount += ABILITY_CONFIG.HELIOS_CHARGE_RATE; 
                                   status = Math.max(status, 1); 
-                              } else if (charger.type === 'sun_plate' && charger.isDeployed && dist <= ABILITY_CONFIG.SUNPLATE_RADIUS) { 
-                                  chargeAmount += ABILITY_CONFIG.SUNPLATE_CHARGE_RATE; 
-                                  status = 2; 
                               }
                           });
                       }
@@ -3353,6 +3441,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   const primarySelectionId = selectedUnitIds.size > 0 ? Array.from(selectedUnitIds)[0] : null;
   const tetherTargetingSource = targetingAbility === 'TETHER' && targetingSourceId
       ? units.find(src => src.id === targetingSourceId)
+      : undefined;
+  const batteryTargetingSource = targetingAbility === 'BATTERY_TETHER' && targetingSourceId
+      ? units.find(src => src.id === targetingSourceId && src.type === 'sun_plate' && src.isDeployed)
       : undefined;
 
   const callbacksRef = useRef({ handleTileClick, handleRightClick, setHoverGridPos, handleUnitSelect, handleMoveStep, handleUnitAction, handleStructureClick, handleStructureAction });
@@ -3463,7 +3554,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         ))}
         {units.map(u => {
              const isVisible = visibleUnitIds.has(u.id);
-             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onMoveStep={stableMoveStep} tileTypeMap={tileTypeMap} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && (!!u.tetherTargetId || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} /> );
+             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onMoveStep={stableMoveStep} tileTypeMap={tileTypeMap} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && (!!u.tetherTargetId || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} showBatteryRange={u.type === 'sun_plate' && !!u.isDeployed && (selectedUnitIds.has(u.id) || (targetingSourceId === u.id && targetingAbility === 'BATTERY_TETHER'))} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} isBatteryLinkCandidate={!!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE} /> );
         })}
         {decoys.map(d => {
             const seen = d.team === playerTeam || units.some(f => f.team === playerTeam && Math.hypot(f.gridPos.x - d.gridPos.x, f.gridPos.z - d.gridPos.z) <= (f.visionRange || 2));
@@ -3648,14 +3739,14 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                         <mesh>
                             <boxGeometry args={[tileSize, 1, tileSize]} />
                             <meshBasicMaterial 
-                                color={targetingAbility === 'DECOY' ? '#c084fc' : (targetingAbility === 'CANNON' ? "#ef4444" : (targetingAbility === 'TETHER' ? "#38bdf8" : "#10b981"))} 
+                                color={targetingAbility === 'BATTERY_TETHER' ? '#facc15' : (targetingAbility === 'DECOY' ? '#c084fc' : (targetingAbility === 'CANNON' ? "#ef4444" : (targetingAbility === 'TETHER' ? "#38bdf8" : "#10b981")))} 
                                 wireframe 
                             />
                         </mesh>
                         <mesh rotation={[-Math.PI/2, 0, Math.PI/4]} position={[0, 0.05, 0]}>
                             <ringGeometry args={[tileSize * 0.3, tileSize * 0.35, 4]} />
                             <meshBasicMaterial 
-                                color={targetingAbility === 'DECOY' ? '#c084fc' : (targetingAbility === 'CANNON' ? "#ef4444" : (targetingAbility === 'TETHER' ? "#38bdf8" : "#10b981"))} 
+                                color={targetingAbility === 'BATTERY_TETHER' ? '#facc15' : (targetingAbility === 'DECOY' ? '#c084fc' : (targetingAbility === 'CANNON' ? "#ef4444" : (targetingAbility === 'TETHER' ? "#38bdf8" : "#10b981")))} 
                                 side={THREE.DoubleSide} 
                             />
                         </mesh>

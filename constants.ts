@@ -39,7 +39,7 @@ export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: st
   wasp: { unitClass: 'air', cost: 200, captureMultiplier: 0.0, label: '"Wasp" Swarm Launcher', visionRange: 5, speedMod: 1.5, maxHealth: 40, attackDamage: 5, attackCooldown: 500 },
   mason: { unitClass: 'builder', cost: 150, captureMultiplier: 0.0, label: '"Mason" Combat Engineer', visionRange: 2, speedMod: 0.7, maxHealth: 150, attackDamage: 0, attackCooldown: 0 },
   helios: { unitClass: 'support', cost: 100, captureMultiplier: 0.0, label: '"Helios" Microwave Drone', visionRange: 4, speedMod: 1.3, maxHealth: 60, attackDamage: 0, attackCooldown: 0 },
-  sun_plate: { unitClass: 'armor', cost: 400, captureMultiplier: 0.0, label: '"Sun-Plate" Armored Array', visionRange: 2, speedMod: 0.5, maxHealth: 500, attackDamage: 0, attackCooldown: 0 },
+  sun_plate: { unitClass: 'armor', cost: 400, captureMultiplier: 0.0, label: 'Battery Mule', visionRange: 2, speedMod: 0.32, maxHealth: 500, attackDamage: 0, attackCooldown: 0 },
   ballista: { unitClass: 'support', cost: 350, captureMultiplier: 0.0, label: '"Ballista" Launch Platform', visionRange: 3, speedMod: 0.4, maxHealth: 100, attackDamage: 0, attackCooldown: 0 },
   courier: { unitClass: 'support', cost: 50, captureMultiplier: 0.0, label: 'Ordnance Courier', visionRange: 2, speedMod: 1.8, maxHealth: 30, attackDamage: 0, attackCooldown: 0 },
   banshee: { unitClass: 'support', cost: 300, captureMultiplier: 0.0, label: '"Banshee" EW Vehicle', visionRange: 4, speedMod: 0.9, maxHealth: 350, attackDamage: 0, attackCooldown: 0 },
@@ -156,8 +156,11 @@ export const ABILITY_CONFIG = {
 
   HELIOS_CHARGE_RATE: 2, 
   HELIOS_RADIUS: 3,
-  SUNPLATE_CHARGE_RATE: 6, 
-  SUNPLATE_RADIUS: 5,
+  // Battery Mule. Roads are 6 tiles apart, so three city blocks is 18 tiles.
+  BATTERY_MULE_MAX_BATTERY: 800,
+  BATTERY_MULE_CHARGE_RATE: 0.8,
+  BATTERY_MULE_SLOTS: 4,
+  BATTERY_MULE_RANGE: 18,
   SMOG_DURATION: 60000,
   SMOG_RADIUS: 5, 
 
