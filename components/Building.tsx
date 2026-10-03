@@ -694,6 +694,26 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
     }
   }, [data.scale]);
 
+  if (data.destroyed) {
+    const footprint = Math.max(data.scale[0], data.scale[2]) * 0.45;
+    return (
+      <group ref={rootRef} position={data.position}>
+        <mesh position={[0, 0.15, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[footprint, 6]} />
+          <meshStandardMaterial color="#1c1917" roughness={1} />
+        </mesh>
+        <mesh position={[footprint * 0.15, 0.35, 0]}>
+          <boxGeometry args={[footprint * 0.7, 0.4, footprint * 0.45]} />
+          <meshStandardMaterial color="#44403c" roughness={0.95} />
+        </mesh>
+        <mesh position={[-footprint * 0.25, 0.22, footprint * 0.2]}>
+          <boxGeometry args={[footprint * 0.35, 0.25, footprint * 0.3]} />
+          <meshStandardMaterial color="#292524" roughness={1} />
+        </mesh>
+      </group>
+    );
+  }
+
   return (
     <group ref={rootRef} position={data.position}>
       {/* Foundation/Base Glow. Core nodes draw their own one-block pad. */}
@@ -706,6 +726,13 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
           opacity={data.owner ? 0.3 : 0.1} 
         />
       </mesh>
+      )}
+
+      {data.health < data.maxHealth && (
+        <mesh position={[0, 0.18, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <circleGeometry args={[data.scale[0] * 0.55, 8]} />
+          <meshBasicMaterial color="#f97316" transparent opacity={0.35} depthWrite={false} />
+        </mesh>
       )}
 
       {/* Capture Ring Indicator. Height is driven by the smoothed fill so it can reach the roof. */}

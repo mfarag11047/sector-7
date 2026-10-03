@@ -35,7 +35,7 @@ export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: st
   tank: { unitClass: 'armor', cost: 300, captureMultiplier: 0.5, label: 'Titan Main Battle Tank', visionRange: 3, speedMod: 0.7, maxHealth: 400, attackDamage: 25, attackCooldown: 2000 }, 
   ghost: { unitClass: 'infantry', cost: 150, captureMultiplier: 1.0, label: 'Ghost EW Specialist', visionRange: 3, speedMod: 1.0, maxHealth: 80, attackDamage: 8, attackCooldown: 800 },
   guardian: { unitClass: 'support', cost: 200, captureMultiplier: 0.2, label: 'Guardian UGV', visionRange: 3, speedMod: 0.6, maxHealth: 150, attackDamage: 0, attackCooldown: 0 },
-  mule: { unitClass: 'ordnance', cost: 250, captureMultiplier: 0.0, label: '"Mule" Field Fabricator', visionRange: 3, speedMod: 0.9, maxHealth: 60, attackDamage: 0, attackCooldown: 0 },
+  mule: { unitClass: 'ordnance', cost: 250, captureMultiplier: 0.0, label: 'Field Fabricator', visionRange: 3, speedMod: 0.9, maxHealth: 60, attackDamage: 0, attackCooldown: 0 },
   wasp: { unitClass: 'air', cost: 200, captureMultiplier: 0.0, label: '"Wasp" Swarm Launcher', visionRange: 5, speedMod: 1.5, maxHealth: 40, attackDamage: 5, attackCooldown: 500 },
   mason: { unitClass: 'builder', cost: 150, captureMultiplier: 0.0, label: '"Mason" Combat Engineer', visionRange: 2, speedMod: 0.7, maxHealth: 150, attackDamage: 0, attackCooldown: 0 },
   helios: { unitClass: 'support', cost: 100, captureMultiplier: 0.0, label: '"Helios" Microwave Drone', visionRange: 4, speedMod: 1.3, maxHealth: 60, attackDamage: 0, attackCooldown: 0 },
@@ -47,6 +47,16 @@ export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: st
   titan_dropped: { unitClass: 'armor', cost: 0, captureMultiplier: 0.8, label: 'Titan (Orbital Drop)', visionRange: 3, speedMod: 0.7, maxHealth: 400, attackDamage: 25, attackCooldown: 2000 },
   swarm_host: { unitClass: 'ordnance', cost: 0, captureMultiplier: 0, label: 'Swarm Host', visionRange: 3, speedMod: 0.8, maxHealth: 100, attackDamage: 0, attackCooldown: 0 },
   crawler_drone: { unitClass: 'ordnance', cost: 25, captureMultiplier: 0, label: 'Crawler Drone', visionRange: 3, speedMod: 1.2, maxHealth: 30, attackDamage: 0, attackCooldown: 0 },
+  bombard: { unitClass: 'air', cost: 450, captureMultiplier: 0, label: 'Bombardment Drone', visionRange: 4, speedMod: 0.35, maxHealth: 180, attackDamage: 0, attackCooldown: 0 },
+};
+
+export const BUILDING_HEALTH: Record<'residential' | 'commercial' | 'industrial' | 'hightech' | 'server_node' | 'core_node', number> = {
+  residential: 200,
+  commercial: 240,
+  industrial: 280,
+  hightech: 320,
+  server_node: 450,
+  core_node: 900,
 };
 
 export const UNIT_CLASSES: Record<UnitClass, { icon: string, label: string }> = {
@@ -164,8 +174,18 @@ export const ABILITY_CONFIG = {
   SMOG_DURATION: 60000,
   SMOG_RADIUS: 5, 
 
+  // Bombardment Drone. Radius is in map squares, Chebyshev, so 2 covers a 5x5 patch.
+  BOMBARD_RADIUS: 2,
+  BOMBARD_BUILDING_DAMAGE: 240,
+  BOMBARD_UNIT_DAMAGE: 35,
+  BOMBARD_BATTERY: 2000,
   // Ballista / Warhead Logic
-  BALLISTA_LOAD_TIME: 5000, 
+  BALLISTA_LOAD_TIME: 5000,
+  // Field Fabricator holds this many material charges. Each charge becomes one missile.
+  FABRICATOR_MATERIAL_CAPACITY: 3,
+  FABRICATOR_BUILD_TIME: 8000,
+  // Beside a fab or a Ballista, same reach the Mason uses to work a site.
+  FABRICATOR_DOCK_RANGE: 1.5,
   WARHEAD_COST_ECLIPSE: 500,
   WARHEAD_BUILD_TIME_ECLIPSE: 20000, 
   ECLIPSE_DURATION: 60000,

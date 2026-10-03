@@ -67,6 +67,9 @@ export interface BuildingData {
   owner: 'blue' | 'red' | null;
   captureProgress: number;
   capturingTeam: 'blue' | 'red' | null;
+  health: number;
+  maxHealth: number;
+  destroyed?: boolean;
 }
 
 export interface BuildingBlock {
@@ -76,7 +79,7 @@ export interface BuildingBlock {
   owner: 'blue' | 'red' | null;
 }
 
-export type UnitType = 'drone' | 'tank' | 'ghost' | 'guardian' | 'mule' | 'wasp' | 'mason' | 'helios' | 'sun_plate' | 'ballista' | 'courier' | 'banshee' | 'defense_drone' | 'titan_dropped' | 'swarm_host' | 'crawler_drone';
+export type UnitType = 'drone' | 'tank' | 'ghost' | 'guardian' | 'mule' | 'wasp' | 'mason' | 'helios' | 'sun_plate' | 'ballista' | 'courier' | 'banshee' | 'defense_drone' | 'titan_dropped' | 'swarm_host' | 'crawler_drone' | 'bombard';
 export type UnitClass = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'defense';
 
 export interface UnitData {
@@ -126,9 +129,13 @@ export interface UnitData {
   ammoState?: 'empty' | 'loading' | 'armed' | 'awaiting_delivery';
   loadedAmmo?: 'eclipse' | 'he' | null;
   missileInventory?: { eclipse: number; he: number };
+  // Field Fabricator: untyped charges, spent one per missile fabricated in the field.
+  ordnanceMaterial?: number;
+  fabrication?: { active: boolean; item: 'eclipse' | 'he'; progress: number; totalTime: number };
   loadingProgress?: number;
   courierTargetId?: string;
   courierPayload?: 'eclipse' | 'he';
+  bombardmentTarget?: { x: number; z: number } | null;
   firingLaserAt?: string | null;
   lastAttackTime?: number;
   charges?: {

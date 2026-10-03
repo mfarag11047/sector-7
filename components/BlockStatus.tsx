@@ -14,10 +14,10 @@ interface BlockStatusProps {
 const BlockStatus: React.FC<BlockStatusProps> = ({ block, buildings }) => {
   if (!block.owner) return null;
 
-  const { position, defenseBonus } = useMemo(() => {
+  const { position, defenseBonus, empty } = useMemo(() => {
     // Filter buildings that belong to this block
-    const blockBuildings = buildings.filter(b => block.buildingIds.includes(b.id));
-    if (blockBuildings.length === 0) return { position: [0,0,0] as [number, number, number], defenseBonus: 0 };
+    const blockBuildings = buildings.filter(b => block.buildingIds.includes(b.id) && !b.destroyed);
+    if (blockBuildings.length === 0) return { position: [0,0,0] as [number, number, number], defenseBonus: 0, empty: true };
 
     // Calculate center
     let sumX = 0;
@@ -40,6 +40,7 @@ const BlockStatus: React.FC<BlockStatusProps> = ({ block, buildings }) => {
     return {
       position: [centerX, maxY + 5, centerZ] as [number, number, number],
       defenseBonus: def,
+      empty: false,
     };
   }, [block, buildings]);
 
@@ -54,6 +55,8 @@ const BlockStatus: React.FC<BlockStatusProps> = ({ block, buildings }) => {
       }
     }
   });
+
+  if (empty) return null;
 
   return (
     <group ref={groupRef} position={position}>

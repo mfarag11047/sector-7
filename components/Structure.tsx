@@ -18,6 +18,7 @@ interface StructureProps {
   onAction?: (action: string, payload?: any) => void;
   hasMason?: boolean;
   resources?: number;
+  warheadStock?: { eclipse: number; he: number };
 }
 
 const CommLinkModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
@@ -773,7 +774,7 @@ const WallTier2Model = ({ teamColor, tileSize }: { color: string, teamColor: str
     );
 };
 
-const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0 }) => {
+const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, warheadStock }) => {
   const config = STRUCTURE_INFO[data.type];
   const teamColor = TEAM_COLORS[data.team];
 
@@ -831,7 +832,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
     if (productionTypes.includes(data.type)) {
         // Find units that match this class
         (Object.keys(UNIT_STATS) as UnitType[]).forEach(uType => {
-            if (UNIT_STATS[uType].unitClass === data.type && !nonProducible.includes(uType)) {
+            if (uType !== 'mule' && UNIT_STATS[uType].unitClass === data.type && !nonProducible.includes(uType)) {
                 buildableUnits.push(uType);
             }
         });
@@ -874,6 +875,60 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                             {stats.label}
                                         </div>
                                         <span>{cost}</span>
+                                    </button>
+                                );
+                            })}
+                        </>
+                    )}
+
+                    {data.type === 'ordnance_fab' && (
+                        <>
+                            <div className="text-[10px] text-slate-400 font-mono uppercase mb-1 px-1">Production</div>
+                            <div className="text-[9px] text-slate-500 font-mono px-1 mb-1">
+                                Eclipse {warheadStock?.eclipse ?? 0} · HE {warheadStock?.he ?? 0}
+                            </div>
+                            {data.production?.active && (
+                                <div className="px-1 mb-1">
+                                    <div className="text-[9px] text-yellow-300 font-mono uppercase">
+                                        Building {data.production.item === 'eclipse' ? 'Eclipse' : 'HE'} {Math.min(100, Math.floor((data.production.progress / data.production.totalTime) * 100))}%
+                                    </div>
+                                    <div className="hud-meter w-full h-1.5 mt-1">
+                                        <div className="hud-meter-cell h-full" style={{ width: `${Math.max(4, Math.min(100, (data.production.progress / data.production.totalTime) * 100))}%` }} />
+                                    </div>
+                                </div>
+                            )}
+                            {(() => {
+                                const stats = UNIT_STATS.mule;
+                                const canAfford = resources >= (stats.cost || 0);
+                                return (
+                                    <button
+                                        disabled={!canAfford}
+                                        onClick={(e) => { e.stopPropagation(); onAction && onAction('BUILD_UNIT', 'mule'); }}
+                                        className={`flex items-center justify-between px-3 py-2 text-left transition-colors rounded text-xs font-mono ${canAfford ? 'hover:bg-slate-700 text-slate-200' : 'opacity-50 text-slate-500 cursor-not-allowed'}`}
+                                    >
+                                        <span>{stats.label}</span>
+                                        <span>{stats.cost}</span>
+                                    </button>
+                                );
+                            })()}
+                            {([
+                                { item: 'eclipse' as const, label: 'Eclipse Missile', cost: ABILITY_CONFIG.WARHEAD_COST_ECLIPSE, seconds: ABILITY_CONFIG.WARHEAD_BUILD_TIME_ECLIPSE / 1000 },
+                                { item: 'he' as const, label: 'HE Missile', cost: ABILITY_CONFIG.WARHEAD_COST_HE, seconds: ABILITY_CONFIG.WARHEAD_BUILD_TIME_HE / 1000 },
+                            ]).map(missile => {
+                                const busy = !!data.production?.active;
+                                const canAfford = resources >= missile.cost && !busy;
+                                return (
+                                    <button
+                                        key={missile.item}
+                                        disabled={!canAfford}
+                                        onClick={(e) => { e.stopPropagation(); onAction && onAction('BUILD_WARHEAD', missile.item); }}
+                                        className={`flex items-center justify-between px-3 py-2 text-left transition-colors rounded text-xs font-mono ${canAfford ? 'hover:bg-slate-700 text-slate-200' : 'opacity-50 text-slate-500 cursor-not-allowed'}`}
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className={missile.item === 'eclipse' ? 'text-fuchsia-300' : 'text-red-300'}>{missile.label}</span>
+                                            <span className="text-[9px] text-slate-500">{missile.seconds}s</span>
+                                        </div>
+                                        <span>{missile.cost}</span>
                                     </button>
                                 );
                             })}

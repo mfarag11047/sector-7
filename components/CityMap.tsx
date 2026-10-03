@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
-import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, BUILDING_VALUES, TEAM_BASES, UNIT_STATS, ABILITY_CONFIG, STRUCTURE_COST, BUILD_RADIUS, STRUCTURE_INFO, COMPUTE_GATES, TIER_UNLOCK_COSTS, DOCTRINE_CONFIG } from '../constants';
+import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, BUILDING_VALUES, BUILDING_HEALTH, TEAM_BASES, UNIT_STATS, ABILITY_CONFIG, STRUCTURE_COST, BUILD_RADIUS, STRUCTURE_INFO, COMPUTE_GATES, TIER_UNLOCK_COSTS, DOCTRINE_CONFIG } from '../constants';
 import { BuildingData, UnitData, BuildingBlock, GameStats, TeamStats, RoadType, RoadTileData, StructureData, UnitClass, DecoyData, UnitType, StructureType, CloudData, Projectile, Explosion, DoctrineState, MinimapMissile } from '../types';
 import Building from './Building';
 import Structure from './Structure';
@@ -722,7 +722,7 @@ const isInsideEnergyGrid = (
   if (baseDx * baseDx + baseDz * baseDz <= baseRadiusSq) return true;
   for (let i = 0; i < buildings.length; i++) {
     const building = buildings[i];
-    if (building.owner !== team || building.type === 'core_node') continue;
+    if (building.destroyed || building.owner !== team || building.type === 'core_node') continue;
     const dx = pos.x - building.gridX;
     const dz = pos.z - building.gridZ;
     if (dx * dx + dz * dz <= buildingRadiusSq) return true;
@@ -739,7 +739,7 @@ const EnergyGridField: React.FC<{
   const sources = useMemo(() => {
     const base = TEAM_BASES[playerTeam];
     const owned = buildings
-      .filter(building => building.owner === playerTeam && building.type !== 'core_node')
+      .filter(building => !building.destroyed && building.owner === playerTeam && building.type !== 'core_node')
       .map(building => ({ x: building.gridX, z: building.gridZ, radius: ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS }));
     return [{ x: base.x, z: base.z, radius: ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS }, ...owned];
   }, [buildings, playerTeam]);
@@ -863,6 +863,8 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         owner: null,
         captureProgress: 0,
         capturingTeam: null,
+        health: BUILDING_HEALTH.core_node,
+        maxHealth: BUILDING_HEALTH.core_node,
       });
     }
     
@@ -897,7 +899,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
               id: `b-${cx}-${cz}`, gridX: cx, gridZ: cz,
               position: [(cx * tileSize) - offset, 0, (cz * tileSize) - offset],
               scale: [tileSize * 0.7, height, tileSize * 0.7],
-              color: BUILDING_COLORS[type], type, height, blockId, owner: null, captureProgress: 0, capturingTeam: null
+              color: BUILDING_COLORS[type], type, height, blockId, owner: null, captureProgress: 0, capturingTeam: null, health: BUILDING_HEALTH[type], maxHealth: BUILDING_HEALTH[type]
             });
             stack.push(...neighbors);
           }
@@ -955,8 +957,8 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
     { id: 'u6', type: 'ghost', unitClass: 'infantry', team: 'red', gridPos: { x: gridSize - 3, z: gridSize - 6 }, path: [], visionRange: UNIT_STATS.ghost.visionRange, isDampenerActive: true, health: UNIT_STATS.ghost.maxHealth, maxHealth: UNIT_STATS.ghost.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100 },
     { id: 'u7', type: 'guardian', unitClass: 'support', team: 'blue', gridPos: { x: 4, z: 6 }, path: [], visionRange: UNIT_STATS.guardian.visionRange, health: UNIT_STATS.guardian.maxHealth, maxHealth: UNIT_STATS.guardian.maxHealth, cooldowns: { trophySystem: 0 }, battery: 100, maxBattery: 100 },
     { id: 'u8', type: 'guardian', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 3, z: gridSize - 4 }, path: [], visionRange: UNIT_STATS.guardian.visionRange, health: UNIT_STATS.guardian.maxHealth, maxHealth: UNIT_STATS.guardian.maxHealth, cooldowns: { trophySystem: 0 }, battery: 100, maxBattery: 100 },
-    { id: 'u9', type: 'mule', unitClass: 'ordnance', team: 'blue', gridPos: { x: 6, z: 5 }, path: [], visionRange: UNIT_STATS.mule.visionRange, health: UNIT_STATS.mule.maxHealth, maxHealth: UNIT_STATS.mule.maxHealth, cooldowns: { combatPrint: 0, smogShell: 0 }, battery: 100, maxBattery: 100 },
-    { id: 'u10', type: 'mule', unitClass: 'ordnance', team: 'red', gridPos: { x: gridSize - 5, z: gridSize - 6 }, path: [], visionRange: UNIT_STATS.mule.visionRange, health: UNIT_STATS.mule.maxHealth, maxHealth: UNIT_STATS.mule.maxHealth, cooldowns: { combatPrint: 0, smogShell: 0 }, battery: 100, maxBattery: 100 },
+    { id: 'u9', type: 'mule', unitClass: 'ordnance', team: 'blue', gridPos: { x: 6, z: 5 }, path: [], visionRange: UNIT_STATS.mule.visionRange, health: UNIT_STATS.mule.maxHealth, maxHealth: UNIT_STATS.mule.maxHealth, cooldowns: { combatPrint: 0, smogShell: 0 }, battery: 100, maxBattery: 100, ordnanceMaterial: ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY, missileInventory: { eclipse: 0, he: 0 } },
+    { id: 'u10', type: 'mule', unitClass: 'ordnance', team: 'red', gridPos: { x: gridSize - 5, z: gridSize - 6 }, path: [], visionRange: UNIT_STATS.mule.visionRange, health: UNIT_STATS.mule.maxHealth, maxHealth: UNIT_STATS.mule.maxHealth, cooldowns: { combatPrint: 0, smogShell: 0 }, battery: 100, maxBattery: 100, ordnanceMaterial: ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY, missileInventory: { eclipse: 0, he: 0 } },
     { id: 'u11', type: 'wasp', unitClass: 'air', team: 'blue', gridPos: { x: 5, z: 7 }, path: [], visionRange: UNIT_STATS.wasp.visionRange, health: UNIT_STATS.wasp.maxHealth, maxHealth: UNIT_STATS.wasp.maxHealth, cooldowns: { swarmLaunch: 0 }, charges: { swarm: ABILITY_CONFIG.WASP_MAX_CHARGES }, battery: 100, maxBattery: 100 },
     { id: 'u12', type: 'mason', unitClass: 'builder', team: 'blue', gridPos: { x: 3, z: 6 }, path: [], visionRange: UNIT_STATS.mason.visionRange, health: UNIT_STATS.mason.maxHealth, maxHealth: UNIT_STATS.mason.maxHealth, cooldowns: {}, cargo: 0, constructionTargetId: null, battery: 100, maxBattery: 100 },
     { id: 'u13', type: 'helios', unitClass: 'support', team: 'blue', gridPos: { x: 2, z: 6 }, path: [], visionRange: UNIT_STATS.helios.visionRange, health: UNIT_STATS.helios.maxHealth, maxHealth: UNIT_STATS.helios.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100 },
@@ -983,7 +985,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   const [dragSelection, setDragSelection] = useState<{start: THREE.Vector3, current: THREE.Vector3, active: boolean} | null>(null);
   
   const [targetingSourceId, setTargetingSourceId] = useState<string | null>(null);
-  const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'BATTERY_TETHER' | 'CANNON' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'SWARM' | null>(null);
+  const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'BATTERY_TETHER' | 'CANNON' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'SWARM' | 'BOMBARD' | null>(null);
 
   const [baseMenuOpen, setBaseMenuOpen] = useState<'blue' | 'red' | null>(null);
   const [placementMode, setPlacementMode] = useState<{type: StructureType, cost: number} | null>(null);
@@ -1404,7 +1406,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       // Captured buildings extend the energy grid. Only core nodes pay cores.
       let income = 0;
       const teamBuildings = { residential: 0, commercial: 0, industrial: 0, hightech: 0, server_node: 0, core_node: 0 };
-      currentBuildings.filter(b => b.owner === team).forEach(b => {
+      currentBuildings.filter(b => b.owner === team && !b.destroyed).forEach(b => {
         teamBuildings[b.type]++;
         income += BUILDING_VALUES[b.type].income;
       });
@@ -1431,16 +1433,34 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
     return result as GameStats;
   }, []);
 
+  const breachedTiles = useMemo(() => {
+    const groups = new Map<string, { alive: number; tiles: number[] }>();
+    buildings.forEach(b => {
+      const key = `${Math.floor(b.gridX / 6)},${Math.floor(b.gridZ / 6)}`;
+      const group = groups.get(key) || { alive: 0, tiles: [] };
+      group.tiles.push((b.gridX << 16) | b.gridZ);
+      if (!b.destroyed) group.alive += 1;
+      groups.set(key, group);
+    });
+    const open = new Set<number>();
+    groups.forEach(group => {
+      if (group.alive === 0) group.tiles.forEach(tile => open.add(tile));
+    });
+    return open;
+  }, [buildings]);
+
   const dynamicRoadTileSet = useMemo(() => {
     const set = new Set<number>();
     roadTiles.forEach(t => { set.add((t.x << 16) | t.z); });
+    // A city block becomes a lane only after every building in that block is gone.
+    breachedTiles.forEach(tile => set.add(tile));
     // A structure owns its whole tile. Walls, turrets, and sites under construction
     // are solid blocks: friendly and enemy pathing both have to go around them.
     structuresState.forEach(s => { set.delete((s.gridPos.x << 16) | s.gridPos.z); });
     set.delete((baseA_Coord.x << 16) | baseA_Coord.z);
     set.delete((baseB_Coord.x << 16) | baseB_Coord.z);
     return set;
-  }, [roadTiles, structuresState, baseA_Coord, baseB_Coord]);
+  }, [roadTiles, structuresState, baseA_Coord, baseB_Coord, breachedTiles]);
 
   const structureTileSet = useMemo(() => {
     const set = new Set<string>();
@@ -1474,6 +1494,31 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       }
       return [];
   }, [gridSize, dynamicRoadTileSet]);
+
+  const findAirPath = useCallback((start: {x: number, z: number}, end: {x: number, z: number}) => {
+      const startId = (start.x << 16) | start.z;
+      const endId = (end.x << 16) | end.z;
+      const queue = [{x: start.x, z: start.z, path: [] as string[]}];
+      const visited = new Set<number>();
+      visited.add(startId);
+      const MAX_SEARCH = 20000;
+      let ops = 0;
+      while (queue.length > 0 && ops < MAX_SEARCH) {
+          ops++;
+          const current = queue.shift()!;
+          const currentId = (current.x << 16) | current.z;
+          if (currentId === endId) return current.path;
+          const neighbors = [{x: current.x+1, z: current.z}, {x: current.x-1, z: current.z}, {x: current.x, z: current.z+1}, {x: current.x, z: current.z-1}];
+          for (const n of neighbors) {
+              if (n.x < 0 || n.z < 0 || n.x >= gridSize || n.z >= gridSize) continue;
+              const nId = (n.x << 16) | n.z;
+              if (visited.has(nId)) continue;
+              visited.add(nId);
+              queue.push({ x: n.x, z: n.z, path: [...current.path, `${n.x},${n.z}`] });
+          }
+      }
+      return [];
+  }, [gridSize]);
 
   const isWalkable = useCallback((x: number, z: number) => (
       x >= 0 && x < gridSize && z >= 0 && z < gridSize && dynamicRoadTileSet.has((x << 16) | z)
@@ -1521,6 +1566,8 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       setUnits(prev => {
           let changed = false;
           const next = prev.map(u => {
+              // The bombardment drone hovers, so building tiles are a valid route.
+              if (u.type === 'bombard') return u;
               const settled = settle(u);
               if (!settled) return u;
               changed = true;
@@ -1975,7 +2022,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           if (u.path.length === 0) return u;
           const nextKey = u.path[0];
           const [nx, nz] = nextKey.split(',').map(Number);
-          if (!isWalkable(nx, nz)) return { ...u, path: rerouteAroundBlocks(u.gridPos, u.path) };
+          if (u.type !== 'bombard' && !isWalkable(nx, nz)) return { ...u, path: rerouteAroundBlocks(u.gridPos, u.path) };
           
           let newSurveillance = u.surveillance;
           
@@ -2266,6 +2313,17 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           }
           setTargetingSourceId(null);
           setTargetingAbility(null);
+      } else if (targetingSourceId && targetingAbility === 'BOMBARD') {
+          const unit = unitsRef.current.find(u => u.id === targetingSourceId);
+          if (unit && unit.type === 'bombard' && unit.health > 0) {
+              const alreadyThere = unit.gridPos.x === x && unit.gridPos.z === z;
+              const path = alreadyThere ? [] : findAirPath(unit.gridPos, { x, z });
+              if (alreadyThere || path.length > 0) {
+                  setUnits(prev => prev.map(u => u.id === unit.id ? { ...u, path, bombardmentTarget: { x, z } } : u));
+              }
+          }
+          setTargetingSourceId(null);
+          setTargetingAbility(null);
       } else if (targetingSourceId && (targetingAbility === 'TETHER' || targetingAbility === 'BATTERY_TETHER')) {
           // Tethers target a unit, not a tile — keep targeting until a vehicle is clicked or cancelled.
           return;
@@ -2358,6 +2416,12 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
               // Assign destinations for each unit
               unitsToMove.forEach(u => {
+                  if (u.type === 'bombard') {
+                      if (x >= 0 && z >= 0 && x < gridSize && z < gridSize) {
+                          assignments.set(u.id, { x, z });
+                      }
+                      return;
+                  }
                   let dest = findFreeTile(x, z);
                   const tetherHost = unitsRef.current.find(src => src.tetherTargetId === u.id);
                   if (dest && tetherHost) {
@@ -2383,6 +2447,12 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
               setUnits(prev => prev.map(u => {
                   if (assignments.has(u.id)) {
                       const dest = assignments.get(u.id)!;
+                      if (u.type === 'bombard') {
+                          const sameTile = u.gridPos.x === dest.x && u.gridPos.z === dest.z;
+                          const path = sameTile ? [] : findAirPath(u.gridPos, dest);
+                          if (sameTile || path.length > 0) return { ...u, path, bombardmentTarget: null };
+                          return u;
+                      }
                       const path = findPath(u.gridPos, dest);
                       if (path.length > 0) {
                           return {...u, path};
@@ -2447,59 +2517,80 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           return;
       }
 
-      // Ballista Order Logic (Spawn Courier)
-      if (action.startsWith('REQUEST_DELIVERY_')) {
-          const type = action.replace('REQUEST_DELIVERY_', '').toLowerCase() as 'eclipse' | 'he';
-          const cost = type === 'eclipse' ? ABILITY_CONFIG.WARHEAD_COST_ECLIPSE : ABILITY_CONFIG.WARHEAD_COST_HE;
-          
-          if (teamResources[unit.team as 'blue' | 'red'] >= cost) {
-              // Find nearest Ordnance Fab
-              const fabs = structuresRef.current.filter(s => s.type === 'ordnance_fab' && s.team === unit.team && !s.isBlueprint);
-              if (fabs.length > 0) {
-                  let nearestFab = fabs[0];
-                  let minD = 9999;
-                  fabs.forEach(f => {
-                      const d = Math.sqrt(Math.pow(f.gridPos.x - unit.gridPos.x, 2) + Math.pow(f.gridPos.z - unit.gridPos.z, 2));
-                      if (d < minD) { minD = d; nearestFab = f; }
-                  });
+      const besideOrdnanceFab = (at: UnitData) => structuresRef.current.some(s =>
+          s.type === 'ordnance_fab' && s.team === at.team && !s.isBlueprint &&
+          Math.hypot(s.gridPos.x - at.gridPos.x, s.gridPos.z - at.gridPos.z) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE
+      );
 
-                  // Pay Cost
-                  setTeamResources(prev => ({...prev, [unit.team]: prev[unit.team as 'blue' | 'red'] - cost}));
+      // Field Fabricator turns one onboard material charge into a missile of the chosen type.
+      if (action === 'FABRICATE_ECLIPSE' || action === 'FABRICATE_HE') {
+          if (unit.type !== 'mule' || unit.fabrication?.active) return;
+          const item = action === 'FABRICATE_ECLIPSE' ? 'eclipse' : 'he';
+          const material = unit.ordnanceMaterial || 0;
+          const teamKey = unit.team === 'blue' || unit.team === 'red' ? unit.team : null;
+          if (!teamKey || material <= 0) return;
+          const cost = item === 'eclipse' ? ABILITY_CONFIG.WARHEAD_COST_ECLIPSE : ABILITY_CONFIG.WARHEAD_COST_HE;
+          if (teamResources[teamKey] < cost) return;
+          setTeamResources(prev => ({ ...prev, [teamKey]: prev[teamKey] - cost }));
+          setUnits(prev => prev.map(u => u.id === unit.id ? {
+              ...u,
+              fabrication: { active: true, item, progress: 0, totalTime: ABILITY_CONFIG.FABRICATOR_BUILD_TIME }
+          } : u));
+          return;
+      }
 
-                  // Spawn Courier
-                  const newCourier: UnitData = {
-                      id: `courier-${Date.now()}`,
-                      type: 'courier',
-                      unitClass: 'support',
-                      team: unit.team,
-                      gridPos: { ...nearestFab.gridPos },
-                      path: [], // Will set below
-                      visionRange: UNIT_STATS.courier.visionRange,
-                      health: UNIT_STATS.courier.maxHealth,
-                      maxHealth: UNIT_STATS.courier.maxHealth,
-                      battery: 100,
-                      maxBattery: 100,
-                      cooldowns: {},
-                      courierTargetId: unit.id,
-                      courierPayload: type
-                  };
+      if (action === 'RESUPPLY_MATERIAL') {
+          if (unit.type !== 'mule' || !besideOrdnanceFab(unit)) return;
+          const held = (unit.missileInventory?.eclipse || 0) + (unit.missileInventory?.he || 0);
+          const room = ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY - held;
+          if (room <= 0 || (unit.ordnanceMaterial || 0) >= room) return;
+          setUnits(prev => prev.map(u => u.id === unit.id ? { ...u, ordnanceMaterial: room } : u));
+          return;
+      }
 
-                  // Calculate path to Ballista
-                  const path = findPath(newCourier.gridPos, unit.gridPos);
-                  newCourier.path = path;
-
-                  setUnits(prev => [...prev, newCourier]);
-                  
-                  // Update Ballista State to indicate inbound
-                  setUnits(prev => prev.map(u => {
-                      if (u.id === unit.id && u.ammoState === 'empty') return { ...u, ammoState: 'awaiting_delivery' };
-                      return u;
-                  }));
-
-              } else {
-                  console.warn("No Ordnance Fab available!");
+      if (action === 'TRANSFER_ECLIPSE' || action === 'TRANSFER_HE') {
+          if (unit.type !== 'mule') return;
+          const item = action === 'TRANSFER_ECLIPSE' ? 'eclipse' : 'he';
+          const have = unit.missileInventory?.[item] || 0;
+          if (have <= 0) return;
+          let nearest: UnitData | null = null;
+          let minD = ABILITY_CONFIG.FABRICATOR_DOCK_RANGE;
+          unitsRef.current.forEach(b => {
+              if (b.type !== 'ballista' || b.team !== unit.team || b.health <= 0) return;
+              const d = Math.hypot(b.gridPos.x - unit.gridPos.x, b.gridPos.z - unit.gridPos.z);
+              if (d < minD) { minD = d; nearest = b; }
+          });
+          if (!nearest) return;
+          const target = nearest as UnitData;
+          setUnits(prev => prev.map(u => {
+              if (u.id === unit.id) {
+                  const inv = { eclipse: u.missileInventory?.eclipse || 0, he: u.missileInventory?.he || 0 };
+                  inv[item] -= 1;
+                  return { ...u, missileInventory: inv };
               }
-          }
+              if (u.id === target.id) {
+                  const inv = { eclipse: u.missileInventory?.eclipse || 0, he: u.missileInventory?.he || 0 };
+                  inv[item] += 1;
+                  return { ...u, missileInventory: inv };
+              }
+              return u;
+          }));
+          return;
+      }
+
+      // Ballista parked beside its Ordnance Fab draws a finished missile from the stockpile.
+      if (action === 'TAKE_ECLIPSE' || action === 'TAKE_HE') {
+          if (unit.type !== 'ballista' || !besideOrdnanceFab(unit)) return;
+          const item = action === 'TAKE_ECLIPSE' ? 'eclipse' : 'he';
+          const teamKey = unit.team === 'blue' || unit.team === 'red' ? unit.team : null;
+          if (!teamKey || stockpile[teamKey][item] <= 0) return;
+          setStockpile(prev => ({ ...prev, [teamKey]: { ...prev[teamKey], [item]: prev[teamKey][item] - 1 } }));
+          setUnits(prev => prev.map(u => {
+              if (u.id !== unit.id) return u;
+              const inv = { eclipse: u.missileInventory?.eclipse || 0, he: u.missileInventory?.he || 0 };
+              inv[item] += 1;
+              return { ...u, missileInventory: inv };
+          }));
           return;
       }
 
@@ -2557,6 +2648,11 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       if (action === 'FIRE_SWARM') {
           setTargetingSourceId(unitId);
           setTargetingAbility('SWARM');
+          return;
+      }
+      if (action === 'BOMBARD' && unit.type === 'bombard') {
+          setTargetingSourceId(unitId);
+          setTargetingAbility('BOMBARD');
           return;
       }
 
@@ -2660,7 +2756,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       if (didDragRef.current) return;
 
       const struct = structuresState.find(s => s.id === id);
-      const validTypes = ['support', 'infantry', 'armor', 'ordnance', 'air', 'builder'];
+      const validTypes = ['support', 'infantry', 'armor', 'ordnance', 'air', 'builder', 'ordnance_fab'];
       if (struct && validTypes.includes(struct.type) && struct.team === playerTeam && !struct.isBlueprint) {
           setDepotMenuOpenId(id);
       }
@@ -2670,6 +2766,21 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       if (!depotMenuOpenId) return;
       const struct = structuresState.find(s => s.id === depotMenuOpenId);
       if (!struct) return;
+
+      if (action === 'BUILD_WARHEAD' && struct.type === 'ordnance_fab' && !struct.isBlueprint) {
+          const item = payload as 'eclipse' | 'he';
+          if (item !== 'eclipse' && item !== 'he') return;
+          if (struct.production?.active) return;
+          const cost = item === 'eclipse' ? ABILITY_CONFIG.WARHEAD_COST_ECLIPSE : ABILITY_CONFIG.WARHEAD_COST_HE;
+          const totalTime = item === 'eclipse' ? ABILITY_CONFIG.WARHEAD_BUILD_TIME_ECLIPSE : ABILITY_CONFIG.WARHEAD_BUILD_TIME_HE;
+          if (teamResources[playerTeam] < cost) return;
+          setTeamResources(prev => ({ ...prev, [playerTeam]: prev[playerTeam] - cost }));
+          setStructuresState(prev => prev.map(s => s.id === struct.id ? {
+              ...s,
+              production: { active: true, item, progress: 0, totalTime },
+          } : s));
+          return;
+      }
 
       if (action === 'BUILD_UNIT') {
           const type = payload as UnitType;
@@ -2700,8 +2811,10 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   ...(type === 'banshee' ? { battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY } : {}),
                   ...(type === 'sun_plate' ? { battery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, maxBattery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, isDeployed: false, batteryTetherIds: [] as string[] } : {}),
                   ...(type === 'wasp' ? { charges: { swarm: ABILITY_CONFIG.WASP_MAX_CHARGES } } : {}),
+                  ...(type === 'bombard' ? { battery: ABILITY_CONFIG.BOMBARD_BATTERY, maxBattery: ABILITY_CONFIG.BOMBARD_BATTERY } : {}),
                   ...(type === 'tank' ? { charges: { smoke: ABILITY_CONFIG.MAX_CHARGES_SMOKE, aps: ABILITY_CONFIG.MAX_CHARGES_APS } } : {}),
                   ...(type === 'ballista' ? { missileInventory: { eclipse: 1, he: 1 }, ammoState: 'empty' as const } : {}), // New Ballistas start with 1 of each
+                  ...(type === 'mule' ? { ordnanceMaterial: ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY, missileInventory: { eclipse: 0, he: 0 } } : {}),
               };
               setUnits(prev => [...prev, newUnit]);
               setDepotMenuOpenId(null);
@@ -2918,6 +3031,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
               const currentUnits = unitsRef.current.filter(u => u.health > 0);
               let anyBuildingChanged = false;
               const nextBuildings = prevBuildings.map(b => {
+                  if (b.destroyed) return b;
                   const adjacentUnits = currentUnits.filter(u => Math.abs(u.gridPos.x - b.gridX) <= 1.5 && Math.abs(u.gridPos.z - b.gridZ) <= 1.5);
                   let bluePower = 0; let redPower = 0;
                   adjacentUnits.forEach(u => {
@@ -3109,9 +3223,75 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   // Clouds for visual obscuration logic (Charging & Targeting)
                   const activeClouds = cloudsRef.current.filter(c => c.type === 'nano');
 
+                  const bombardDrops = activeUnits.filter(drop =>
+                      drop.type === 'bombard' && drop.health > 0 && drop.bombardmentTarget && drop.path.length === 0 &&
+                      drop.gridPos.x === drop.bombardmentTarget.x && drop.gridPos.z === drop.bombardmentTarget.z
+                  );
+                  if (bombardDrops.length > 0) {
+                      const radius = ABILITY_CONFIG.BOMBARD_RADIUS;
+                      const inBlast = (x: number, z: number, origin: { x: number; z: number }) =>
+                          Math.max(Math.abs(x - origin.x), Math.abs(z - origin.z)) <= radius;
+                      let blasted: BuildingData[] | null = null;
+                      setBuildings(prev => {
+                          if (blasted) return blasted;
+                          let changed = false;
+                          const next = prev.map(b => {
+                              if (b.destroyed) return b;
+                              let health = b.health ?? b.maxHealth;
+                              let hit = false;
+                              for (const drop of bombardDrops) {
+                                  if (!inBlast(b.gridX, b.gridZ, drop.gridPos)) continue;
+                                  health -= ABILITY_CONFIG.BOMBARD_BUILDING_DAMAGE;
+                                  hit = true;
+                              }
+                              if (!hit) return b;
+                              changed = true;
+                              if (health <= 0) return { ...b, health: 0, destroyed: true, owner: null, capturingTeam: null, captureProgress: 0 };
+                              return { ...b, health };
+                          });
+                          blasted = changed ? next : prev;
+                          return blasted;
+                      });
+                      const bursts: Explosion[] = [];
+                      bombardDrops.forEach(drop => {
+                          const cx = (drop.gridPos.x * CITY_CONFIG.tileSize) - offset;
+                          const cz = (drop.gridPos.z * CITY_CONFIG.tileSize) - offset;
+                          for (let i = 0; i < 7; i++) {
+                              bursts.push({
+                                  id: `bomb-${drop.id}-${now}-${i}`,
+                                  position: {
+                                      x: cx + (Math.random() * 2 - 1) * radius * CITY_CONFIG.tileSize,
+                                      y: 1.2,
+                                      z: cz + (Math.random() * 2 - 1) * radius * CITY_CONFIG.tileSize,
+                                  },
+                                  radius: 5,
+                                  duration: 700,
+                                  createdAt: now,
+                              });
+                          }
+                      });
+                      setExplosions(prev => [...prev, ...bursts]);
+                  }
                   let nextUnits = activeUnits.map(u => {
                       let newUnit = { ...u };
                       let uChanged = false;
+
+                      if (bombardDrops.length > 0 && u.health > 0 && !bombardDrops.some(drop => drop.id === u.id)) {
+                          let health = u.health;
+                          for (const drop of bombardDrops) {
+                              if (Math.max(Math.abs(u.gridPos.x - drop.gridPos.x), Math.abs(u.gridPos.z - drop.gridPos.z)) <= ABILITY_CONFIG.BOMBARD_RADIUS) {
+                                  health -= ABILITY_CONFIG.BOMBARD_UNIT_DAMAGE;
+                              }
+                          }
+                          if (health !== u.health) {
+                              newUnit.health = health;
+                              uChanged = true;
+                          }
+                      }
+                      if (bombardDrops.some(drop => drop.id === u.id)) {
+                          newUnit.bombardmentTarget = null;
+                          uChanged = true;
+                      }
                       
                       // --- COURIER LOGIC ---
                       if (u.type === 'courier') {
@@ -3272,6 +3452,26 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                               newUnit.secondaryBattery = Math.min(u.maxSecondaryBattery || 0, (u.secondaryBattery || 0) + transfer);
                               uChanged = true;
                           }
+                      }
+
+                      // Field Fabricator finishes one missile from onboard material.
+                      if (u.type === 'mule' && u.fabrication?.active) {
+                          const teamDoctrine = doctrines?.[u.team as 'blue' | 'red'];
+                          const speedMult = teamDoctrine?.selected === 'skunkworks' ? 1.1 : 1.0;
+                          const progress = u.fabrication.progress + (100 * speedMult);
+                          if (progress >= u.fabrication.totalTime) {
+                              const material = u.ordnanceMaterial || 0;
+                              if (material > 0) {
+                                  const inv = { eclipse: u.missileInventory?.eclipse || 0, he: u.missileInventory?.he || 0 };
+                                  inv[u.fabrication.item] += 1;
+                                  newUnit.ordnanceMaterial = material - 1;
+                                  newUnit.missileInventory = inv;
+                              }
+                              newUnit.fabrication = { ...u.fabrication, active: false, progress: 0 };
+                          } else {
+                              newUnit.fabrication = { ...u.fabrication, progress };
+                          }
+                          uChanged = true;
                       }
 
                       // General Battery Drain
@@ -3551,6 +3751,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                 onAction={stableStructureAction}
                 hasMason={hasMason}
                 resources={teamResources[playerTeam]}
+                warheadStock={playerTeam === 'blue' || playerTeam === 'red' ? stockpile[playerTeam] : undefined}
             /> 
         ))}
         {blocks.map(block => (
@@ -3558,7 +3759,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         ))}
         {units.map(u => {
              const isVisible = visibleUnitIds.has(u.id);
-             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onMoveStep={stableMoveStep} tileTypeMap={tileTypeMap} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && (!!u.tetherTargetId || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} showBatteryRange={u.type === 'sun_plate' && !!u.isDeployed && (selectedUnitIds.has(u.id) || (targetingSourceId === u.id && targetingAbility === 'BATTERY_TETHER'))} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} isBatteryLinkCandidate={!!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE} /> );
+             const atOrdnanceFab = structuresState.some(s => s.type === 'ordnance_fab' && s.team === u.team && !s.isBlueprint && Math.hypot(s.gridPos.x - u.gridPos.x, s.gridPos.z - u.gridPos.z) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE);
+             const ballistaInRange = u.type === 'mule' && units.some(b => b.type === 'ballista' && b.team === u.team && b.health > 0 && Math.hypot(b.gridPos.x - u.gridPos.x, b.gridPos.z - u.gridPos.z) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE);
+             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onMoveStep={stableMoveStep} tileTypeMap={tileTypeMap} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && (!!u.tetherTargetId || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} showBatteryRange={u.type === 'sun_plate' && !!u.isDeployed && (selectedUnitIds.has(u.id) || (targetingSourceId === u.id && targetingAbility === 'BATTERY_TETHER'))} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} isBatteryLinkCandidate={!!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE} warheadStock={u.team === playerTeam && (playerTeam === 'blue' || playerTeam === 'red') ? stockpile[playerTeam] : undefined} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={(u.team === 'blue' || u.team === 'red') ? teamResources[u.team] : 0} /> );
         })}
         {decoys.map(d => {
             const seen = d.team === playerTeam || units.some(f => f.team === playerTeam && Math.hypot(f.gridPos.x - d.gridPos.x, f.gridPos.z - d.gridPos.z) <= (f.visionRange || 2));
@@ -3650,7 +3853,18 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         {/* Targeting Cursor (Red for Cannon, Green for Surveillance, Orange for Missile, Cyan for Doctrine) */}
         {hoverGridPos && (targetingAbility || interactionMode === 'target') && (
             <group position={[(hoverGridPos.x * tileSize) - offset, 0.5, (hoverGridPos.z * tileSize) - offset]}>
-                {targetingAbility === 'MISSILE' || (interactionMode === 'target' && targetingDoctrine?.type.includes('HEAVY_METAL')) ? (
+                {targetingAbility === 'BOMBARD' ? (
+                    <group>
+                        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.2, 0]} raycast={() => null}>
+                            <planeGeometry args={[(ABILITY_CONFIG.BOMBARD_RADIUS * 2 + 1) * tileSize, (ABILITY_CONFIG.BOMBARD_RADIUS * 2 + 1) * tileSize]} />
+                            <meshBasicMaterial color="#f97316" transparent opacity={0.2} depthWrite={false} />
+                        </mesh>
+                        <mesh rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+                            <ringGeometry args={[tileSize * 0.35, tileSize * 0.48, 4]} />
+                            <meshBasicMaterial color="#ef4444" side={THREE.DoubleSide} />
+                        </mesh>
+                    </group>
+                ) : targetingAbility === 'MISSILE' || (interactionMode === 'target' && targetingDoctrine?.type.includes('HEAVY_METAL')) ? (
                      // Nuke / Missile Targeting Reticle
                      <group>
                          {/* Spinning Ring Outer */}

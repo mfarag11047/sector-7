@@ -97,9 +97,16 @@ interface UnitProps {
   ammoState?: 'empty' | 'loading' | 'armed' | 'awaiting_delivery';
   loadedAmmo?: 'eclipse' | 'he' | null;
   missileInventory?: { eclipse: number; he: number }; // Added
+  ordnanceMaterial?: number;
+  fabrication?: { active: boolean; item: 'eclipse' | 'he'; progress: number; totalTime: number };
+  atOrdnanceFab?: boolean;
+  ballistaInRange?: boolean;
+  cores?: number;
+  warheadStock?: { eclipse: number; he: number };
   loadingProgress?: number;
   courierTargetId?: string;
   courierPayload?: 'eclipse' | 'he';
+  bombardmentTarget?: { x: number; z: number } | null;
   jammerActive?: boolean;
   tetherTargetId?: string | null;
   isJammed?: boolean;
@@ -231,7 +238,7 @@ const GhostModel: React.FC = () => {
 useGLTF.preload(GHOST_MODEL_URL);
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, onMoveStep, tileTypeMap, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, loadingProgress, courierPayload, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, onMoveStep, tileTypeMap, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime,
   isStunned, globalSpeedModifier = 1.0, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -268,7 +275,8 @@ const Unit: React.FC<UnitProps> = ({
   const isDefenseDrone = type === 'defense_drone';
   const isSwarmHost = type === 'swarm_host';
   const isCrawler = type === 'crawler_drone';
-  const isAir = isWasp || isDrone || isHelios;
+  const isBombard = type === 'bombard';
+  const isAir = isWasp || isDrone || isHelios || isBombard;
   
   const classConfig = UNIT_CLASSES[unitClass];
   const unitStats = UNIT_STATS[type];
@@ -282,7 +290,7 @@ const Unit: React.FC<UnitProps> = ({
 
   // Floating height difference
   // Raised ground units to 1.2 to clear the Base platform (height 1.0)
-  const hoverHeight = isDefenseDrone ? 12.0 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler) ? 1.2 : (isAir ? 75.0 : 2.0);
+  const hoverHeight = isBombard ? 42 : isDefenseDrone ? 12.0 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler) ? 1.2 : (isAir ? 75.0 : 2.0);
   
   // Logical World Position
   const logicalWorldPos = useMemo(() => new THREE.Vector3(
@@ -797,6 +805,44 @@ const Unit: React.FC<UnitProps> = ({
             <pointLight ref={flashRef} position={[0, 2.2, 0]} color="#fbbf24" distance={3} decay={2} visible={false} />
         </group>
     );
+    if (isBombard) return (
+        <group scale={[3.4, 3.4, 3.4]}>
+            <mesh position={[0, 0.15, 0]}>
+                <boxGeometry args={[0.7, 0.28, 2.4]} />
+                <meshStandardMaterial color="#334155" metalness={0.55} roughness={0.4} />
+                <Edges color="#0f172a" />
+            </mesh>
+            <mesh position={[0, 0.05, 0.15]}>
+                <boxGeometry args={[0.5, 0.16, 1.2]} />
+                <meshStandardMaterial color="#1e293b" />
+            </mesh>
+            {[-0.35, 0.35].map(x => (
+                <mesh key={x} position={[x, -0.02, 0]}>
+                    <boxGeometry args={[0.08, 0.06, 0.9]} />
+                    <meshBasicMaterial color="#f97316" />
+                </mesh>
+            ))}
+            <mesh position={[0, 0.22, 0]}>
+                <boxGeometry args={[3.4, 0.08, 0.7]} />
+                <meshStandardMaterial color="#475569" metalness={0.4} roughness={0.5} />
+                <Edges color={teamColor} />
+            </mesh>
+            {[[-1.55, 0.34], [1.55, 0.34], [-1.55, -0.34], [1.55, -0.34]].map((pos, i) => (
+                <group key={i} position={[pos[0], 0.34, pos[1]]}>
+                    <mesh><cylinderGeometry args={[0.16, 0.16, 0.08, 8]} /><meshStandardMaterial color="#0f172a" /></mesh>
+                    <mesh rotation={[0, Math.PI / 4, 0]}><boxGeometry args={[0.42, 0.02, 0.06]} /><meshStandardMaterial color="#94a3b8" /></mesh>
+                </group>
+            ))}
+            <mesh position={[0, 0.32, 0.95]}>
+                <boxGeometry args={[0.28, 0.16, 0.4]} />
+                <meshStandardMaterial color="#1e293b" />
+            </mesh>
+            <mesh position={[0, 0.32, 1.16]}>
+                <planeGeometry args={[0.18, 0.08]} />
+                <meshBasicMaterial color={teamColor} />
+            </mesh>
+        </group>
+    );
     if (isWasp) return (<Float speed={2} rotationIntensity={0.2} floatIntensity={0.5} floatingRange={[0, 0.5]}> <group scale={[2.4, 2.4, 2.4]}> <mesh position={[0, 0, 0]}><boxGeometry args={[0.5, 0.4, 1.0]} /><meshStandardMaterial color="#475569" metalness={0.7} roughness={0.4} /><Edges color="#1e293b" /></mesh> <mesh position={[0, 0, 0.55]}><boxGeometry args={[0.4, 0.3, 0.2]} /><meshStandardMaterial color="#334155" metalness={0.8} /></mesh> <mesh position={[-0.1, 0.05, 0.66]}><planeGeometry args={[0.1, 0.05]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> <mesh position={[0.1, 0.05, 0.66]}><planeGeometry args={[0.1, 0.05]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> <mesh position={[0, 0.1, -0.55]}><boxGeometry args={[0.4, 0.2, 0.2]} /><meshStandardMaterial color="#1e293b" /></mesh> <mesh position={[0, 0.4, -0.3]}><boxGeometry args={[0.05, 0.4, 0.6]} /><meshStandardMaterial color="#64748b" /><Edges color="#334155" /></mesh> {[-1, 1].map((dir) => ( <group key={dir} position={[dir * 0.6, 0, 0.1]}> <mesh position={[dir * -0.2, 0, 0]}><boxGeometry args={[0.4, 0.1, 0.4]} /><meshStandardMaterial color="#475569" /></mesh> <mesh rotation={[Math.PI/2, 0, Math.PI/2]}><cylinderGeometry args={[0.3, 0.3, 1.2, 6]} /><meshStandardMaterial color="#334155" metalness={0.6} roughness={0.3} /><Edges color="#1e293b" threshold={15} /></mesh> <mesh position={[0, 0, 0.61]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.25, 0.25, 0.05, 6]} /><meshStandardMaterial color="#1e293b" /></mesh> {[0, 60, 120, 180, 240, 300].map((angle, i) => { const rad = (angle * Math.PI) / 180; const r = 0.15; const x = Math.cos(rad) * r; const y = Math.sin(rad) * r; return ( <mesh key={i} position={[x, y, 0.65]} rotation={[Math.PI/2, 0, 0]}> <cylinderGeometry args={[0.04, 0.04, 0.1, 8]} /><meshStandardMaterial color="#b91c1c" /> <mesh position={[0, 0.06, 0]}><sphereGeometry args={[0.04]} /><meshBasicMaterial color="#ef4444" /> </mesh> </mesh> ) })} <mesh position={[0, 0.31, 0]} rotation={[-Math.PI/2, 0, 0]}><planeGeometry args={[0.4, 0.8]} /><meshBasicMaterial color={teamColor} transparent opacity={0.5} /></mesh> <mesh position={[0, 0, -0.61]} rotation={[Math.PI/2, 0, 0]}><circleGeometry args={[0.2, 8]} /><meshBasicMaterial color={teamColor} transparent opacity={0.8} /></mesh> </group> ))} {[0.3, -0.3].map((x, i) => ( <group key={`vtol-${i}`} position={[x, -0.25, 0]}> <mesh rotation={[Math.PI, 0, 0]}><coneGeometry args={[0.1, 0.4, 8, 1, true]} /><meshBasicMaterial color={teamColor} transparent opacity={0.4} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh> </group> ))} <pointLight ref={flashRef} position={[0, 0, 0.8]} color="#fbbf24" distance={3} decay={2} visible={false} /> </group> </Float>);
     if (isDrone) return (<Float speed={2} rotationIntensity={0.2} floatIntensity={0.5} floatingRange={[0, 0.5]}> <group scale={[2.2, 2.2, 2.2]}> <mesh position={[0, 0, 0]}><boxGeometry args={[0.5, 0.25, 1.0]} /><meshStandardMaterial color="#334155" metalness={0.7} roughness={0.3} /><Edges color={teamColor} /></mesh> <mesh position={[0, 0.15, -0.1]}><boxGeometry args={[0.4, 0.15, 0.6]} /><meshStandardMaterial color="#475569" /></mesh> <group position={[0, 0, 0.55]}> <mesh rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.15, 0.15, 0.2, 8]} /><meshStandardMaterial color="#1e293b" /></mesh> <mesh position={[0, 0, 0.11]} rotation={[Math.PI/2, 0, 0]}><circleGeometry args={[0.08, 8]} /><meshBasicMaterial color="#0ea5e9" toneMapped={false} /> </mesh> <pointLight color="#0ea5e9" distance={2} intensity={2} decay={2} /> </group> {[{ x: 0.6, z: 0.6 }, { x: -0.6, z: 0.6 }, { x: 0.6, z: -0.6 }, { x: -0.6, z: -0.6 }].map((pos, i) => ( <group key={i} position={[pos.x, 0, pos.z]}> <mesh position={[-pos.x/2, 0, -pos.z/2]} rotation={[0, Math.atan2(pos.x, pos.z), 0]}><boxGeometry args={[0.1, 0.05, Math.hypot(pos.x, pos.z)]} /><meshStandardMaterial color="#64748b" /></mesh> <mesh position={[0, -0.05, 0]}><cylinderGeometry args={[0.08, 0.08, 0.15]} /><meshStandardMaterial color="#0f172a" /></mesh> <mesh rotation={[Math.PI/2, 0, 0]}><ringGeometry args={[0.35, 0.38, 12]} /><meshStandardMaterial color="#334155" side={THREE.DoubleSide} /></mesh> <group position={[0, 0.05, 0]}><Rotor /></group> <mesh position={[0, -0.15, 0]}><sphereGeometry args={[0.05]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> </group> ))} <mesh position={[0, 0.2, -0.4]} rotation={[-0.3, 0, 0]}><cylinderGeometry args={[0.02, 0.02, 0.6]} /><meshStandardMaterial color="#94a3b8" /></mesh> <mesh position={[0, 0.5, -0.5]}><sphereGeometry args={[0.04]} /><meshBasicMaterial color={teamColor} /></mesh> </group> </Float>);
     
@@ -1196,13 +1242,74 @@ const Unit: React.FC<UnitProps> = ({
                   {isDrone && (
                       <button onClick={(e) => { e.stopPropagation(); handleMenuAction('LOITERING SURVEILLANCE'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left">Surveillance</button>
                   )}
+                  {isBombard && (
+                      <>
+                        <div className="text-[9px] text-slate-400 uppercase font-mono mb-1">Bombardment</div>
+                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('BOMBARD'); }} className={`text-[10px] ${bombardmentTarget ? 'bg-orange-900 text-orange-200' : 'bg-slate-800 text-orange-300'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>Bombard</button>
+                        <div className="text-[9px] text-slate-500 px-1">{bombardmentTarget ? 'On approach' : '2-square cluster strike'}</div>
+                      </>
+                  )}
+                  {isMule && (() => {
+                      const material = ordnanceMaterial ?? 0;
+                      const eclipseReady = missileInventory?.eclipse ?? 0;
+                      const heReady = missileInventory?.he ?? 0;
+                      const held = eclipseReady + heReady;
+                      const room = ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY - held;
+                      const busy = !!fabrication?.active;
+                      const canFabricateEclipse = material > 0 && !busy && (cores ?? 0) >= ABILITY_CONFIG.WARHEAD_COST_ECLIPSE;
+                      const canFabricateHe = material > 0 && !busy && (cores ?? 0) >= ABILITY_CONFIG.WARHEAD_COST_HE;
+                      const canLoad = !!atOrdnanceFab && material < room;
+                      return (
+                          <>
+                              <div className="text-[9px] text-slate-400 uppercase font-mono mb-1">Field Fabricator</div>
+                              <div className="text-[10px] text-amber-300 px-2 py-1 bg-slate-900/50 rounded">Material {material}/{ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY}</div>
+                              <div className="text-[9px] text-slate-500 font-mono px-1">Eclipse {eclipseReady} · HE {heReady}</div>
+                              {busy && fabrication && (
+                                  <div className="px-1">
+                                      <div className="text-[9px] text-yellow-300 font-mono uppercase">
+                                          Fabricating {fabrication.item === 'eclipse' ? 'Eclipse' : 'HE'} {Math.min(100, Math.floor((fabrication.progress / fabrication.totalTime) * 100))}%
+                                      </div>
+                                      <div className="hud-meter w-full h-1.5 mt-1">
+                                          <div className="hud-meter-cell h-full" style={{ width: `${Math.max(4, Math.min(100, (fabrication.progress / fabrication.totalTime) * 100))}%` }} />
+                                      </div>
+                                  </div>
+                              )}
+                              <button onClick={(e) => { e.stopPropagation(); handleMenuAction('FABRICATE_ECLIPSE'); }} disabled={!canFabricateEclipse} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-fuchsia-400 px-2 py-1 rounded text-left flex justify-between disabled:opacity-40"><span>Fabricate Eclipse</span><span>{ABILITY_CONFIG.WARHEAD_COST_ECLIPSE}</span></button>
+                              <button onClick={(e) => { e.stopPropagation(); handleMenuAction('FABRICATE_HE'); }} disabled={!canFabricateHe} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-red-400 px-2 py-1 rounded text-left flex justify-between disabled:opacity-40"><span>Fabricate HE</span><span>{ABILITY_CONFIG.WARHEAD_COST_HE}</span></button>
+                              {canLoad && (
+                                  <button onClick={(e) => { e.stopPropagation(); handleMenuAction('RESUPPLY_MATERIAL'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-amber-300 px-2 py-1 rounded text-left">Load Material</button>
+                              )}
+                              {room <= 0 && (
+                                  <div className="text-[9px] text-slate-500 px-1">Bay full — hand missiles to a Ballista</div>
+                              )}
+                              {room > 0 && material < room && !atOrdnanceFab && (
+                                  <div className="text-[9px] text-slate-500 px-1">Drive to an Ordnance Fab to load material</div>
+                              )}
+                              {eclipseReady > 0 && (
+                                  <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TRANSFER_ECLIPSE'); }} disabled={!ballistaInRange} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-fuchsia-300 px-2 py-1 rounded text-left disabled:opacity-40">Transfer Eclipse ({eclipseReady})</button>
+                              )}
+                              {heReady > 0 && (
+                                  <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TRANSFER_HE'); }} disabled={!ballistaInRange} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-red-300 px-2 py-1 rounded text-left disabled:opacity-40">Transfer HE ({heReady})</button>
+                              )}
+                              {held > 0 && !ballistaInRange && (
+                                  <div className="text-[9px] text-slate-500 px-1">Drive to a Ballista to hand off missiles</div>
+                              )}
+                          </>
+                      );
+                  })()}
                   {isBallista && (
                       <>
                           <div className="text-[9px] text-slate-400 uppercase font-mono mb-1">Missile Bay</div>
                           {ammoState === 'empty' && (
                               <>
-                                <button onClick={(e) => { e.stopPropagation(); handleMenuAction('REQUEST_DELIVERY_ECLIPSE'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-fuchsia-400 px-2 py-1 rounded text-left">Req Eclipse</button>
-                                <button onClick={(e) => { e.stopPropagation(); handleMenuAction('REQUEST_DELIVERY_HE'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-red-400 px-2 py-1 rounded text-left">Req HE</button>
+                                {atOrdnanceFab ? (
+                                  <>
+                                    <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TAKE_ECLIPSE'); }} disabled={!warheadStock?.eclipse} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-fuchsia-400 px-2 py-1 rounded text-left disabled:opacity-40">Take Eclipse ({warheadStock?.eclipse ?? 0})</button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TAKE_HE'); }} disabled={!warheadStock?.he} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-red-400 px-2 py-1 rounded text-left disabled:opacity-40">Take HE ({warheadStock?.he ?? 0})</button>
+                                  </>
+                                ) : (
+                                  <div className="text-[9px] text-slate-500 px-1">Drive to an Ordnance Fab to resupply</div>
+                                )}
                                 {missileInventory && missileInventory.eclipse > 0 && (
                                      <button onClick={(e) => { e.stopPropagation(); handleMenuAction('LOAD_AMMO_ECLIPSE'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-fuchsia-400 px-2 py-1 rounded text-left">Load Eclipse ({missileInventory.eclipse})</button>
                                 )}
