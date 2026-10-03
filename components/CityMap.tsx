@@ -824,12 +824,16 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
     };
     const blueBlock = { ix: blockIndexOf(baseA_Coord.x), iz: blockIndexOf(baseA_Coord.z) };
     const redBlock = { ix: blockIndexOf(baseB_Coord.x), iz: blockIndexOf(baseB_Coord.z) };
-    // Two city blocks toward the middle of the map, plus the two corners that have no base.
+    // Approach nodes sit two blocks in from each base. The empty corners are the
+    // long edge sites. The last pair sits on the line equidistant from both bases,
+    // outside the center server cluster, so taking one means meeting the other player.
     const corePlacements: { ix: number; iz: number; clearSurroundings: boolean }[] = [
       { ix: blueBlock.ix + 2, iz: blueBlock.iz + 2, clearSurroundings: false },
       { ix: redBlock.ix - 2, iz: redBlock.iz - 2, clearSurroundings: false },
       { ix: blueBlock.ix, iz: redBlock.iz, clearSurroundings: true },
       { ix: redBlock.ix, iz: blueBlock.iz, clearSurroundings: true },
+      { ix: blueBlock.ix + 3, iz: redBlock.iz - 3, clearSurroundings: false },
+      { ix: redBlock.ix - 3, iz: blueBlock.iz + 3, clearSurroundings: false },
     ];
     for (const node of corePlacements) {
       if (node.clearSurroundings) {
