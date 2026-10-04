@@ -3036,7 +3036,10 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   let bluePower = 0; let redPower = 0;
                   adjacentUnits.forEach(u => {
                       if (u.team === 'neutral') return;
-                      const power = UNIT_STATS[u.type].captureMultiplier || 0;
+                      const stats = UNIT_STATS[u.type];
+                      // Buildings and core nodes are captured by infantry only.
+                      if (stats.unitClass !== 'infantry') return;
+                      const power = stats.captureMultiplier || 0;
                       if (u.team === 'blue') bluePower += power; else if (u.team === 'red') redPower += power;
                   });
                   if (bluePower === 0 && redPower === 0) {

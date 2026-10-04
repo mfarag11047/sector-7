@@ -13,8 +13,8 @@ const MANUAL_DATA: ManualSection[] = [
   {
     title: "Mission Objectives",
     items: [
-      { label: "Sector Capture", description: "Stand next to a building until capture reaches 100%. Claiming it extends your energy grid instead of paying cores." },
-      { label: "Domination", description: "Neutralize enemy buildings by standing near them until their capture progress returns to zero." },
+      { label: "Sector Capture", description: "Only infantry can capture a building. Stand next to it until capture reaches 100%. Claiming it extends your energy grid instead of paying cores." },
+      { label: "Domination", description: "Only infantry can neutralize an enemy building. Stand near it until its capture progress returns to zero." },
     ]
   },
   {
@@ -28,7 +28,7 @@ const MANUAL_DATA: ManualSection[] = [
   {
     title: "Compute System",
     items: [
-      { label: "Server Nodes", description: "Special blue buildings that provide Compute and also extend your energy grid. Capture takes longer than a normal building." },
+      { label: "Server Nodes", description: "Special blue buildings that provide Compute and also extend your energy grid. Only infantry can capture one, and it takes longer than a normal building." },
       { label: "Ability Gating", description: "Advanced abilities (Nuke, Hack, Decoy) require holding a specific number of Server Nodes to activate." },
       { label: "Thresholds", description: "1: Decoy | 2: APS/Trophy | 3: Hack | 4: WMD Launch" },
     ]
@@ -37,7 +37,7 @@ const MANUAL_DATA: ManualSection[] = [
     title: "Core Nodes",
     items: [
       { label: "Capture Sites", description: "Each node sits in the middle of a city block, the 5x5 lot between the roads. One is two city blocks in front of each command base. The other two occupy the far corner blocks, and the city blocks around those are empty so no captured building can power a grid beside them." },
-      { label: "Slow Capture", description: "A core node takes much longer to capture than a building. Hold the tile beside it until the node fills with your team color." },
+      { label: "Slow Capture", description: "Only infantry can capture a core node, and it takes much longer than a building. Hold the tile beside it until the node fills with your team color." },
       { label: "Core Income", description: `Each node you hold pays ${BUILDING_VALUES.core_node.income} cores per second. Buildings still extend the energy grid and do not pay cores.` },
     ]
   }

@@ -31,10 +31,10 @@ export const COMPUTE_GATES = {
 };
 
 export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: string, visionRange: number, speedMod: number, maxHealth: number, attackDamage: number, attackCooldown: number, cost: number, unitClass: UnitClass }> = {
-  drone: { unitClass: 'air', cost: 50, captureMultiplier: 1.5, label: 'Infiltrator Drone', visionRange: 2, speedMod: 1.2, maxHealth: 50, attackDamage: 5, attackCooldown: 1000 },
-  tank: { unitClass: 'armor', cost: 300, captureMultiplier: 0.5, label: 'Titan Main Battle Tank', visionRange: 3, speedMod: 0.7, maxHealth: 400, attackDamage: 25, attackCooldown: 2000 }, 
+  drone: { unitClass: 'air', cost: 50, captureMultiplier: 0, label: 'Infiltrator Drone', visionRange: 2, speedMod: 1.2, maxHealth: 50, attackDamage: 5, attackCooldown: 1000 },
+  tank: { unitClass: 'armor', cost: 300, captureMultiplier: 0, label: 'Titan Main Battle Tank', visionRange: 3, speedMod: 0.7, maxHealth: 400, attackDamage: 25, attackCooldown: 2000 },
   ghost: { unitClass: 'infantry', cost: 150, captureMultiplier: 1.0, label: 'Ghost EW Specialist', visionRange: 3, speedMod: 1.0, maxHealth: 80, attackDamage: 8, attackCooldown: 800 },
-  guardian: { unitClass: 'support', cost: 200, captureMultiplier: 0.2, label: 'Guardian UGV', visionRange: 3, speedMod: 0.6, maxHealth: 150, attackDamage: 0, attackCooldown: 0 },
+  guardian: { unitClass: 'support', cost: 200, captureMultiplier: 0, label: 'Guardian UGV', visionRange: 3, speedMod: 0.6, maxHealth: 150, attackDamage: 0, attackCooldown: 0 },
   mule: { unitClass: 'ordnance', cost: 250, captureMultiplier: 0.0, label: 'Field Fabricator', visionRange: 3, speedMod: 0.9, maxHealth: 60, attackDamage: 0, attackCooldown: 0 },
   wasp: { unitClass: 'air', cost: 200, captureMultiplier: 0.0, label: '"Wasp" Swarm Launcher', visionRange: 5, speedMod: 1.5, maxHealth: 40, attackDamage: 5, attackCooldown: 500 },
   mason: { unitClass: 'builder', cost: 150, captureMultiplier: 0.0, label: '"Mason" Combat Engineer', visionRange: 2, speedMod: 0.7, maxHealth: 150, attackDamage: 0, attackCooldown: 0 },
@@ -44,7 +44,7 @@ export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: st
   courier: { unitClass: 'support', cost: 50, captureMultiplier: 0.0, label: 'Ordnance Courier', visionRange: 2, speedMod: 1.8, maxHealth: 30, attackDamage: 0, attackCooldown: 0 },
   banshee: { unitClass: 'support', cost: 300, captureMultiplier: 0.0, label: '"Banshee" EW Vehicle', visionRange: 4, speedMod: 0.9, maxHealth: 350, attackDamage: 0, attackCooldown: 0 },
   defense_drone: { unitClass: 'defense', cost: 0, captureMultiplier: 0.0, label: 'Sentinel Drone', visionRange: 2, speedMod: 0, maxHealth: 60, attackDamage: 10, attackCooldown: 500 },
-  titan_dropped: { unitClass: 'armor', cost: 0, captureMultiplier: 0.8, label: 'Titan (Orbital Drop)', visionRange: 3, speedMod: 0.7, maxHealth: 400, attackDamage: 25, attackCooldown: 2000 },
+  titan_dropped: { unitClass: 'armor', cost: 0, captureMultiplier: 0, label: 'Titan (Orbital Drop)', visionRange: 3, speedMod: 0.7, maxHealth: 400, attackDamage: 25, attackCooldown: 2000 },
   swarm_host: { unitClass: 'ordnance', cost: 0, captureMultiplier: 0, label: 'Swarm Host', visionRange: 3, speedMod: 0.8, maxHealth: 100, attackDamage: 0, attackCooldown: 0 },
   crawler_drone: { unitClass: 'ordnance', cost: 25, captureMultiplier: 0, label: 'Crawler Drone', visionRange: 3, speedMod: 1.2, maxHealth: 30, attackDamage: 0, attackCooldown: 0 },
   bombard: { unitClass: 'air', cost: 450, captureMultiplier: 0, label: 'Bombardment Drone', visionRange: 4, speedMod: 0.35, maxHealth: 180, attackDamage: 0, attackCooldown: 0 },
