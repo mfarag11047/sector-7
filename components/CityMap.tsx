@@ -15,6 +15,7 @@ import { useFrame } from '@react-three/fiber';
 import { Zap, Ban } from 'lucide-react';
 import { freezeContainer } from '../perf';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
+import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from '../sim/movement';
 import { Economy, createEconomy, canAfford, spend, setCores, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 
 const isTetherableDrone = (u: UnitData) => u.type === 'drone' || u.type === 'helios';
@@ -1511,6 +1512,14 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       return findPath(from, { x: gx, z: gz });
   }, [findPath, isWalkable]);
 
+  // Read by the logic tick, which only captures its closure once.
+  const movementEnvRef = useRef<MovementEnv | null>(null);
+  movementEnvRef.current = {
+      tileSize,
+      tileTypeOf: key => tileTypeMap[key],
+      arrive: <T extends Mover>(u: T) => arriveAtNextTile(u, { isWalkable, reroute: rerouteAroundBlocks, now: Date.now() }),
+  };
+
   // A wall placed on an existing route pulls that unit off the tile and sends them around it.
   useEffect(() => {
       const settle = <T extends { gridPos: { x: number, z: number }, path?: string[] }>(entity: T): T | null => {
@@ -1980,43 +1989,6 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           // Standard Single Selection - replaces existing group selection
           setSelectedUnitIds(new Set([id]));
       }
-  };
-
-  const handleMoveStep = (id: string) => {
-      if (id.startsWith('decoy-')) {
-          setDecoys(prev => prev.map(d => {
-              if (d.id !== id || !d.path || d.path.length === 0) return d;
-              const [nx, nz] = d.path[0].split(',').map(Number);
-              if (!isWalkable(nx, nz)) return { ...d, path: rerouteAroundBlocks(d.gridPos, d.path) };
-              return { ...d, gridPos: { x: nx, z: nz }, path: d.path.slice(1) };
-          }));
-          return;
-      }
-      setUnits(prev => prev.map(u => {
-          if (u.id !== id) return u;
-          if (u.path.length === 0) return u;
-          const nextKey = u.path[0];
-          const [nx, nz] = nextKey.split(',').map(Number);
-          if (u.type !== 'bombard' && !isWalkable(nx, nz)) return { ...u, path: rerouteAroundBlocks(u.gridPos, u.path) };
-          
-          let newSurveillance = u.surveillance;
-          
-          // Check if arrived at surveillance center (Transition traveling -> active)
-          if (u.surveillance && u.surveillance.status === 'traveling') {
-              if (nx === u.surveillance.center.x && nz === u.surveillance.center.z) {
-                  newSurveillance = { ...u.surveillance, status: 'active', startTime: Date.now() };
-              }
-          }
-          
-          // Check if returned to base (Transition returning -> done)
-          if (u.surveillance && u.surveillance.status === 'returning') {
-              if (u.surveillance.returnPos && nx === u.surveillance.returnPos.x && nz === u.surveillance.returnPos.z) {
-                  newSurveillance = undefined;
-              }
-          }
-
-          return { ...u, gridPos: { x: nx, z: nz }, path: u.path.slice(1), surveillance: newSurveillance };
-      }));
   };
 
   const checkIsValidPlacement = (x: number, z: number) => {
@@ -2938,9 +2910,34 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
   // Main Game Loop (Combat, Movement logic that isn't smooth pathing, etc)
   useEffect(() => {
-      const TICK_RATE = 100; // 10 ticks per second for logic
+      const TICK_RATE = MOVE_TICK_MS; // 10 ticks per second for logic
       const timer = setInterval(() => {
           const now = Date.now();
+
+          // Movement. Same task as the rest of the tick, so React renders it all in one pass.
+          const moveEnv = movementEnvRef.current;
+          if (moveEnv) {
+              setUnits(prev => {
+                  let moved = false;
+                  const next = prev.map(u => {
+                      const after = advanceMover(u, MOVE_TICK_MS, moveEnv);
+                      if (after !== u) moved = true;
+                      return after;
+                  });
+                  return moved ? next : prev;
+              });
+              setDecoys(prev => {
+                  let moved = false;
+                  const next = prev.map(d => {
+                      if (!d.path || d.path.length === 0) return d;
+                      // Projections move at Ghost speed and never run out of power.
+                      const after = advanceMover({ ...d, path: d.path, type: 'ghost' as const, unitClass: 'infantry' as const, battery: 1 }, MOVE_TICK_MS, moveEnv);
+                      moved = true;
+                      return { ...d, gridPos: after.gridPos, path: after.path, moveProgress: after.moveProgress, moveTarget: after.moveTarget };
+                  });
+                  return moved ? next : prev;
+              });
+          }
           let newExplosions: Explosion[] = [];
           let damageEvents: {id: string, damage: number, position: {x: number, y: number, z: number}, radius: number, team: UnitData['team'] }[] = [];
           const currentUnitsRef = unitsRef.current; 
@@ -3617,14 +3614,13 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       ? units.find(src => src.id === targetingSourceId && src.type === 'sun_plate' && src.isDeployed)
       : undefined;
 
-  const callbacksRef = useRef({ handleTileClick, handleRightClick, setHoverGridPos, handleUnitSelect, handleMoveStep, handleUnitAction, handleStructureClick, handleStructureAction });
-  callbacksRef.current = { handleTileClick, handleRightClick, setHoverGridPos, handleUnitSelect, handleMoveStep, handleUnitAction, handleStructureClick, handleStructureAction };
+  const callbacksRef = useRef({ handleTileClick, handleRightClick, setHoverGridPos, handleUnitSelect, handleUnitAction, handleStructureClick, handleStructureAction });
+  callbacksRef.current = { handleTileClick, handleRightClick, setHoverGridPos, handleUnitSelect, handleUnitAction, handleStructureClick, handleStructureAction };
   
   const stableTileClick = useCallback((x: number, z: number) => callbacksRef.current.handleTileClick(x, z), []);
   const stableRightClick = useCallback((x: number, z: number) => callbacksRef.current.handleRightClick(x, z), []);
   const stableHover = useCallback((x: number, z: number) => callbacksRef.current.setHoverGridPos({x, z}), []);
   const stableUnitSelect = useCallback((id: string) => callbacksRef.current.handleUnitSelect(id), []);
-  const stableMoveStep = useCallback((id: string) => callbacksRef.current.handleMoveStep(id), []);
   const stableUnitAction = useCallback((id: string, action: string) => callbacksRef.current.handleUnitAction(id, action), []);
   const stableDoubleClick = useCallback(() => {}, []);
   const stableStructureClick = useCallback((id: string) => callbacksRef.current.handleStructureClick(id), []);
@@ -3728,7 +3724,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
              const isVisible = visibleUnitIds.has(u.id);
              const atOrdnanceFab = structuresState.some(s => s.type === 'ordnance_fab' && s.team === u.team && !s.isBlueprint && Math.hypot(s.gridPos.x - u.gridPos.x, s.gridPos.z - u.gridPos.z) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE);
              const ballistaInRange = u.type === 'mule' && units.some(b => b.type === 'ballista' && b.team === u.team && b.health > 0 && Math.hypot(b.gridPos.x - u.gridPos.x, b.gridPos.z - u.gridPos.z) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE);
-             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onMoveStep={stableMoveStep} tileTypeMap={tileTypeMap} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && (!!u.tetherTargetId || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} showBatteryRange={u.type === 'sun_plate' && !!u.isDeployed && (selectedUnitIds.has(u.id) || (targetingSourceId === u.id && targetingAbility === 'BATTERY_TETHER'))} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} isBatteryLinkCandidate={!!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE} warheadStock={u.team === playerTeam && (playerTeam === 'blue' || playerTeam === 'red') ? stockpile[playerTeam] : undefined} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={(u.team === 'blue' || u.team === 'red') ? teamResources[u.team] : 0} /> );
+             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && (!!u.tetherTargetId || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} showBatteryRange={u.type === 'sun_plate' && !!u.isDeployed && (selectedUnitIds.has(u.id) || (targetingSourceId === u.id && targetingAbility === 'BATTERY_TETHER'))} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} isBatteryLinkCandidate={!!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE} warheadStock={u.team === playerTeam && (playerTeam === 'blue' || playerTeam === 'red') ? stockpile[playerTeam] : undefined} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={(u.team === 'blue' || u.team === 'red') ? teamResources[u.team] : 0} /> );
         })}
         {decoys.map(d => {
             const seen = d.team === playerTeam || units.some(f => f.team === playerTeam && Math.hypot(f.gridPos.x - d.gridPos.x, f.gridPos.z - d.gridPos.z) <= (f.visionRange || 2));
@@ -3745,8 +3741,8 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                 tileSize={CITY_CONFIG.tileSize}
                 offset={offset}
                 path={d.path ?? stableEmptyArray}
-                onMoveStep={stableMoveStep}
-                tileTypeMap={tileTypeMap}
+                moveProgress={d.moveProgress}
+                moveTarget={d.moveTarget}
                 onDoubleClick={stableDoubleClick}
                 visionRange={0}
                 visible={seen}

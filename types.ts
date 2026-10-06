@@ -89,6 +89,9 @@ export interface UnitData {
   team: 'blue' | 'red' | 'neutral';
   gridPos: { x: number; z: number };
   path: string[];
+  // Fraction of the step from gridPos to moveTarget covered so far (0 to 1). See sim/movement.ts.
+  moveProgress?: number;
+  moveTarget?: string;
   visionRange: number;
   health: number;
   maxHealth: number;
@@ -265,6 +268,8 @@ export interface DecoyData {
   createdAt: number;
   ownerId?: string; // Ghost whose Phantom Decoy spawned this projection
   path?: string[]; // Scatter route, starting from the owner's tile
+  moveProgress?: number;
+  moveTarget?: string;
 }
 
 export interface CloudData {

@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, UNIT_STATS } from '../constants';
 import { UnitType, UnitClass } from '../types';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
+import { MOVE_TICK_MS, currentTilePosition, parseTile } from '../sim/movement';
 
 // Helper component for spinning rotors
 const Rotor: React.FC = () => {
@@ -36,8 +37,8 @@ interface UnitProps {
   tileSize: number;
   offset: number;
   path: string[];
-  onMoveStep: (id: string) => void;
-  tileTypeMap: Record<string, 'main' | 'street' | 'open'>;
+  moveProgress?: number;
+  moveTarget?: string;
   onDoubleClick: (e: any, id: string) => void;
   visionRange: number;
   visible?: boolean;
@@ -117,7 +118,6 @@ interface UnitProps {
   lastAttackTime?: number;
   // Step 3 Updates
   isStunned?: boolean;
-  globalSpeedModifier?: number;
   activeBuffs?: ('speed' | 'damage' | 'regen')[];
   // Swarm Host Anchoring
   isAnchored?: boolean;
@@ -238,13 +238,11 @@ const GhostModel: React.FC = () => {
 useGLTF.preload(GHOST_MODEL_URL);
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, onMoveStep, tileTypeMap, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime,
-  isStunned, globalSpeedModifier = 1.0, activeBuffs, isAnchored, isInNanoCloud
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime,
+  isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
   const moveScratch = useRef({
-    waypoint: new THREE.Vector3(),
-    dir: new THREE.Vector3(),
     look: new THREE.Vector3(),
     orient: new THREE.Object3D(),
   });
@@ -299,11 +297,31 @@ const Unit: React.FC<UnitProps> = ({
       (gridPos.z * tileSize) - offset
   ), [gridPos, tileSize, offset, hoverHeight]);
 
+  // Where the simulation says the unit is (sim/movement.ts). Between ticks the model
+  // glides from where it was drawn toward this point, so movement looks continuous
+  // even though the game only updates positions ten times a second.
+  const simTile = currentTilePosition({ gridPos, path, moveProgress, moveTarget });
+  const simX = (simTile.x * tileSize) - offset;
+  const simZ = (simTile.z * tileSize) - offset;
+  const glide = useRef({ fromX: simX, fromZ: simZ, toX: simX, toZ: simZ, startedAt: 0 });
+  const glidePosition = (now: number) => {
+    const g = glide.current;
+    const t = Math.min(1, Math.max(0, (now - g.startedAt) / MOVE_TICK_MS));
+    return { x: g.fromX + (g.toX - g.fromX) * t, z: g.fromZ + (g.toZ - g.fromZ) * t };
+  };
   useLayoutEffect(() => {
-    if (meshRef.current) {
-        meshRef.current.position.copy(logicalWorldPos);
-    }
-  }, []);
+    const g = glide.current;
+    if (g.toX === simX && g.toZ === simZ) return;
+    const now = performance.now();
+    const drawn = glidePosition(now);
+    // A long jump is a respawn or a shove off a wall tile, not travel. Don't animate it.
+    const teleport = Math.hypot(simX - drawn.x, simZ - drawn.z) > tileSize * 2;
+    glide.current = { fromX: teleport ? simX : drawn.x, fromZ: teleport ? simZ : drawn.z, toX: simX, toZ: simZ, startedAt: now };
+  }, [simX, simZ, tileSize]);
+
+  // The model unmounts while hidden by fog. A fresh one starts on the sim position, not the origin.
+  const placedMesh = useRef<THREE.Group | null>(null);
+  const easingIn = useRef(false);
 
   const bodyRef = useRef<THREE.Group>(null);
 
@@ -331,62 +349,6 @@ const Unit: React.FC<UnitProps> = ({
     });
   });
 
-  const lastProcessedTargetRef = useRef<string | null>(null);
-  // Fog of war unmounts the model, but the unit still has to finish its path.
-  const simPos = useRef(new THREE.Vector3());
-  const simReady = useRef(false);
-
-  const BASE_SPEED = 12; // Units per second
-
-  // Calculate target based on path (Next Tile Center)
-  const targetWorldPos = useMemo(() => {
-    const targetKey = path.length > 0 ? path[0] : `${gridPos.x},${gridPos.z}`;
-    const [tx, tz] = targetKey.split(',').map(Number);
-    
-    return new THREE.Vector3(
-      (tx * tileSize) - offset,
-      hoverHeight,
-      (tz * tileSize) - offset
-    );
-  }, [gridPos, path, tileSize, offset, hoverHeight]);
-
-  // Determine Speed multiplier
-  const speedMultiplier = useMemo(() => {
-    if (path.length === 0) return 0;
-    if (isDisabled) return 0; // No speed if no battery or disabled/stunned
-    if (isBallista && ammoState === 'loading') return 0; // Immobilized while loading
-    if (isSwarmHost && isAnchored) return 0; // Anchored Swarm Host cannot move
-    if (isJammed) return 0.5; 
-    
-    let speed = 1.0;
-
-    if (isAir) {
-         speed = 1.2;
-    } else {
-        const targetKey = path[0];
-        const tileType = tileTypeMap[targetKey];
-        if (tileType === 'main') speed = 2.0;    
-        if (tileType === 'open') speed = 0.5;    
-    }
-
-    // Apply Unit Stats Mod
-    speed *= unitStats.speedMod || 1.0;
-
-    // Apply Ghost Dampener Penalty
-    if (isGhost && isDampenerActive) {
-        speed *= ABILITY_CONFIG.GHOST_SPEED_PENALTY;
-    }
-
-    // Apply Global Modifiers
-    speed *= globalSpeedModifier;
-
-    // Apply Active Buffs (e.g. Shadow Ops Passive)
-    if (activeBuffs?.includes('speed')) {
-        speed *= 1.2;
-    }
-    
-    return speed;
-  }, [path, tileTypeMap, isGhost, isDampenerActive, unitStats, isAir, isDisabled, isBallista, ammoState, isJammed, globalSpeedModifier, activeBuffs, isSwarmHost, isAnchored]);
 
   useFrame((state, delta) => {
     let isVisible = true;
@@ -546,44 +508,7 @@ const Unit: React.FC<UnitProps> = ({
         }
     }
 
-    if (!meshRef.current) {
-        const gx = (gridPos.x * tileSize) - offset;
-        const gz = (gridPos.z * tileSize) - offset;
-        if (!simReady.current) {
-            simPos.current.set(gx, hoverHeight, gz);
-            simReady.current = true;
-        }
-        if (path.length > 0 && speedMultiplier > 0 && !isDeployed && !isAnchored && !(isBallista && ammoState === 'loading')) {
-            const moveDist = BASE_SPEED * speedMultiplier * Math.min(delta, 0.05);
-            const scratch = moveScratch.current;
-            let waypointKey = path[0];
-            if (lastProcessedTargetRef.current === waypointKey && path.length > 1) waypointKey = path[1];
-            const [wx, wz] = waypointKey.split(',').map(Number);
-            const waypoint = scratch.waypoint.set((wx * tileSize) - offset, hoverHeight, (wz * tileSize) - offset);
-            const dist = simPos.current.distanceTo(waypoint);
-            if (moveDist > 0 && dist > moveDist) {
-                scratch.dir.subVectors(waypoint, simPos.current).normalize();
-                simPos.current.add(scratch.dir.multiplyScalar(moveDist));
-            } else if (dist <= moveDist) {
-                simPos.current.copy(waypoint);
-            }
-            if (isAir) {
-                const cx = Math.round((simPos.current.x + offset) / tileSize);
-                const cz = Math.round((simPos.current.z + offset) / tileSize);
-                const stepKey = `${cx},${cz}`;
-                if (stepKey === path[0] && lastProcessedTargetRef.current !== path[0]) {
-                    lastProcessedTargetRef.current = path[0];
-                    onMoveStep(id);
-                }
-            } else if (dist <= moveDist && waypointKey === path[0] && lastProcessedTargetRef.current !== path[0]) {
-                lastProcessedTargetRef.current = path[0];
-                onMoveStep(id);
-            }
-        }
-        return;
-    }
-
-    simReady.current = false;
+    if (!meshRef.current) return;
 
     if (meshRef.current) {
         if (isDefenseDrone) {
@@ -608,54 +533,32 @@ const Unit: React.FC<UnitProps> = ({
              return;
         }
 
-        if (path.length > 0 && !isDisabled && !isDeployed && !isAnchored && !(isBallista && ammoState === 'loading')) {
-             const meshPos = meshRef.current.position;
-             const moveDist = BASE_SPEED * speedMultiplier * Math.min(delta, 0.05);
-             const scratch = moveScratch.current;
-
-             // path[0] is the next logical tile. Once that step is already
-             // reported, keep walking toward path[1] so the model doesn't
-             // sit on the tile center waiting for React to drop path[0].
-             let waypointKey = path[0];
-             if (lastProcessedTargetRef.current === waypointKey && path.length > 1) {
-                 waypointKey = path[1];
-             }
-             const [wx, wz] = waypointKey.split(',').map(Number);
-             const waypoint = scratch.waypoint.set(
-                 (wx * tileSize) - offset,
-                 hoverHeight,
-                 (wz * tileSize) - offset
-             );
-
-             const dist = meshPos.distanceTo(waypoint);
-             if (moveDist > 0 && dist > moveDist) {
-                 scratch.dir.subVectors(waypoint, meshPos).normalize();
-                 meshPos.add(scratch.dir.multiplyScalar(moveDist));
-             } else if (dist <= moveDist) {
-                 meshPos.copy(waypoint);
-             }
-
-             if (dist > 0.05) {
-                 scratch.look.set(waypoint.x, meshPos.y, waypoint.z);
-                 scratch.orient.position.copy(meshPos);
-                 scratch.orient.lookAt(scratch.look);
-                 meshRef.current.quaternion.slerp(scratch.orient.quaternion, 1 - Math.exp(-delta * 14));
-             }
-
-             if (isAir) {
-                 const cx = Math.round((meshPos.x + offset) / tileSize);
-                 const cz = Math.round((meshPos.z + offset) / tileSize);
-                 const stepKey = `${cx},${cz}`;
-                 if (stepKey === path[0] && lastProcessedTargetRef.current !== path[0]) {
-                     lastProcessedTargetRef.current = path[0];
-                     onMoveStep(id);
-                 }
-             } else if (dist <= moveDist && waypointKey === path[0] && lastProcessedTargetRef.current !== path[0]) {
-                 lastProcessedTargetRef.current = path[0];
-                 onMoveStep(id);
-             }
+        const meshPos = meshRef.current.position;
+        const drawn = glidePosition(performance.now());
+        const scratch = moveScratch.current;
+        scratch.look.set(drawn.x, hoverHeight, drawn.z);
+        const gap = meshPos.distanceTo(scratch.look);
+        if (placedMesh.current !== meshRef.current) {
+            placedMesh.current = meshRef.current;
+            meshPos.copy(scratch.look);
+        } else if (easingIn.current || gap > tileSize) {
+            // Far from the sim position, e.g. leaving a surveillance orbit or shoved off a
+            // wall tile. Ease all the way in rather than snapping.
+            easingIn.current = gap > 0.5;
+            meshPos.lerp(scratch.look, 1 - Math.exp(-delta * 4));
         } else {
-            meshRef.current.position.lerp(targetWorldPos, 1 - Math.exp(-delta * 10));
+            meshPos.copy(scratch.look);
+        }
+
+        // Face the next tile while travelling.
+        if (path.length > 0 && moveTarget === path[0] && (moveProgress || 0) > 0) {
+            const next = parseTile(path[0]);
+            scratch.look.set((next.x * tileSize) - offset, meshPos.y, (next.z * tileSize) - offset);
+            if (meshPos.distanceTo(scratch.look) > 0.05) {
+                scratch.orient.position.copy(meshPos);
+                scratch.orient.lookAt(scratch.look);
+                meshRef.current.quaternion.slerp(scratch.orient.quaternion, 1 - Math.exp(-delta * 14));
+            }
         }
     }
   });
@@ -945,7 +848,8 @@ const Unit: React.FC<UnitProps> = ({
     <group 
       ref={meshRef}
       name={`unit-${id}`}
-      position={logicalWorldPos} 
+      // Moving units are placed every frame from the glide; only static Sentinels bind here.
+      position={isDefenseDrone ? logicalWorldPos : undefined}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       onPointerOver={handlePointerOver}
