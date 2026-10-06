@@ -92,6 +92,7 @@ export interface UnitData {
   // Fraction of the step from gridPos to moveTarget covered so far (0 to 1). See sim/movement.ts.
   moveProgress?: number;
   moveTarget?: string;
+  moveSpeed?: number; // World units per second on the current step
   visionRange: number;
   health: number;
   maxHealth: number;
@@ -270,6 +271,7 @@ export interface DecoyData {
   path?: string[]; // Scatter route, starting from the owner's tile
   moveProgress?: number;
   moveTarget?: string;
+  moveSpeed?: number;
 }
 
 export interface CloudData {

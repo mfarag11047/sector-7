@@ -16,6 +16,7 @@ import { Zap, Ban } from 'lucide-react';
 import { freezeContainer } from '../perf';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from '../sim/movement';
+import { simClock } from './glide';
 import { Economy, createEconomy, canAfford, spend, setCores, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 
 const isTetherableDrone = (u: UnitData) => u.type === 'drone' || u.type === 'helios';
@@ -2917,6 +2918,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           // Movement. Same task as the rest of the tick, so React renders it all in one pass.
           const moveEnv = movementEnvRef.current;
           if (moveEnv) {
+              simClock.lastTickAt = performance.now();
               setUnits(prev => {
                   let moved = false;
                   const next = prev.map(u => {
@@ -2933,7 +2935,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       // Projections move at Ghost speed and never run out of power.
                       const after = advanceMover({ ...d, path: d.path, type: 'ghost' as const, unitClass: 'infantry' as const, battery: 1 }, MOVE_TICK_MS, moveEnv);
                       moved = true;
-                      return { ...d, gridPos: after.gridPos, path: after.path, moveProgress: after.moveProgress, moveTarget: after.moveTarget };
+                      return { ...d, gridPos: after.gridPos, path: after.path, moveProgress: after.moveProgress, moveTarget: after.moveTarget, moveSpeed: after.moveSpeed };
                   });
                   return moved ? next : prev;
               });
@@ -3743,6 +3745,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                 path={d.path ?? stableEmptyArray}
                 moveProgress={d.moveProgress}
                 moveTarget={d.moveTarget}
+                moveSpeed={d.moveSpeed}
                 onDoubleClick={stableDoubleClick}
                 visionRange={0}
                 visible={seen}

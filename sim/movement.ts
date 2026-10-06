@@ -27,6 +27,9 @@ export interface Mover {
   battery: number;
   moveProgress?: number;
   moveTarget?: string;
+  // World units per second on the current step, 0 when holding. Lets the screen keep a
+  // unit moving smoothly between ticks.
+  moveSpeed?: number;
   isStunned?: boolean;
   isHacked?: boolean;
   hackType?: UnitData['hackType'];
@@ -111,12 +114,13 @@ export interface MovementEnv {
 export function advanceMover<T extends Mover>(unit: T, dtMs: number, env: MovementEnv): T {
   // A new order or a reroute changed the next tile, so the half-finished step no longer applies.
   if (unit.path.length === 0) {
-    return unit.moveProgress || unit.moveTarget ? { ...unit, moveProgress: 0, moveTarget: undefined } : unit;
+    return unit.moveProgress || unit.moveTarget || unit.moveSpeed ? { ...unit, moveProgress: 0, moveTarget: undefined, moveSpeed: 0 } : unit;
   }
   let u = unit.moveTarget === unit.path[0] ? unit : { ...unit, moveProgress: 0, moveTarget: unit.path[0] };
 
   const speed = speedMultiplier(u, env.tileTypeOf);
-  if (speed <= 0) return u;
+  if (speed <= 0) return u.moveSpeed ? { ...u, moveSpeed: 0 } : u;
+  const moveSpeed = BASE_SPEED * speed;
 
   let progress = (u.moveProgress || 0) + stepFraction(u, speed, dtMs, env.tileSize);
   // Never more than a couple of tiles per tick; guards against a huge dt.
@@ -124,12 +128,12 @@ export function advanceMover<T extends Mover>(unit: T, dtMs: number, env: Moveme
     const from = u.gridPos;
     const arrived = env.arrive(u);
     if (arrived.gridPos.x === from.x && arrived.gridPos.z === from.z) {
-      return { ...arrived, moveProgress: 0, moveTarget: arrived.path[0] };
+      return { ...arrived, moveProgress: 0, moveTarget: arrived.path[0], moveSpeed };
     }
     u = arrived;
     progress = u.path.length > 0 ? progress - 1 : 0;
   }
-  return { ...u, moveProgress: progress, moveTarget: u.path[0] };
+  return { ...u, moveProgress: progress, moveTarget: u.path[0], moveSpeed: u.path.length > 0 ? moveSpeed : 0 };
 }
 
 // Fraction of the current step covered in dtMs. Diagonal steps are longer.

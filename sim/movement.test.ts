@@ -151,3 +151,12 @@ describe('currentTilePosition', () => {
     expect(currentTilePosition({ gridPos: { x: 2, z: 2 }, path: ['2,3'], moveProgress: 0.5, moveTarget: '3,3' })).toEqual({ x: 2, z: 2 });
   });
 });
+
+describe('moveSpeed', () => {
+  it('reports world speed while moving and zero once held or finished', () => {
+    const moving = advanceMover(unit(), MOVE_TICK_MS, env());
+    expect(moving.moveSpeed).toBeCloseTo(BASE_SPEED * UNIT_STATS.ghost.speedMod);
+    expect(advanceMover({ ...moving, isStunned: true }, MOVE_TICK_MS, env()).moveSpeed).toBe(0);
+    expect(run(unit({ path: ['1,0'] }), 30).moveSpeed).toBe(0);
+  });
+});

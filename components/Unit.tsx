@@ -6,7 +6,8 @@ import * as THREE from 'three';
 import { TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, UNIT_STATS } from '../constants';
 import { UnitType, UnitClass } from '../types';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
-import { MOVE_TICK_MS, currentTilePosition, parseTile } from '../sim/movement';
+import { currentTilePosition, parseTile } from '../sim/movement';
+import { follow, predictPosition, simClock, walkAlong } from './glide';
 
 // Helper component for spinning rotors
 const Rotor: React.FC = () => {
@@ -39,6 +40,7 @@ interface UnitProps {
   path: string[];
   moveProgress?: number;
   moveTarget?: string;
+  moveSpeed?: number;
   onDoubleClick: (e: any, id: string) => void;
   visionRange: number;
   visible?: boolean;
@@ -238,7 +240,7 @@ const GhostModel: React.FC = () => {
 useGLTF.preload(GHOST_MODEL_URL);
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -297,31 +299,23 @@ const Unit: React.FC<UnitProps> = ({
       (gridPos.z * tileSize) - offset
   ), [gridPos, tileSize, offset, hoverHeight]);
 
-  // Where the simulation says the unit is (sim/movement.ts). Between ticks the model
-  // glides from where it was drawn toward this point, so movement looks continuous
-  // even though the game only updates positions ten times a second.
+  // Where the simulation last said the unit was (sim/movement.ts), and when. Between
+  // ticks the model keeps moving along its route at the reported speed, so motion stays
+  // smooth however irregularly React delivers updates. See components/glide.ts.
   const simTile = currentTilePosition({ gridPos, path, moveProgress, moveTarget });
   const simX = (simTile.x * tileSize) - offset;
   const simZ = (simTile.z * tileSize) - offset;
-  const glide = useRef({ fromX: simX, fromZ: simZ, toX: simX, toZ: simZ, startedAt: 0 });
-  const glidePosition = (now: number) => {
-    const g = glide.current;
-    const t = Math.min(1, Math.max(0, (now - g.startedAt) / MOVE_TICK_MS));
-    return { x: g.fromX + (g.toX - g.fromX) * t, z: g.fromZ + (g.toZ - g.fromZ) * t };
-  };
+  const route = useMemo(() => path.map(key => {
+    const t = parseTile(key);
+    return { x: (t.x * tileSize) - offset, z: (t.z * tileSize) - offset };
+  }), [path, tileSize, offset]);
+  const lastReport = useRef({ x: simX, z: simZ, at: 0 });
   useLayoutEffect(() => {
-    const g = glide.current;
-    if (g.toX === simX && g.toZ === simZ) return;
-    const now = performance.now();
-    const drawn = glidePosition(now);
-    // A long jump is a respawn or a shove off a wall tile, not travel. Don't animate it.
-    const teleport = Math.hypot(simX - drawn.x, simZ - drawn.z) > tileSize * 2;
-    glide.current = { fromX: teleport ? simX : drawn.x, fromZ: teleport ? simZ : drawn.z, toX: simX, toZ: simZ, startedAt: now };
-  }, [simX, simZ, tileSize]);
+    lastReport.current = { x: simX, z: simZ, at: simClock.lastTickAt || performance.now() };
+  }, [simX, simZ]);
 
   // The model unmounts while hidden by fog. A fresh one starts on the sim position, not the origin.
   const placedMesh = useRef<THREE.Group | null>(null);
-  const easingIn = useRef(false);
 
   const bodyRef = useRef<THREE.Group>(null);
 
@@ -534,26 +528,22 @@ const Unit: React.FC<UnitProps> = ({
         }
 
         const meshPos = meshRef.current.position;
-        const drawn = glidePosition(performance.now());
-        const scratch = moveScratch.current;
-        scratch.look.set(drawn.x, hoverHeight, drawn.z);
-        const gap = meshPos.distanceTo(scratch.look);
+        const report = lastReport.current;
+        const speed = moveSpeed || 0;
+        const predicted = predictPosition(report, route, speed, (performance.now() - report.at) / 1000);
         if (placedMesh.current !== meshRef.current) {
             placedMesh.current = meshRef.current;
-            meshPos.copy(scratch.look);
-        } else if (easingIn.current || gap > tileSize) {
-            // Far from the sim position, e.g. leaving a surveillance orbit or shoved off a
-            // wall tile. Ease all the way in rather than snapping.
-            easingIn.current = gap > 0.5;
-            meshPos.lerp(scratch.look, 1 - Math.exp(-delta * 4));
+            meshPos.set(predicted.x, hoverHeight, predicted.z);
         } else {
-            meshPos.copy(scratch.look);
+            const drawn = follow({ x: meshPos.x, z: meshPos.z }, predicted, delta, tileSize);
+            meshPos.set(drawn.x, hoverHeight, drawn.z);
         }
 
-        // Face the next tile while travelling.
-        if (path.length > 0 && moveTarget === path[0] && (moveProgress || 0) > 0) {
-            const next = parseTile(path[0]);
-            scratch.look.set((next.x * tileSize) - offset, meshPos.y, (next.z * tileSize) - offset);
+        // Face where the route goes next while travelling.
+        if (speed > 0 && route.length > 0) {
+            const scratch = moveScratch.current;
+            const ahead = walkAlong(predicted, route, tileSize * 0.5);
+            scratch.look.set(ahead.x, meshPos.y, ahead.z);
             if (meshPos.distanceTo(scratch.look) > 0.05) {
                 scratch.orient.position.copy(meshPos);
                 scratch.orient.lookAt(scratch.look);
