@@ -9,24 +9,25 @@ import Atmosphere from './components/Atmosphere';
 import UIOverlay from './components/UIOverlay';
 import { GameStats, UnitData, BuildingData, RoadTileData, MinimapData, StructureData, DoctrineState, DoctrineType } from './types';
 import { DOCTRINE_CONFIG, CAMERA_FAR } from './constants';
+import { STARTING_CORES } from './sim/economy';
 
 const INITIAL_STATS: GameStats = {
   blue: { 
-    resources: 1000, 
+    resources: STARTING_CORES, 
     income: 0, 
     compute: 0,
     units: 0, 
     buildings: { residential: 0, commercial: 0, industrial: 0, hightech: 0, server_node: 0, core_node: 0 },
-    stockpile: { eclipse: 0, wp: 0 },
+    stockpile: { eclipse: 0, he: 0 },
     doctrine: { selected: null, unlockedTiers: 0, cooldowns: { tier2: 0, tier3: 0 } }
   },
   red: { 
-    resources: 1000, 
+    resources: STARTING_CORES, 
     income: 0, 
     compute: 0,
     units: 0, 
     buildings: { residential: 0, commercial: 0, industrial: 0, hightech: 0, server_node: 0, core_node: 0 },
-    stockpile: { eclipse: 0, wp: 0 },
+    stockpile: { eclipse: 0, he: 0 },
     doctrine: { selected: null, unlockedTiers: 0, cooldowns: { tier2: 0, tier3: 0 } }
   }
 };
@@ -112,12 +113,7 @@ function App() {
         setInteractionMode('target');
         setTargetingDoctrine({ type: fullType, team, cost });
     } else {
-        // Global Ability - Execute Immediately
-        const cheatApi = (window as any).GAME_CHEATS;
-        if (cheatApi) {
-            cheatApi.setResources(team, stats[team].resources - cost);
-        }
-        
+        // Global Ability - Execute Immediately. CityMap charges the cost when it runs the power.
         setPendingDoctrineAction({
             type: fullType,
             target: { x: 0, z: 0 }, // Global ignores target
@@ -131,14 +127,8 @@ function App() {
 
   const handleMapTarget = useCallback((location: { x: number, z: number }) => {
       if (interactionMode === 'target' && targetingDoctrine) {
-          // Execute Targeted Ability
-          const { type, team, cost } = targetingDoctrine;
-
-          // Deduct Cost
-          const cheatApi = (window as any).GAME_CHEATS;
-          if (cheatApi) {
-             cheatApi.setResources(team, stats[team].resources - cost);
-          }
+          // Execute Targeted Ability. CityMap charges the cost when it runs the power.
+          const { type, team } = targetingDoctrine;
 
           setPendingDoctrineAction({
               type,
@@ -153,7 +143,7 @@ function App() {
           // Clear action after a tick
           setTimeout(() => setPendingDoctrineAction(null), 100);
       }
-  }, [interactionMode, targetingDoctrine, stats]);
+  }, [interactionMode, targetingDoctrine]);
 
   // Cancel targeting with Escape or right click (handled by CityMap right click usually)
   useEffect(() => {

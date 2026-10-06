@@ -72,8 +72,8 @@ enforced at all. In step 2, the simulation must enforce all of them itself:
   as the player clicks.
 - **Unit actions don't check ownership.** Only `MOVE` and the building menus check
   `team === playerTeam`. The unit-ability handlers trust that the clicked unit is yours.
-- **Doctrine powers spend cores through the `window.GAME_CHEATS` debug hook.** They
-  don't check the tier cooldowns in `DOCTRINE_CONFIG`.
+- **Doctrine powers don't check the tier cooldowns in `DOCTRINE_CONFIG`.** Their cost is
+  now charged by `sim/economy.ts`, no longer through the `window.GAME_CHEATS` debug hook.
 - **`LOAD_AMMO` finishes on a browser `setTimeout`,** not on the game clock.
 - **Ghost hacking (`hackType` recall/drain) has state fields but no command triggers it.**
   It needs a command added here once it is designed.

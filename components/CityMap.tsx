@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
-import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, BUILDING_VALUES, BUILDING_HEALTH, TEAM_BASES, UNIT_STATS, ABILITY_CONFIG, STRUCTURE_COST, BUILD_RADIUS, STRUCTURE_INFO, COMPUTE_GATES, TIER_UNLOCK_COSTS, DOCTRINE_CONFIG } from '../constants';
-import { BuildingData, UnitData, BuildingBlock, GameStats, TeamStats, RoadType, RoadTileData, StructureData, UnitClass, DecoyData, UnitType, StructureType, CloudData, Projectile, Explosion, DoctrineState, MinimapMissile } from '../types';
+import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, BUILDING_VALUES, BUILDING_HEALTH, TEAM_BASES, UNIT_STATS, ABILITY_CONFIG, STRUCTURE_COST, BUILD_RADIUS, STRUCTURE_INFO, COMPUTE_GATES, DOCTRINE_CONFIG } from '../constants';
+import { BuildingData, UnitData, BuildingBlock, GameStats, DoctrineType, RoadType, RoadTileData, StructureData, UnitClass, DecoyData, UnitType, StructureType, CloudData, Projectile, Explosion, DoctrineState, MinimapMissile } from '../types';
 import Building from './Building';
 import Structure from './Structure';
 import Base from './Base';
@@ -15,6 +15,7 @@ import { useFrame } from '@react-three/fiber';
 import { Zap, Ban } from 'lucide-react';
 import { freezeContainer } from '../perf';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
+import { Economy, createEconomy, canAfford, spend, setCores, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 
 const isTetherableDrone = (u: UnitData) => u.type === 'drone' || u.type === 'helios';
 const isBatteryLinkable = (u: UnitData) => u.health > 0 && u.maxBattery > 0 && u.unitClass !== 'infantry' && u.type !== 'sun_plate' && u.type !== 'defense_drone' && u.type !== 'crawler_drone';
@@ -1008,12 +1009,13 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
     hoverGridPosRef.current = pos;
     setHoverGridPosRaw(pos);
   }, []);
-  const [teamResources, setTeamResources] = useState<{blue: number, red: number}>({ blue: 2500, red: 2500 });
+  // Cores, warhead stockpiles and tier progress. Only change it through the sim/economy helpers.
+  const [economy, setEconomy] = useState<Economy>(createEconomy);
+  const economyRef = useRef(economy);
+  economyRef.current = economy;
+  const teamResources = useMemo(() => ({ blue: economy.blue.cores, red: economy.red.cores }), [economy]);
+  const stockpile = useMemo(() => ({ blue: economy.blue.stockpile, red: economy.red.stockpile }), [economy]);
   const [teamCompute, setTeamCompute] = useState<{blue: number, red: number}>({ blue: 0, red: 0 });
-  const [stockpile, setStockpile] = useState<{blue: {eclipse: number, he: number}, red: {eclipse: number, he: number}}>({ blue: { eclipse: 0, he: 0 }, red: { eclipse: 0, he: 0 } });
-  
-  // CP Accumulator for Doctrine Unlocks (Automatic progression simulation)
-  const cpAccumulator = useRef<{blue: number, red: number}>({ blue: 0, red: 0 });
 
   // Cheat State
   const [cheatCompute, setCheatCompute] = useState<{blue: number, red: number}>({ blue: 0, red: 0 });
@@ -1196,7 +1198,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   useEffect(() => {
     (window as any).GAME_CHEATS = {
       setResources: (team: 'blue' | 'red', amount: number) => {
-        setTeamResources(prev => ({ ...prev, [team]: amount }));
+        setEconomy(prev => setCores(prev, team, amount));
       },
       setCompute: (team: 'blue' | 'red', amount: number) => {
         setCheatCompute(prev => ({ ...prev, [team]: amount }));
@@ -1396,42 +1398,6 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
     return visible;
   }, [units, playerTeam, clouds]);
 
-  const calculateStats = useCallback((
-    currentBuildings: BuildingData[], currentUnits: UnitData[], _currentBlocks: BuildingBlock[], currentResources: {blue: number, red: number}, currentStockpile: {blue: {eclipse: number, he: number}, red: {eclipse: number, he: number}}
-  ): GameStats => {
-    const teams: ('blue' | 'red')[] = ['blue', 'red'];
-    const result = { blue: {} as TeamStats, red: {} as TeamStats };
-    
-    teams.forEach(team => {
-      // Captured buildings extend the energy grid. Only core nodes pay cores.
-      let income = 0;
-      const teamBuildings = { residential: 0, commercial: 0, industrial: 0, hightech: 0, server_node: 0, core_node: 0 };
-      currentBuildings.filter(b => b.owner === team && !b.destroyed).forEach(b => {
-        teamBuildings[b.type]++;
-        income += BUILDING_VALUES[b.type].income;
-      });
-
-      // Update CP Accumulator based on income
-      cpAccumulator.current[team] += income;
-
-      // Determine Doctrine Tier Unlocks
-      const lifetimeCP = cpAccumulator.current[team];
-      let tiers = 1; // Default Tier 1 unlocked
-      if (lifetimeCP >= TIER_UNLOCK_COSTS.TIER2) tiers = 2;
-      if (lifetimeCP >= TIER_UNLOCK_COSTS.TIER3) tiers = 3;
-
-      result[team] = { 
-          resources: currentResources[team], 
-          income, 
-          compute: teamBuildings.server_node, 
-          units: currentUnits.filter(u => u.team === team).length, 
-          buildings: teamBuildings, 
-          stockpile: currentStockpile[team],
-          doctrine: { selected: null, unlockedTiers: tiers, cooldowns: { tier2: 0, tier3: 0 } } // Selected is managed by App, but tiers are calculated here
-      };
-    });
-    return result as GameStats;
-  }, []);
 
   const breachedTiles = useMemo(() => {
     const groups = new Map<string, { alive: number; tiles: number[] }>();
@@ -1630,7 +1596,16 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   useEffect(() => {
       if (pendingDoctrineAction) {
           const { type, target, team } = pendingDoctrineAction;
-          
+
+          // Pay here, against the live economy, so a power the team can no longer afford never fires.
+          const power = /^(HEAVY_METAL|SHADOW_OPS|SKUNKWORKS)_TIER([23])$/.exec(type);
+          const cost = power ? doctrinePowerCost(power[1].toLowerCase() as DoctrineType, Number(power[2]) as 2 | 3) : NaN;
+          if (!canAfford(economyRef.current, team, cost)) {
+              if (onActionComplete) onActionComplete();
+              return;
+          }
+          setEconomy(prev => spend(prev, team, cost) ?? prev);
+
           if (type === 'HEAVY_METAL_TIER2') {
               // Spawn Orbital Drop Titan
               const dropPos = { x: (target.x * tileSize) - offset, y: 100, z: (target.z * tileSize) - offset };
@@ -2079,11 +2054,11 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       const mode = placementModeRef.current;
       if (!mode) return;
       const spot = findPlacementSpot(x, z);
-      if (!spot || teamResources[playerTeam] < mode.cost) return;
+      if (!spot || !canAfford(economyRef.current, playerTeam, mode.cost)) return;
       placementModeRef.current = null;
       setPlacementMode(null);
       setDepotMenuOpenId(null);
-      setTeamResources(prev => ({ ...prev, [playerTeam]: prev[playerTeam] - mode.cost }));
+      setEconomy(prev => spend(prev, playerTeam, mode.cost) ?? prev);
       const isWallOrTurret = mode.type === 'wall_tier1' || mode.type === 'wall_tier2' || mode.type === 'defense';
       const blueprintId = `struct-${Date.now()}`;
       const blueprint: StructureData = {
@@ -2483,7 +2458,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       handleRightClick(0, 0); 
   }, [handleRightClick]);
 
-  const handleBuild = (type: StructureType) => { const info = STRUCTURE_INFO[type]; if (teamResources[playerTeam] >= info.cost) { setPlacementMode({ type, cost: info.cost }); setBaseMenuOpen(null); } };
+  const handleBuild = (type: StructureType) => { const cost = structureCost(type); if (canAfford(economy, playerTeam, cost)) { setPlacementMode({ type, cost }); setBaseMenuOpen(null); } };
   
   const handleUnitAction = (unitId: string, action: string) => {
       console.log("handleUnitAction called", unitId, action);
@@ -2529,9 +2504,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           const material = unit.ordnanceMaterial || 0;
           const teamKey = unit.team === 'blue' || unit.team === 'red' ? unit.team : null;
           if (!teamKey || material <= 0) return;
-          const cost = item === 'eclipse' ? ABILITY_CONFIG.WARHEAD_COST_ECLIPSE : ABILITY_CONFIG.WARHEAD_COST_HE;
-          if (teamResources[teamKey] < cost) return;
-          setTeamResources(prev => ({ ...prev, [teamKey]: prev[teamKey] - cost }));
+          const cost = warheadCost(item);
+          if (!canAfford(economy, teamKey, cost)) return;
+          setEconomy(prev => spend(prev, teamKey, cost) ?? prev);
           setUnits(prev => prev.map(u => u.id === unit.id ? {
               ...u,
               fabrication: { active: true, item, progress: 0, totalTime: ABILITY_CONFIG.FABRICATOR_BUILD_TIME }
@@ -2583,8 +2558,8 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           if (unit.type !== 'ballista' || !besideOrdnanceFab(unit)) return;
           const item = action === 'TAKE_ECLIPSE' ? 'eclipse' : 'he';
           const teamKey = unit.team === 'blue' || unit.team === 'red' ? unit.team : null;
-          if (!teamKey || stockpile[teamKey][item] <= 0) return;
-          setStockpile(prev => ({ ...prev, [teamKey]: { ...prev[teamKey], [item]: prev[teamKey][item] - 1 } }));
+          if (!teamKey || !takeWarhead(economy, teamKey, item)) return;
+          setEconomy(prev => takeWarhead(prev, teamKey, item) ?? prev);
           setUnits(prev => prev.map(u => {
               if (u.id !== unit.id) return u;
               const inv = { eclipse: u.missileInventory?.eclipse || 0, he: u.missileInventory?.he || 0 };
@@ -2771,10 +2746,10 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           const item = payload as 'eclipse' | 'he';
           if (item !== 'eclipse' && item !== 'he') return;
           if (struct.production?.active) return;
-          const cost = item === 'eclipse' ? ABILITY_CONFIG.WARHEAD_COST_ECLIPSE : ABILITY_CONFIG.WARHEAD_COST_HE;
-          const totalTime = item === 'eclipse' ? ABILITY_CONFIG.WARHEAD_BUILD_TIME_ECLIPSE : ABILITY_CONFIG.WARHEAD_BUILD_TIME_HE;
-          if (teamResources[playerTeam] < cost) return;
-          setTeamResources(prev => ({ ...prev, [playerTeam]: prev[playerTeam] - cost }));
+          const cost = warheadCost(item);
+          const totalTime = warheadBuildTime(item);
+          if (!canAfford(economy, playerTeam, cost)) return;
+          setEconomy(prev => spend(prev, playerTeam, cost) ?? prev);
           setStructuresState(prev => prev.map(s => s.id === struct.id ? {
               ...s,
               production: { active: true, item, progress: 0, totalTime },
@@ -2785,9 +2760,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       if (action === 'BUILD_UNIT') {
           const type = payload as UnitType;
           const stats = UNIT_STATS[type];
-          const cost = stats.cost || 0;
-          if (teamResources[playerTeam] >= cost) {
-              setTeamResources(prev => ({...prev, [playerTeam]: prev[playerTeam] - cost}));
+          const cost = unitCost(type);
+          if (canAfford(economy, playerTeam, cost)) {
+              setEconomy(prev => spend(prev, playerTeam, cost) ?? prev);
               
               // Find an adjacent valid tile for spawning
               let spawnPos = { ...struct.gridPos };
@@ -2821,9 +2796,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           }
       } else if (action === 'SELECT_WALL') {
           const type = payload as StructureType;
-          const info = STRUCTURE_INFO[type];
-          if (teamResources[playerTeam] >= info.cost) {
-              setPlacementMode({ type, cost: info.cost });
+          const cost = structureCost(type);
+          if (canAfford(economy, playerTeam, cost)) {
+              setPlacementMode({ type, cost });
               setDepotMenuOpenId(null);
           }
       }
@@ -2930,22 +2905,20 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setTeamResources(prev => {
-        const stats = calculateStats(buildingsRef.current, unitsRef.current, blocksRef.current, prev, stockpile);
-        
-        // Apply Cheat Bonuses to Compute
-        // This makes "Computed Value" = "Real Value" + "Cheat Value"
-        stats.blue.compute += cheatCompute.blue;
-        stats.red.compute += cheatCompute.red;
-
-        const newResources = { blue: prev.blue + stats.blue.income, red: prev.red + stats.red.income };
-        setTeamCompute({blue: stats.blue.compute, red: stats.red.compute});
-        onStatsUpdate({ blue: { ...stats.blue, resources: newResources.blue }, red: { ...stats.red, resources: newResources.red } });
-        return newResources;
-      });
-    }, 1000);
+      setEconomy(prev => payIncome(prev, buildingsRef.current));
+    }, ECONOMY_TICK_MS);
     return () => clearInterval(timer);
-  }, [calculateStats, onStatsUpdate, stockpile, cheatCompute]);
+  }, []);
+
+  // Report to the HUD whenever the economy changes: every income tick, and right after a purchase.
+  // Layout effect so the HUD hears about it in the same pass, not after the next rendered frame.
+  useLayoutEffect(() => {
+    const blue = teamStats(economy, 'blue', buildingsRef.current, unitsRef.current, cheatCompute.blue);
+    const red = teamStats(economy, 'red', buildingsRef.current, unitsRef.current, cheatCompute.red);
+    // Only set when it changed. Even a no-op set here re-runs this whole component.
+    if (teamCompute.blue !== blue.compute || teamCompute.red !== red.compute) setTeamCompute({ blue: blue.compute, red: red.compute });
+    onStatsUpdate({ blue, red });
+  }, [economy, cheatCompute, onStatsUpdate, teamCompute]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -3081,29 +3054,22 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
               return anyBuildingChanged ? nextBuildings : prevBuildings;
           });
 
-          setStructuresState(prev => {
-              // Must return `prev` untouched when nothing advanced. Allocating a new array
-              // every tick re-derives dynamicRoadTileSet and findPath, which invalidates
-              // every consumer that keys off them.
-              let changed = false;
-              const next = prev.map(s => {
-                  if (s.type === 'ordnance_fab' && s.production?.active) {
-                       const p = s.production;
-                       // Apply Skunkworks production bonus (10%)
-                       const teamDoctrine = doctrines?.[s.team];
-                       const speedMult = (teamDoctrine?.selected === 'skunkworks') ? 1.1 : 1.0;
-
-                       const newProgress = p.progress + (100 * speedMult); 
-                       changed = true;
-                       if (newProgress >= p.totalTime) {
-                           setStockpile(sp => ({ ...sp, [s.team]: { ...sp[s.team], [p.item]: sp[s.team][p.item] + 1 } }));
-                           return { ...s, production: { ...p, active: false, progress: 0 } };
-                       } else return { ...s, production: { ...p, progress: newProgress } };
-                  }
-                  return s;
+          // Computed once, outside any state updater, so React's double-invoked updaters
+          // in development cannot add the same finished warhead twice.
+          const fabTick = advanceWarheadProduction(structuresRef.current, team => aiHelpersRef.current.doctrines?.[team]?.selected);
+          if (fabTick.updates.size > 0) {
+              const applyFabTick = (list: StructureData[]) => list.map(s => {
+                  const production = fabTick.updates.get(s.id);
+                  return production ? { ...s, production } : s;
               });
-              return changed ? next : prev;
-          });
+              // Advance the ref now too. If the next tick read a ref that had not caught up
+              // with this render, a fab that just finished would finish again.
+              structuresRef.current = applyFabTick(structuresRef.current);
+              setStructuresState(applyFabTick);
+          }
+          if (fabTick.finished.length > 0) {
+              setEconomy(prev => fabTick.finished.reduce((acc, done) => addWarheads(acc, done.team, done.warhead), prev));
+          }
 
           setStructuresState(prevStructs => {
               const structs = [...prevStructs];
@@ -3459,9 +3425,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
                       // Field Fabricator finishes one missile from onboard material.
                       if (u.type === 'mule' && u.fabrication?.active) {
-                          const teamDoctrine = doctrines?.[u.team as 'blue' | 'red'];
-                          const speedMult = teamDoctrine?.selected === 'skunkworks' ? 1.1 : 1.0;
-                          const progress = u.fabrication.progress + (100 * speedMult);
+                          const progress = u.fabrication.progress + productionStep(aiHelpersRef.current.doctrines?.[u.team as 'blue' | 'red']?.selected);
                           if (progress >= u.fabrication.totalTime) {
                               const material = u.ordnanceMaterial || 0;
                               if (material > 0) {
