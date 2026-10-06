@@ -14,8 +14,8 @@ Swarm Host spawns and grid charging. They become simulation rules in step 2.
 
 ## The list
 
-"Today" points at the code that carries out the order now. Step 2 moves each of these
-into `sim/`.
+"Today" points at the code that carries out the order now. Unit abilities already run
+through `sim/abilities.ts`; the rest still live in `CityMap.tsx` and `App.tsx`.
 
 | Command | Who uses it | Sent with | Today |
 |---|---|---|---|
@@ -23,26 +23,26 @@ into `sim/`.
 | `PLACE_STRUCTURE` | HQ build menu, Depot wall/turret menu | structure type, tile | `handleBuild` / `SELECT_WALL` then `commitPlacement` (~2078) |
 | `TRAIN_UNIT` | Barracks, Factory, Airpad, etc. | structure id, unit type | `handleStructureAction` `BUILD_UNIT` (~2785) |
 | `BUILD_WARHEAD` | Ordnance Fab | structure id, warhead | `handleStructureAction` `BUILD_WARHEAD` (~2770) |
-| `TOGGLE_DAMPENER` | Ghost | unit ids | `handleUnitAction` toggle block (~2715) |
-| `TOGGLE_JAMMER` | Banshee | unit ids | same |
-| `TOGGLE_ANCHOR` | Battery Mule, Swarm Host | unit ids | same |
-| `SMOKE_SCREEN` | Titan | unit ids | same |
-| `ACTIVATE_APS` | Titan | unit ids | same |
-| `PHANTOM_DECOY` | Ghost | unit id | `handleUnitAction` `PHANTOM_DECOY_INIT` (~2659) |
-| `LOAD_AMMO` | Ballista | unit id, warhead | `handleUnitAction` `LOAD_AMMO_*` (~2493) |
-| `TAKE_WARHEAD` | Ballista beside its Ordnance Fab | unit id, warhead | `TAKE_ECLIPSE` / `TAKE_HE` (~2582) |
-| `FABRICATE` | Field Fabricator | unit id, warhead | `FABRICATE_ECLIPSE` / `FABRICATE_HE` (~2526) |
-| `RESUPPLY_MATERIAL` | Field Fabricator beside an Ordnance Fab | unit id | `RESUPPLY_MATERIAL` (~2542) |
-| `TRANSFER_WARHEAD` | Field Fabricator → nearest Ballista | unit id, warhead | `TRANSFER_ECLIPSE` / `TRANSFER_HE` (~2551) |
-| `CANNON_FIRE` | Titan | unit id, target tile | `handleTileClick` `CANNON` branch (~2192) |
-| `SURVEILLANCE` | Infiltrator Drone | unit id, target tile | `handleTileClick` `SURVEILLANCE` branch (~2165) |
-| `FIRE_BALLISTA` | Ballista (armed) | unit id, target tile | `handleTileClick` `MISSILE` branch (~2215) |
-| `FIRE_SWARM` | Wasp | unit id, target tile | `handleTileClick` `SWARM` branch (~2255) |
-| `BOMBARD` | Bombardment Drone | unit id, target tile | `handleTileClick` `BOMBARD` branch (~2316) |
-| `HARDLINE_TETHER` | Banshee → drone | unit id, target unit id | `handleUnitSelect` `TETHER` branch (~1958) |
-| `DISCONNECT_TETHER` | Banshee | unit id | `handleUnitAction` `DISCONNECT_TETHER` (~2607) |
-| `BATTERY_LINK` | Anchored Battery Mule → vehicle | unit id, target unit id | `handleUnitSelect` `BATTERY_TETHER` branch (~1976) |
-| `DISCONNECT_BATTERY` | Battery Mule | unit id | `handleUnitAction` `DISCONNECT_BATTERY` (~2625) |
+| `TOGGLE_DAMPENER` | Ghost | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `TOGGLE_JAMMER` | Banshee | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `TOGGLE_ANCHOR` | Battery Mule, Swarm Host | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `SMOKE_SCREEN` | Titan | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `ACTIVATE_APS` | Titan | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `PHANTOM_DECOY` | Ghost | unit id | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `LOAD_AMMO` | Ballista | unit id, warhead | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `TAKE_WARHEAD` | Ballista beside its Ordnance Fab | unit id, warhead | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `FABRICATE` | Field Fabricator | unit id, warhead | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `RESUPPLY_MATERIAL` | Field Fabricator beside an Ordnance Fab | unit id | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `TRANSFER_WARHEAD` | Field Fabricator → nearest Ballista | unit id, warhead | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `CANNON_FIRE` | Titan | unit id, target tile | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `SURVEILLANCE` | Infiltrator Drone | unit id, target tile | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `FIRE_BALLISTA` | Ballista (armed) | unit id, target tile | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `FIRE_SWARM` | Wasp | unit id, target tile | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `BOMBARD` | Bombardment Drone | unit id, target tile | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `HARDLINE_TETHER` | Banshee → drone | unit id, target unit id | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `DISCONNECT_TETHER` | Banshee | unit id | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `BATTERY_LINK` | Anchored Battery Mule → vehicle | unit id, target unit id | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `DISCONNECT_BATTERY` | Battery Mule | unit id | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `SELECT_DOCTRINE` | Player | doctrine | `App.tsx` `handleSelectDoctrine` |
 | `DOCTRINE_POWER` | Player | tier, target tile (none for Global EMP) | `App.tsx` `handleTriggerDoctrine` / `handleMapTarget`, then `CityMap.tsx` (~1631) |
 
@@ -53,27 +53,33 @@ Line numbers are approximate and will drift as the code changes.
 1. **Shape**: `isPlayerCommand()` in `commands.ts`. It rejects anything that isn't
    one of the commands above with the right fields. Examples: a made-up `SET_RESOURCES`,
    a fractional tile, an unknown unit type, an empty selection.
-2. **Legality**: done by the simulation when it applies the command (step 2). For every
-   command it should confirm that:
-   - the unit or structure exists and belongs to the sender's team
+2. **Legality**: done when the command is applied. For unit abilities this is
+   `abilityEffects()` in `abilities.ts`, which confirms that:
+   - the unit exists, is alive and belongs to the sender's team
    - it is the right type for that order
    - the team can afford it
    - the ability is off cooldown and has charges or battery left
-   - the target is in range
+   - the target is in range, for tethers and Battery Mule links
 
-## Gaps found while making this list
+   `MOVE`, `PLACE_STRUCTURE`, `TRAIN_UNIT`, `BUILD_WARHEAD`, `SELECT_DOCTRINE` and
+   `DOCTRINE_POWER` still need the same treatment.
 
-Today these rules are partly enforced by the menus (a greyed-out button) and partly not
-enforced at all. In step 2, the simulation must enforce all of them itself:
+## Gaps
 
-- **Titan cooldowns are never checked.** `CANNON_FIRE`, `SMOKE_SCREEN` and `ACTIVATE_APS`
-  set `mainCannon` / `titanSmoke` / `titanAps` cooldowns, but nothing reads them.
-  Smoke and APS charges are never spent either. A Titan can use all three as fast
-  as the player clicks.
-- **Unit actions don't check ownership.** Only `MOVE` and the building menus check
-  `team === playerTeam`. The unit-ability handlers trust that the clicked unit is yours.
-- **Doctrine powers don't check the tier cooldowns in `DOCTRINE_CONFIG`.** Their cost is
-  now charged by `sim/economy.ts`, no longer through the `window.GAME_CHEATS` debug hook.
-- **`LOAD_AMMO` finishes on a browser `setTimeout`,** not on the game clock.
+Fixed:
+- **Titan cooldowns and charges.** Smoke, APS and the cannon now respect their
+  cooldowns, and smoke and APS spend charges. Smoke and APS also wear off now; nothing
+  counted them down before.
+- **Ownership.** Unit abilities check the unit belongs to the sender.
+- **Wasp swarm cooldown.** It was set but never checked.
+- **`LOAD_AMMO`** advances on the game tick instead of a browser `setTimeout`, and
+  will not load over a missile that is already loaded or armed.
+- **Doctrine powers** are charged by `sim/economy.ts`, not the `window.GAME_CHEATS` hook.
+
+Still open:
+- **Doctrine powers don't check the tier cooldowns in `DOCTRINE_CONFIG`.**
+- **No range limits on aimed abilities.** The Titan cannon, Ballista, Wasp swarm and
+  Bombardment Drone can target any tile. `TITAN_CANNON_RANGE` and `WASP_SWARM_RANGE` exist
+  in `constants.ts` but nothing uses them. Whether they should is a design decision.
 - **Ghost hacking (`hackType` recall/drain) has state fields but no command triggers it.**
   It needs a command added here once it is designed.

@@ -114,6 +114,7 @@ export interface UnitData {
   secondaryBattery?: number;
   maxSecondaryBattery?: number;
   chargingStatus?: number; // 0=none, 1=helios or grid, 2=battery mule tether
+  isInNanoCloud?: boolean; // Standing in a nano cloud: no Helios charging, no shooting
   cargo?: number;
   constructionTargetId?: string | null;
   isDampenerActive?: boolean;

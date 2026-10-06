@@ -17,12 +17,15 @@ import { freezeContainer } from '../perf';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from '../sim/movement';
 import { simClock } from './glide';
+import { AbilityCommand, abilityEffects, applyUnitEffects, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
+import { Warhead } from '../sim/commands';
 import { FlightEvent, FlightTickResult, LiveFlight, cloneProjectile, drawnShotPosition, sampleBallistic, stepProjectiles } from '../sim/projectiles';
+import { chargeSources, isInsideEnergyGrid, powerTick } from '../sim/energy';
+import { captureTick } from '../sim/capture';
+import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, guardianRepair, leashStep, slowTick, surveillanceStep } from '../sim/support';
 import { Blast, applyDamage, autoAttacks, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, sentinelFire } from '../sim/combat';
 import { Economy, createEconomy, canAfford, spend, setCores, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 
-const isTetherableDrone = (u: UnitData) => u.type === 'drone' || u.type === 'helios';
-const isBatteryLinkable = (u: UnitData) => u.health > 0 && u.maxBattery > 0 && u.unitClass !== 'infantry' && u.type !== 'sun_plate' && u.type !== 'defense_drone' && u.type !== 'crawler_drone';
 
 // Helper to check if a grid position is inside any cloud of a specific type (optional)
 const isPointInCloud = (pos: {x: number, z: number}, clouds: CloudData[], type?: string): boolean => {
@@ -449,29 +452,6 @@ const SelectionBox: React.FC<{ start: THREE.Vector3, current: THREE.Vector3 }> =
 };
 
 
-const isInsideEnergyGrid = (
-  pos: { x: number; z: number },
-  team: UnitData['team'],
-  buildings: BuildingData[],
-  blueBase: { x: number; z: number },
-  redBase: { x: number; z: number },
-) => {
-  if (team !== 'blue' && team !== 'red') return false;
-  const baseRadiusSq = ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS * ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS;
-  const buildingRadiusSq = ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS * ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS;
-  const base = team === 'blue' ? blueBase : redBase;
-  const baseDx = pos.x - base.x;
-  const baseDz = pos.z - base.z;
-  if (baseDx * baseDx + baseDz * baseDz <= baseRadiusSq) return true;
-  for (let i = 0; i < buildings.length; i++) {
-    const building = buildings[i];
-    if (building.destroyed || building.owner !== team || building.type === 'core_node') continue;
-    const dx = pos.x - building.gridX;
-    const dz = pos.z - building.gridZ;
-    if (dx * dx + dz * dz <= buildingRadiusSq) return true;
-  }
-  return false;
-};
 
 const EnergyGridField: React.FC<{
   buildings: BuildingData[];
@@ -1278,8 +1258,8 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   // them (dynamicRoadTileSet, and therefore findPath) get a fresh identity on almost
   // every render, which used to tear down and rebuild the 1s interval ~4x a second so
   // its callback never once fired. Reading them through a ref keeps the interval alive.
-  const aiHelpersRef = useRef({ findPath, findScatteredSpawn, isWalkable, doctrines });
-  aiHelpersRef.current = { findPath, findScatteredSpawn, isWalkable, doctrines };
+  const aiHelpersRef = useRef({ findPath, findScatteredSpawn, isWalkable, doctrines, createCrawler });
+  aiHelpersRef.current = { findPath, findScatteredSpawn, isWalkable, doctrines, createCrawler };
 
   // Doctrine Effects Processor
   useEffect(() => {
@@ -1432,185 +1412,14 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   // Doctrine Passive Loop + Swarm AI
   useEffect(() => {
       const interval = setInterval(() => {
-          const { findPath, findScatteredSpawn, isWalkable, doctrines } = aiHelpersRef.current;
-          setUnits(prevUnits => {
-              let unitsChanged = false;
-              let nextUnits = [...prevUnits];
-
-              // 1. Swarm Host Spawning Logic
-              // An unanchored host is inert; anchoring releases its opening pair (handled
-              // in TOGGLE_ANCHOR) and then tops the swarm up on an interval from here.
-              const hosts = nextUnits.filter(u => u.type === 'swarm_host');
-              const hostMap = new Map<string, UnitData>();
-
-              hosts.forEach(host => {
-                  hostMap.set(host.id, host);
-                  if (!host.isAnchored) return;
-
-                  const children = nextUnits.filter(u => u.type === 'crawler_drone' && u.parentId === host.id);
-                  const spawnReady = !host.cooldowns.spawnCrawler || host.cooldowns.spawnCrawler <= 0;
-
-                  if (children.length < ABILITY_CONFIG.SWARM_HOST_MAX_DRONES && spawnReady) {
-                      nextUnits.push(createCrawler(host, findScatteredSpawn(host.gridPos), children.length));
-
-                      const hIdx = nextUnits.findIndex(u => u.id === host.id);
-                      if (hIdx !== -1) {
-                          nextUnits[hIdx] = {
-                              ...nextUnits[hIdx],
-                              cooldowns: { ...nextUnits[hIdx].cooldowns, spawnCrawler: ABILITY_CONFIG.SWARM_HOST_SPAWN_INTERVAL }
-                          };
-                      }
-                      unitsChanged = true;
-                  }
-              });
-
-              // 2. Unit Passive Effects & AI (Crawler AI included)
-              const survivingUnits: UnitData[] = [];
-              
-              nextUnits.forEach(u => {
-                  let modifiedUnit = u;
-                  let keepUnit = true;
-                  let uChanged = false;
-
-                  // Crawler AI
-                  if (u.type === 'crawler_drone' && u.parentId) {
-                      const parent = hostMap.get(u.parentId);
-                      const range = ABILITY_CONFIG.CRAWLER_RADIUS;
-
-                      if (!parent) {
-                          keepUnit = false; // Parent gone
-                          uChanged = true;
-                      } else if (!parent.isAnchored) {
-                          // RECALL: the host has packed up, so fold the swarm back inside.
-                          const dist = Math.hypot(u.gridPos.x - parent.gridPos.x, u.gridPos.z - parent.gridPos.z);
-                          if (dist <= ABILITY_CONFIG.CRAWLER_RECALL_DISTANCE) {
-                              keepUnit = false; // Absorbed back into the host
-                              uChanged = true;
-                          } else {
-                              // Re-path whenever the host is no longer our destination, which
-                              // also covers an unanchored host being driven somewhere else.
-                              const targetKey = `${parent.gridPos.x},${parent.gridPos.z}`;
-                              const currentDest = u.path.length > 0 ? u.path[u.path.length - 1] : null;
-
-                              if (currentDest !== targetKey) {
-                                  const path = findPath(u.gridPos, parent.gridPos);
-                                  modifiedUnit = { ...u, path, crawlerTargetId: null };
-                                  uChanged = true;
-                              }
-                          }
-                      } else {
-                          // HUNT / PATROL (host anchored).
-                          //
-                          // Target selection runs every tick rather than only when idle, so a
-                          // crawler mid-patrol breaks off the instant something enters the
-                          // host's radius. Every crawler measures range from the host and picks
-                          // the same nearest enemy, so the whole swarm converges on one target.
-                          let target: UnitData | null = null;
-                          let bestDist = Infinity;
-                          nextUnits.forEach(e => {
-                              if (e.team === u.team || e.team === 'neutral') return;
-                              if (e.health <= 0 || e.isStealthed) return;
-                              const d = Math.hypot(e.gridPos.x - parent.gridPos.x, e.gridPos.z - parent.gridPos.z);
-                              if (d <= range && d < bestDist) { bestDist = d; target = e; }
-                          });
-
-                          if (target) {
-                              // Keep re-pathing while it lives so a fleeing enemy stays hunted.
-                              const targetKey = `${target.gridPos.x},${target.gridPos.z}`;
-                              const currentDest = u.path.length > 0 ? u.path[u.path.length - 1] : null;
-
-                              if (currentDest !== targetKey) {
-                                  const path = findPath(u.gridPos, target.gridPos);
-                                  if (path.length > 0) {
-                                      modifiedUnit = { ...u, path, crawlerTargetId: target.id };
-                                      uChanged = true;
-                                  }
-                              } else if (u.crawlerTargetId !== target.id) {
-                                  modifiedUnit = { ...u, crawlerTargetId: target.id };
-                                  uChanged = true;
-                              }
-                          } else if (u.crawlerTargetId) {
-                              // Prey died or left the radius: drop the chase and resume patrol.
-                              modifiedUnit = { ...u, path: [], crawlerTargetId: null };
-                              uChanged = true;
-                          } else if (u.path.length === 0) {
-                              // Idle patrol sweep somewhere inside the host's radius.
-                              let patrolPos: {x: number, z: number} | null = null;
-                              for (let i = 0; i < 15; i++) {
-                                  const angle = Math.random() * Math.PI * 2;
-                                  const d = range * (0.2 + Math.random() * 0.8);
-                                  const rx = Math.round(parent.gridPos.x + Math.cos(angle) * d);
-                                  const rz = Math.round(parent.gridPos.z + Math.sin(angle) * d);
-                                  if (isWalkable(rx, rz)) { patrolPos = { x: rx, z: rz }; break; }
-                              }
-
-                              if (patrolPos) {
-                                  const path = findPath(u.gridPos, patrolPos);
-                                  if (path.length > 0) {
-                                      modifiedUnit = { ...u, path };
-                                      uChanged = true;
-                                  }
-                              }
-                          }
-                      }
-                  }
-
-                  // Doctrine Passives
-                  const teamDoctrine = doctrines?.[modifiedUnit.team as 'blue' | 'red'];
-                  
-                  // Heavy Metal: Regen
-                  if (teamDoctrine?.selected === 'heavy_metal' && modifiedUnit.unitClass === 'armor') {
-                      if (!modifiedUnit.lastAttackTime || Date.now() - modifiedUnit.lastAttackTime > 5000) {
-                          if (modifiedUnit.health < modifiedUnit.maxHealth) {
-                              modifiedUnit = { ...modifiedUnit, health: Math.min(modifiedUnit.maxHealth, modifiedUnit.health + 5) };
-                              uChanged = true;
-                          }
-                      }
-                  }
-
-                  // Shadow Ops: Speed
-                  if (teamDoctrine?.selected === 'shadow_ops' && (modifiedUnit.type === 'ghost' || modifiedUnit.isStealthed)) {
-                      if (!modifiedUnit.activeBuffs?.includes('speed')) {
-                          modifiedUnit = { ...modifiedUnit, activeBuffs: [...(modifiedUnit.activeBuffs || []), 'speed'] };
-                          uChanged = true;
-                      }
-                  }
-
-                  // Stun Timer
-                  if (modifiedUnit.isStunned && modifiedUnit.stunDuration) {
-                      if (modifiedUnit.stunDuration <= 0) {
-                          modifiedUnit = { ...modifiedUnit, isStunned: false, stunDuration: 0 };
-                          uChanged = true;
-                      } else {
-                          modifiedUnit = { ...modifiedUnit, stunDuration: modifiedUnit.stunDuration - 1000 };
-                          uChanged = true;
-                      }
-                  }
-
-                  // Cooldown Management
-                  if (modifiedUnit.cooldowns) {
-                      const nextCds = { ...modifiedUnit.cooldowns };
-                      let cdsChanged = false;
-                      for (const k in nextCds) {
-                          const key = k as keyof typeof nextCds;
-                          if (typeof nextCds[key] === 'number' && nextCds[key]! > 0) {
-                              nextCds[key] = Math.max(0, nextCds[key]! - 1000);
-                              cdsChanged = true;
-                          }
-                      }
-                      if (cdsChanged) {
-                          modifiedUnit = { ...modifiedUnit, cooldowns: nextCds };
-                          uChanged = true;
-                      }
-                  }
-
-                  if (uChanged) unitsChanged = true;
-                  if (keepUnit) survivingUnits.push(modifiedUnit);
-              });
-
-              return unitsChanged ? survivingUnits : prevUnits;
-          });
-      }, 1000);
+          const { findPath, findScatteredSpawn, isWalkable, doctrines, createCrawler } = aiHelpersRef.current;
+          const now = Date.now();
+          // Swarm Host, Crawlers, doctrine passives and ability timers (sim/support.ts).
+          setUnits(prevUnits => slowTick(prevUnits, {
+              findPath, findScatteredSpawn, isWalkable, createCrawler, now, random: Math.random,
+              doctrineOf: team => (team === 'blue' || team === 'red') ? doctrines?.[team]?.selected : null,
+          }));
+      }, SLOW_TICK_MS);
       return () => clearInterval(interval);
   }, []);
 
@@ -1620,47 +1429,12 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
       if (interactionMode === 'target') return; // Selection disabled in target mode
 
       if (targetingSourceId && targetingAbility === 'TETHER') {
-          const source = unitsRef.current.find(u => u.id === targetingSourceId);
-          const target = unitsRef.current.find(u => u.id === id);
-          if (source && target && isTetherableDrone(target) && target.team === source.team && target.id !== source.id) {
-              const dist = Math.hypot(source.gridPos.x - target.gridPos.x, source.gridPos.z - target.gridPos.z);
-              if (dist <= ABILITY_CONFIG.BANSHEE_TETHER_RANGE) {
-                  setUnits(prev => prev.map(u => {
-                      if (u.id === targetingSourceId) return { ...u, tetherTargetId: id };
-                      // One hardline per drone — drop any other Banshee already locked to it
-                      if (u.tetherTargetId === id && u.id !== targetingSourceId) return { ...u, tetherTargetId: null };
-                      return u;
-                  }));
-                  setTargetingSourceId(null);
-                  setTargetingAbility(null);
-              }
-          }
+          if (dispatchAbility({ type: 'HARDLINE_TETHER', unitId: targetingSourceId, targetUnitId: id })) clearTargeting();
           return;
       }
+      // Stays in linking mode so several vehicles can be linked or unlinked in a row.
       if (targetingSourceId && targetingAbility === 'BATTERY_TETHER') {
-          const source = unitsRef.current.find(u => u.id === targetingSourceId);
-          const target = unitsRef.current.find(u => u.id === id);
-          if (source && source.type === 'sun_plate' && source.isDeployed && target && isBatteryLinkable(target) && target.team === source.team) {
-              const dist = Math.hypot(source.gridPos.x - target.gridPos.x, source.gridPos.z - target.gridPos.z);
-              if (dist <= ABILITY_CONFIG.BATTERY_MULE_RANGE) {
-                  setUnits(prev => {
-                      const sourceLinks = prev.find(u => u.id === source.id)?.batteryTetherIds || [];
-                      const removing = sourceLinks.includes(target.id);
-                      const adding = !removing && sourceLinks.length < ABILITY_CONFIG.BATTERY_MULE_SLOTS;
-                      return prev.map(u => {
-                          if (u.id === source.id) {
-                              if (removing) return { ...u, batteryTetherIds: sourceLinks.filter(linkId => linkId !== target.id) };
-                              if (!adding) return u;
-                              return { ...u, batteryTetherIds: [...sourceLinks, target.id] };
-                          }
-                          if (adding && u.batteryTetherIds?.includes(target.id)) {
-                              return { ...u, batteryTetherIds: u.batteryTetherIds.filter(linkId => linkId !== target.id) };
-                          }
-                          return u;
-                      });
-                  });
-              }
-          }
+          dispatchAbility({ type: 'BATTERY_LINK', unitId: targetingSourceId, targetUnitId: id });
           return;
       } else if (targetingSourceId && targetingAbility === 'CANNON') {
           const targetUnit = units.find(u => u.id === id);
@@ -1789,196 +1563,15 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           return;
       }
 
-      if (targetingSourceId && targetingAbility === 'SURVEILLANCE') {
-          const unit = units.find(u => u.id === targetingSourceId);
-          if (unit) {
-              const path = findPath(unit.gridPos, { x, z });
-              // Allow activating surveillance if path found OR if already at target location
-              if (path.length > 0 || (unit.gridPos.x === x && unit.gridPos.z === z)) {
-                  setUnits(prev => prev.map(u => {
-                      if (u.id === unit.id) {
-                          const isAlreadyThere = unit.gridPos.x === x && unit.gridPos.z === z;
-                          return { 
-                              ...u, 
-                              path, 
-                              surveillance: { 
-                                  active: true, 
-                                  status: isAlreadyThere ? 'active' : 'traveling', 
-                                  center: { x, z }, 
-                                  returnPos: { x: unit.gridPos.x, z: unit.gridPos.z }, 
-                                  startTime: isAlreadyThere ? Date.now() : 0 
-                              } 
-                          };
-                      }
-                      return u;
-                  }));
-              }
-          }
-          setTargetingSourceId(null);
-          setTargetingAbility(null);
-      } else if (targetingSourceId && targetingAbility === 'CANNON') {
-           const sourceUnit = unitsRef.current.find(u => u.id === targetingSourceId);
-           if (sourceUnit) {
-                const startPos = { x: (sourceUnit.gridPos.x * CITY_CONFIG.tileSize) - offset, y: 1.5, z: (sourceUnit.gridPos.z * CITY_CONFIG.tileSize) - offset };
-                const targetPos = { x: (x * CITY_CONFIG.tileSize) - offset, y: 1.0, z: (z * CITY_CONFIG.tileSize) - offset };
-                const dx = targetPos.x - startPos.x;
-                const dz = targetPos.z - startPos.z;
-                const dist = Math.sqrt(dx*dx + dz*dz);
-                const speed = ABILITY_CONFIG.TITAN_CANNON_SPEED;
-                if (dist > 0) {
-                    const vx = (dx / dist) * speed;
-                    const vz = (dz / dist) * speed;
-                    setUnits(prev => prev.map(u => {
-                        if (u.id === sourceUnit.id) {
-                            return { ...u, battery: Math.max(0, u.battery - ABILITY_CONFIG.TITAN_CANNON_COST), cooldowns: { ...u.cooldowns, mainCannon: ABILITY_CONFIG.TITAN_CANNON_COOLDOWN } };
-                        }
-                        return u;
-                    }));
-                    setProjectiles(prev => [...prev, { id: `proj-${Date.now()}`, ownerId: sourceUnit.id, team: sourceUnit.team, position: startPos, velocity: { x: vx, y: 0, z: vz }, damage: ABILITY_CONFIG.TITAN_CANNON_DAMAGE, radius: 0.5, maxDistance: ABILITY_CONFIG.TITAN_CANNON_PROJECTILE_RANGE * CITY_CONFIG.tileSize, distanceTraveled: 0, targetPos: targetPos, trajectory: 'direct' }]);
-                }
-           }
-           setTargetingSourceId(null);
-           setTargetingAbility(null);
-      } else if (targetingSourceId && targetingAbility === 'MISSILE') {
-          // Ballistic Missile Logic (Launch -> Parabolic Arc -> Impact)
-          const sourceUnit = unitsRef.current.find(u => u.id === targetingSourceId);
-          if (sourceUnit && sourceUnit.ammoState === 'armed' && sourceUnit.loadedAmmo) {
-              const startPos = { x: (sourceUnit.gridPos.x * CITY_CONFIG.tileSize) - offset, y: 2.0, z: (sourceUnit.gridPos.z * CITY_CONFIG.tileSize) - offset };
-              const targetPos = { x: (x * CITY_CONFIG.tileSize) - offset, y: 1.0, z: (z * CITY_CONFIG.tileSize) - offset };
-              
-              const distance = Math.sqrt(Math.pow(targetPos.x - startPos.x, 2) + Math.pow(targetPos.z - startPos.z, 2));
-              const duration = (distance / ABILITY_CONFIG.MISSILE_CRUISE_SPEED) * 1000; // ms
-
-              const payload = sourceUnit.loadedAmmo;
-
-              // Consume Ammo
-              setUnits(prev => prev.map(u => {
-                  if (u.id === sourceUnit.id) {
-                      return { ...u, ammoState: 'empty', loadedAmmo: null };
-                  }
-                  return u;
-              }));
-
-              // Spawn Projectile in Parabolic Ballistic Mode
-              setProjectiles(prev => [...prev, { 
-                  id: `missile-${Date.now()}`, 
-                  ownerId: sourceUnit.id, 
-                  team: sourceUnit.team, 
-                  position: startPos, 
-                  velocity: { x: 0, y: 0, z: 0 }, // Calculated dynamically in frame loop
-                  damage: 0, 
-                  radius: 1.0, 
-                  maxDistance: distance,
-                  distanceTraveled: 0, 
-                  targetPos: targetPos,
-                  trajectory: 'ballistic',
-                  payload: payload,
-                  startPos: startPos,
-                  startTime: Date.now()
-              }]);
-          }
-          setTargetingSourceId(null);
-          setTargetingAbility(null);
-      } else if (targetingSourceId && targetingAbility === 'SWARM') {
-          // Wasp Swarm Logic
-          const sourceUnit = unitsRef.current.find(u => u.id === targetingSourceId);
-          if (sourceUnit && sourceUnit.charges?.swarm && sourceUnit.charges.swarm > 0) {
-              // Wasp visual is an air unit hovering at height 75.0
-              const startPos = { x: (sourceUnit.gridPos.x * CITY_CONFIG.tileSize) - offset, y: 75.0, z: (sourceUnit.gridPos.z * CITY_CONFIG.tileSize) - offset };
-              // Target is the ground (y=0.5) to ensure impact, unless guided later
-              const targetPos = { x: (x * CITY_CONFIG.tileSize) - offset, y: 0.5, z: (z * CITY_CONFIG.tileSize) - offset };
-              
-              // Calculate Base Angle to Target
-              const dx = targetPos.x - startPos.x;
-              const dz = targetPos.z - startPos.z;
-              const baseAngle = Math.atan2(dz, dx);
-              
-              const newSwarm: Projectile[] = [];
-              const speed = ABILITY_CONFIG.WASP_MISSILE_SPEED;
-
-              // Deduct charge and set cooldown
-              setUnits(prev => prev.map(u => {
-                  if (u.id === sourceUnit.id) {
-                      return { 
-                          ...u, 
-                          charges: { ...u.charges, swarm: (u.charges?.swarm || 1) - 1 },
-                          cooldowns: { ...u.cooldowns, swarmLaunch: ABILITY_CONFIG.WASP_SWARM_COOLDOWN } 
-                      };
-                  }
-                  return u;
-              }));
-
-              // Spawn Microdrones
-              for (let i = 0; i < ABILITY_CONFIG.WASP_MISSILES_PER_VOLLEY; i++) {
-                  // Cone Spread: Wider for area denial (approx +/- 80 degrees)
-                  const spread = (Math.random() - 0.5) * 2.8; 
-                  const angle = baseAngle + spread;
-                  
-                  const vx = Math.cos(angle) * speed;
-                  const vz = Math.sin(angle) * speed;
-                  // Higher upward trajectory for wider arc
-                  const vy = Math.random() * 3 + 2; 
-
-                  newSwarm.push({
-                      id: `microdrone-${Date.now()}-${i}`,
-                      ownerId: sourceUnit.id,
-                      team: sourceUnit.team,
-                      position: { ...startPos },
-                      velocity: { x: vx, y: vy, z: vz },
-                      damage: ABILITY_CONFIG.WASP_DAMAGE_PER_MISSILE,
-                      radius: 0.5,
-                      maxDistance: 200, // Safety limit
-                      distanceTraveled: 0,
-                      targetPos: targetPos, // Fallback target if no enemy
-                      trajectory: 'swarm',
-                      startPos: startPos,
-                      startTime: Date.now(),
-                      phase: 'ascent' // Used to spread out initially
-                  });
-              }
-              setProjectiles(prev => [...prev, ...newSwarm]);
-          }
-          setTargetingSourceId(null);
-          setTargetingAbility(null);
-      } else if (targetingSourceId && targetingAbility === 'BOMBARD') {
-          const unit = unitsRef.current.find(u => u.id === targetingSourceId);
-          if (unit && unit.type === 'bombard' && unit.health > 0) {
-              const alreadyThere = unit.gridPos.x === x && unit.gridPos.z === z;
-              const path = alreadyThere ? [] : findAirPath(unit.gridPos, { x, z });
-              if (alreadyThere || path.length > 0) {
-                  setUnits(prev => prev.map(u => u.id === unit.id ? { ...u, path, bombardmentTarget: { x, z } } : u));
-              }
-          }
-          setTargetingSourceId(null);
-          setTargetingAbility(null);
+      const tileOrders: Record<string, 'SURVEILLANCE' | 'CANNON_FIRE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD'> = {
+          SURVEILLANCE: 'SURVEILLANCE', CANNON: 'CANNON_FIRE', MISSILE: 'FIRE_BALLISTA', SWARM: 'FIRE_SWARM', BOMBARD: 'BOMBARD',
+      };
+      if (targetingSourceId && targetingAbility && tileOrders[targetingAbility]) {
+          dispatchAbility({ type: tileOrders[targetingAbility], unitId: targetingSourceId, target: { x, z } });
+          clearTargeting();
       } else if (targetingSourceId && (targetingAbility === 'TETHER' || targetingAbility === 'BATTERY_TETHER')) {
           // Tethers target a unit, not a tile — keep targeting until a vehicle is clicked or cancelled.
           return;
-      } else if (targetingSourceId && targetingAbility === 'DECOY') {
-          // Phantom Decoy Logic
-          const sourceUnit = unitsRef.current.find(u => u.id === targetingSourceId);
-          if (sourceUnit) {
-              const dist = Math.sqrt(Math.pow(sourceUnit.gridPos.x - x, 2) + Math.pow(sourceUnit.gridPos.z - z, 2));
-              if (dist <= ABILITY_CONFIG.GHOST_DECOY_RANGE) {
-                  const now = Date.now();
-                  setDecoys(prev => [...prev, { 
-                      id: `decoy-${now}`, 
-                      team: sourceUnit.team as 'blue'|'red', 
-                      gridPos: { x, z }, 
-                      createdAt: now 
-                  }]);
-                  
-                  // Hide Source Unit
-                  setUnits(prev => prev.map(u => {
-                      if (u.id === sourceUnit.id) {
-                          return { ...u, decoyActive: true, decoyStartTime: now };
-                      }
-                      return u;
-                  }));
-              }
-          }
-          setTargetingSourceId(null);
-          setTargetingAbility(null);
       } else if (targetingSourceId) {
           setTargetingSourceId(null);
           setTargetingAbility(null);
@@ -2112,269 +1705,101 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
 
   const handleBuild = (type: StructureType) => { const cost = structureCost(type); if (canAfford(economy, playerTeam, cost)) { setPlacementMode({ type, cost }); setBaseMenuOpen(null); } };
   
+  // Every unit ability goes through sim/abilities.ts as a command: it is checked for the
+  // current team (ownership, unit type, cooldowns, charges, range) and only then applied.
+  const spawnCounterRef = useRef(0);
+  const dispatchAbility = (command: AbilityCommand): boolean => {
+      const outcome = abilityEffects(
+          { units: unitsRef.current, structures: structuresRef.current, economy: economyRef.current },
+          playerTeam,
+          command,
+          {
+              now: Date.now(), offset, tileSize, isWalkable, findPath, findAirPath, findAdjacentSpawn, createCrawler,
+              random: Math.random,
+              newId: prefix => `${prefix}-${Date.now()}-${++spawnCounterRef.current}`,
+          },
+      );
+      if ('reason' in outcome) {
+          console.info(`Order refused (${command.type}): ${outcome.reason}`);
+          return false;
+      }
+      const fx = outcome.effects;
+      const charge = fx.economy;
+      // Apply to the refs straight away as well. They otherwise only catch up after the next
+      // render, so a second click in the same frame was checked against the old state and a
+      // double-click on Smoke spent both charges.
+      unitsRef.current = applyUnitEffects(unitsRef.current, fx);
+      if (charge) economyRef.current = charge(economyRef.current) ?? economyRef.current;
+      if (charge) setEconomy(prev => charge(prev) ?? prev);
+      if (fx.updates.size > 0 || fx.spawnUnits.length > 0) setUnits(prev => applyUnitEffects(prev, fx));
+      if (fx.clearDecoysOf.length > 0 || fx.spawnDecoys.length > 0) {
+          setDecoys(prev => [...prev.filter(d => !d.ownerId || !fx.clearDecoysOf.includes(d.ownerId)), ...fx.spawnDecoys]);
+      }
+      if (fx.spawnProjectiles.length > 0) setProjectiles(prev => [...prev, ...fx.spawnProjectiles]);
+      return true;
+  };
+
+  const clearTargeting = () => {
+      setTargetingSourceId(null);
+      setTargetingAbility(null);
+  };
+
+  // Toggles act on the whole selection, plus the unit whose menu was clicked.
+  const TOGGLE_COMMANDS: Record<string, 'TOGGLE_JAMMER' | 'TOGGLE_DAMPENER' | 'TOGGLE_ANCHOR' | 'SMOKE_SCREEN' | 'ACTIVATE_APS'> = {
+      'TOGGLE_JAMMER': 'TOGGLE_JAMMER',
+      'TOGGLE DAMPENER': 'TOGGLE_DAMPENER',
+      'TOGGLE_ANCHOR': 'TOGGLE_ANCHOR',
+      'SMOKE SCREEN': 'SMOKE_SCREEN',
+      'ACTIVATE APS': 'ACTIVATE_APS',
+  };
+  // Abilities that need a target pick it on the next map or unit click.
+  const TARGETED_ABILITIES: Record<string, 'CANNON' | 'SURVEILLANCE' | 'MISSILE' | 'SWARM' | 'BOMBARD'> = {
+      'CANNON ATTACK': 'CANNON',
+      'LOITERING SURVEILLANCE': 'SURVEILLANCE',
+      'FIRE_BALLISTA': 'MISSILE',
+      'FIRE_SWARM': 'SWARM',
+      'BOMBARD': 'BOMBARD',
+  };
+  const warheadIn = (action: string): Warhead => action.endsWith('ECLIPSE') ? 'eclipse' : 'he';
+
   const handleUnitAction = (unitId: string, action: string) => {
-      console.log("handleUnitAction called", unitId, action);
       const unit = unitsRef.current.find(u => u.id === unitId);
       if (!unit) return;
-      
-      // Ballista Load Logic (Inventory -> Armed)
-      if (action.startsWith('LOAD_AMMO_')) {
-          const type = action.replace('LOAD_AMMO_', '').toLowerCase() as 'eclipse' | 'he';
-          if (unit.missileInventory && unit.missileInventory[type] > 0) {
-              setUnits(prev => prev.map(u => {
-                  if (u.id === unit.id) {
-                      return { 
-                          ...u, 
-                          missileInventory: { ...u.missileInventory!, [type]: u.missileInventory![type] - 1 },
-                          ammoState: 'loading',
-                          loadedAmmo: type,
-                          loadingProgress: 0
-                      };
-                  }
-                  return u;
-              }));
-              // Simulate load time
-              setTimeout(() => {
-                  setUnits(prev => prev.map(u => {
-                      if (u.id === unit.id) return { ...u, ammoState: 'armed', loadingProgress: 100 };
-                      return u;
-                  }));
-              }, ABILITY_CONFIG.BALLISTA_LOAD_TIME);
-          }
-          return;
-      }
 
-      const besideOrdnanceFab = (at: UnitData) => structuresRef.current.some(s =>
-          s.type === 'ordnance_fab' && s.team === at.team && !s.isBlueprint &&
-          Math.hypot(s.gridPos.x - at.gridPos.x, s.gridPos.z - at.gridPos.z) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE
-      );
+      if (action.startsWith('LOAD_AMMO_')) { dispatchAbility({ type: 'LOAD_AMMO', unitId, warhead: warheadIn(action) }); return; }
+      if (action.startsWith('FABRICATE_')) { dispatchAbility({ type: 'FABRICATE', unitId, warhead: warheadIn(action) }); return; }
+      if (action.startsWith('TRANSFER_')) { dispatchAbility({ type: 'TRANSFER_WARHEAD', unitId, warhead: warheadIn(action) }); return; }
+      if (action.startsWith('TAKE_')) { dispatchAbility({ type: 'TAKE_WARHEAD', unitId, warhead: warheadIn(action) }); return; }
+      if (action === 'RESUPPLY_MATERIAL') { dispatchAbility({ type: 'RESUPPLY_MATERIAL', unitId }); return; }
+      if (action === 'PHANTOM_DECOY_INIT') { dispatchAbility({ type: 'PHANTOM_DECOY', unitId }); return; }
 
-      // Field Fabricator turns one onboard material charge into a missile of the chosen type.
-      if (action === 'FABRICATE_ECLIPSE' || action === 'FABRICATE_HE') {
-          if (unit.type !== 'mule' || unit.fabrication?.active) return;
-          const item = action === 'FABRICATE_ECLIPSE' ? 'eclipse' : 'he';
-          const material = unit.ordnanceMaterial || 0;
-          const teamKey = unit.team === 'blue' || unit.team === 'red' ? unit.team : null;
-          if (!teamKey || material <= 0) return;
-          const cost = warheadCost(item);
-          if (!canAfford(economy, teamKey, cost)) return;
-          setEconomy(prev => spend(prev, teamKey, cost) ?? prev);
-          setUnits(prev => prev.map(u => u.id === unit.id ? {
-              ...u,
-              fabrication: { active: true, item, progress: 0, totalTime: ABILITY_CONFIG.FABRICATOR_BUILD_TIME }
-          } : u));
-          return;
-      }
+      if (action === 'DISCONNECT_TETHER') { dispatchAbility({ type: 'DISCONNECT_TETHER', unitId }); clearTargeting(); return; }
+      if (action === 'DISCONNECT_BATTERY') { dispatchAbility({ type: 'DISCONNECT_BATTERY', unitId }); clearTargeting(); return; }
 
-      if (action === 'RESUPPLY_MATERIAL') {
-          if (unit.type !== 'mule' || !besideOrdnanceFab(unit)) return;
-          const held = (unit.missileInventory?.eclipse || 0) + (unit.missileInventory?.he || 0);
-          const room = ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY - held;
-          if (room <= 0 || (unit.ordnanceMaterial || 0) >= room) return;
-          setUnits(prev => prev.map(u => u.id === unit.id ? { ...u, ordnanceMaterial: room } : u));
-          return;
-      }
-
-      if (action === 'TRANSFER_ECLIPSE' || action === 'TRANSFER_HE') {
-          if (unit.type !== 'mule') return;
-          const item = action === 'TRANSFER_ECLIPSE' ? 'eclipse' : 'he';
-          const have = unit.missileInventory?.[item] || 0;
-          if (have <= 0) return;
-          let nearest: UnitData | null = null;
-          let minD = ABILITY_CONFIG.FABRICATOR_DOCK_RANGE;
-          unitsRef.current.forEach(b => {
-              if (b.type !== 'ballista' || b.team !== unit.team || b.health <= 0) return;
-              const d = Math.hypot(b.gridPos.x - unit.gridPos.x, b.gridPos.z - unit.gridPos.z);
-              if (d < minD) { minD = d; nearest = b; }
-          });
-          if (!nearest) return;
-          const target = nearest as UnitData;
-          setUnits(prev => prev.map(u => {
-              if (u.id === unit.id) {
-                  const inv = { eclipse: u.missileInventory?.eclipse || 0, he: u.missileInventory?.he || 0 };
-                  inv[item] -= 1;
-                  return { ...u, missileInventory: inv };
-              }
-              if (u.id === target.id) {
-                  const inv = { eclipse: u.missileInventory?.eclipse || 0, he: u.missileInventory?.he || 0 };
-                  inv[item] += 1;
-                  return { ...u, missileInventory: inv };
-              }
-              return u;
-          }));
-          return;
-      }
-
-      // Ballista parked beside its Ordnance Fab draws a finished missile from the stockpile.
-      if (action === 'TAKE_ECLIPSE' || action === 'TAKE_HE') {
-          if (unit.type !== 'ballista' || !besideOrdnanceFab(unit)) return;
-          const item = action === 'TAKE_ECLIPSE' ? 'eclipse' : 'he';
-          const teamKey = unit.team === 'blue' || unit.team === 'red' ? unit.team : null;
-          if (!teamKey || !takeWarhead(economy, teamKey, item)) return;
-          setEconomy(prev => takeWarhead(prev, teamKey, item) ?? prev);
-          setUnits(prev => prev.map(u => {
-              if (u.id !== unit.id) return u;
-              const inv = { eclipse: u.missileInventory?.eclipse || 0, he: u.missileInventory?.he || 0 };
-              inv[item] += 1;
-              return { ...u, missileInventory: inv };
-          }));
-          return;
-      }
-
-      if (action === 'HARDLINE_TETHER') {
-          if (targetingSourceId === unitId && targetingAbility === 'TETHER') {
-              setTargetingSourceId(null);
-              setTargetingAbility(null);
+      // Tethers aim at a unit; clicking the button again cancels.
+      if (action === 'HARDLINE_TETHER' || action === 'BATTERY_TETHER') {
+          const mode = action === 'HARDLINE_TETHER' ? 'TETHER' : 'BATTERY_TETHER';
+          if (mode === 'BATTERY_TETHER' && (unit.type !== 'sun_plate' || !unit.isDeployed)) return;
+          if (targetingSourceId === unitId && targetingAbility === mode) {
+              clearTargeting();
           } else {
               setTargetingSourceId(unitId);
-              setTargetingAbility('TETHER');
+              setTargetingAbility(mode);
           }
           return;
       }
-      if (action === 'DISCONNECT_TETHER') {
-          setUnits(prev => prev.map(u => u.id === unitId ? { ...u, tetherTargetId: null } : u));
-          setTargetingSourceId(null);
-          setTargetingAbility(null);
-          return;
-      }
-      if (action === 'BATTERY_TETHER') {
-          const mule = unitsRef.current.find(u => u.id === unitId);
-          if (!mule || mule.type !== 'sun_plate' || !mule.isDeployed) return;
-          if (targetingSourceId === unitId && targetingAbility === 'BATTERY_TETHER') {
-              setTargetingSourceId(null);
-              setTargetingAbility(null);
-          } else {
-              setTargetingSourceId(unitId);
-              setTargetingAbility('BATTERY_TETHER');
-          }
-          return;
-      }
-      if (action === 'DISCONNECT_BATTERY') {
-          setUnits(prev => prev.map(u => u.id === unitId ? { ...u, batteryTetherIds: [] } : u));
-          setTargetingSourceId(null);
-          setTargetingAbility(null);
-          return;
-      }
-      if (action === 'CANNON ATTACK') {
+
+      const targeted = TARGETED_ABILITIES[action];
+      if (targeted) {
           setTargetingSourceId(unitId);
-          setTargetingAbility('CANNON');
-          return;
-      }
-      if (action === 'LOITERING SURVEILLANCE') {
-          setTargetingSourceId(unitId);
-          setTargetingAbility('SURVEILLANCE');
-          return;
-      }
-      // Replaces FIRE_BALLISTA direct execution with Targeting Mode
-      if (action === 'FIRE_BALLISTA') {
-          setTargetingSourceId(unitId);
-          setTargetingAbility('MISSILE');
-          return;
-      }
-      // Wasp Swarm Targeting
-      if (action === 'FIRE_SWARM') {
-          setTargetingSourceId(unitId);
-          setTargetingAbility('SWARM');
-          return;
-      }
-      if (action === 'BOMBARD' && unit.type === 'bombard') {
-          setTargetingSourceId(unitId);
-          setTargetingAbility('BOMBARD');
+          setTargetingAbility(targeted);
           return;
       }
 
-      if (action === 'PHANTOM_DECOY_INIT' && unit.type === 'ghost') {
-           if (unit.decoyActive) {
-               setUnits(prev => prev.map(u => u.id === unitId ? { ...u, decoyActive: false, isStealthed: false } : u));
-               setDecoys(prev => prev.filter(d => d.ownerId !== unitId));
-               return;
-           }
-           if (unit.battery <= 1) return;
-
-           const directions = [
-               {x: 1, z: 0}, {x: -1, z: 0}, {x: 0, z: 1}, {x: 0, z: -1},
-               {x: 1, z: 1}, {x: -1, z: 1}, {x: 1, z: -1}, {x: -1, z: -1},
-           ];
-           const now = Date.now();
-           const origin = unit.gridPos;
-           const claimed = new Set<string>([`${origin.x},${origin.z}`]);
-           const spawned: DecoyData[] = [];
-           for (const dir of directions) {
-               if (spawned.length >= ABILITY_CONFIG.PHANTOM_DECOY_COUNT) break;
-               const path: string[] = [];
-               let x = origin.x;
-               let z = origin.z;
-               for (let step = 0; step < ABILITY_CONFIG.PHANTOM_DECOY_SCATTER; step++) {
-                   const candidates = [
-                       { x: x + dir.x, z: z + dir.z },
-                       { x: x + Math.sign(dir.x), z },
-                       { x, z: z + Math.sign(dir.z) },
-                       { x: x + 1, z }, { x: x - 1, z }, { x, z: z + 1 }, { x, z: z - 1 },
-                       { x: x + 1, z: z + 1 }, { x: x - 1, z: z - 1 }, { x: x + 1, z: z - 1 }, { x: x - 1, z: z + 1 },
-                   ];
-                   const next = candidates.find(n => {
-                       const key = `${n.x},${n.z}`;
-                       return !claimed.has(key) && isWalkable(n.x, n.z);
-                   });
-                   if (!next) break;
-                   const key = `${next.x},${next.z}`;
-                   claimed.add(key);
-                   path.push(key);
-                   x = next.x;
-                   z = next.z;
-               }
-               if (path.length === 0) continue;
-               spawned.push({
-                   id: `decoy-${unitId}-${spawned.length}-${now}`,
-                   team: unit.team as 'blue' | 'red',
-                   gridPos: { x: origin.x, z: origin.z },
-                   createdAt: now,
-                   ownerId: unitId,
-                   path,
-               });
-           }
-
-           setDecoys(prev => [...prev.filter(d => d.ownerId !== unitId), ...spawned]);
-           setUnits(prev => prev.map(u => u.id === unitId ? { ...u, decoyActive: true, decoyStartTime: now, isStealthed: true } : u));
-           return;
+      const toggle = TOGGLE_COMMANDS[action];
+      if (toggle) {
+          dispatchAbility({ type: toggle, unitIds: Array.from(new Set([...selectedUnitIds, unitId])) });
       }
-
-      // Toggle Actions - Apply to all selected units of valid type
-      setUnits(prev => {
-          let newDrones: UnitData[] = [];
-          const nextUnits = prev.map(u => {
-              if (!selectedUnitIds.has(u.id) && u.id !== unitId) return u;
-              
-              if (action === 'TOGGLE_JAMMER' && u.type === 'banshee') return { ...u, jammerActive: !u.jammerActive };
-              if (action === 'TOGGLE DAMPENER' && u.type === 'ghost') return { ...u, isDampenerActive: !u.isDampenerActive };
-              if (action === 'TOGGLE_ANCHOR' && u.type === 'sun_plate') {
-                  const anchoring = !u.isDeployed;
-                  return { ...u, isDeployed: anchoring, path: [], batteryTetherIds: anchoring ? (u.batteryTetherIds || []) : [] };
-              }
-              if (action === 'TOGGLE_ANCHOR' && u.type === 'swarm_host') {
-                  const anchoring = !u.isAnchored;
-                  if (anchoring) {
-                      // Opening pair emerges from the host itself; the interval spawner in the
-                      // AI loop takes over from here and scatters the rest around the radius.
-                      const rId = Math.floor(Math.random() * 100000);
-                      for (let i = 0; i < ABILITY_CONFIG.SWARM_HOST_INITIAL_DRONES; i++) {
-                          newDrones.push(createCrawler(u, findAdjacentSpawn(u.gridPos), `${rId}-${i}`));
-                      }
-                  }
-                  return { 
-                      ...u, 
-                      isAnchored: anchoring, 
-                      path: [],
-                      anchorTime: anchoring ? Date.now() : undefined,
-                      cooldowns: { ...u.cooldowns, spawnCrawler: anchoring ? ABILITY_CONFIG.SWARM_HOST_SPAWN_INTERVAL : 0 } 
-                  };
-              }
-              if (action === 'SMOKE SCREEN' && u.type === 'tank') return { ...u, cooldowns: { ...u.cooldowns, titanSmoke: ABILITY_CONFIG.TITAN_SMOKE_COOLDOWN }, smoke: { active: true, remainingTime: ABILITY_CONFIG.TITAN_SMOKE_DURATION } };
-              if (action === 'ACTIVATE APS' && u.type === 'tank') return { ...u, cooldowns: { ...u.cooldowns, titanAps: ABILITY_CONFIG.TITAN_APS_COOLDOWN }, aps: { active: true, remainingTime: ABILITY_CONFIG.TITAN_APS_DURATION } };
-              return u;
-          });
-          return [...nextUnits, ...newDrones];
-      });
   };
 
   // --- Depot / Mason Logic ---
@@ -2688,59 +2113,8 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           });
           const burningClouds = cloudsRef.current.filter(c => c.type === 'he' && now - c.createdAt < c.duration);
 
-          setBuildings(prevBuildings => {
-              const currentUnits = unitsRef.current.filter(u => u.health > 0);
-              let anyBuildingChanged = false;
-              const nextBuildings = prevBuildings.map(b => {
-                  if (b.destroyed) return b;
-                  const adjacentUnits = currentUnits.filter(u => Math.abs(u.gridPos.x - b.gridX) <= 1.5 && Math.abs(u.gridPos.z - b.gridZ) <= 1.5);
-                  let bluePower = 0; let redPower = 0;
-                  adjacentUnits.forEach(u => {
-                      if (u.team === 'neutral') return;
-                      const stats = UNIT_STATS[u.type];
-                      // Buildings and core nodes are captured by infantry only.
-                      if (stats.unitClass !== 'infantry') return;
-                      const power = stats.captureMultiplier || 0;
-                      if (u.team === 'blue') bluePower += power; else if (u.team === 'red') redPower += power;
-                  });
-                  if (bluePower === 0 && redPower === 0) {
-                      if (b.captureProgress > 0 && b.capturingTeam) {
-                          const newProgress = Math.max(0, b.captureProgress - 4);
-                          if (newProgress !== b.captureProgress) { anyBuildingChanged = true; return { ...b, captureProgress: newProgress, capturingTeam: newProgress === 0 ? null : b.capturingTeam }; }
-                      }
-                      return b;
-                  }
-                  let netPower = 0; let domTeam: 'blue' | 'red' | null = null;
-                  if (bluePower > redPower) { netPower = bluePower - redPower; domTeam = 'blue'; } 
-                  else if (redPower > bluePower) { netPower = redPower - bluePower; domTeam = 'red'; }
-                  if (!domTeam) return b;
-                  const config = BUILDING_VALUES[b.type];
-                  let changed = false; let newB = { ...b };
-                  if (b.owner !== domTeam) {
-                      if (!b.capturingTeam || b.capturingTeam === domTeam) {
-                          const newProgress = Math.min(100, b.captureProgress + (netPower * config.captureSpeed));
-                          newB.capturingTeam = domTeam; newB.captureProgress = newProgress;
-                          if (newProgress >= 100) { newB.owner = domTeam; newB.captureProgress = 0; newB.capturingTeam = null; }
-                          changed = true;
-                      } else {
-                           const newProgress = Math.max(0, b.captureProgress - (netPower * config.captureSpeed));
-                           newB.captureProgress = newProgress;
-                           if (newProgress === 0) { newB.capturingTeam = null; }
-                           changed = true;
-                      }
-                  } else {
-                      if (b.captureProgress > 0) {
-                          const newProgress = Math.max(0, b.captureProgress - (netPower * config.captureSpeed));
-                          newB.captureProgress = newProgress;
-                          if (newProgress === 0) { newB.capturingTeam = null; }
-                          changed = true;
-                      }
-                  }
-                  if (changed) { anyBuildingChanged = true; return newB; }
-                  return b;
-              });
-              return anyBuildingChanged ? nextBuildings : prevBuildings;
-          });
+          // Infantry capture buildings and core nodes (sim/capture.ts).
+          setBuildings(prev => captureTick(prev, unitsRef.current));
 
           // Computed once, outside any state updater, so React's double-invoked updaters
           // in development cannot add the same finished warhead twice.
@@ -2763,43 +2137,11 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           // development, so the whole unit tick (damage, battery, charging) ran twice per tick.
           setUnits(prevUnits => {
                   let unitsChanged = false;
-                  const externalChargeMap = new Map<string, { amount: number, sourceId?: string }>();
-                  const muleChargeMap = new Map<string, { amount: number, sourceId: string }>();
-                  const muleDrain = new Map<string, number>();
-                  const tetherSources = new Map<string, UnitData>();
-                  
+                  // Who charges whom this tick (sim/energy.ts).
+                  const power = chargeSources(prevUnits);
+
                   // Courier Delivery Events to be processed after map
-                  const deliveries: { targetId: string, payload: 'eclipse' | 'he' }[] = [];
-
-                  prevUnits.forEach(u => {
-                      if (!u.tetherTargetId) return;
-                      tetherSources.set(u.tetherTargetId, u);
-                      if (u.type !== 'banshee' || !(u.secondaryBattery && u.secondaryBattery > 0)) return;
-                      const tethered = prevUnits.find(t => t.id === u.tetherTargetId && t.health > 0);
-                      if (!tethered || tethered.battery >= tethered.maxBattery) return;
-                      const amount = Math.min(
-                          ABILITY_CONFIG.BANSHEE_TETHER_CHARGE_RATE,
-                          u.secondaryBattery,
-                          tethered.maxBattery - tethered.battery
-                      );
-                      if (amount > 0) externalChargeMap.set(tethered.id, { amount, sourceId: u.id });
-                  });
-
-                  prevUnits.forEach(mule => {
-                      if (mule.type !== 'sun_plate' || !mule.isDeployed || mule.health <= 0) return;
-                      let remaining = mule.battery;
-                      for (const linkId of mule.batteryTetherIds || []) {
-                          const target = prevUnits.find(t => t.id === linkId && t.health > 0 && t.team === mule.team);
-                          if (!target || target.battery >= target.maxBattery || muleChargeMap.has(target.id)) continue;
-                          const dist = Math.hypot(target.gridPos.x - mule.gridPos.x, target.gridPos.z - mule.gridPos.z);
-                          if (dist > ABILITY_CONFIG.BATTERY_MULE_RANGE) continue;
-                          const amount = Math.min(ABILITY_CONFIG.BATTERY_MULE_CHARGE_RATE, remaining, target.maxBattery - target.battery);
-                          if (amount <= 0) continue;
-                          remaining -= amount;
-                          muleChargeMap.set(target.id, { amount, sourceId: mule.id });
-                          muleDrain.set(mule.id, (muleDrain.get(mule.id) || 0) + amount);
-                      }
-                  });
+                  const deliveries: Delivery[] = [];
 
                   const sentinels = sentinelFire(prevUnits, buildingsRef.current);
                   const damageMap = blastDamage(prevUnits, damageEvents, tileSize, offset, { hitsCloaked: true });
@@ -2817,32 +2159,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       if (activeUnits.length !== beforeCount) unitsChanged = true;
                   }
 
-                  const repairAssignments = new Map<string, string[]>();
-                  const healByTarget = new Map<string, number>();
-                  const healPerTick = ABILITY_CONFIG.GUARDIAN_REPAIR_RATE * (TICK_RATE / 1000);
-                  for (const guardian of activeUnits) {
-                      if (guardian.type !== 'guardian') continue;
-                      const previous = guardian.repairTargetIds || [];
-                      const wounded = (unit: UnitData) => unit.health > 0 && unit.health < unit.maxHealth && !unit.decoyActive;
-                      const inRange = (unit: UnitData) => unit.team === guardian.team && unit.id !== guardian.id && wounded(unit)
-                          && Math.hypot(unit.gridPos.x - guardian.gridPos.x, unit.gridPos.z - guardian.gridPos.z) <= ABILITY_CONFIG.GUARDIAN_REPAIR_RANGE;
-                      const kept = previous.filter(id => {
-                          const ally = activeUnits.find(unit => unit.id === id);
-                          return !!ally && inRange(ally);
-                      });
-                      const openSlots = ABILITY_CONFIG.GUARDIAN_REPAIR_SLOTS - kept.length;
-                      const newcomers = openSlots > 0
-                          ? activeUnits
-                              .filter(unit => inRange(unit) && !kept.includes(unit.id))
-                              .sort((a, b) => (a.health / a.maxHealth) - (b.health / b.maxHealth)
-                                  || Math.hypot(a.gridPos.x - guardian.gridPos.x, a.gridPos.z - guardian.gridPos.z) - Math.hypot(b.gridPos.x - guardian.gridPos.x, b.gridPos.z - guardian.gridPos.z))
-                              .slice(0, openSlots)
-                              .map(unit => unit.id)
-                          : [];
-                      const ids = [...kept, ...newcomers];
-                      repairAssignments.set(guardian.id, ids);
-                      for (const id of ids) healByTarget.set(id, (healByTarget.get(id) || 0) + healPerTick);
-                  }
+                  const repair = guardianRepair(activeUnits, TICK_RATE);
 
                   const chargers = activeUnits.filter(u => u.type === 'helios');
                   
@@ -2873,70 +2190,10 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                           }
                       }
                       
-                      // --- COURIER LOGIC ---
-                      if (u.type === 'courier') {
-                          // Delivery Phase
-                          if (u.courierTargetId && u.courierPayload) {
-                              const target = activeUnits.find(t => t.id === u.courierTargetId);
-                              if (target) {
-                                  const dist = Math.sqrt(Math.pow(u.gridPos.x - target.gridPos.x, 2) + Math.pow(u.gridPos.z - target.gridPos.z, 2));
-                                  // Arrived adjacent
-                                  if (dist < 1.5) {
-                                      // Trigger Delivery
-                                      deliveries.push({ targetId: target.id, payload: u.courierPayload });
-                                      
-                                      // Reset Courier to Return Phase
-                                      newUnit.courierTargetId = undefined;
-                                      newUnit.courierPayload = undefined;
-                                      
-                                      // Find Nearest Fab to return to
-                                      const fabs = structuresRef.current.filter(s => s.type === 'ordnance_fab' && s.team === u.team);
-                                      if (fabs.length > 0) {
-                                          let nearestFab = fabs[0];
-                                          let minD = 9999;
-                                          fabs.forEach(f => {
-                                              const d = Math.sqrt(Math.pow(f.gridPos.x - u.gridPos.x, 2) + Math.pow(f.gridPos.z - u.gridPos.z, 2));
-                                              if (d < minD) { minD = d; nearestFab = f; }
-                                          });
-                                          newUnit.path = findPath(u.gridPos, nearestFab.gridPos);
-                                      } else {
-                                          // No fab? Just die.
-                                          newUnit.health = 0;
-                                      }
-                                      uChanged = true;
-                                  } else if (u.path.length === 0) {
-                                      // Recalculate path if stuck
-                                      newUnit.path = findPath(u.gridPos, target.gridPos);
-                                      uChanged = true;
-                                  }
-                              } else {
-                                  // Target dead? Return to fab logic or idle.
-                                  // Simplified: Just die if target lost.
-                                  newUnit.health = 0;
-                                  uChanged = true;
-                              }
-                          } 
-                          // Return Phase
-                          else if (!u.courierPayload && u.path.length === 0) {
-                              // Arrived back at fab (path exhausted)
-                              newUnit.health = 0; // Despawn
-                              uChanged = true;
-                          }
-                      }
-
-                      // Surveillance Expiry Logic
-                      if (newUnit.surveillance && newUnit.surveillance.status === 'active') {
-                          if (newUnit.surveillance.startTime && (Date.now() - newUnit.surveillance.startTime > ABILITY_CONFIG.SURVEILLANCE_DURATION)) {
-                               const returnPath = findPath(newUnit.gridPos, newUnit.surveillance.returnPos);
-                               if (returnPath.length > 0) {
-                                   newUnit.surveillance = { ...newUnit.surveillance, status: 'returning' };
-                                   newUnit.path = returnPath;
-                               } else {
-                                   newUnit.surveillance = undefined;
-                               }
-                               uChanged = true;
-                          }
-                      }
+                      const courier = courierStep(u, newUnit, activeUnits, structuresRef.current, findPath);
+                      if (courier.changed) uChanged = true;
+                      if (courier.delivery) deliveries.push(courier.delivery);
+                      if (surveillanceStep(newUnit, Date.now(), findPath)) uChanged = true;
 
                       // Apply accumulated damage
                       const dmg = (damageMap.get(u.id) || 0) + (unitRetaliationMap.get(u.id) || 0);
@@ -2945,14 +2202,14 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                           uChanged = true;
                       }
 
-                      const repairHeal = healByTarget.get(u.id) || 0;
+                      const repairHeal = repair.heal.get(u.id) || 0;
                       if (repairHeal > 0 && newUnit.health > 0 && newUnit.health < newUnit.maxHealth) {
                           newUnit.health = Math.min(newUnit.maxHealth, newUnit.health + repairHeal);
                           uChanged = true;
                       }
 
                       if (newUnit.type === 'guardian') {
-                          const ids = repairAssignments.get(u.id) || [];
+                          const ids = repair.assignments.get(u.id) || [];
                           const prevIds = u.repairTargetIds || [];
                           if (ids.length !== prevIds.length || ids.some((id, index) => prevIds[index] !== id)) {
                               newUnit.repairTargetIds = ids;
@@ -2964,179 +2221,17 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       // If dead from damage, handled by filter later, but we update ref
                       if (newUnit.health <= 0) return newUnit;
 
-                      const isMoving = u.path.length > 0;
-                      const onEnergyGrid = isInsideEnergyGrid(u.gridPos, u.team, buildingsRef.current, baseA_Coord, baseB_Coord);
-                      const isInfantry = u.unitClass === 'infantry';
-                      
-                      // Vehicles and drones spend battery to move outside the grid. Infantry walk for free; their abilities still cost power.
-                      const locomotionDrain = (isInfantry || onEnergyGrid) ? 0 : (isMoving ? ABILITY_CONFIG.BATTERY_DRAIN_MOVE : ABILITY_CONFIG.BATTERY_DRAIN_IDLE);
-                      let drain = locomotionDrain;
-                      if (u.type === 'banshee' && u.jammerActive) drain += ABILITY_CONFIG.DRAIN_STATIC_JAMMER;
-                      if (u.type === 'ghost' && u.isDampenerActive) drain += ABILITY_CONFIG.GHOST_SPEED_PENALTY;
-                      if (u.type === 'ghost' && u.isDampenerActive) drain += ABILITY_CONFIG.DRAIN_STATIC_DOME;
-                      if (u.type === 'ghost' && u.decoyActive) {
-                          drain += ABILITY_CONFIG.PHANTOM_DECOY_DRAIN * (isMoving ? 1 : ABILITY_CONFIG.PHANTOM_DECOY_STILL_FACTOR);
-                      }
-                      if (u.type === 'sun_plate') {
-                          const previousLinks = u.batteryTetherIds || [];
-                          const keptLinks = u.isDeployed
-                              ? previousLinks.filter(linkId => {
-                                  const target = activeUnits.find(t => t.id === linkId);
-                                  return !!target && target.team === u.team && target.health > 0
-                                      && Math.hypot(target.gridPos.x - u.gridPos.x, target.gridPos.z - u.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE;
-                              })
-                              : [];
-                          if (keptLinks.length !== previousLinks.length || keptLinks.some((linkId, index) => previousLinks[index] !== linkId)) {
-                              newUnit.batteryTetherIds = keptLinks;
-                              uChanged = true;
-                          }
-                      }
-
-                      // Banshee Tether: drain the hardline pack when a drone is siphoning
-                      if (u.type === 'banshee' && u.tetherTargetId) {
-                          const target = activeUnits.find(t => t.id === u.tetherTargetId);
-                          if (!target) {
-                              newUnit.tetherTargetId = null;
-                              uChanged = true;
-                          } else {
-                              const siphon = externalChargeMap.get(u.tetherTargetId);
-                              if (siphon && siphon.sourceId === u.id) {
-                                  newUnit.secondaryBattery = Math.max(0, (u.secondaryBattery || 0) - siphon.amount);
-                                  uChanged = true;
-                              }
-                          }
-                      }
-
-                      // Hard tether leash — if the Banshee pulls out of range, the drone follows
-                      const tetherHost = tetherSources.get(u.id);
-                      if (tetherHost) {
-                          const leashDist = Math.hypot(u.gridPos.x - tetherHost.gridPos.x, u.gridPos.z - tetherHost.gridPos.z);
-                          if (leashDist > ABILITY_CONFIG.BANSHEE_TETHER_RANGE) {
-                              const destKey = `${tetherHost.gridPos.x},${tetherHost.gridPos.z}`;
-                              const currentDest = u.path.length > 0 ? u.path[u.path.length - 1] : null;
-                              if (currentDest !== destKey) {
-                                  const followPath = findPath(u.gridPos, tetherHost.gridPos);
-                                  if (followPath.length > 0) {
-                                      newUnit.path = followPath;
-                                      uChanged = true;
-                                  }
-                              }
-                          }
-                      }
-                      
-                      // Banshee Internal Charge
-                      if (u.type === 'banshee' && !isMoving && u.battery > 10 && (!u.secondaryBattery || u.secondaryBattery < (u.maxSecondaryBattery || 0))) {
-                          const transfer = ABILITY_CONFIG.BANSHEE_INTERNAL_CHARGE_RATE;
-                          if (newUnit.battery >= transfer) {
-                              newUnit.battery -= transfer;
-                              newUnit.secondaryBattery = Math.min(u.maxSecondaryBattery || 0, (u.secondaryBattery || 0) + transfer);
-                              uChanged = true;
-                          }
-                      }
-
-                      // Field Fabricator finishes one missile from onboard material.
-                      if (u.type === 'mule' && u.fabrication?.active) {
-                          const progress = u.fabrication.progress + productionStep(aiHelpersRef.current.doctrines?.[u.team as 'blue' | 'red']?.selected);
-                          if (progress >= u.fabrication.totalTime) {
-                              const material = u.ordnanceMaterial || 0;
-                              if (material > 0) {
-                                  const inv = { eclipse: u.missileInventory?.eclipse || 0, he: u.missileInventory?.he || 0 };
-                                  inv[u.fabrication.item] += 1;
-                                  newUnit.ordnanceMaterial = material - 1;
-                                  newUnit.missileInventory = inv;
-                              }
-                              newUnit.fabrication = { ...u.fabrication, active: false, progress: 0 };
-                          } else {
-                              newUnit.fabrication = { ...u.fabrication, progress };
-                          }
-                          uChanged = true;
-                      }
-
-                      // General Battery Drain
-                      if (u.battery > 0 && u.type !== 'defense_drone') { 
-                          let shouldDrain = true;
-                          if (u.type === 'crawler_drone' && u.parentId) {
-                              const parent = currentUnitsRef.find(p => p.id === u.parentId);
-                              if (parent && parent.isAnchored) {
-                                  const dist = Math.sqrt((u.gridPos.x - parent.gridPos.x)**2 + (u.gridPos.z - parent.gridPos.z)**2);
-                                  if (dist <= (ABILITY_CONFIG.CRAWLER_RADIUS || 7)) {
-                                      shouldDrain = false;
-                                      newUnit.battery = u.maxBattery;
-                                      if (newUnit.battery !== u.battery) uChanged = true;
-                                  }
-                              }
-                          }
-                          if (shouldDrain) {
-                              newUnit.battery = Math.max(0, newUnit.battery - drain); 
-                              if (newUnit.battery !== u.battery) uChanged = true; 
-                          }
-                      }
-                      if (u.type === 'sun_plate' && u.isDeployed) {
-                          const paid = muleDrain.get(u.id) || 0;
-                          if (paid > 0) {
-                              newUnit.battery = Math.max(0, newUnit.battery - paid);
-                              uChanged = true;
-                          }
-                      }
-                      if (u.unitClass === 'infantry' && newUnit.battery <= 0) {
-                          if (u.decoyActive) {
-                              newUnit.decoyActive = false;
-                              newUnit.isStealthed = false;
-                              uChanged = true;
-                          }
-                          if (u.isDampenerActive) {
-                              newUnit.isDampenerActive = false;
-                              uChanged = true;
-                          }
-                      }
-
-                      // External Charging (Helios/Sunplate/Tether)
-                      // Nano-Cloud Check: Obscures solar charging
-                      const isInNano = isPointInCloud(u.gridPos, activeClouds, 'nano');
-                      
-                      let chargeAmount = 0;
-                      let status = 0;
-                      if (externalChargeMap.has(u.id)) { 
-                          chargeAmount += externalChargeMap.get(u.id)!.amount; 
-                          status = 1; 
-                      }
-                      if (muleChargeMap.has(u.id)) {
-                          chargeAmount += muleChargeMap.get(u.id)!.amount;
-                          status = 2;
-                      }
-
-                      // Friendly buildings and the command base feed the grid. Nano clouds block solar, not this link.
-                      if (onEnergyGrid && newUnit.battery < newUnit.maxBattery) {
-                          chargeAmount += ABILITY_CONFIG.ENERGY_GRID_CHARGE_RATE;
-                          status = Math.max(status, 1);
-                      }
-                      
-                      // Only process wireless charging if NOT obscured by Nano Cloud
-                      if (!isInNano) {
-                          chargers.forEach(charger => {
-                              if (charger.team !== u.team) return;
-                              const dist = Math.sqrt(Math.pow(u.gridPos.x - charger.gridPos.x, 2) + Math.pow(u.gridPos.z - charger.gridPos.z, 2));
-                              if (charger.type === 'helios' && dist <= ABILITY_CONFIG.HELIOS_RADIUS) { 
-                                  chargeAmount += ABILITY_CONFIG.HELIOS_CHARGE_RATE; 
-                                  status = Math.max(status, 1); 
-                              }
-                          });
-                      }
-
-                      if (chargeAmount > 0 && newUnit.battery < newUnit.maxBattery) { 
-                          newUnit.battery = Math.min(newUnit.maxBattery, newUnit.battery + chargeAmount); 
-                          uChanged = true; 
-                      }
-                      if (newUnit.chargingStatus !== status) { 
-                          newUnit.chargingStatus = status; 
-                          uChanged = true; 
-                      }
-                      
-                      // Update Nano Cloud state for visuals
-                      if (!!newUnit.isInNanoCloud !== isInNano) {
-                          newUnit.isInNanoCloud = isInNano;
-                          uChanged = true;
-                      }
+                      if (leashStep(u, newUnit, power.tetherHosts.get(u.id), findPath)) uChanged = true;
+                      if (fabricationStep(u, newUnit, aiHelpersRef.current.doctrines?.[u.team as 'blue' | 'red']?.selected)) uChanged = true;
+                      if (ballistaLoadStep(u, newUnit, TICK_RATE)) uChanged = true;
+                      // Battery drain and charging (sim/energy.ts).
+                      if (powerTick(u, newUnit, {
+                          units: activeUnits,
+                          sources: power,
+                          onGrid: isInsideEnergyGrid(u.gridPos, u.team, buildingsRef.current, baseA_Coord, baseB_Coord),
+                          inNanoCloud: isPointInCloud(u.gridPos, activeClouds, 'nano'),
+                          helios: chargers,
+                      })) uChanged = true;
 
                       if (uChanged) {
                            unitsChanged = true;
