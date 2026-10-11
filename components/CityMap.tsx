@@ -25,7 +25,10 @@ import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, guardianRepair, leashStep, slowTick, surveillanceStep } from '../sim/support';
 import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, resolveAttacks } from '../sim/combat';
 import { generateCity } from '../sim/mapgen';
-import { MatchConfig, STARTING_CORES, startingRoster } from '../sim/match';
+import { MatchConfig, STARTING_CORES, incomeMultipliers, startingRoster } from '../sim/match';
+import { OrderCommand, applyOrderToStructures, applyOrderToUnits, orderEffects, popUsed, serverNodesHeld, teamPopCap, teamTier } from '../sim/orders';
+import { advanceProduction, applyProduction, createUnit } from '../sim/production';
+import { isAirType, tierFromCompute } from '../sim/units';
 import { Economy, createEconomy, canAfford, spend, setCores, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 
 
@@ -510,9 +513,11 @@ interface CityMapProps {
   onActionComplete?: () => void;
   doctrines?: { blue: DoctrineState, red: DoctrineState };
   targetingDoctrine?: { type: string, team: 'blue'|'red', cost: number } | null;
+  // Short messages for the player: refused orders, finished buildings, trained units.
+  onNotice?: (text: string, tone?: 'info' | 'warn') => void;
 }
 
-const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine }) => {
+const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine, onNotice }) => {
   const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
   const offset = (gridSize * tileSize) / 2;
   const baseA_Coord = TEAM_BASES.blue;
@@ -557,6 +562,25 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const [placementMode, setPlacementMode] = useState<{type: StructureType, cost: number} | null>(null);
   const placementModeRef = useRef(placementMode);
   placementModeRef.current = placementMode;
+  // Attack-move: armed with F for the next click, or hold Ctrl while clicking.
+  const [attackMoveArmed, setAttackMoveArmed] = useState(false);
+  const attackMoveArmedRef = useRef(false);
+  const ctrlHeldRef = useRef(false);
+  useEffect(() => {
+      const down = (e: KeyboardEvent) => {
+          ctrlHeldRef.current = e.ctrlKey || e.metaKey;
+          if (e.code === 'KeyF' && !e.repeat && selectedUnitIdsRef.current.size > 0) {
+              attackMoveArmedRef.current = !attackMoveArmedRef.current;
+              setAttackMoveArmed(attackMoveArmedRef.current);
+          }
+      };
+      const up = (e: KeyboardEvent) => { ctrlHeldRef.current = e.ctrlKey || e.metaKey; };
+      window.addEventListener('keydown', down);
+      window.addEventListener('keyup', up);
+      return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
+  }, []);
+  // The latest dispatchOrder, for timers and the AI, which capture their closure once.
+  const dispatchOrderRef = useRef<(command: OrderCommand, team?: 'blue' | 'red', quiet?: boolean) => boolean>(() => false);
   const pointerStartRef = useRef<THREE.Vector3 | null>(null);
   const [hoverGridPos, setHoverGridPosRaw] = useState<{x: number, z: number} | null>(null);
 
@@ -581,11 +605,19 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const teamResources = useMemo(() => ({ blue: economy.blue.cores, red: economy.red.cores }), [economy]);
   const stockpile = useMemo(() => ({ blue: economy.blue.stockpile, red: economy.red.stockpile }), [economy]);
   const [teamCompute, setTeamCompute] = useState<{blue: number, red: number}>({ blue: 0, red: 0 });
+  // The player's tech tier and population, for menus.
+  const supply = useMemo(() => ({
+      tier: teamTier(buildings, playerTeam),
+      used: popUsed(units, structuresState, playerTeam),
+      cap: teamPopCap(buildings, playerTeam),
+  }), [buildings, units, structuresState, playerTeam]);
 
   // Cheat State
   const [cheatCompute, setCheatCompute] = useState<{blue: number, red: number}>({ blue: 0, red: 0 });
   
   const [depotMenuOpenId, setDepotMenuOpenId] = useState<string | null>(null);
+  // Set by a production menu's "Set rally point": the next map click places it.
+  const rallyForRef = useRef<string | null>(null);
 
   // Interaction Refs
   const didDragRef = useRef(false);
@@ -707,7 +739,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       },
       setCompute: (team: 'blue' | 'red', amount: number) => {
         setCheatCompute(prev => ({ ...prev, [team]: amount }));
-      }
+      },
+      // For tests and debugging: issue a checked order for either side, and read the state.
+      order: (command: OrderCommand, team: 'blue' | 'red') => dispatchOrderRef.current(command, team),
+      state: () => ({ units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current }),
     };
     return () => { (window as any).GAME_CHEATS = undefined; };
   }, []);
@@ -1102,22 +1137,39 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // them (dynamicRoadTileSet, and therefore findPath) get a fresh identity on almost
   // every render, which used to tear down and rebuild the 1s interval ~4x a second so
   // its callback never once fired. Reading them through a ref keeps the interval alive.
-  const aiHelpersRef = useRef({ findPath, findScatteredSpawn, isWalkable, doctrines, createCrawler });
-  aiHelpersRef.current = { findPath, findScatteredSpawn, isWalkable, doctrines, createCrawler };
+  const aiHelpersRef = useRef({ findPath, findAirPath, findScatteredSpawn, isWalkable, doctrines, createCrawler });
+  aiHelpersRef.current = { findPath, findAirPath, findScatteredSpawn, isWalkable, doctrines, createCrawler };
+  const runDoctrinePowerRef = useRef<(action: { type: string, target: { x: number, z: number }, team: 'blue' | 'red' }) => boolean>(() => false);
+  const matchRef = useRef(match);
+  matchRef.current = match;
+  const onNoticeRef = useRef(onNotice);
+  onNoticeRef.current = onNotice;
 
-  // Doctrine Effects Processor
-  useEffect(() => {
-      if (pendingDoctrineAction) {
-          const { type, target, team } = pendingDoctrineAction;
-
-          // Pay here, against the live economy, so a power the team can no longer afford never fires.
+  // Doctrine powers. The player's (from App) and the AI's both come through here, which checks
+  // the team chose that doctrine, holds the tier (server nodes), is off cooldown and can pay.
+  const doctrineReadyAtRef = useRef<Record<'blue' | 'red', { tier2: number, tier3: number }>>({ blue: { tier2: 0, tier3: 0 }, red: { tier2: 0, tier3: 0 } });
+  const runDoctrinePower = (action: { type: string, target: { x: number, z: number }, team: 'blue' | 'red' }): boolean => {
+          const { type, target, team } = action;
           const power = /^(HEAVY_METAL|SHADOW_OPS|SKUNKWORKS)_TIER([23])$/.exec(type);
-          const cost = power ? doctrinePowerCost(power[1].toLowerCase() as DoctrineType, Number(power[2]) as 2 | 3) : NaN;
-          if (!canAfford(economyRef.current, team, cost)) {
-              if (onActionComplete) onActionComplete();
-              return;
-          }
+          if (!power) return false;
+          const doctrine = power[1].toLowerCase() as DoctrineType;
+          const tier = Number(power[2]) as 2 | 3;
+          const refuse = (reason: string) => {
+              if (team === playerTeam) onNoticeRef.current?.(`Can't do that: ${reason}`, 'warn');
+              return false;
+          };
+          if (aiHelpersRef.current.doctrines?.[team]?.selected !== doctrine) return refuse('that is not your doctrine');
+          if (tierFromCompute(serverNodesHeld(buildingsRef.current, team) + cheatCompute[team]) < tier) return refuse(`needs Tier ${tier}: hold ${tier - 1} server node${tier > 2 ? 's' : ''}`);
+          const key = tier === 2 ? 'tier2' : 'tier3';
+          const now = Date.now();
+          if (doctrineReadyAtRef.current[team][key] > now) return refuse(`recharging (${Math.ceil((doctrineReadyAtRef.current[team][key] - now) / 1000)}s)`);
+          // Pay against the live economy, so a power the team can no longer afford never fires.
+          const cost = doctrinePowerCost(doctrine, tier);
+          const paid = spend(economyRef.current, team, cost);
+          if (!paid) return refuse('not enough cores');
+          economyRef.current = paid;
           setEconomy(prev => spend(prev, team, cost) ?? prev);
+          doctrineReadyAtRef.current[team][key] = now + (tier === 2 ? DOCTRINE_CONFIG[doctrine].tier2_cooldown : DOCTRINE_CONFIG[doctrine].tier3_cooldown);
 
           if (type === 'HEAVY_METAL_TIER2') {
               // Spawn Orbital Drop Titan
@@ -1233,21 +1285,17 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           }
           else if (type === 'SKUNKWORKS_TIER3') {
               // Spawn Swarm Host
-              setUnits(prev => [...prev, {
-                  id: `host-${Date.now()}`,
-                  type: 'swarm_host',
-                  unitClass: 'ordnance',
-                  team: team as 'blue' | 'red',
-                  gridPos: { x: target.x, z: target.z },
-                  path: [],
-                  visionRange: 4,
-                  health: 200,
-                  maxHealth: 200,
-                  battery: 100,
-                  maxBattery: 100,
-                  cooldowns: { spawnCrawler: 0 }
-              }]);
+              const host = createUnit('swarm_host', team, `host-${Date.now()}`, target);
+              host.cooldowns = { spawnCrawler: 0 };
+              setUnits(prev => [...prev, host]);
           }
+          return true;
+  };
+  runDoctrinePowerRef.current = runDoctrinePower;
+
+  useEffect(() => {
+      if (pendingDoctrineAction) {
+          runDoctrinePower(pendingDoctrineAction);
 
           if (onActionComplete) onActionComplete();
       }
@@ -1295,6 +1343,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (Math.abs(x - baseB_Coord.x) <= 1 && Math.abs(z - baseB_Coord.z) <= 1) return false;
       if (structuresState.some(s => s.gridPos.x === x && s.gridPos.z === z)) return false;
       if (buildings.some(b => b.gridX === x && b.gridZ === z)) return false;
+      // You can only build where you hold power: around the HQ and captured buildings.
+      if (!isInsideEnergyGrid({ x, z }, playerTeam, buildings, baseA_Coord, baseB_Coord)) return false;
       // The structure occupies its own tile, so the Mason needs a road beside it.
       const beside = [
           {x: x + 1, z}, {x: x - 1, z}, {x, z: z + 1}, {x, z: z - 1},
@@ -1324,79 +1374,23 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       const mode = placementModeRef.current;
       if (!mode) return;
       const spot = findPlacementSpot(x, z);
-      if (!spot || !canAfford(economyRef.current, playerTeam, mode.cost)) return;
+      if (!spot) { onNotice?.('Cannot build there: it must be open ground inside your energy grid', 'warn'); return; }
+      if (!dispatchOrder({ type: 'PLACE_STRUCTURE', structureType: mode.type, at: spot })) return;
+      // Masons pick up new blueprints on their own (the Mason loop below).
       placementModeRef.current = null;
       setPlacementMode(null);
       setDepotMenuOpenId(null);
-      setEconomy(prev => spend(prev, playerTeam, mode.cost) ?? prev);
-      const isWallOrTurret = mode.type === 'wall_tier1' || mode.type === 'wall_tier2' || mode.type === 'defense';
-      const blueprintId = `struct-${Date.now()}`;
-      const blueprint: StructureData = {
-          id: blueprintId,
-          type: mode.type,
-          team: playerTeam,
-          gridPos: spot,
-          isBlueprint: isWallOrTurret,
-          constructionProgress: 0,
-          maxProgress: STRUCTURE_INFO[mode.type].maxProgress || 100,
-          health: STRUCTURE_INFO[mode.type].maxHealth,
-          maxHealth: STRUCTURE_INFO[mode.type].maxHealth,
-      };
-      const depot = structuresRef.current.find(s => s.type === 'builder' && s.team === playerTeam && !s.isBlueprint);
-      setStructuresState(prev => {
-          const next = [...prev, blueprint];
-          structuresRef.current = next;
-          return next;
-      });
-
-      if (!isWallOrTurret || !depot) return;
-
-      setUnits(prev => {
-          let changed = false;
-          const next = prev.map(u => {
-              if (u.type !== 'mason' || u.team !== playerTeam || u.health <= 0) return u;
-              let cargo = u.cargo || 0;
-              let goal = spot;
-              let constructionTargetId: string | null = blueprintId;
-              if (cargo <= 0) {
-                  const atDepot = Math.hypot(u.gridPos.x - depot.gridPos.x, u.gridPos.z - depot.gridPos.z) < ABILITY_CONFIG.MASON_SITE_RANGE;
-                  if (atDepot) {
-                      cargo = ABILITY_CONFIG.MASON_CARGO_CAPACITY;
-                  } else {
-                      goal = depot.gridPos;
-                      constructionTargetId = null;
-                  }
-              }
-              if (Math.hypot(u.gridPos.x - goal.x, u.gridPos.z - goal.z) < ABILITY_CONFIG.MASON_SITE_RANGE) {
-                  if (cargo !== (u.cargo || 0) || u.constructionTargetId !== constructionTargetId) {
-                      changed = true;
-                      return { ...u, cargo, constructionTargetId, path: [] };
-                  }
-                  return u;
-              }
-              const beside = [
-                  {x: goal.x + 1, z: goal.z}, {x: goal.x - 1, z: goal.z},
-                  {x: goal.x, z: goal.z + 1}, {x: goal.x, z: goal.z - 1},
-                  {x: goal.x + 1, z: goal.z + 1}, {x: goal.x - 1, z: goal.z - 1},
-                  {x: goal.x + 1, z: goal.z - 1}, {x: goal.x - 1, z: goal.z + 1},
-              ].filter(n => isWalkable(n.x, n.z) && !(n.x === spot.x && n.z === spot.z))
-               .sort((a, b) => Math.hypot(u.gridPos.x - a.x, u.gridPos.z - a.z) - Math.hypot(u.gridPos.x - b.x, u.gridPos.z - b.z));
-              for (const n of beside) {
-                  const path = findPath(u.gridPos, n);
-                  if (path.length > 0) {
-                      changed = true;
-                      return { ...u, cargo, path, constructionTargetId };
-                  }
-              }
-              return u;
-          });
-          return changed ? next : prev;
-      });
   };
 
   const handleTileClick = (x: number, z: number) => {
       if (placementModeRef.current) {
           commitPlacement(x, z);
+          return;
+      }
+      if (rallyForRef.current) {
+          dispatchOrder({ type: 'SET_RALLY', structureId: rallyForRef.current, at: { x, z } });
+          rallyForRef.current = null;
+          onNotice?.('Rally point set');
           return;
       }
       // If we just dragged, ignore click events generated
@@ -1420,111 +1414,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           setTargetingSourceId(null);
           setTargetingAbility(null);
       } else if (selectedUnitIds.size > 0) {
-          // MOVEMENT LOGIC for Multiple Units
-          const unitsToMove = units.filter(u => selectedUnitIds.has(u.id) && u.team === playerTeam && !(u.type === 'sun_plate' && u.isDeployed));
-          
-          if (unitsToMove.length > 0) {
-              // 1. Identify Occupied Tiles (by units NOT in selection, and destination of moving units)
-              const occupied = new Set<string>();
-              unitsRef.current.forEach(u => {
-                  if (!selectedUnitIds.has(u.id)) {
-                      if (u.path.length > 0) {
-                          occupied.add(u.path[u.path.length - 1]);
-                      } else {
-                          occupied.add(`${u.gridPos.x},${u.gridPos.z}`);
-                      }
-                  }
-              });
-
-              // 2. Assign Destinations
-              const assignments = new Map<string, {x: number, z: number}>(); // unitId -> dest
-              const reserved = new Set<string>(); // "x,z" reserved by this group
-
-              // Helper to find nearest free tile using BFS
-              const findFreeTile = (centerX: number, centerZ: number): {x: number, z: number} | null => {
-                  const queue = [{x: centerX, z: centerZ}];
-                  const visited = new Set<string>();
-                  visited.add(`${centerX},${centerZ}`);
-                  
-                  let i = 0;
-                  // Limit search to prevent hangs if map is full
-                  while(i < queue.length && i < 300) {
-                      const curr = queue[i++];
-                      const key = `${curr.x},${curr.z}`;
-                      const validRoad = dynamicRoadTileSet.has((curr.x << 16) | curr.z);
-                      
-                      // Valid if it's a road, not occupied by others, and not reserved by group member
-                      if (validRoad && !occupied.has(key) && !reserved.has(key)) {
-                          return curr;
-                      }
-
-                      const neighbors = [
-                          {x: curr.x+1, z: curr.z}, {x: curr.x-1, z: curr.z}, 
-                          {x: curr.x, z: curr.z+1}, {x: curr.x, z: curr.z-1},
-                          {x: curr.x+1, z: curr.z+1}, {x: curr.x-1, z: curr.z-1},
-                          {x: curr.x+1, z: curr.z-1}, {x: curr.x-1, z: curr.z+1}
-                      ];
-
-                      for (const n of neighbors) {
-                          const nKey = `${n.x},${n.z}`;
-                          if (!visited.has(nKey)) {
-                              if (n.x >= 0 && n.x < gridSize && n.z >= 0 && n.z < gridSize) {
-                                  visited.add(nKey);
-                                  queue.push(n);
-                              }
-                          }
-                      }
-                  }
-                  return null;
-              };
-
-              // Assign destinations for each unit
-              unitsToMove.forEach(u => {
-                  if (u.type === 'bombard') {
-                      if (x >= 0 && z >= 0 && x < gridSize && z < gridSize) {
-                          assignments.set(u.id, { x, z });
-                      }
-                      return;
-                  }
-                  let dest = findFreeTile(x, z);
-                  const tetherHost = unitsRef.current.find(src => src.tetherTargetId === u.id);
-                  if (dest && tetherHost) {
-                      const leash = Math.hypot(dest.x - tetherHost.gridPos.x, dest.z - tetherHost.gridPos.z);
-                      if (leash > ABILITY_CONFIG.BANSHEE_TETHER_RANGE) {
-                          const dx = dest.x - tetherHost.gridPos.x;
-                          const dz = dest.z - tetherHost.gridPos.z;
-                          const scale = ABILITY_CONFIG.BANSHEE_TETHER_RANGE / leash;
-                          dest = findFreeTile(
-                              Math.round(tetherHost.gridPos.x + dx * scale),
-                              Math.round(tetherHost.gridPos.z + dz * scale)
-                          );
-                      }
-                  }
-                  if (dest) {
-                      const key = `${dest.x},${dest.z}`;
-                      reserved.add(key);
-                      assignments.set(u.id, dest);
-                  }
-              });
-
-              // 3. Apply Paths based on assignments
-              setUnits(prev => prev.map(u => {
-                  if (assignments.has(u.id)) {
-                      const dest = assignments.get(u.id)!;
-                      if (u.type === 'bombard') {
-                          const sameTile = u.gridPos.x === dest.x && u.gridPos.z === dest.z;
-                          const path = sameTile ? [] : findAirPath(u.gridPos, dest);
-                          if (sameTile || path.length > 0) return { ...u, path, bombardmentTarget: null };
-                          return u;
-                      }
-                      const path = findPath(u.gridPos, dest);
-                      if (path.length > 0) {
-                          return {...u, path};
-                      }
-                  }
-                  return u;
-              }));
-          }
+          // Ctrl-click (or F, then click) is an attack-move: stop to fight anything met on the way.
+          const attackMove = attackMoveArmedRef.current || ctrlHeldRef.current;
+          if (attackMoveArmedRef.current) { attackMoveArmedRef.current = false; setAttackMoveArmed(false); }
+          dispatchOrder({ type: 'MOVE', unitIds: Array.from(selectedUnitIds), target: { x, z }, attackMove }, playerTeam, true);
       } else {
           // Clicked on ground with no selection -> Deselect all (if any) or Close Menus
           setSelectedUnitIds(new Set());
@@ -1552,6 +1445,47 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // Every unit ability goes through sim/abilities.ts as a command: it is checked for the
   // current team (ownership, unit type, cooldowns, charges, range) and only then applied.
   const spawnCounterRef = useRef(0);
+  const newId = (prefix: string) => `${prefix}-${Date.now()}-${++spawnCounterRef.current}`;
+
+  // Moving, training and building go through sim/orders.ts the same way, for the player and
+  // the computer opponent alike: checked for the team (ownership, tier, population, cores,
+  // energy grid), then applied. Quiet orders (plain moves) don't report a refusal.
+  const dispatchOrder = (command: OrderCommand, team: 'blue' | 'red' = playerTeam, quiet = false): boolean => {
+      const outcome = orderEffects(
+          { units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current },
+          team,
+          command,
+          {
+              gridSize, bases: { blue: baseA_Coord, red: baseB_Coord },
+              isWalkable, findPath, findAirPath, newId,
+              canBuildOn: (bx, bz) => {
+                  if (Math.abs(bx - baseA_Coord.x) <= 1 && Math.abs(bz - baseA_Coord.z) <= 1) return false;
+                  if (Math.abs(bx - baseB_Coord.x) <= 1 && Math.abs(bz - baseB_Coord.z) <= 1) return false;
+                  if (structuresRef.current.some(st => st.gridPos.x === bx && st.gridPos.z === bz)) return false;
+                  if (buildingsRef.current.some(b => b.gridX === bx && b.gridZ === bz)) return false;
+                  return [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => isWalkable(bx + dx, bz + dz));
+              },
+          },
+      );
+      if ('reason' in outcome) {
+          if (team === playerTeam && !quiet) onNotice?.(`Can't do that: ${outcome.reason}`, 'warn');
+          return false;
+      }
+      const fx = outcome.effects;
+      const charge = fx.economy;
+      // Refs first, so a second order in the same frame sees this one (see dispatchAbility).
+      unitsRef.current = applyOrderToUnits(unitsRef.current, fx);
+      structuresRef.current = applyOrderToStructures(structuresRef.current, fx);
+      if (charge) {
+          economyRef.current = charge(economyRef.current) ?? economyRef.current;
+          setEconomy(prev => charge(prev) ?? prev);
+      }
+      if (fx.unitUpdates.size > 0) setUnits(prev => applyOrderToUnits(prev, fx));
+      if (fx.structureUpdates.size > 0 || fx.newStructures.length > 0) setStructuresState(prev => applyOrderToStructures(prev, fx));
+      return true;
+  };
+  dispatchOrderRef.current = dispatchOrder;
+
   const dispatchAbility = (command: AbilityCommand): boolean => {
       const outcome = abilityEffects(
           { units: unitsRef.current, structures: structuresRef.current, economy: economyRef.current },
@@ -1678,43 +1612,15 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           return;
       }
 
+      if (action === 'SET_RALLY') {
+          rallyForRef.current = struct.id;
+          setDepotMenuOpenId(null);
+          onNotice?.('Click the map to set the rally point');
+          return;
+      }
       if (action === 'BUILD_UNIT') {
-          const type = payload as UnitType;
-          const stats = UNIT_STATS[type];
-          const cost = unitCost(type);
-          if (canAfford(economy, playerTeam, cost)) {
-              setEconomy(prev => spend(prev, playerTeam, cost) ?? prev);
-              
-              // Find an adjacent valid tile for spawning
-              let spawnPos = { ...struct.gridPos };
-              const neighbors = [
-                  {x: struct.gridPos.x + 1, z: struct.gridPos.z},
-                  {x: struct.gridPos.x - 1, z: struct.gridPos.z},
-                  {x: struct.gridPos.x, z: struct.gridPos.z + 1},
-                  {x: struct.gridPos.x, z: struct.gridPos.z - 1}
-              ];
-              for (const n of neighbors) {
-                  const nId = (n.x << 16) | n.z;
-                  if (dynamicRoadTileSet.has(nId)) {
-                      spawnPos = n;
-                      break;
-                  }
-              }
-
-              const newUnit: UnitData = {
-                  id: `u-${Date.now()}`, type: type, unitClass: stats.unitClass, team: playerTeam as UnitData['team'], gridPos: spawnPos, path: [], visionRange: stats.visionRange, health: stats.maxHealth, maxHealth: stats.maxHealth, battery: 100, maxBattery: 100, cooldowns: {},
-                  ...(type === 'mason' ? { cargo: 100 } : {}),
-                  ...(type === 'banshee' ? { battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY } : {}),
-                  ...(type === 'sun_plate' ? { battery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, maxBattery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, isDeployed: false, batteryTetherIds: [] as string[] } : {}),
-                  ...(type === 'wasp' ? { charges: { swarm: ABILITY_CONFIG.WASP_MAX_CHARGES } } : {}),
-                  ...(type === 'bombard' ? { battery: ABILITY_CONFIG.BOMBARD_BATTERY, maxBattery: ABILITY_CONFIG.BOMBARD_BATTERY } : {}),
-                  ...(type === 'tank' ? { charges: { smoke: ABILITY_CONFIG.MAX_CHARGES_SMOKE, aps: ABILITY_CONFIG.MAX_CHARGES_APS } } : {}),
-                  ...(type === 'ballista' ? { missileInventory: { eclipse: 1, he: 1 }, ammoState: 'empty' as const } : {}), // New Ballistas start with 1 of each
-                  ...(type === 'mule' ? { ordnanceMaterial: ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY, missileInventory: { eclipse: 0, he: 0 } } : {}),
-              };
-              setUnits(prev => [...prev, newUnit]);
-              setDepotMenuOpenId(null);
-          }
+          // Stays open so several can be queued.
+          dispatchOrder({ type: 'TRAIN_UNIT', structureId: struct.id, unitType: payload as UnitType });
       } else if (action === 'SELECT_WALL') {
           const type = payload as StructureType;
           const cost = structureCost(type);
@@ -1826,7 +1732,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setEconomy(prev => payIncome(prev, buildingsRef.current));
+      setEconomy(prev => payIncome(prev, buildingsRef.current, incomeMultipliers(matchRef.current)));
     }, ECONOMY_TICK_MS);
     return () => clearInterval(timer);
   }, []);
@@ -1834,8 +1740,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // Report to the HUD whenever the economy changes: every income tick, and right after a purchase.
   // Layout effect so the HUD hears about it in the same pass, not after the next rendered frame.
   useLayoutEffect(() => {
-    const blue = teamStats(economy, 'blue', buildingsRef.current, unitsRef.current, cheatCompute.blue);
-    const red = teamStats(economy, 'red', buildingsRef.current, unitsRef.current, cheatCompute.red);
+    const blue = teamStats(economy, 'blue', buildingsRef.current, unitsRef.current, cheatCompute.blue, structuresRef.current);
+    const red = teamStats(economy, 'red', buildingsRef.current, unitsRef.current, cheatCompute.red, structuresRef.current);
     // Only set when it changed. Even a no-op set here re-runs this whole component.
     if (teamCompute.blue !== blue.compute || teamCompute.red !== red.compute) setTeamCompute({ blue: blue.compute, red: red.compute });
     onStatsUpdate({ blue, red });
@@ -2000,6 +1906,39 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           }
           if (fabTick.finished.length > 0) {
               setEconomy(prev => fabTick.finished.reduce((acc, done) => addWarheads(acc, done.team, done.warhead), prev));
+          }
+
+          // Construction and training queues (sim/production.ts), same pattern as the fabs.
+          const build = advanceProduction(structuresRef.current, team => aiHelpersRef.current.doctrines?.[team]?.selected);
+          if (build.updates.size > 0) {
+              structuresRef.current = applyProduction(structuresRef.current, build);
+              setStructuresState(prev => applyProduction(prev, build));
+          }
+          for (const done of build.completed) {
+              if (done.team === playerTeam) onNoticeRef.current?.(`${STRUCTURE_INFO[done.type].label} complete`);
+          }
+          if (build.trained.length > 0) {
+              const { findPath, isWalkable } = aiHelpersRef.current;
+              const taken = new Set(unitsRef.current.map(u => `${u.gridPos.x},${u.gridPos.z}`));
+              const born = build.trained.map(({ structure, unitType }, i) => {
+                  const at = structure.gridPos;
+                  // First free road tile around the structure, widening the ring if crowded.
+                  let spawn = { ...at };
+                  search: for (let r = 1; r <= 3; r++) {
+                      for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+                          if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+                          const k = `${at.x + dx},${at.z + dz}`;
+                          if (isWalkable(at.x + dx, at.z + dz) && !taken.has(k)) { spawn = { x: at.x + dx, z: at.z + dz }; break search; }
+                      }
+                  }
+                  taken.add(`${spawn.x},${spawn.z}`);
+                  const unit = createUnit(unitType, structure.team, `u-${structure.team}-${now}-${i}`, spawn);
+                  const rally = structure.rallyPoint;
+                  if (rally) unit.path = isAirType(unitType) ? aiHelpersRef.current.findAirPath(spawn, rally) : findPath(spawn, rally);
+                  return unit;
+              });
+              unitsRef.current = [...unitsRef.current, ...born];
+              setUnits(prev => [...prev, ...born]);
           }
 
           // This used to run inside a setStructuresState updater. React runs updaters twice in
@@ -2270,6 +2209,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 hasMason={hasMason}
                 resources={teamResources[playerTeam]}
                 warheadStock={playerTeam === 'blue' || playerTeam === 'red' ? stockpile[playerTeam] : undefined}
+                tier={supply.tier}
+                popUsed={supply.used}
+                popCap={supply.cap}
             /> 
         ))}
         {blocks.map(block => (

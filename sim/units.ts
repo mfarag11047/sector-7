@@ -3,7 +3,7 @@
 // the intent behind the numbers; sim/balance.test.ts checks the counters hold at equal cost.
 
 import { STRUCTURE_INFO, UNIT_STATS } from '../constants';
-import type { StructureType, UnitType } from '../types';
+import type { StructureData, StructureType, UnitData, UnitType } from '../types';
 
 export type ArmorClass = 'infantry' | 'light' | 'heavy' | 'air' | 'structure';
 export type DamageType = 'rifle' | 'ap' | 'flak' | 'explosive';
@@ -76,7 +76,8 @@ export const UNIT_RULES: Record<UnitType, UnitRules> = {
   // --- Depot and Ordnance Fab ---
   mason: { armor: 'light', weapon: null, pop: 1, tier: 1, producer: 'builder', buildTimeMs: 12000, role: 'Builds walls and turrets.' },
   mule: { armor: 'light', weapon: null, pop: 2, tier: 2, producer: 'ordnance_fab', buildTimeMs: 20000, role: 'Fabricates missiles in the field.' },
-  courier: { armor: 'light', weapon: null, pop: 0, tier: 2, producer: 'ordnance_fab', buildTimeMs: 6000, role: 'Runs a warhead to a Ballista.' },
+  // Couriers are dispatched by Transfer Warhead, not trained.
+  courier: { armor: 'light', weapon: null, pop: 0, tier: 2, producer: null, buildTimeMs: 0, role: 'Runs a warhead to a Ballista.' },
 
   // --- Never trained ---
   defense_drone: { armor: 'heavy', weapon: rifle(14, 500, 3), pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Guards a server node. Hostile to everyone.' },
@@ -138,3 +139,11 @@ export const TIER_REQUIREMENT: Record<Tier, string> = {
   2: 'Hold 1 server node',
   3: 'Hold 2 server nodes',
 };
+
+// Living units plus everything queued, which reserves its population when ordered.
+export function popUsed(units: readonly UnitData[], structures: readonly StructureData[], team: UnitData['team']): number {
+  let used = 0;
+  for (const u of units) if (u.team === team && u.health > 0) used += UNIT_RULES[u.type].pop;
+  for (const s of structures) if (s.team === team) for (const q of s.queue || []) used += UNIT_RULES[q.unitType].pop;
+  return used;
+}

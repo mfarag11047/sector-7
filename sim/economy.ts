@@ -7,6 +7,7 @@
 import { ABILITY_CONFIG, BUILDING_VALUES, DOCTRINE_CONFIG, STRUCTURE_INFO, TIER_UNLOCK_COSTS, UNIT_STATS } from '../constants';
 import type { BuildingData, DoctrineType, StructureData, StructureType, TeamStats, UnitData, UnitType } from '../types';
 import type { Team, Warhead } from './commands';
+import { popCap, popUsed, tierFromCompute } from './units';
 
 export const STARTING_CORES = 2500;
 // Income is paid once per economy tick.
@@ -80,9 +81,12 @@ export function takeWarhead(economy: Economy, team: Team, warhead: Warhead): Eco
 
 // --- Income ---
 
-// Only core nodes pay. Other captured buildings extend the energy grid instead.
+// Every HQ pays a small trickle so a side that loses all its nodes can still rebuild.
+export const HQ_INCOME = 3;
+
+// The HQ trickle plus core nodes. Other captured buildings extend the energy grid instead.
 export function incomeFor(buildings: readonly BuildingData[], team: Team): number {
-  let income = 0;
+  let income = HQ_INCOME;
   for (const b of buildings) {
     if (b.owner === team && !b.destroyed) income += BUILDING_VALUES[b.type].income;
   }
@@ -90,10 +94,11 @@ export function incomeFor(buildings: readonly BuildingData[], team: Team): numbe
 }
 
 // One economy tick. Always returns a new object so listeners refresh once per tick.
-export function payIncome(economy: Economy, buildings: readonly BuildingData[]): Economy {
+// `multiplier` scales a team's income, which is how the AI difficulty levels are set.
+export function payIncome(economy: Economy, buildings: readonly BuildingData[], multiplier: Partial<Record<Team, number>> = {}): Economy {
   const next = { ...economy };
   for (const team of TEAMS) {
-    const income = incomeFor(buildings, team);
+    const income = incomeFor(buildings, team) * (multiplier[team] ?? 1);
     next[team] = {
       ...economy[team],
       cores: economy[team].cores + income,
@@ -150,6 +155,7 @@ export function teamStats(
   buildings: readonly BuildingData[],
   units: readonly UnitData[],
   bonusCompute = 0,
+  structures: readonly StructureData[] = [],
 ): TeamStats {
   const owned = { residential: 0, commercial: 0, industrial: 0, hightech: 0, server_node: 0, core_node: 0 };
   for (const b of buildings) {
@@ -159,10 +165,14 @@ export function teamStats(
     resources: economy[team].cores,
     income: incomeFor(buildings, team),
     compute: owned.server_node + bonusCompute,
-    units: units.filter(u => u.team === team).length,
+    tier: tierFromCompute(owned.server_node + bonusCompute),
+    pop: popUsed(units, structures, team),
+    popCap: popCap(owned.core_node),
+    units: units.filter(u => u.team === team && u.health > 0).length,
     buildings: owned,
     stockpile: { ...economy[team].stockpile },
     // The selected doctrine and its cooldowns live in App; only the tier comes from here.
-    doctrine: { selected: null, unlockedTiers: unlockedTier(economy[team].lifetimeIncome), cooldowns: { tier2: 0, tier3: 0 } },
+    // Doctrine powers unlock with the tech tier, so they too depend on holding server nodes.
+    doctrine: { selected: null, unlockedTiers: tierFromCompute(owned.server_node + bonusCompute), cooldowns: { tier2: 0, tier3: 0 } },
   };
 }

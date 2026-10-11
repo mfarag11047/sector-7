@@ -19,6 +19,18 @@ export interface MatchConfig {
 
 export const STARTING_CORES: Record<MatchMode, number> = { ai: 1000, sandbox: 5000 };
 
+// The computer plays by the same rules at every level; harder levels think faster and earn more.
+export const AI_INCOME_MULTIPLIER: Record<Difficulty, number> = { easy: 0.7, normal: 1.0, hard: 1.35 };
+
+export const opponentOf = (team: Team): Team => (team === 'blue' ? 'red' : 'blue');
+export const aiTeamOf = (config: MatchConfig): Team | null => (config.mode === 'ai' ? opponentOf(config.playerTeam) : null);
+
+// Income multipliers for payIncome.
+export const incomeMultipliers = (config: MatchConfig): Partial<Record<Team, number>> => {
+  const ai = aiTeamOf(config);
+  return ai ? { [ai]: AI_INCOME_MULTIPLIER[config.difficulty] } : {};
+};
+
 const fresh = (id: string, type: UnitType, team: Team, gridPos: GridPos): UnitData => ({
   id, type, unitClass: UNIT_STATS[type].unitClass, team, gridPos, path: [],
   visionRange: UNIT_STATS[type].visionRange, health: UNIT_STATS[type].maxHealth, maxHealth: UNIT_STATS[type].maxHealth,

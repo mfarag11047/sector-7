@@ -28,6 +28,6 @@ describe('isPlayerCommand', () => {
   });
 
   it('covers every command type', () => {
-    expect(COMMAND_TYPES).toHaveLength(26);
+    expect(COMMAND_TYPES).toHaveLength(27);
   });
 });

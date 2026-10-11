@@ -21,7 +21,8 @@ export type Team = 'blue' | 'red';
 
 // Right-click on the ground with units selected. The server spreads the group
 // across free tiles around the target, the same way the client does today.
-export interface MoveCommand { type: 'MOVE'; unitIds: string[]; target: GridPos }
+// attackMove: stop to fight anything met on the way instead of driving past it.
+export interface MoveCommand { type: 'MOVE'; unitIds: string[]; target: GridPos; attackMove?: boolean }
 
 // --- Construction and production ---
 
@@ -29,6 +30,8 @@ export interface MoveCommand { type: 'MOVE'; unitIds: string[]; target: GridPos 
 // Walls and turrets start as blueprints that Masons build up.
 export interface PlaceStructureCommand { type: 'PLACE_STRUCTURE'; structureType: StructureType; at: GridPos }
 export interface TrainUnitCommand { type: 'TRAIN_UNIT'; structureId: string; unitType: UnitType }
+// Where a production structure sends the units it trains.
+export interface SetRallyCommand { type: 'SET_RALLY'; structureId: string; at: GridPos }
 export interface BuildWarheadCommand { type: 'BUILD_WARHEAD'; structureId: string; warhead: Warhead }
 
 // --- Toggles and instant abilities ---
@@ -78,6 +81,7 @@ export type PlayerCommand =
   | MoveCommand
   | PlaceStructureCommand
   | TrainUnitCommand
+  | SetRallyCommand
   | BuildWarheadCommand
   | ToggleDampenerCommand
   | ToggleJammerCommand
@@ -154,9 +158,10 @@ const unitLink = (c: Fields) => isId(c.unitId) && isId(c.targetUnitId);
 const unitList = (c: Fields) => isIdList(c.unitIds);
 
 const CHECKS: Record<CommandType, (c: Fields) => boolean> = {
-  MOVE: c => isIdList(c.unitIds) && isTile(c.target),
+  MOVE: c => isIdList(c.unitIds) && isTile(c.target) && (c.attackMove === undefined || typeof c.attackMove === 'boolean'),
   PLACE_STRUCTURE: c => oneOf(STRUCTURE_TYPES, c.structureType) && isTile(c.at),
   TRAIN_UNIT: c => isId(c.structureId) && oneOf(UNIT_TYPES, c.unitType),
+  SET_RALLY: c => isId(c.structureId) && isTile(c.at),
   BUILD_WARHEAD: c => isId(c.structureId) && oneOf(WARHEADS, c.warhead),
   TOGGLE_DAMPENER: unitList,
   TOGGLE_JAMMER: unitList,

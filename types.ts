@@ -237,6 +237,10 @@ export interface TeamStats {
   resources: number;
   income: number;
   compute: number;
+  // Tech tier from server nodes held, and population used / cap from core nodes held.
+  tier?: number;
+  pop?: number;
+  popCap?: number;
   units: number;
   buildings: {
     residential: number;

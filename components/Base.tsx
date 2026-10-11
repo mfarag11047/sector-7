@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { StructureData, StructureType, UnitClass } from '../types';
 import StructureStatus from './StructureStatus';
 import { STRUCTURE_INFO, UNIT_CLASSES } from '../constants';
+import { STRUCTURE_RULES } from '../sim/units';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 
 interface BaseProps {
@@ -68,9 +69,17 @@ const Base: React.FC<BaseProps> = ({
   }
 
   // Filter out walls and defense turrets from the Base menu
-  const buildableStructures = (Object.keys(STRUCTURE_INFO) as StructureType[]).filter(type => 
-    type !== 'wall_tier1' && type !== 'wall_tier2' && type !== 'defense'
-  );
+  // Base structures from the HQ; walls and turrets come from the Depot.
+  const buildableStructures = (Object.keys(STRUCTURE_RULES) as StructureType[]).filter(type => STRUCTURE_RULES[type].buildable);
+  // What each one is for, so a new player knows what to build.
+  const PURPOSE: Partial<Record<StructureType, string>> = {
+    infantry: 'Troopers, Ghosts, Lancers',
+    armor: 'Razorbacks, Titans, Aegis, Battery Mules',
+    air: 'Drones, Wasps, Hornets, Bombards',
+    support: 'Guardians, Helios, Banshees, Ballistas',
+    builder: 'Masons; walls and turrets',
+    ordnance_fab: 'Warheads and Field Fabricators',
+  };
 
   // Reusable Materials
   const materials = useMemo(() => ({
@@ -276,7 +285,7 @@ const Base: React.FC<BaseProps> = ({
         <Html position={[0, 10, 0]} center zIndexRange={[200, 0]}>
           <div className="hud-plate hud-corners hud-menu backdrop-blur min-w-[220px] overflow-hidden flex flex-col pointer-events-auto">
              <div className="px-3 py-2 border-b border-cyan-400/30 flex justify-between items-center">
-                <span className="text-cyan-400 font-mono font-bold text-xs uppercase">Base Construction</span>
+                <span className="text-cyan-400 font-mono font-bold text-xs uppercase">Build · inside your grid</span>
                 <span className={`text-[10px] font-mono ${resources > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {resources} Cores
                 </span>
@@ -309,7 +318,10 @@ const Base: React.FC<BaseProps> = ({
                         >
                             <div className="flex items-center gap-2">
                                 <span style={{ color: info.color }} className="text-sm">{getIcon(type)}</span>
-                                <span className="text-xs font-mono font-bold">{info.label}</span>
+                                <div className="flex flex-col">
+                                    <span className="text-xs font-mono font-bold">{info.label}</span>
+                                    <span className="text-[9px] font-mono text-slate-500">{PURPOSE[type]} · {STRUCTURE_RULES[type].buildTimeMs / 1000}s</span>
+                                </div>
                             </div>
                             <span className="text-[10px] font-mono text-cyan-600">
                                 {info.cost}

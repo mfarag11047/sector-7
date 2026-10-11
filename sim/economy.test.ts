@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { BUILDING_VALUES, DOCTRINE_CONFIG, TIER_UNLOCK_COSTS, UNIT_STATS } from '../constants';
 import type { BuildingData, StructureData, UnitData } from '../types';
 import {
-  addWarheads, advanceWarheadProduction, canAfford, createEconomy, doctrinePowerCost, incomeFor, payIncome,
+  addWarheads, advanceWarheadProduction, canAfford, createEconomy, doctrinePowerCost, HQ_INCOME, incomeFor, payIncome,
   productionStep, setCores, spend, STARTING_CORES, takeWarhead, teamStats, unitCost, unlockedTier, warheadBuildTime,
 } from './economy';
 
@@ -79,22 +79,28 @@ describe('income', () => {
     building('s1', 'server_node', 'red'),
   ];
 
-  it('comes only from live, owned core nodes', () => {
-    expect(incomeFor(map, 'blue')).toBe(2 * CORE_INCOME);
-    expect(incomeFor(map, 'red')).toBe(CORE_INCOME);
+  it('is the HQ trickle plus live, owned core nodes', () => {
+    expect(incomeFor(map, 'blue')).toBe(HQ_INCOME + 2 * CORE_INCOME);
+    expect(incomeFor(map, 'red')).toBe(HQ_INCOME + CORE_INCOME);
   });
 
   it('adds to cores and lifetime income each tick', () => {
     const e = payIncome(payIncome(createEconomy(0), map), map);
-    expect(e.blue).toMatchObject({ cores: 4 * CORE_INCOME, lifetimeIncome: 4 * CORE_INCOME });
-    expect(e.red).toMatchObject({ cores: 2 * CORE_INCOME, lifetimeIncome: 2 * CORE_INCOME });
+    expect(e.blue).toMatchObject({ cores: 2 * (HQ_INCOME + 2 * CORE_INCOME), lifetimeIncome: 2 * (HQ_INCOME + 2 * CORE_INCOME) });
+    expect(e.red).toMatchObject({ cores: 2 * (HQ_INCOME + CORE_INCOME), lifetimeIncome: 2 * (HQ_INCOME + CORE_INCOME) });
+  });
+
+  it('scales by a per-team multiplier (AI difficulty)', () => {
+    const e = payIncome(createEconomy(0), map, { red: 2 });
+    expect(e.red.cores).toBe(2 * (HQ_INCOME + CORE_INCOME));
+    expect(e.blue.cores).toBe(HQ_INCOME + 2 * CORE_INCOME);
   });
 
   it('is unaffected by spending, so tiers never re-lock', () => {
     let e = payIncome(createEconomy(0), map);
     e = spend(e, 'blue', e.blue.cores)!;
     expect(e.blue.cores).toBe(0);
-    expect(e.blue.lifetimeIncome).toBe(2 * CORE_INCOME);
+    expect(e.blue.lifetimeIncome).toBe(HQ_INCOME + 2 * CORE_INCOME);
   });
 });
 
@@ -139,16 +145,20 @@ describe('warhead production', () => {
 
 describe('HUD stats', () => {
   it('summarises a team', () => {
-    const units = [{ team: 'blue' }, { team: 'blue' }, { team: 'red' }] as UnitData[];
+    const units = [{ team: 'blue', type: 'trooper', health: 1 }, { team: 'blue', type: 'tank', health: 1 }, { team: 'red', type: 'trooper', health: 1 }] as UnitData[];
     const map = [building('c1', 'core_node', 'blue'), building('s1', 'server_node', 'blue'), building('s2', 'server_node', 'blue', true)];
     const stats = teamStats(addWarheads(createEconomy(500), 'blue', 'eclipse'), 'blue', map, units, 2);
     expect(stats).toMatchObject({
       resources: 500,
-      income: CORE_INCOME,
+      income: HQ_INCOME + CORE_INCOME,
       compute: 1 + 2,
+      tier: 3,
       units: 2,
+      pop: 1 + 3,
+      popCap: 28,
       stockpile: { eclipse: 1, he: 0 },
-      doctrine: { unlockedTiers: 1 },
+      // Doctrine powers unlock with the tech tier from server nodes.
+      doctrine: { unlockedTiers: 3 },
     });
     expect(stats.buildings).toMatchObject({ core_node: 1, server_node: 1 });
   });

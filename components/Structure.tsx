@@ -7,6 +7,8 @@ import { StructureData, StructureType, UnitType } from '../types';
 import { ABILITY_CONFIG, STRUCTURE_INFO, TEAM_COLORS, UNIT_CLASSES, UNIT_STATS } from '../constants';
 import * as THREE from 'three';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
+import { MAX_QUEUE } from '../sim/orders';
+import { TIER_REQUIREMENT, UNIT_RULES, unitsProducedBy } from '../sim/units';
 
 interface StructureProps {
   data: StructureData;
@@ -20,6 +22,10 @@ interface StructureProps {
   hasMason?: boolean;
   resources?: number;
   warheadStock?: { eclipse: number; he: number };
+  // The owner's tech tier and population, for the production menu.
+  tier?: number;
+  popUsed?: number;
+  popCap?: number;
 }
 
 const CommLinkModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
@@ -775,7 +781,7 @@ const WallTier2Model = ({ teamColor, tileSize }: { color: string, teamColor: str
     );
 };
 
-const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, warheadStock }) => {
+const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0 }) => {
   const config = STRUCTURE_INFO[data.type];
   const teamColor = TEAM_COLORS[data.team];
 
@@ -823,21 +829,8 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
   const renderMenu = () => {
     if (!menuOpen) return null;
     
-    // Determine buildable units based on structure type
-    const buildableUnits: UnitType[] = [];
-    const productionTypes: string[] = ['support', 'infantry', 'armor', 'ordnance', 'air', 'builder'];
-    
-    // Units that only ever exist as spawned children, never as depot production.
-    const nonProducible: UnitType[] = ['defense_drone', 'crawler_drone', 'titan_dropped'];
-
-    if (productionTypes.includes(data.type)) {
-        // Find units that match this class
-        (Object.keys(UNIT_STATS) as UnitType[]).forEach(uType => {
-            if (uType !== 'mule' && UNIT_STATS[uType].unitClass === data.type && !nonProducible.includes(uType)) {
-                buildableUnits.push(uType);
-            }
-        });
-    }
+    const buildableUnits = unitsProducedBy(data.type);
+    const queue = data.queue || [];
 
     // Engineering Build List (Walls) for Depot
     const engineeringItems: StructureType[] = ['wall_tier1', 'wall_tier2', 'defense'];
@@ -854,37 +847,55 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                     {/* Unit Production Section */}
                     {buildableUnits.length > 0 && (
                         <>
-                            <div className="text-[10px] text-slate-400 font-mono uppercase mb-1 px-1">Production</div>
+                            <div className="flex justify-between text-[10px] text-slate-400 font-mono uppercase mb-1 px-1">
+                                <span>Production · T{tier}</span>
+                                <span className={popUsed >= popCap ? 'text-red-400' : ''}>Pop {popUsed}/{popCap}</span>
+                            </div>
                             {buildableUnits.map(uType => {
                                 const stats = UNIT_STATS[uType];
+                                const rules = UNIT_RULES[uType];
                                 const cost = stats.cost || 0;
-                                const canAfford = (resources || 0) >= cost;
+                                const locked = rules.tier > tier;
+                                const full = queue.length >= MAX_QUEUE || popUsed + rules.pop > popCap;
+                                const ok = !locked && !full && (resources || 0) >= cost;
+                                const queued = queue.filter(q => q.unitType === uType).length;
                                 return (
                                     <button
                                         key={uType}
-                                        disabled={!canAfford}
+                                        disabled={!ok}
+                                        title={locked ? TIER_REQUIREMENT[rules.tier] : rules.role}
                                         onClick={(e) => { e.stopPropagation(); onAction && onAction('BUILD_UNIT', uType); }}
                                         className={`
-                                            flex items-center justify-between px-3 py-2 text-left transition-colors rounded text-xs font-mono
-                                            ${canAfford 
-                                                ? 'hover:bg-slate-700 text-slate-200' 
-                                                : 'opacity-50 text-slate-500 cursor-not-allowed'}
+                                            flex items-center justify-between px-3 py-1.5 text-left transition-colors rounded text-xs font-mono
+                                            ${ok ? 'hover:bg-slate-700 text-slate-200' : 'opacity-50 text-slate-500 cursor-not-allowed'}
                                         `}
                                     >
-                                        <div className="flex gap-2 items-center">
-                                            <span style={{ color: teamColor }}>{UNIT_CLASSES[stats.unitClass].icon}</span>
-                                            {stats.label}
+                                        <div className="flex flex-col">
+                                            <div className="flex gap-2 items-center">
+                                                <span style={{ color: teamColor }}>{UNIT_CLASSES[stats.unitClass].icon}</span>
+                                                {stats.label}
+                                                {queued > 0 && <span className="text-cyan-300">×{queued}</span>}
+                                            </div>
+                                            <span className="text-[9px] text-slate-500 pl-5">
+                                                {locked ? `🔒 ${TIER_REQUIREMENT[rules.tier]}` : `${rules.buildTimeMs / 1000}s · ${rules.pop} pop`}
+                                            </span>
                                         </div>
                                         <span>{cost}</span>
                                     </button>
                                 );
                             })}
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onAction && onAction('SET_RALLY'); }}
+                                className="mt-1 px-3 py-1 text-left rounded text-[10px] font-mono uppercase text-cyan-300 hover:bg-slate-700"
+                            >
+                                ⚑ Set rally point{data.rallyPoint ? ` (${data.rallyPoint.x},${data.rallyPoint.z})` : ''}
+                            </button>
                         </>
                     )}
 
                     {data.type === 'ordnance_fab' && (
                         <>
-                            <div className="text-[10px] text-slate-400 font-mono uppercase mb-1 px-1">Production</div>
+                            <div className="text-[10px] text-slate-400 font-mono uppercase mb-1 px-1 mt-2 border-t border-slate-700 pt-1">Warheads</div>
                             <div className="text-[9px] text-slate-500 font-mono px-1 mb-1">
                                 Eclipse {warheadStock?.eclipse ?? 0} · HE {warheadStock?.he ?? 0}
                             </div>
@@ -898,20 +909,6 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                     </div>
                                 </div>
                             )}
-                            {(() => {
-                                const stats = UNIT_STATS.mule;
-                                const canAfford = resources >= (stats.cost || 0);
-                                return (
-                                    <button
-                                        disabled={!canAfford}
-                                        onClick={(e) => { e.stopPropagation(); onAction && onAction('BUILD_UNIT', 'mule'); }}
-                                        className={`flex items-center justify-between px-3 py-2 text-left transition-colors rounded text-xs font-mono ${canAfford ? 'hover:bg-slate-700 text-slate-200' : 'opacity-50 text-slate-500 cursor-not-allowed'}`}
-                                    >
-                                        <span>{stats.label}</span>
-                                        <span>{stats.cost}</span>
-                                    </button>
-                                );
-                            })()}
                             {([
                                 { item: 'eclipse' as const, label: 'Eclipse Missile', cost: ABILITY_CONFIG.WARHEAD_COST_ECLIPSE, seconds: ABILITY_CONFIG.WARHEAD_BUILD_TIME_ECLIPSE / 1000 },
                                 { item: 'he' as const, label: 'HE Missile', cost: ABILITY_CONFIG.WARHEAD_COST_HE, seconds: ABILITY_CONFIG.WARHEAD_BUILD_TIME_HE / 1000 },

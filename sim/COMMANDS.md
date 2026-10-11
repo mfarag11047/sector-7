@@ -14,14 +14,16 @@ Swarm Host spawns and grid charging. They become simulation rules in step 2.
 
 ## The list
 
-"Today" points at the code that carries out the order now. Unit abilities already run
-through `sim/abilities.ts`; the rest still live in `CityMap.tsx` and `App.tsx`.
+"Today" points at the code that carries out the order now. Unit abilities run through `sim/abilities.ts`, and moving, training and building through
+`sim/orders.ts`. The computer opponent sends the same commands. The rest still live in
+`CityMap.tsx` and `App.tsx`.
 
 | Command | Who uses it | Sent with | Today |
 |---|---|---|---|
-| `MOVE` | Any selected units | unit ids, target tile | `CityMap.tsx` `handleTileClick`, movement branch (~2358) |
-| `PLACE_STRUCTURE` | HQ build menu, Depot wall/turret menu | structure type, tile | `handleBuild` / `SELECT_WALL` then `commitPlacement` (~2078) |
-| `TRAIN_UNIT` | Barracks, Factory, Airpad, etc. | structure id, unit type | `handleStructureAction` `BUILD_UNIT` (~2785) |
+| `MOVE` | Any selected units | unit ids, target tile, attack-move flag | `sim/orders.ts` (checked, then applied by `dispatchOrder` in `CityMap.tsx`) |
+| `PLACE_STRUCTURE` | HQ build menu, Depot wall/turret menu | structure type, tile | `sim/orders.ts` (must be inside your energy grid) |
+| `TRAIN_UNIT` | Barracks, Factory, Airpad, etc. | structure id, unit type | `sim/orders.ts` (tier, population cap, queue of 5); `sim/production.ts` trains it over time |
+| `SET_RALLY` | Any production structure | structure id, tile | `sim/orders.ts` |
 | `BUILD_WARHEAD` | Ordnance Fab | structure id, warhead | `handleStructureAction` `BUILD_WARHEAD` (~2770) |
 | `TOGGLE_DAMPENER` | Ghost | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `TOGGLE_JAMMER` | Banshee | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
