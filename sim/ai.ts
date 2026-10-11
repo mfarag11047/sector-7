@@ -15,7 +15,7 @@
 //      then the enemy HQ. It pulls back if outmatched, defends its base and nodes, and sends
 //      vehicles low on battery home to recharge.
 
-import { DOCTRINE_CONFIG, UNIT_STATS } from '../constants';
+import { ABILITY_CONFIG, DOCTRINE_CONFIG, UNIT_STATS } from '../constants';
 import type { BuildingData, DoctrineType, StructureData, StructureType, UnitData, UnitType } from '../types';
 import type { AbilityCommand } from './abilities';
 import type { GridPos, Team } from './commands';
@@ -145,7 +145,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
 
   // --- 2. Where the army stands and what it's for ---
   const gather = gatherPoint(view, team, ctx);
-  const threat = threatNear(view, team, enemy, home);
+  const threat = threatNear(view, team, enemy, home, ctx.difficulty === 'easy' ? 0 : 250);
   const armyUnits = mine.filter(u => isFighter(u) && u.type !== 'defense_drone');
   const armyValue = armyUnits.reduce((sum, u) => sum + valueOf(u), 0);
 
@@ -174,7 +174,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const canTech = now >= profile.firstTechMs && armyValue >= profile.attackValue * 0.6;
   const retreating = now - mem.retreatedAt < 30_000;
   // The enemy is close to a domination win: break their hold on a node whatever it takes.
-  const enemyDominating = enemyCores.length >= DOMINATION_NODES - (ctx.difficulty === 'easy' ? 0 : 1) && armyValue >= 400;
+  const enemyDominating = enemyCores.length >= DOMINATION_NODES && armyValue >= 400;
   if (threat) {
     mode = 'defend'; objective = threat;
   } else if (enemyDominating) {
@@ -215,20 +215,46 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     groups.set(key, g);
   };
 
+  // How far the objective lies beyond our grid, and where to stage short of it. Vehicles and
+  // aircraft only go further than VEHICLE_REACH past the grid once infantry have captured
+  // buildings to bring the grid closer. Until then they hold at the staging point.
+  const gridAnchors = gridCoverage(view, team, ctx);
+  const gap = gridGap(objective, gridAnchors);
+  const staging = mode === 'gather' || mode === 'retreat' || mode === 'defend' ? objective : stagingPoint(objective, gridAnchors, view, team, ctx) ?? gather;
+  const stone = gap > 4 ? steppingStone(objective, gridAnchors, view, team) : null;
+  // Units still on their way from base gather at the staging point first, so the army arrives
+  // together rather than one at a time.
+  const pushing = mode === 'attack' || mode === 'tech' || mode === 'expand';
+  const joined = (u: UnitData) => dist(u.gridPos, staging) <= 8 || dist(u.gridPos, objective) <= dist(staging, objective) + 2;
+
   for (const u of mine) {
     // Fighters and capturers take orders; Masons, scouts and drones look after themselves.
     if (!FIGHTERS.includes(u.type) && !CAPTURERS.includes(u.type) && u.type !== 'titan_dropped') continue;
-    // Vehicles low on battery off the grid go home to recharge.
-    if (needsGrid(u) && u.battery < u.maxBattery * 0.3 && !isInsideEnergyGrid(u.gridPos, team, view.buildings, ctx.bases.blue, ctx.bases.red)) {
-      send(u, gather, false);
+    const onGrid = isInsideEnergyGrid(u.gridPos, team, view.buildings, ctx.bases.blue, ctx.bases.red);
+    // Vehicles low on battery off the grid go back to recharge.
+    if (needsGrid(u) && u.battery < u.maxBattery * 0.3 && !onGrid) {
+      send(u, staging === objective ? gather : staging, false);
       continue;
     }
     if (capturerIds.has(u.id) && captureTarget && mode !== 'defend') {
       send(u, posOf(captureTarget), true);
       continue;
     }
-    // Moving onto a node spreads the group around it, so the army's infantry capture it too.
-    send(u, objective, mode !== 'retreat');
+    if (!pushing) {
+      send(u, objective, mode !== 'retreat');
+      continue;
+    }
+    if (!joined(u)) {
+      send(u, staging, true);
+      continue;
+    }
+    if (needsGrid(u)) {
+      // Out of reach on battery: hold at the staging point while infantry move the grid up.
+      send(u, gap > VEHICLE_REACH ? staging : objective, true);
+    } else {
+      // Infantry capture the building that brings the grid closest to the objective, then go on.
+      send(u, stone ?? objective, true);
+    }
   }
   for (const g of groups.values()) {
     actions.push({ kind: 'order', command: { type: 'MOVE', unitIds: g.ids, target: g.target, attackMove: g.attackMove } });
@@ -347,17 +373,72 @@ export function gatherPoint(view: AiView, team: Team, ctx: AiContext): GridPos {
   return { x: home.x + Math.sign(enemyHome.x - home.x) * 3, z: home.z + Math.sign(enemyHome.z - home.z) * 3 };
 }
 
-// Enemy units at our HQ or trying to take one of our nodes: where to defend, if anywhere.
-function threatNear(view: AiView, team: Team, enemy: Team, home: GridPos): GridPos | null {
+// How far past the edge of our grid vehicles may be sent on battery.
+const VEHICLE_REACH = 10;
+
+interface GridAnchor { at: GridPos; radius: number }
+
+function gridCoverage(view: AiView, team: Team, ctx: AiContext): GridAnchor[] {
+  return [
+    { at: ctx.bases[team], radius: ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS },
+    ...view.buildings
+      .filter(b => b.owner === team && !b.destroyed && b.type !== 'core_node')
+      .map(b => ({ at: posOf(b), radius: ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS })),
+  ];
+}
+
+// Tiles from a point to the nearest edge of our grid (0 inside it).
+const gridGap = (p: GridPos, anchors: readonly GridAnchor[]) =>
+  Math.max(0, Math.min(...anchors.map(a => dist(p, a.at) - a.radius)));
+
+// A walkable tile inside our grid, as near the objective as we can get.
+function stagingPoint(objective: GridPos, anchors: readonly GridAnchor[], view: AiView, team: Team, ctx: AiContext): GridPos | null {
+  const best = [...anchors].sort((a, b) => dist(a.at, objective) - dist(b.at, objective))[0];
+  if (!best) return null;
+  // Step from the anchor toward the objective, staying inside its radius.
+  const d = dist(best.at, objective) || 1;
+  const reach = Math.min(best.radius - 1, d);
+  const base = { x: Math.round(best.at.x + ((objective.x - best.at.x) / d) * reach), z: Math.round(best.at.z + ((objective.z - best.at.z) / d) * reach) };
+  for (let r = 0; r <= 3; r++) {
+    for (let ox = -r; ox <= r; ox++) for (let oz = -r; oz <= r; oz++) {
+      const p = { x: base.x + ox, z: base.z + oz };
+      if (ctx.isWalkable(p.x, p.z) && isInsideEnergyGrid(p, team, view.buildings, ctx.bases.blue, ctx.bases.red)) return p;
+    }
+  }
+  return null;
+}
+
+// The ordinary building just beyond our grid that would bring it closest to the objective.
+function steppingStone(objective: GridPos, anchors: readonly GridAnchor[], view: AiView, team: Team): GridPos | null {
+  const current = gridGap(objective, anchors);
+  let best: BuildingData | null = null;
+  let bestGap = current - 2;
+  for (const b of view.buildings) {
+    if (b.owner === team || b.destroyed || b.type === 'core_node' || b.type === 'server_node') continue;
+    const p = posOf(b);
+    if (gridGap(p, anchors) > 6) continue;
+    const after = Math.max(0, dist(p, objective) - ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS);
+    if (after < bestGap) { best = b; bestGap = after; }
+  }
+  return best ? posOf(best) : null;
+}
+
+// Enemy units at our HQ, or a raid on one of our nodes worth at least `minRaid`: where to
+// defend, if anywhere. Small raids on nodes are left to the capture team and the node's
+// own infantry, so a trickle of enemies can't pin the whole army at home.
+function threatNear(view: AiView, team: Team, enemy: Team, home: GridPos, minRaid: number): GridPos | null {
   const enemies = view.units.filter(u => u.team === enemy && alive(u));
   const atHome = enemies.filter(u => dist(u.gridPos, home) <= 10);
   if (atHome.length > 0) return centroid(atHome.map(u => u.gridPos));
+  let worst: { at: GridPos; value: number } | null = null;
   for (const b of view.buildings) {
     if (b.owner !== team || (b.type !== 'core_node' && b.type !== 'server_node')) continue;
-    const raiders = enemies.filter(u => dist(u.gridPos, posOf(b)) <= 4);
-    if (raiders.length > 0) return posOf(b);
+    const value = enemies.filter(u => dist(u.gridPos, posOf(b)) <= 4).reduce((s, u) => s + valueOf(u), 0);
+    // A raid actually taking the node always counts, however small.
+    const taking = b.capturingTeam === enemy && b.captureProgress > 0;
+    if (value > 0 && (value >= minRaid || taking) && (!worst || value > worst.value)) worst = { at: posOf(b), value };
   }
-  return null;
+  return worst?.at ?? null;
 }
 
 // A tile in our base to put the next structure: open ground inside the grid, not on a road,

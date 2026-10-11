@@ -46,6 +46,18 @@ The intended arc:
 | Airpad | 600 | 25 s | Aircraft |
 | Ordnance Fab | 800 | 30 s | Field Fabricator, Courier, warheads |
 
+## Energy grid and batteries
+
+- Your grid covers 6 tiles around the HQ and 4 around every building you have captured (core
+  nodes pay instead of powering).
+- Vehicles and aircraft recharge inside the grid and drain while moving outside it, which gives
+  them about 15–25 tiles of range past the edge.
+- On a flat battery they don't stop dead: they crawl at 30% speed on reserve power until they reach
+  the grid again. Stranded far out they are slow and exposed, so overextending is still punished,
+  but a unit is never stuck for the rest of the match.
+- Infantry don't need the grid to move, which is why they lead the way, capturing buildings to pull
+  the grid forward behind them.
+
 ## Population
 
 `cap = 20 + 8 × core nodes held`, up to 60. Holding more of the map lets you field a bigger army. A

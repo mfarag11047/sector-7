@@ -28,7 +28,7 @@ const MANUAL_DATA: ManualSection[] = [
     items: [
       { label: "Core Nodes", description: `Your HQ pays ${HQ_INCOME} cores a second. Each core node you hold pays ${BUILDING_VALUES.core_node.income} more and raises your population cap by ${POP_PER_CORE_NODE} (from ${POP_BASE}, up to ${POP_MAX}). Only infantry capture, and core nodes are slow.` },
       { label: "Server Nodes", description: "Four in the centre, each guarded by a Sentinel that attacks everyone. Holding 1 unlocks Tier 2 units and doctrine powers; holding 2 unlocks Tier 3. Lose them and you lose the tier." },
-      { label: "Energy Grid", description: `Your HQ powers ${ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS} tiles around it, and every captured building (not core nodes) adds ${ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS} more. Vehicles and drones recharge inside it and drain outside. You can only build inside it.` },
+      { label: "Energy Grid", description: `Your HQ powers ${ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS} tiles around it, and every captured building (not core nodes) adds ${ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS} more. Vehicles and aircraft recharge inside it and drain outside; on a flat battery they crawl at 30% speed until they get back. You can only build inside it.` },
     ]
   },
   {

@@ -831,6 +831,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
     
     const buildableUnits = unitsProducedBy(data.type);
     const queue = data.queue || [];
+    const constructing = (data.buildRemainingMs || 0) > 0;
 
     // Engineering Build List (Walls) for Depot
     const engineeringItems: StructureType[] = ['wall_tier1', 'wall_tier2', 'defense'];
@@ -848,7 +849,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                     {buildableUnits.length > 0 && (
                         <>
                             <div className="flex justify-between text-[10px] text-slate-400 font-mono uppercase mb-1 px-1">
-                                <span>Production · T{tier}</span>
+                                <span>{constructing ? 'Under construction' : `Production · T${tier}`}</span>
                                 <span className={popUsed >= popCap ? 'text-red-400' : ''}>Pop {popUsed}/{popCap}</span>
                             </div>
                             {buildableUnits.map(uType => {
@@ -857,7 +858,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                 const cost = stats.cost || 0;
                                 const locked = rules.tier > tier;
                                 const full = queue.length >= MAX_QUEUE || popUsed + rules.pop > popCap;
-                                const ok = !locked && !full && (resources || 0) >= cost;
+                                const ok = !constructing && !locked && !full && (resources || 0) >= cost;
                                 const queued = queue.filter(q => q.unitType === uType).length;
                                 return (
                                     <button

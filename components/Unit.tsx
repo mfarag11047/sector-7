@@ -294,9 +294,7 @@ const Unit: React.FC<UnitProps> = ({
   // Safety check to prevent crash if unit type is unknown
   if (!unitStats) return null;
 
-  // Vehicles and drones stop when their battery is empty. Infantry keep moving; their battery only powers abilities.
-  const needsLocomotionPower = unitClass !== 'infantry';
-  const isDisabled = (needsLocomotionPower && battery <= 0) || (isHacked && hackType === 'drain') || isStunned;
+
 
   // Floating height difference
   // Raised ground units to 1.2 to clear the Base platform (height 1.0)

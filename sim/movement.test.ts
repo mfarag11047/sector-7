@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ABILITY_CONFIG, UNIT_STATS } from '../constants';
 import type { RoadType } from '../types';
 import {
-  advanceMover, arriveAtNextTile, ArrivalRules, BASE_SPEED, currentTilePosition, Mover, MovementEnv, MOVE_TICK_MS,
+  advanceMover, arriveAtNextTile, ArrivalRules, BASE_SPEED, currentTilePosition, Mover, MovementEnv, MOVE_TICK_MS, RESERVE_SPEED,
   speedMultiplier,
 } from './movement';
 
@@ -41,9 +41,11 @@ describe('speed', () => {
     expect(speedMultiplier(unit({ type: 'drone', unitClass: 'air' }), () => 'open')).toBeCloseTo(1.2 * UNIT_STATS.drone.speedMod);
   });
 
-  it('stops vehicles with no battery, but not infantry', () => {
-    expect(speedMultiplier(unit({ type: 'tank', unitClass: 'armor', battery: 0 }), () => 'street')).toBe(0);
-    expect(speedMultiplier(unit({ battery: 0 }), () => 'street')).toBeGreaterThan(0);
+  it('slows vehicles with no battery to reserve power, but not infantry', () => {
+    const full = speedMultiplier(unit({ type: 'tank', unitClass: 'armor', battery: 50 }), () => 'street');
+    expect(speedMultiplier(unit({ type: 'tank', unitClass: 'armor', battery: 0 }), () => 'street')).toBeCloseTo(full * RESERVE_SPEED);
+    expect(speedMultiplier(unit({ battery: 0 }), () => 'street')).toBe(speedMultiplier(unit({ battery: 50 }), () => 'street'));
+    expect(speedMultiplier(unit({ isStunned: true }), () => 'street')).toBe(0);
   });
 
   it('holds stunned, drained, anchored, deployed and loading units', () => {

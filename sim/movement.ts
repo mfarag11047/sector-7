@@ -50,9 +50,14 @@ export const parseTile = (key: string): GridPos => {
   return { x, z };
 };
 
-// Out of power, stunned or drained by a hack. Infantry don't need battery to walk.
-export const isPoweredDown = (u: Mover) =>
-  (u.unitClass !== 'infantry' && u.battery <= 0) || (!!u.isHacked && u.hackType === 'drain') || !!u.isStunned;
+// Stunned or drained by a hack.
+export const isPoweredDown = (u: Mover) => (!!u.isHacked && u.hackType === 'drain') || !!u.isStunned;
+
+// A vehicle or drone with a flat battery crawls on reserve power until it reaches the grid
+// again. Stranded far from home it is slow and exposed, which keeps pushing off the grid risky,
+// but it is never stuck for good. Infantry don't need battery to walk.
+export const RESERVE_SPEED = 0.3;
+export const isOnReserve = (u: Mover) => u.unitClass !== 'infantry' && u.battery <= 0;
 
 // Planted, loading or anchored units hold position even with a path queued.
 // On attack-move, a unit with something in range stops to fight it.
@@ -74,6 +79,7 @@ export function speedMultiplier(u: Mover, tileTypeOf: (key: string) => RoadType 
     if (tile === 'open') speed = 0.5;
   }
   speed *= UNIT_STATS[u.type].speedMod || 1;
+  if (isOnReserve(u)) speed *= RESERVE_SPEED;
   if (u.type === 'ghost' && u.isDampenerActive) speed *= ABILITY_CONFIG.GHOST_SPEED_PENALTY;
   if (u.activeBuffs?.includes('speed')) speed *= 1.2;
   return speed;

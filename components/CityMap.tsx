@@ -987,57 +987,45 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
     return set;
   }, [structuresState]);
 
-  const findPath = useCallback((start: {x: number, z: number}, end: {x: number, z: number}) => {
-      const startId = (start.x << 16) | start.z;
-      const endId = (end.x << 16) | end.z;
-      const queue = [{x: start.x, z: start.z, path: [] as string[]}];
-      const visited = new Set<number>();
-      visited.add(startId);
-      const MAX_SEARCH = 20000; 
-      let ops = 0;
-      while(queue.length > 0 && ops < MAX_SEARCH) {
-          ops++;
-          const current = queue.shift()!;
-          const currentId = (current.x << 16) | current.z;
-          if (currentId === endId) return current.path;
-          const neighbors = [{x: current.x+1, z: current.z}, {x: current.x-1, z: current.z}, {x: current.x, z: current.z+1}, {x: current.x, z: current.z-1}];
-          for (const n of neighbors) {
-              const nId = (n.x << 16) | n.z;
-              if (n.x >= 0 && n.x < gridSize && n.z >= 0 && n.z < gridSize) {
-                  if (dynamicRoadTileSet.has(nId) && !visited.has(nId)) {
-                      visited.add(nId);
-                      queue.push({ x: n.x, z: n.z, path: [...current.path, `${n.x},${n.z}`] });
-                  }
-              }
+  // Breadth-first search over the 4-connected grid, recording each tile's parent instead of
+  // copying the path at every step. Returns the tiles after `start` up to `end`, or [] if unreachable.
+  const searchPath = useCallback((start: {x: number, z: number}, end: {x: number, z: number}, open: (x: number, z: number) => boolean) => {
+      if (start.x === end.x && start.z === end.z) return [] as string[];
+      if (end.x < 0 || end.z < 0 || end.x >= gridSize || end.z >= gridSize) return [] as string[];
+      const prev = new Int32Array(gridSize * gridSize).fill(-1);
+      const startId = start.x * gridSize + start.z;
+      const endId = end.x * gridSize + end.z;
+      prev[startId] = startId;
+      const queue = new Int32Array(gridSize * gridSize);
+      let head = 0, tail = 0;
+      queue[tail++] = startId;
+      while (head < tail) {
+          const cur = queue[head++];
+          if (cur === endId) break;
+          const cx = Math.floor(cur / gridSize);
+          const cz = cur - cx * gridSize;
+          for (let k = 0; k < 4; k++) {
+              const nx = cx + (k === 0 ? 1 : k === 1 ? -1 : 0);
+              const nz = cz + (k === 2 ? 1 : k === 3 ? -1 : 0);
+              if (nx < 0 || nz < 0 || nx >= gridSize || nz >= gridSize) continue;
+              const id = nx * gridSize + nz;
+              if (prev[id] !== -1 || !open(nx, nz)) continue;
+              prev[id] = cur;
+              queue[tail++] = id;
           }
       }
-      return [];
-  }, [gridSize, dynamicRoadTileSet]);
-
-  const findAirPath = useCallback((start: {x: number, z: number}, end: {x: number, z: number}) => {
-      const startId = (start.x << 16) | start.z;
-      const endId = (end.x << 16) | end.z;
-      const queue = [{x: start.x, z: start.z, path: [] as string[]}];
-      const visited = new Set<number>();
-      visited.add(startId);
-      const MAX_SEARCH = 20000;
-      let ops = 0;
-      while (queue.length > 0 && ops < MAX_SEARCH) {
-          ops++;
-          const current = queue.shift()!;
-          const currentId = (current.x << 16) | current.z;
-          if (currentId === endId) return current.path;
-          const neighbors = [{x: current.x+1, z: current.z}, {x: current.x-1, z: current.z}, {x: current.x, z: current.z+1}, {x: current.x, z: current.z-1}];
-          for (const n of neighbors) {
-              if (n.x < 0 || n.z < 0 || n.x >= gridSize || n.z >= gridSize) continue;
-              const nId = (n.x << 16) | n.z;
-              if (visited.has(nId)) continue;
-              visited.add(nId);
-              queue.push({ x: n.x, z: n.z, path: [...current.path, `${n.x},${n.z}`] });
-          }
-      }
-      return [];
+      if (prev[endId] === -1) return [] as string[];
+      const path: string[] = [];
+      for (let c = endId; c !== startId; c = prev[c]) path.push(`${Math.floor(c / gridSize)},${c % gridSize}`);
+      return path.reverse();
   }, [gridSize]);
+
+  const findPath = useCallback((start: {x: number, z: number}, end: {x: number, z: number}) =>
+      searchPath(start, end, (x, z) => dynamicRoadTileSet.has((x << 16) | z)), [searchPath, dynamicRoadTileSet]);
+
+  // Bombardment Drones fly over everything.
+  const findAirPath = useCallback((start: {x: number, z: number}, end: {x: number, z: number}) =>
+      searchPath(start, end, () => true), [searchPath]);
 
   const isWalkable = useCallback((x: number, z: number) => (
       x >= 0 && x < gridSize && z >= 0 && z < gridSize && dynamicRoadTileSet.has((x << 16) | z)
