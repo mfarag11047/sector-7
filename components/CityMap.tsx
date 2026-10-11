@@ -1,5 +1,5 @@
 
-import React, { useMemo, useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
+import React, { useMemo, useState, useCallback, useEffect, useRef, useLayoutEffect, useSyncExternalStore } from 'react';
 import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, BUILDING_VALUES, BUILDING_HEALTH, TEAM_BASES, UNIT_STATS, ABILITY_CONFIG, STRUCTURE_COST, BUILD_RADIUS, STRUCTURE_INFO, COMPUTE_GATES, DOCTRINE_CONFIG } from '../constants';
 import { BuildingData, UnitData, BuildingBlock, GameStats, DoctrineType, RoadType, RoadTileData, StructureData, UnitClass, DecoyData, UnitType, StructureType, CloudData, Projectile, Explosion, DoctrineState, MinimapMissile } from '../types';
 import Building from './Building';
@@ -11,7 +11,7 @@ import { InstancedRoads } from './RoadSystem';
 import BuildingHitProxies from './BuildingHitProxies';
 import * as THREE from 'three';
 import { Edges, Html, Line, Float, Instance, Instances } from '@react-three/drei';
-import { useFrame } from '@react-three/fiber';
+import { useFrame, useThree } from '@react-three/fiber';
 import { Zap, Ban } from 'lucide-react';
 import { freezeContainer } from '../perf';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
@@ -168,20 +168,12 @@ const DestinationMarker: React.FC<{ x: number, z: number, tileSize: number, offs
             <meshBasicMaterial color="#22d3ee" transparent opacity={0.2} depthWrite={false} />
         </mesh>
         
-        <pointLight color="#22d3ee" distance={8} intensity={2} position={[0, 2, 0]} />
     </group>
   );
 };
 
 // Detailed Missile Model
 const DetailedMissileModel = ({ color }: { color: string }) => {
-    const lightRef = useRef<THREE.PointLight>(null);
-    useFrame(({clock}) => {
-        if (lightRef.current) {
-            // Blinking effect
-            lightRef.current.intensity = Math.sin(clock.elapsedTime * 15) > 0 ? 3 : 0;
-        }
-    });
 
     return (
         <group rotation={[-Math.PI/2, 0, 0]}>
@@ -217,14 +209,12 @@ const DetailedMissileModel = ({ color }: { color: string }) => {
                  <coneGeometry args={[0.15, 0.6, 8, 1, true]} />
                  <meshBasicMaterial color="#f97316" transparent opacity={0.8} depthWrite={false} blending={THREE.AdditiveBlending} />
              </mesh>
-             <pointLight position={[0, -1.0, 0]} color="#f97316" intensity={3} distance={8} />
 
              {/* Navigation/Strobe Light - Blinking */}
              <mesh position={[0, 2.0, 0.32]}>
                  <sphereGeometry args={[0.08]} />
                  <meshBasicMaterial color="#ff0000" />
              </mesh>
-             <pointLight ref={lightRef} position={[0, 2.0, 0.4]} color="#ff0000" distance={2} decay={1} />
         </group>
     );
 };
@@ -395,7 +385,6 @@ const ProjectileMesh: React.FC<{ projectile: Projectile; flightRef: React.Mutabl
                  <cylinderGeometry args={[0.2, 0.2, 1.5, 8]} />
                  <meshBasicMaterial color="#fca5a5" />
              </mesh>
-             <pointLight color="#ef4444" intensity={3} distance={5} />
         </group>
     );
 };
@@ -433,45 +422,122 @@ const ExplosionMesh: React.FC<{ explosion: Explosion }> = ({ explosion }) => {
         <mesh ref={meshRef} position={[explosion.position.x, explosion.position.y, explosion.position.z]}>
              <sphereGeometry args={[explosion.radius, 16, 16]} />
              <meshBasicMaterial color="#fb923c" transparent opacity={0.8} />
-             <pointLight color="#f97316" intensity={5} distance={15} decay={2} />
         </mesh>
     );
 };
 
-// Selection Box Component
-const SelectionBox: React.FC<{ start: THREE.Vector3, current: THREE.Vector3 }> = ({ start, current }) => {
-    const minX = Math.min(start.x, current.x);
-    const maxX = Math.max(start.x, current.x);
-    const minZ = Math.min(start.z, current.z);
-    const maxZ = Math.max(start.z, current.z);
-    
-    const width = maxX - minX;
-    const depth = maxZ - minZ;
-    const centerX = minX + width / 2;
-    const centerZ = minZ + depth / 2;
+// --- Hovered tile ---
 
-    return (
-        <group position={[centerX, 0.2, centerZ]}>
-            <mesh rotation={[-Math.PI / 2, 0, 0]}>
-                <planeGeometry args={[width, depth]} />
-                <meshBasicMaterial color="#22d3ee" transparent opacity={0.2} side={THREE.DoubleSide} />
-            </mesh>
-            <Line 
-                points={[
-                    [-width/2, 0, -depth/2],
-                    [width/2, 0, -depth/2],
-                    [width/2, 0, depth/2],
-                    [-width/2, 0, depth/2],
-                    [-width/2, 0, -depth/2]
-                ]}
-                color="#22d3ee"
-                lineWidth={2}
-            />
-        </group>
-    );
+type Tile = { x: number; z: number };
+function createHoverStore() {
+    let value: Tile | null = null;
+    const listeners = new Set<() => void>();
+    return {
+        get: () => value,
+        set: (pos: Tile | null) => {
+            if (pos === value || (pos && value && pos.x === value.x && pos.z === value.z)) return;
+            value = pos;
+            listeners.forEach(l => l());
+        },
+        subscribe: (l: () => void) => { listeners.add(l); return () => { listeners.delete(l); }; },
+    };
+}
+type HoverStore = ReturnType<typeof createHoverStore>;
+
+// Renders its child function with the hovered tile, re-rendering only itself when it changes.
+const HoverTile: React.FC<{ store: HoverStore; children: (tile: Tile | null) => React.ReactNode }> = ({ store, children }) => {
+    const tile = useSyncExternalStore(store.subscribe, store.get);
+    return <>{children(tile)}</>;
 };
 
+// A building that outlines itself while hovered. Only the buildings entering or leaving the
+// hover re-render.
+const HoverBuilding: React.FC<{ data: BuildingData; store: HoverStore }> = React.memo(({ data, store }) => {
+    const hovered = useSyncExternalStore(store.subscribe, () => {
+        const t = store.get();
+        return !!t && t.x === data.gridX && t.z === data.gridZ;
+    });
+    return <Building data={data} hovered={hovered} />;
+});
 
+// Box-select dragging and the hover tile, from plain DOM pointer events.
+//
+// These used to be pointer handlers on the map's root group. react-three-fiber ray-tests every
+// object under a handler on every mouse move, so a handler on the root tested the whole city:
+// about 30,000 meshes per move. Here the ground point under the cursor comes from meeting the
+// mouse ray with the ground plane (y = 0), which is a few multiplications.
+//
+// The selection rectangle is a plain screen-space box drawn over the canvas, moved directly
+// by these handlers, so dragging never re-renders the map. Units are picked by where they
+// appear on screen, so the box matches what you see however the camera is turned.
+type ScreenPoint = { x: number; y: number };
+type GroundEvent = { point: THREE.Vector3; button: number; screen: ScreenPoint; toScreen: (world: THREE.Vector3) => ScreenPoint };
+const GROUND_PLANE = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+const DRAG_THRESHOLD_PX = 6;
+const GroundPointer: React.FC<{ handlersRef: React.MutableRefObject<{ down: (e: GroundEvent) => void; move: (e: GroundEvent) => void; up: (e: GroundEvent) => void }> }> = ({ handlersRef }) => {
+    const { camera, gl } = useThree();
+    useEffect(() => {
+        const el = gl.domElement;
+        const raycaster = new THREE.Raycaster();
+        const ndc = new THREE.Vector2();
+        const projected = new THREE.Vector3();
+        const box = document.createElement('div');
+        box.style.cssText = 'position:absolute;display:none;pointer-events:none;border:1px solid #22d3ee;background:rgba(34,211,238,0.15);z-index:10;';
+        el.parentElement?.appendChild(box);
+        let dragFrom: ScreenPoint | null = null;
+
+        const toScreen = (world: THREE.Vector3): ScreenPoint => {
+            const rect = el.getBoundingClientRect();
+            projected.copy(world).project(camera);
+            return { x: (projected.x + 1) / 2 * rect.width, y: (1 - projected.y) / 2 * rect.height };
+        };
+        const event = (e: PointerEvent, button: number): GroundEvent | null => {
+            const rect = el.getBoundingClientRect();
+            const screen = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+            ndc.set((screen.x / rect.width) * 2 - 1, -(screen.y / rect.height) * 2 + 1);
+            raycaster.setFromCamera(ndc, camera);
+            const point = raycaster.ray.intersectPlane(GROUND_PLANE, new THREE.Vector3());
+            return point ? { point, button, screen, toScreen } : null;
+        };
+        const drawBox = (to: ScreenPoint | null) => {
+            if (!dragFrom || !to || Math.hypot(to.x - dragFrom.x, to.y - dragFrom.y) < DRAG_THRESHOLD_PX) { box.style.display = 'none'; return; }
+            box.style.display = 'block';
+            box.style.left = `${Math.min(dragFrom.x, to.x)}px`;
+            box.style.top = `${Math.min(dragFrom.y, to.y)}px`;
+            box.style.width = `${Math.abs(to.x - dragFrom.x)}px`;
+            box.style.height = `${Math.abs(to.y - dragFrom.y)}px`;
+        };
+        const down = (e: PointerEvent) => {
+            const ge = event(e, e.button);
+            if (!ge) return;
+            if (e.button === 0) dragFrom = ge.screen;
+            handlersRef.current.down(ge);
+        };
+        const move = (e: PointerEvent) => {
+            const ge = event(e, -1);
+            if (!ge) return;
+            if (dragFrom) drawBox(ge.screen);
+            handlersRef.current.move(ge);
+        };
+        // Released anywhere, even over the HUD, ends the drag.
+        const up = (e: PointerEvent) => {
+            if (e.button === 0 && !dragFrom) return;
+            if (e.button === 0) { dragFrom = null; drawBox(null); }
+            const ge = event(e, e.button);
+            if (ge) handlersRef.current.up(ge);
+        };
+        el.addEventListener('pointerdown', down);
+        el.addEventListener('pointermove', move);
+        window.addEventListener('pointerup', up);
+        return () => {
+            el.removeEventListener('pointerdown', down);
+            el.removeEventListener('pointermove', move);
+            window.removeEventListener('pointerup', up);
+            box.remove();
+        };
+    }, [camera, gl, handlersRef]);
+    return null;
+};
 
 const EnergyGridField: React.FC<{
   buildings: BuildingData[];
@@ -566,7 +632,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   
   // Refactored Selection State
   const [selectedUnitIds, setSelectedUnitIds] = useState<Set<string>>(new Set());
-  const [dragSelection, setDragSelection] = useState<{start: THREE.Vector3, current: THREE.Vector3, active: boolean} | null>(null);
+  // The drag in progress, in screen pixels. A ref, not state: see GroundPointer.
+  const dragRef = useRef<{ active: boolean; start: ScreenPoint; current: ScreenPoint } | null>(null);
   
   const [targetingSourceId, setTargetingSourceId] = useState<string | null>(null);
   const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'BATTERY_TETHER' | 'CANNON' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'SWARM' | 'BOMBARD' | null>(null);
@@ -595,22 +662,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // The latest dispatchOrder, for timers and the AI, which capture their closure once.
   const dispatchOrderRef = useRef<(command: OrderCommand, team?: 'blue' | 'red', quiet?: boolean) => boolean>(() => false);
   const pointerStartRef = useRef<THREE.Vector3 | null>(null);
-  const [hoverGridPos, setHoverGridPosRaw] = useState<{x: number, z: number} | null>(null);
-
-  // Pointer moves fire far faster than the hover highlight can change. Writing a
-  // fresh object on every move re-renders the entire map for an identical result,
-  // so only commit when the hovered tile actually changes.
-  const hoverGridPosRef = useRef<{x: number, z: number} | null>(null);
-  const setHoverGridPos = useCallback((pos: {x: number, z: number} | null) => {
-    const prev = hoverGridPosRef.current;
-    if (pos === null) {
-      if (prev === null) return;
-    } else if (prev && prev.x === pos.x && prev.z === pos.z) {
-      return;
-    }
-    hoverGridPosRef.current = pos;
-    setHoverGridPosRaw(pos);
-  }, []);
+  // The tile under the cursor lives in a small store, not in this component's state: moving
+  // the mouse across tiles used to re-render the whole map each time the tile changed. Only
+  // what shows it (the hovered building's outline, the targeting cursor, the placement
+  // preview) subscribes, through HoverTile and HoverBuilding.
+  const hoverStore = useMemo(createHoverStore, []);
+  const setHoverGridPos = hoverStore.set;
   // Cores, warhead stockpiles and tier progress. Only change it through the sim/economy helpers.
   const [economy, setEconomy] = useState<Economy>(() => createEconomy(STARTING_CORES[match.mode]));
   const economyRef = useRef(economy);
@@ -755,7 +812,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       },
       // For tests and debugging: issue a checked order for either side, and read the state.
       order: (command: OrderCommand, team: 'blue' | 'red') => dispatchOrderRef.current(command, team),
-      state: () => ({ units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current }),
+      state: () => ({ units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, selected: [...selectedUnitIdsRef.current] }),
     };
     return () => { (window as any).GAME_CHEATS = undefined; };
   }, []);
@@ -826,15 +883,15 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
           didDragRef.current = false;
           pointerStartRef.current = e.point.clone();
-          setDragSelection({ start: e.point.clone(), current: e.point.clone(), active: true });
+          dragRef.current = { start: e.screen, current: e.screen, active: true };
       }
   };
 
   const handlePointerMove = (e: any) => {
-      if (dragSelection && dragSelection.active) {
-          const dist = dragSelection.start.distanceTo(e.point);
-          if (dist > 1.0) didDragRef.current = true;
-          setDragSelection(prev => ({ ...prev!, current: e.point.clone() }));
+      const drag = dragRef.current;
+      if (drag && drag.active) {
+          drag.current = e.screen;
+          if (Math.hypot(e.screen.x - drag.start.x, e.screen.y - drag.start.y) >= DRAG_THRESHOLD_PX) didDragRef.current = true;
       }
       const gx = Math.round((e.point.x + offset) / tileSize);
       const gz = Math.round((e.point.z + offset) / tileSize);
@@ -849,7 +906,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           const start = pointerStartRef.current;
           const draggedFar = !!start && start.distanceTo(e.point) > tileSize;
           didDragRef.current = false;
-          setDragSelection(prev => prev ? { ...prev, active: false } : prev);
+          if (dragRef.current) dragRef.current.active = false;
           if (!draggedFar) {
               const gx = Math.round((e.point.x + offset) / tileSize);
               const gz = Math.round((e.point.z + offset) / tileSize);
@@ -858,22 +915,22 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           return;
       }
 
-      if (dragSelection && dragSelection.active) {
+      const drag = dragRef.current;
+      if (drag && drag.active) {
+          drag.current = e.screen;
           if (didDragRef.current) {
-               // Performed a Drag - Box Select
-               const minX = Math.min(dragSelection.start.x, dragSelection.current.x);
-               const maxX = Math.max(dragSelection.start.x, dragSelection.current.x);
-               const minZ = Math.min(dragSelection.start.z, dragSelection.current.z);
-               const maxZ = Math.max(dragSelection.start.z, dragSelection.current.z);
+               // Performed a Drag - Box Select, in screen space
+               const minX = Math.min(drag.start.x, drag.current.x);
+               const maxX = Math.max(drag.start.x, drag.current.x);
+               const minY = Math.min(drag.start.y, drag.current.y);
+               const maxY = Math.max(drag.start.y, drag.current.y);
 
                const newSelection = new Set<string>();
-               units.forEach(u => {
-                   // Unit world pos
-                   const ux = (u.gridPos.x * tileSize) - offset;
-                   const uz = (u.gridPos.z * tileSize) - offset;
-                   
-                   // Check if within bounds
-                   if (ux >= minX && ux <= maxX && uz >= minZ && uz <= maxZ) {
+               const world = new THREE.Vector3();
+               unitsRef.current.forEach(u => {
+                   world.set((u.gridPos.x * tileSize) - offset, 1, (u.gridPos.z * tileSize) - offset);
+                   const at = e.toScreen(world);
+                   if (at.x >= minX && at.x <= maxX && at.y >= minY && at.y <= maxY) {
                        // Only select friendly units
                        if (u.team === playerTeam) {
                            newSelection.add(u.id);
@@ -888,9 +945,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                    setSelectedUnitIds(newSelection);
                }
           } 
-          setDragSelection({ ...dragSelection, active: false });
+          drag.active = false;
       }
   };
+
+  // The drag and hover handlers above take their ground point from GroundPointer, which works
+  // it out from the mouse ray without testing it against the scene.
+  const groundHandlersRef = useRef({ down: handlePointerDown, move: handlePointerMove, up: handlePointerUp });
+  groundHandlersRef.current = { down: handlePointerDown, move: handlePointerMove, up: handlePointerUp };
 
   // Guard positions stay hidden per team until one of that team's units walks into vision.
   const knownGuardsRef = useRef<{ blue: Set<string>; red: Set<string> }>({ blue: new Set(), red: new Set() });
@@ -2228,18 +2290,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   }, []);
 
   return (
-    <group
-        ref={mapRootRef}
-        onPointerDown={handlePointerDown}
-        onPointerUp={handlePointerUp}
-        onPointerMove={handlePointerMove}
-        onContextMenu={handleBgRightClick}
-    >
+    <group ref={mapRootRef}>
+        <GroundPointer handlersRef={groundHandlersRef} />
         {/* Solid Ground Plane */}
         <mesh 
           rotation={[-Math.PI / 2, 0, 0]} 
           position={[0, -0.1, 0]} 
           receiveShadow 
+          onContextMenu={handleBgRightClick}
           onClick={(e) => {
               if (!placementMode) return;
               e.stopPropagation();
@@ -2267,9 +2325,6 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         <StreetLights tiles={roadTiles} tileSize={CITY_CONFIG.tileSize} offset={offset} />
 
         {/* Selection Box Visual */}
-        {dragSelection && dragSelection.active && (
-            <SelectionBox start={dragSelection.start} current={dragSelection.current} />
-        )}
 
         {/* One instanced collider stands in for every building's detail meshes. */}
         <BuildingHitProxies
@@ -2286,11 +2341,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             offset={offset}
         />
         {buildings.map(b => ( 
-            <Building 
-                key={b.id} 
-                data={b} 
-                hovered={!!hoverGridPos && hoverGridPos.x === b.gridX && hoverGridPos.z === b.gridZ}
-            /> 
+            <HoverBuilding key={b.id} data={b} store={hoverStore} />
         ))}
         {structuresState.filter(s => s.type !== 'hq').map(s => ( 
             <Structure 
@@ -2415,7 +2466,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         ))}
 
         {/* Targeting Cursor (Red for Cannon, Green for Surveillance, Orange for Missile, Cyan for Doctrine) */}
-        {hoverGridPos && (targetingAbility || interactionMode === 'target') && (
+        <HoverTile store={hoverStore}>{hoverGridPos => hoverGridPos && (targetingAbility || interactionMode === 'target') && (
             <group position={[(hoverGridPos.x * tileSize) - offset, 0.5, (hoverGridPos.z * tileSize) - offset]}>
                 {targetingAbility === 'BOMBARD' ? (
                     <group>
@@ -2460,7 +2511,6 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                               <circleGeometry args={[ABILITY_CONFIG.HE_RADIUS * tileSize, 32]} />
                               <meshBasicMaterial color="#fca5a5" transparent opacity={0.15} depthWrite={false} />
                          </mesh>
-                         <pointLight color="#ef4444" intensity={2} distance={10} animate-pulse />
                      </group>
                 ) : (targetingAbility === 'SWARM' || (interactionMode === 'target' && targetingDoctrine?.type.includes('SKUNKWORKS'))) ? (
                     (interactionMode === 'target' && targetingDoctrine?.type === 'SKUNKWORKS_TIER2') ? (
@@ -2548,10 +2598,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                     </group>
                 )}
             </group>
-        )}
+        )}</HoverTile>
 
         {/* Placement Preview */}
-        {placementMode && hoverGridPos && (
+        <HoverTile store={hoverStore}>{hoverGridPos => placementMode && hoverGridPos && (
            <group position={[(hoverGridPos.x * tileSize) - offset, 2, (hoverGridPos.z * tileSize) - offset]}>
                {checkIsValidPlacement(hoverGridPos.x, hoverGridPos.z) ? (
                    <mesh>
@@ -2575,7 +2625,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                    </group>
                )}
            </group>
-        )}
+        )}</HoverTile>
 
         {/* Active Projectile Target Markers (Dark Red until impact) */}
         {projectiles.map(p => p.targetPos && p.trajectory === 'ballistic' && (
@@ -2588,7 +2638,6 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                      <circleGeometry args={[tileSize * 0.4, 32]} />
                      <meshBasicMaterial color="#ef4444" transparent opacity={0.3} />
                 </mesh>
-                <pointLight color="#ef4444" intensity={3} distance={5} decay={2} />
             </group>
         ))}
 

@@ -21,7 +21,9 @@ View your app in AI Studio: https://ai.studio/apps/drive/14lOvi-Oqyg_opF0gKkPfyZ
 
 ## Playing a match
 
-`npm run dev`, open the page, pick your side, opponent (computer Easy / Normal / Hard, or the
+`npm run play` builds the game and opens the optimized version: use this to judge how smooth
+it feels. (`npm run dev` is for editing: it reloads on save but runs React in development mode,
+which is several times slower.) Pick your side, opponent (computer Easy / Normal / Hard, or the
 Sandbox), doctrine and map seed, then **Deploy**.
 
 - **Win** by destroying the enemy Command HQ, or by holding 4 of the 6 core nodes for 2 minutes.

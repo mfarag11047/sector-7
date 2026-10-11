@@ -12,6 +12,11 @@ interface DroneCameraProps {
     start?: { x: number, z: number, yaw: number };
 }
 
+const UP = new THREE.Vector3(0, 1, 0);
+const _forward = new THREE.Vector3();
+const _right = new THREE.Vector3();
+const _move = new THREE.Vector3();
+
 const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef, start }) => {
   const { camera, gl, scene, raycaster } = useThree();
 
@@ -117,7 +122,13 @@ const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef, start }) => {
     return () => window.removeEventListener('wheel', handleWheel);
   }, []);
 
-  useFrame((state, delta) => {
+  // Runs before every other frame callback (priority -1). Buildings and units hide themselves
+  // when off-screen using the frustum worked out here; when the camera ran after them they
+  // were judging against last frame's view, so the edge of the screen popped in a frame late
+  // while panning.
+  useFrame((state, rawDelta) => {
+    // A long stall (tab in the background) shouldn't fling the camera across the map.
+    const delta = Math.min(rawDelta, 0.1);
     // 1. Apply Rotation directly from Yaw/Pitch refs
     // This ensures Key movement cannot affect Angle.
     camera.rotation.order = 'YXZ'; // Standard FPS rotation order
@@ -125,14 +136,15 @@ const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef, start }) => {
     camera.rotation.x = -pitchRef.current; // Negative because positive Pitch ref is "Down", but positive X rot is "Up"
     camera.rotation.z = 0; // Lock roll
 
-    // 2. Calculate Movement Vector relative to Yaw
-    const speed = CAMERA_SPEED * (positionRef.current.y / 20); // Move faster when zoomed out
+    // 2. Calculate Movement Vector relative to Yaw. Speed is per second (the old per-frame
+    // value at 60 fps), so panning keeps its pace when the frame rate dips.
+    const speed = CAMERA_SPEED * 60 * delta * (positionRef.current.y / 20); // Move faster when zoomed out
     
     // "Forward" is -Z in local space. We rotate that by Yaw to get World Forward.
-    const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), yawRef.current);
-    const right = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), yawRef.current);
+    const forward = _forward.set(0, 0, -1).applyAxisAngle(UP, yawRef.current);
+    const right = _right.set(1, 0, 0).applyAxisAngle(UP, yawRef.current);
 
-    const moveVector = new THREE.Vector3(0, 0, 0);
+    const moveVector = _move.set(0, 0, 0);
 
     if (keys.current['ArrowUp'] || keys.current['KeyW']) {
         moveVector.add(forward);
@@ -159,7 +171,9 @@ const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef, start }) => {
 
     // 4. Smoothly interpolate actual camera position to target position
     // Note: We only lerp position. Rotation is instant for responsive aiming.
-    camera.position.lerp(positionRef.current, 0.1);
+    // Frame-rate independent, and a little snappier than the old 0.1 per frame, which
+    // left the view trailing well behind the keys.
+    camera.position.lerp(positionRef.current, 1 - Math.exp(-12 * delta));
 
     updateGlobalFrustum(camera);
 
@@ -172,7 +186,7 @@ const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef, start }) => {
             yaw: yawRef.current
         };
     }
-  });
+  }, -1);
 
   return null;
 };

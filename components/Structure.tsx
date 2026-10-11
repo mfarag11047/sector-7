@@ -90,7 +90,6 @@ const CommLinkModel = ({ color, teamColor }: { color: string, teamColor: string 
                      <cylinderGeometry args={[0.1, 0.2, 2]} />
                      <meshStandardMaterial color="#cbd5e1" metalness={1} />
                  </mesh>
-                 <pointLight color={color} intensity={2} distance={10} position={[0, 2, 0]} />
              </group>
         </group>
         <group position={[0, 4.5, 0]}>
@@ -288,7 +287,6 @@ const FactoryModel = ({ color, teamColor }: { color: string, teamColor: string }
                                 <coneGeometry args={[0.1, 0.3, 8]} />
                                 <meshBasicMaterial color="#38bdf8" />
                             </mesh>
-                            <pointLight position={[0, 1.3, 0]} color="#38bdf8" intensity={1} distance={3} />
                        </group>
                   </group>
              </group>
@@ -337,7 +335,6 @@ const MunitionsModel = ({ color, teamColor }: { color: string, teamColor: string
                     <boxGeometry args={[2.6, 0.1, 0.2]} />
                     <meshStandardMaterial color="#1e293b" />
                 </mesh>
-                <pointLight color={color} intensity={1} distance={3} position={[0, 1, 0]} />
             </group>
         ))}
         {[0, Math.PI/2, Math.PI, -Math.PI/2].map((rot, i) => (
@@ -407,7 +404,6 @@ const AirpadModel = ({ color, teamColor }: { color: string, teamColor: string })
                          <sphereGeometry args={[0.2]} />
                          <meshBasicMaterial color={color} />
                      </mesh>
-                     <pointLight color={color} distance={4} intensity={2} position={[0, 1, 0]} />
                  </mesh>
             ))}
             <group position={[3, 2, 3]}>
@@ -587,7 +583,6 @@ const OrdnanceFabModel = ({ color, teamColor }: { color: string, teamColor: stri
                <circleGeometry args={[0.8, 8]} />
                <meshBasicMaterial color="#ffffff" />
            </mesh>
-           <pointLight position={[0, 2, 0]} color={color} distance={10} intensity={2} />
       </group>
     </group>
   )

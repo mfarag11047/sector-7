@@ -264,6 +264,30 @@ const SingleTypeRoads: React.FC<{
         if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
     }, [tiles, tileSize, offset, baseColor, getRotation, randomRotation]);
 
+    // Road tiles sit on a regular grid, so the tile under a ray is found by meeting the
+    // road surface and rounding, instead of three.js testing every one of the thousands of
+    // instances. The pointer system ray-tests this mesh on every mouse move to track hover.
+    useLayoutEffect(() => {
+        const mesh = meshRef.current;
+        if (!mesh) return;
+        const index = new Map<number, number>();
+        tiles.forEach((tile, i) => index.set(tile.x * 4096 + tile.z, i));
+        const half = (tileSize * tileScale) / 2;
+        const top = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.2);
+        const hit = new THREE.Vector3();
+        mesh.raycast = (raycaster, intersects) => {
+            if (!raycaster.ray.intersectPlane(top, hit)) return;
+            const gx = Math.round((hit.x + offset) / tileSize);
+            const gz = Math.round((hit.z + offset) / tileSize);
+            const i = index.get(gx * 4096 + gz);
+            if (i === undefined) return;
+            if (Math.abs(hit.x - (gx * tileSize - offset)) > half || Math.abs(hit.z - (gz * tileSize - offset)) > half) return;
+            const distance = raycaster.ray.origin.distanceTo(hit);
+            if (distance < raycaster.near || distance > raycaster.far) return;
+            intersects.push({ distance, point: hit.clone(), object: mesh, instanceId: i, face: null });
+        };
+    }, [tiles, tileSize, offset, tileScale]);
+
     useEffect(() => {
         if (!meshRef.current) return;
         if (hoveredId !== null && hoveredId < tiles.length) {
