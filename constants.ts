@@ -2,7 +2,8 @@
 import { CityConfig, UnitClass, StructureType, UnitType, DoctrineType } from './types';
 
 export const CITY_CONFIG: CityConfig = {
-  gridSize: 80, 
+  // 79 makes the 6-tile road grid mirror exactly (roads at 0..78), so the map can be symmetric.
+  gridSize: 79, 
   tileSize: 14, 
   buildingDensity: 0.15, // Adjusted for clumping
 };

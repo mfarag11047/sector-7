@@ -10,6 +10,7 @@ import UIOverlay from './components/UIOverlay';
 import { GameStats, UnitData, BuildingData, RoadTileData, MinimapData, StructureData, DoctrineState, DoctrineType } from './types';
 import { DOCTRINE_CONFIG, CAMERA_FAR } from './constants';
 import { STARTING_CORES } from './sim/economy';
+import { MatchConfig } from './sim/match';
 
 const INITIAL_STATS: GameStats = {
   blue: { 
@@ -33,6 +34,10 @@ const INITIAL_STATS: GameStats = {
 };
 
 function App() {
+  // Replaced by the setup screen's choice.
+  const [match] = useState<MatchConfig>(() => ({
+      mode: 'ai', seed: Math.floor(Math.random() * 1e9), playerTeam: 'blue', difficulty: 'normal', playerDoctrine: null, aiDoctrine: null,
+  }));
   const [stats, setStats] = useState<GameStats>(INITIAL_STATS);
   const [playerTeam, setPlayerTeam] = useState<'blue' | 'red'>('blue');
   const [minimapData, setMinimapData] = useState<MinimapData>({
@@ -189,6 +194,7 @@ function App() {
         <Suspense fallback={null}>
           <Atmosphere />
           <CityMap 
+              match={match}
               onStatsUpdate={handleStatsUpdate} 
               onMapInit={handleMapInit}
               onMinimapUpdate={handleMinimapUpdate}

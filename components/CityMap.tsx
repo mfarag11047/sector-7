@@ -24,6 +24,8 @@ import { chargeSources, isInsideEnergyGrid, powerTick } from '../sim/energy';
 import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, guardianRepair, leashStep, slowTick, surveillanceStep } from '../sim/support';
 import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, resolveAttacks } from '../sim/combat';
+import { generateCity } from '../sim/mapgen';
+import { MatchConfig, STARTING_CORES, startingRoster } from '../sim/match';
 import { Economy, createEconomy, canAfford, spend, setCores, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 
 
@@ -497,6 +499,7 @@ const EnergyGridField: React.FC<{
 };
 
 interface CityMapProps {
+  match: MatchConfig;
   onStatsUpdate: (stats: GameStats) => void;
   onMapInit?: (data: { roadTiles: RoadTileData[], gridSize: number }) => void;
   onMinimapUpdate?: (data: { units: UnitData[], buildings: BuildingData[], structures: StructureData[], selectedUnitIds?: string[], missiles?: MinimapMissile[] }) => void;
@@ -509,205 +512,25 @@ interface CityMapProps {
   targetingDoctrine?: { type: string, team: 'blue'|'red', cost: number } | null;
 }
 
-const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine }) => {
+const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine }) => {
   const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
   const offset = (gridSize * tileSize) / 2;
   const baseA_Coord = TEAM_BASES.blue;
   const baseB_Coord = TEAM_BASES.red;
 
   // Map Generation State
+  // Seeded, mirrored city (sim/mapgen.ts): both sides get the same map.
   const { initialBuildings, initialBlocks, roadTiles, roadTileSet, tileTypeMap, initialDrones } = useMemo(() => {
-    const reservedSet = new Set<string>();
-    const reservedTypeMap = new Map<string, RoadType>();
-    for (let x = 0; x < gridSize; x++) {
-      for (let z = 0; z < gridSize; z++) {
-        const isMainBoulevard = x === Math.floor(gridSize / 2) || z === Math.floor(gridSize / 2);
-        const isConnector = x % 6 === 0 || z % 6 === 0;
-        const isBaseArea = (Math.abs(x - baseA_Coord.x) < 4 && Math.abs(z - baseA_Coord.z) < 4) || (Math.abs(x - baseB_Coord.x) < 4 && Math.abs(z - baseB_Coord.z) < 4);
-        if (isMainBoulevard) { const key = `${x},${z}`; reservedSet.add(key); reservedTypeMap.set(key, 'main'); } 
-        else if (isConnector || isBaseArea) { const key = `${x},${z}`; reservedSet.add(key); reservedTypeMap.set(key, 'street'); }
-      }
-    }
-    const _buildings: BuildingData[] = [];
-    const _blocks: BuildingBlock[] = [];
-    const _drones: UnitData[] = [];
-    const buildingMap = new Map<string, string>(); 
-    const occupied = new Set([...reservedSet]);
-    let blockCounter = 0;
-
-    // Roads sit on every 6th line, so the lot between them is a 5x5 city block.
-    // The core stands on the center tile of that lot.
-    const ROAD_STRIDE = 6;
-    const blockIndexOf = (coord: number) => Math.floor(coord / ROAD_STRIDE);
-    const blockCenter = (index: number) => index * ROAD_STRIDE + 3;
-    const lastBlockIndex = Math.floor((gridSize - 1) / ROAD_STRIDE) - 1;
-    const keepBlockEmpty = (ix: number, iz: number) => {
-      if (ix < 0 || iz < 0 || ix > lastBlockIndex || iz > lastBlockIndex) return;
-      for (let x = ix * ROAD_STRIDE + 1; x <= ix * ROAD_STRIDE + 5; x++) {
-        for (let z = iz * ROAD_STRIDE + 1; z <= iz * ROAD_STRIDE + 5; z++) {
-          occupied.add(`${x},${z}`);
-        }
-      }
-      // One tile sits past the outer road. A building there would still reach a corner node.
-      const edge = lastBlockIndex * ROAD_STRIDE + ROAD_STRIDE + 1;
-      if (edge < gridSize && iz === lastBlockIndex) {
-        for (let x = ix * ROAD_STRIDE + 1; x <= ix * ROAD_STRIDE + 5; x++) occupied.add(`${x},${edge}`);
-      }
-      if (edge < gridSize && ix === lastBlockIndex) {
-        for (let z = iz * ROAD_STRIDE + 1; z <= iz * ROAD_STRIDE + 5; z++) occupied.add(`${edge},${z}`);
-      }
-    };
-    const blueBlock = { ix: blockIndexOf(baseA_Coord.x), iz: blockIndexOf(baseA_Coord.z) };
-    const redBlock = { ix: blockIndexOf(baseB_Coord.x), iz: blockIndexOf(baseB_Coord.z) };
-    // Approach nodes sit two blocks in from each base. The empty corners are the
-    // long edge sites. The last pair sits on the line equidistant from both bases,
-    // outside the center server cluster, so taking one means meeting the other player.
-    const corePlacements: { ix: number; iz: number; clearSurroundings: boolean }[] = [
-      { ix: blueBlock.ix + 2, iz: blueBlock.iz + 2, clearSurroundings: false },
-      { ix: redBlock.ix - 2, iz: redBlock.iz - 2, clearSurroundings: false },
-      { ix: blueBlock.ix, iz: redBlock.iz, clearSurroundings: true },
-      { ix: redBlock.ix, iz: blueBlock.iz, clearSurroundings: true },
-      { ix: blueBlock.ix + 3, iz: redBlock.iz - 3, clearSurroundings: false },
-      { ix: redBlock.ix - 3, iz: blueBlock.iz + 3, clearSurroundings: false },
-    ];
-    for (const node of corePlacements) {
-      if (node.clearSurroundings) {
-        for (let dx = -1; dx <= 1; dx++) {
-          for (let dz = -1; dz <= 1; dz++) {
-            if (dx === 0 && dz === 0) continue;
-            keepBlockEmpty(node.ix + dx, node.iz + dz);
-          }
-        }
-      }
-      keepBlockEmpty(node.ix, node.iz);
-      const x = blockCenter(node.ix);
-      const z = blockCenter(node.iz);
-      const height = 6;
-      const blockId = `core-${x}-${z}`;
-      buildingMap.set(`${x},${z}`, blockId);
-      _buildings.push({
-        id: blockId,
-        gridX: x,
-        gridZ: z,
-        position: [(x * tileSize) - offset, 0, (z * tileSize) - offset],
-        scale: [3.4, height, 3.4],
-        color: BUILDING_COLORS.core_node,
-        type: 'core_node',
-        height,
-        blockId,
-        owner: null,
-        captureProgress: 0,
-        capturingTeam: null,
-        health: BUILDING_HEALTH.core_node,
-        maxHealth: BUILDING_HEALTH.core_node,
-      });
-    }
-    
-    for (let x = 0; x < gridSize; x++) {
-      for (let z = 0; z < gridSize; z++) {
-        if (occupied.has(`${x},${z}`)) continue;
-        if (Math.random() < buildingDensity) {
-          const blockSize = 3 + Math.floor(Math.random() * 4); 
-          const blockId = `block-${blockCounter}`;
-          const dist = Math.sqrt(Math.pow(x - gridSize/2, 2) + Math.pow(z - gridSize/2, 2));
-          let type: BuildingData['type'] = 'residential';
-          if (dist < ABILITY_CONFIG.CENTER_THREAT_RADIUS && Math.random() < 0.25) { type = 'server_node'; } 
-          else { if (dist < 10) type = 'commercial'; else if (dist < 20) type = 'hightech'; else if (Math.random() > 0.5) type = 'industrial'; }
-
-          const tentativeBuildings: BuildingData[] = [];
-          const tentativeKeys = new Set<string>();
-          const stack = [[x, z]];
-          
-          while (stack.length > 0 && tentativeBuildings.length < blockSize) {
-            const removeIdx = Math.floor(Math.random() * stack.length);
-            const [cx, cz] = stack.splice(removeIdx, 1)[0];
-            const key = `${cx},${cz}`;
-            if (occupied.has(key) || tentativeKeys.has(key)) continue;
-            if (cx < 0 || cx >= gridSize || cz < 0 || cz >= gridSize) continue;
-            let touchesOtherBlock = false;
-            const neighbors = [[cx+1, cz], [cx-1, cz], [cx, cz+1], [cx, cz-1]];
-            for (const [nx, nz] of neighbors) { if (buildingMap.has(`${nx},${nz}`)) { touchesOtherBlock = true; break; } }
-            if (touchesOtherBlock) continue;
-            tentativeKeys.add(key);
-            const height = type === 'server_node' ? 6 + Math.random() * 4 : 10 + Math.random() * (type === 'commercial' ? 50 : 20);
-            tentativeBuildings.push({
-              id: `b-${cx}-${cz}`, gridX: cx, gridZ: cz,
-              position: [(cx * tileSize) - offset, 0, (cz * tileSize) - offset],
-              scale: [tileSize * 0.7, height, tileSize * 0.7],
-              color: BUILDING_COLORS[type], type, height, blockId, owner: null, captureProgress: 0, capturingTeam: null, health: BUILDING_HEALTH[type], maxHealth: BUILDING_HEALTH[type]
-            });
-            stack.push(...neighbors);
-          }
-
-          if (tentativeBuildings.length >= (type === 'server_node' ? 1 : 3)) {
-            tentativeBuildings.forEach(b => {
-                const k = `${b.gridX},${b.gridZ}`;
-                occupied.add(k);
-                buildingMap.set(k, blockId);
-                _buildings.push(b);
-                if (b.type === 'server_node') {
-                    _drones.push({
-                        id: `drone-${b.id}`, type: 'defense_drone', unitClass: 'defense', team: 'neutral',
-                        gridPos: { x: b.gridX, z: b.gridZ }, path: [], visionRange: UNIT_STATS.defense_drone.visionRange,
-                        health: UNIT_STATS.defense_drone.maxHealth, maxHealth: UNIT_STATS.defense_drone.maxHealth,
-                        battery: 100, maxBattery: 100, cooldowns: {}
-                    });
-                }
-            });
-            _blocks.push({ id: blockId, type, buildingIds: tentativeBuildings.map(b => b.id), owner: null });
-            blockCounter++;
-          }
-        }
-      }
-    }
-    const _roadTilesList: RoadTileData[] = [];
-    const _navigableSet = new Set<string>();
-    const buildingSet = new Set(buildingMap.keys());
-    const _tileTypeMap: Record<string, RoadType> = {};
-    for (let x = 0; x < gridSize; x++) {
-      for (let z = 0; z < gridSize; z++) {
-        const key = `${x},${z}`;
-        if (buildingSet.has(key)) continue; 
-        _navigableSet.add(key);
-        let type: RoadType = 'open';
-        if (reservedTypeMap.has(key)) { type = reservedTypeMap.get(key)!; }
-        _tileTypeMap[key] = type;
-        _roadTilesList.push({ x, z, type });
-      }
-    }
-    return { initialBuildings: _buildings, initialBlocks: _blocks, roadTiles: _roadTilesList, roadTileSet: _navigableSet, tileTypeMap: _tileTypeMap, initialDrones: _drones };
-  }, [gridSize, tileSize, buildingDensity, offset, baseA_Coord, baseB_Coord]);
+    const city = generateCity({ seed: match.seed, gridSize, tileSize, buildingDensity, blueBase: baseA_Coord, redBase: baseB_Coord });
+    return { initialBuildings: city.buildings, initialBlocks: city.blocks, roadTiles: city.roadTiles, roadTileSet: city.roadTileSet, tileTypeMap: city.tileTypeMap, initialDrones: city.sentinels };
+  }, [match.seed, gridSize, tileSize, buildingDensity, baseA_Coord, baseB_Coord]);
 
   useEffect(() => { if (onMapInit) onMapInit({ roadTiles, gridSize }); }, [roadTiles, gridSize, onMapInit]);
 
   // Unit State
   const [buildings, setBuildings] = useState<BuildingData[]>(initialBuildings);
   const [blocks, setBlocks] = useState<BuildingBlock[]>(initialBlocks);
-  const [units, setUnits] = useState<UnitData[]>([
-    { id: 'u1', type: 'drone', unitClass: 'air', team: 'blue', gridPos: { x: 3, z: 4 }, path: [], visionRange: UNIT_STATS.drone.visionRange, health: UNIT_STATS.drone.maxHealth, maxHealth: UNIT_STATS.drone.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100 },
-    { id: 'u2', type: 'tank', unitClass: 'armor', team: 'blue', gridPos: { x: 5, z: 4 }, path: [], visionRange: UNIT_STATS.tank.visionRange, health: UNIT_STATS.tank.maxHealth, maxHealth: UNIT_STATS.tank.maxHealth, cooldowns: {}, charges: { smoke: ABILITY_CONFIG.MAX_CHARGES_SMOKE, aps: ABILITY_CONFIG.MAX_CHARGES_APS }, battery: 100, maxBattery: 100 },
-    { id: 'u3', type: 'drone', unitClass: 'air', team: 'red', gridPos: { x: gridSize - 6, z: gridSize - 5 }, path: [], visionRange: UNIT_STATS.drone.visionRange, health: UNIT_STATS.drone.maxHealth, maxHealth: UNIT_STATS.drone.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100 },
-    { id: 'u4', type: 'tank', unitClass: 'armor', team: 'red', gridPos: { x: gridSize - 4, z: gridSize - 5 }, path: [], visionRange: UNIT_STATS.tank.visionRange, health: UNIT_STATS.tank.maxHealth, maxHealth: UNIT_STATS.tank.maxHealth, cooldowns: {}, charges: { smoke: ABILITY_CONFIG.MAX_CHARGES_SMOKE, aps: ABILITY_CONFIG.MAX_CHARGES_APS }, battery: 100, maxBattery: 100 },
-    { id: 'u5', type: 'ghost', unitClass: 'infantry', team: 'blue', gridPos: { x: 2, z: 5 }, path: [], visionRange: UNIT_STATS.ghost.visionRange, isDampenerActive: false, health: UNIT_STATS.ghost.maxHealth, maxHealth: UNIT_STATS.ghost.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100 },
-    { id: 'u6', type: 'ghost', unitClass: 'infantry', team: 'red', gridPos: { x: gridSize - 3, z: gridSize - 6 }, path: [], visionRange: UNIT_STATS.ghost.visionRange, isDampenerActive: true, health: UNIT_STATS.ghost.maxHealth, maxHealth: UNIT_STATS.ghost.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100 },
-    { id: 'u7', type: 'guardian', unitClass: 'support', team: 'blue', gridPos: { x: 4, z: 6 }, path: [], visionRange: UNIT_STATS.guardian.visionRange, health: UNIT_STATS.guardian.maxHealth, maxHealth: UNIT_STATS.guardian.maxHealth, cooldowns: { trophySystem: 0 }, battery: 100, maxBattery: 100 },
-    { id: 'u8', type: 'guardian', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 3, z: gridSize - 4 }, path: [], visionRange: UNIT_STATS.guardian.visionRange, health: UNIT_STATS.guardian.maxHealth, maxHealth: UNIT_STATS.guardian.maxHealth, cooldowns: { trophySystem: 0 }, battery: 100, maxBattery: 100 },
-    { id: 'u9', type: 'mule', unitClass: 'ordnance', team: 'blue', gridPos: { x: 6, z: 5 }, path: [], visionRange: UNIT_STATS.mule.visionRange, health: UNIT_STATS.mule.maxHealth, maxHealth: UNIT_STATS.mule.maxHealth, cooldowns: { combatPrint: 0, smogShell: 0 }, battery: 100, maxBattery: 100, ordnanceMaterial: ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY, missileInventory: { eclipse: 0, he: 0 } },
-    { id: 'u10', type: 'mule', unitClass: 'ordnance', team: 'red', gridPos: { x: gridSize - 5, z: gridSize - 6 }, path: [], visionRange: UNIT_STATS.mule.visionRange, health: UNIT_STATS.mule.maxHealth, maxHealth: UNIT_STATS.mule.maxHealth, cooldowns: { combatPrint: 0, smogShell: 0 }, battery: 100, maxBattery: 100, ordnanceMaterial: ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY, missileInventory: { eclipse: 0, he: 0 } },
-    { id: 'u11', type: 'wasp', unitClass: 'air', team: 'blue', gridPos: { x: 5, z: 7 }, path: [], visionRange: UNIT_STATS.wasp.visionRange, health: UNIT_STATS.wasp.maxHealth, maxHealth: UNIT_STATS.wasp.maxHealth, cooldowns: { swarmLaunch: 0 }, charges: { swarm: ABILITY_CONFIG.WASP_MAX_CHARGES }, battery: 100, maxBattery: 100 },
-    { id: 'u12', type: 'mason', unitClass: 'builder', team: 'blue', gridPos: { x: 3, z: 6 }, path: [], visionRange: UNIT_STATS.mason.visionRange, health: UNIT_STATS.mason.maxHealth, maxHealth: UNIT_STATS.mason.maxHealth, cooldowns: {}, cargo: 0, constructionTargetId: null, battery: 100, maxBattery: 100 },
-    { id: 'u13', type: 'helios', unitClass: 'support', team: 'blue', gridPos: { x: 2, z: 6 }, path: [], visionRange: UNIT_STATS.helios.visionRange, health: UNIT_STATS.helios.maxHealth, maxHealth: UNIT_STATS.helios.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100 },
-    { id: 'u14', type: 'sun_plate', unitClass: 'armor', team: 'blue', gridPos: { x: 4, z: 5 }, path: [], visionRange: UNIT_STATS.sun_plate.visionRange, health: UNIT_STATS.sun_plate.maxHealth, maxHealth: UNIT_STATS.sun_plate.maxHealth, cooldowns: {}, battery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, maxBattery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, isDeployed: false, batteryTetherIds: [] },
-    { id: 'u15', type: 'ballista', unitClass: 'support', team: 'blue', gridPos: { x: 5, z: 5 }, path: [], visionRange: UNIT_STATS.ballista.visionRange, health: UNIT_STATS.ballista.maxHealth, maxHealth: UNIT_STATS.ballista.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, ammoState: 'empty', loadedAmmo: null, missileInventory: { eclipse: 1, he: 1 }, loadingProgress: 0 },
-    { id: 'u16', type: 'wasp', unitClass: 'air', team: 'red', gridPos: { x: gridSize - 6, z: gridSize - 8 }, path: [], visionRange: UNIT_STATS.wasp.visionRange, health: UNIT_STATS.wasp.maxHealth, maxHealth: UNIT_STATS.wasp.maxHealth, cooldowns: { swarmLaunch: 0 }, charges: { swarm: ABILITY_CONFIG.WASP_MAX_CHARGES }, battery: 100, maxBattery: 100 },
-    { id: 'u17', type: 'mason', unitClass: 'builder', team: 'red', gridPos: { x: gridSize - 4, z: gridSize - 7 }, path: [], visionRange: UNIT_STATS.mason.visionRange, health: UNIT_STATS.mason.maxHealth, maxHealth: UNIT_STATS.mason.maxHealth, cooldowns: {}, cargo: 0, constructionTargetId: null, battery: 100, maxBattery: 100 },
-    { id: 'u18', type: 'helios', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 3, z: gridSize - 7 }, path: [], visionRange: UNIT_STATS.helios.visionRange, health: UNIT_STATS.helios.maxHealth, maxHealth: UNIT_STATS.helios.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100 },
-    { id: 'u19', type: 'sun_plate', unitClass: 'armor', team: 'red', gridPos: { x: gridSize - 5, z: gridSize - 6 }, path: [], visionRange: UNIT_STATS.sun_plate.visionRange, health: UNIT_STATS.sun_plate.maxHealth, maxHealth: UNIT_STATS.sun_plate.maxHealth, cooldowns: {}, battery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, maxBattery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, isDeployed: false, batteryTetherIds: [] },
-    { id: 'u20', type: 'ballista', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 6, z: gridSize - 6 }, path: [], visionRange: UNIT_STATS.ballista.visionRange, health: UNIT_STATS.ballista.maxHealth, maxHealth: UNIT_STATS.ballista.maxHealth, cooldowns: {}, battery: 100, maxBattery: 100, ammoState: 'empty', loadedAmmo: null, missileInventory: { eclipse: 1, he: 1 }, loadingProgress: 0 },
-    { id: 'u21', type: 'banshee', unitClass: 'support', team: 'blue', gridPos: { x: 6, z: 6 }, path: [], visionRange: UNIT_STATS.banshee.visionRange, health: UNIT_STATS.banshee.maxHealth, maxHealth: UNIT_STATS.banshee.maxHealth, cooldowns: {}, battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, jammerActive: false },
-    { id: 'u22', type: 'banshee', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 7, z: gridSize - 7 }, path: [], visionRange: UNIT_STATS.banshee.visionRange, health: UNIT_STATS.banshee.maxHealth, maxHealth: UNIT_STATS.banshee.maxHealth, cooldowns: {}, battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, jammerActive: false },
-    ...initialDrones
-  ]);
+  const [units, setUnits] = useState<UnitData[]>(() => [...startingRoster(match, gridSize, baseA_Coord), ...initialDrones]);
   
   // Each side's Command HQ is a structure with health: it can be attacked, fires back, and
   // losing it loses the match. Base.tsx draws it.
@@ -752,7 +575,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
     setHoverGridPosRaw(pos);
   }, []);
   // Cores, warhead stockpiles and tier progress. Only change it through the sim/economy helpers.
-  const [economy, setEconomy] = useState<Economy>(createEconomy);
+  const [economy, setEconomy] = useState<Economy>(() => createEconomy(STARTING_CORES[match.mode]));
   const economyRef = useRef(economy);
   economyRef.current = economy;
   const teamResources = useMemo(() => ({ blue: economy.blue.cores, red: economy.red.cores }), [economy]);
