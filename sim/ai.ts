@@ -64,11 +64,23 @@ export interface AiMemory {
   objectiveId: string | null;
   // When the army last pulled back, to wait before trying again.
   retreatedAt: number;
+  // Human-like delays (see AiProfile): when it last placed a structure, when it first had the
+  // compute for its next tier, and when it first noticed the current threat.
+  lastBuildAt: number;
+  researchReadySince: number | null;
+  threatSince: number | null;
 }
 
-export const freshAiMemory = (): AiMemory => ({ lastOrder: {}, mode: 'gather', objective: null, objectiveId: null, retreatedAt: -Infinity });
+export const freshAiMemory = (): AiMemory => ({
+  lastOrder: {}, mode: 'gather', objective: null, objectiveId: null, retreatedAt: -Infinity,
+  lastBuildAt: -Infinity, researchReadySince: null, threatSince: null,
+});
 
 // How each difficulty plays.
+//
+// Easier levels are not just slower but less attentive, like a person juggling a base and a
+// fight: they don't look at every structure every time, leave gaps between buildings, notice
+// threats and spare compute late, and don't always pick the right counter.
 export interface AiProfile {
   thinkMs: number;
   // Army value (cores) needed before it leaves home to fight.
@@ -76,19 +88,39 @@ export interface AiProfile {
   // Earliest it will attack the enemy, and push for a server node.
   firstAttackMs: number;
   firstTechMs: number;
-  // Trains to counter the enemy army; otherwise picks at random.
-  counters: boolean;
+  // Chance of training the best counter to the enemy army, rather than a random unit.
+  counterAccuracy: number;
   // How many units it keeps queued per structure.
   queueDepth: number;
+  // Chance, each think, of tending a given production structure at all.
+  attention: number;
+  // Minimum time between placing structures.
+  buildGapMs: number;
+  // How long after having the compute it gets around to researching.
+  researchDelayMs: number;
+  // How long a threat to its base or nodes must last before the army reacts.
+  reactionMs: number;
   doctrineTiers: (2 | 3)[];
   secondBarracks: boolean;
   capturers: number;
 }
 
 export const AI_PROFILES: Record<Difficulty, AiProfile> = {
-  easy: { thinkMs: 4000, attackValue: 2400, firstAttackMs: 9 * 60_000, firstTechMs: 6 * 60_000, counters: false, queueDepth: 1, doctrineTiers: [], secondBarracks: false, capturers: 3 },
-  normal: { thinkMs: 2000, attackValue: 1800, firstAttackMs: 5 * 60_000, firstTechMs: 3 * 60_000, counters: true, queueDepth: 1, doctrineTiers: [2], secondBarracks: false, capturers: 3 },
-  hard: { thinkMs: 1200, attackValue: 1400, firstAttackMs: 3 * 60_000, firstTechMs: 2 * 60_000, counters: true, queueDepth: 2, doctrineTiers: [2, 3], secondBarracks: true, capturers: 4 },
+  easy: {
+    thinkMs: 6000, attackValue: 2600, firstAttackMs: 10 * 60_000, firstTechMs: 7 * 60_000, counterAccuracy: 0,
+    queueDepth: 1, attention: 0.4, buildGapMs: 90_000, researchDelayMs: 60_000, reactionMs: 15_000,
+    doctrineTiers: [], secondBarracks: false, capturers: 3,
+  },
+  normal: {
+    thinkMs: 3500, attackValue: 2200, firstAttackMs: 7 * 60_000, firstTechMs: 4 * 60_000, counterAccuracy: 0.55,
+    queueDepth: 1, attention: 0.6, buildGapMs: 45_000, researchDelayMs: 25_000, reactionMs: 6_000,
+    doctrineTiers: [2], secondBarracks: false, capturers: 3,
+  },
+  hard: {
+    thinkMs: 1500, attackValue: 1500, firstAttackMs: 3.5 * 60_000, firstTechMs: 2.5 * 60_000, counterAccuracy: 0.9,
+    queueDepth: 2, attention: 0.95, buildGapMs: 10_000, researchDelayMs: 3_000, reactionMs: 0,
+    doctrineTiers: [2, 3], secondBarracks: true, capturers: 4,
+  },
 };
 
 // Units the computer fields. The rest (Ballistas, Banshees, Battery Mules...) need a player's hand.
@@ -117,10 +149,18 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const theirs = view.units.filter(u => u.team === enemy && alive(u));
   const myStructures = view.structures.filter(s => s.team === team);
   const tier = teamTier(view.economy, team);
-  // Research the next tier as soon as there's compute for it.
+  // Research the next tier a while after there's compute for it.
   if (tier < 3) {
     const next = (tier + 1) as 2 | 3;
-    if (view.economy[team].compute >= researchCost(next)) actions.push({ kind: 'order', command: { type: 'RESEARCH_TIER', tier: next } });
+    if (view.economy[team].compute >= researchCost(next)) {
+      mem.researchReadySince ??= now;
+      if (now - mem.researchReadySince >= profile.researchDelayMs) {
+        actions.push({ kind: 'order', command: { type: 'RESEARCH_TIER', tier: next } });
+        mem.researchReadySince = null;
+      }
+    } else {
+      mem.researchReadySince = null;
+    }
   }
   let cores = view.economy[team].cores;
 
@@ -137,12 +177,13 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   });
   // Save up for the next structure before spending on units, unless under attack.
   let reserve = 0;
-  if (nextBuild && !building) {
+  if (nextBuild && !building && now - mem.lastBuildAt >= profile.buildGapMs) {
     const cost = structureCost(nextBuild);
     const spot = cores >= cost ? findBuildSpot(view, team, ctx) : null;
     if (spot) {
       actions.push({ kind: 'order', command: { type: 'PLACE_STRUCTURE', structureType: nextBuild, at: spot } });
       cores -= cost;
+      mem.lastBuildAt = now;
     } else {
       reserve = cost;
     }
@@ -150,7 +191,10 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
 
   // --- 2. Where the army stands and what it's for ---
   const gather = gatherPoint(view, team, ctx);
-  const threat = threatNear(view, team, enemy, home, ctx.difficulty === 'easy' ? 0 : 250);
+  // A threat only counts once it has lasted the profile's reaction time.
+  const seenThreat = threatNear(view, team, enemy, home, ctx.difficulty === 'easy' ? 0 : 250);
+  if (seenThreat) mem.threatSince ??= now; else mem.threatSince = null;
+  const threat = seenThreat && now - (mem.threatSince ?? now) >= profile.reactionMs ? seenThreat : null;
   const armyUnits = mine.filter(u => isFighter(u) && u.type !== 'defense_drone');
   const armyValue = armyUnits.reduce((sum, u) => sum + valueOf(u), 0);
 
@@ -284,12 +328,14 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   for (const s of myStructures) {
     if (!isOperational(s) || unitsProducedBy(s.type).length === 0) continue;
     if ((s.queue?.length || 0) >= Math.min(MAX_QUEUE, profile.queueDepth)) continue;
+    // Not every structure gets looked at every time, so production has idle gaps.
+    if (ctx.random() > profile.attention) continue;
     // New units head for the gather point.
     if (!s.rallyPoint || s.rallyPoint.x !== gather.x || s.rallyPoint.z !== gather.z) {
       actions.push({ kind: 'order', command: { type: 'SET_RALLY', structureId: s.id, at: gather } });
     }
     const pick = chooseUnit(s.type, tier, enemyMix, {
-      counters: profile.counters, random: ctx.random,
+      counterAccuracy: profile.counterAccuracy, random: ctx.random,
       needInfantry: infantryCount < 6, guardians, army: armyUnits.length,
     });
     if (!pick) continue;
@@ -344,22 +390,22 @@ export function chooseUnit(
   producer: StructureType,
   tier: Tier,
   enemyMix: Record<ArmorClass, number>,
-  opts: { counters: boolean; random: () => number; needInfantry: boolean; guardians: number; army: number },
+  opts: { counterAccuracy: number; random: () => number; needInfantry: boolean; guardians: number; army: number },
 ): UnitType | null {
   const options = unitsProducedBy(producer).filter(t => FIGHTERS.includes(t) && UNIT_RULES[t].tier <= tier);
   if (options.length === 0) return null;
   if (producer === 'infantry' && opts.needInfantry) return 'trooper';
   if (producer === 'support') return opts.guardians < Math.floor(opts.army / 8) ? 'guardian' : null;
-  if (!opts.counters) return options[Math.floor(opts.random() * options.length)];
+  const fighters = options.filter(t => t !== 'guardian');
+  if (opts.random() >= opts.counterAccuracy) return fighters[Math.floor(opts.random() * fighters.length)] ?? null;
   const score = (t: UnitType) => {
     const rules = UNIT_RULES[t];
     let damage = 0;
     for (const a of ARMORS) damage += enemyMix[a] * dps(rules.weapon, a);
     return (damage * Math.sqrt(UNIT_STATS[t].maxHealth)) / unitCost(t);
   };
-  const ranked = options.filter(t => t !== 'guardian').sort((a, b) => score(b) - score(a));
-  // A little variety: one time in four take the runner-up.
-  return ranked.length > 1 && opts.random() < 0.25 ? ranked[1] : ranked[0] ?? null;
+  const ranked = fighters.sort((a, b) => score(b) - score(a));
+  return ranked[0] ?? null;
 }
 
 // The tile the army waits on: the edge of our grid nearest the enemy.

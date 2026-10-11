@@ -3,7 +3,7 @@ import { chooseUnit } from './ai';
 import { createHeadlessMatch, stepMatch } from './headless';
 
 const noRandom = () => 0.9;
-const opts = { counters: true, random: noRandom, needInfantry: false, guardians: 0, army: 0 };
+const opts = { counterAccuracy: 1, random: noRandom, needInfantry: false, guardians: 0, army: 0 };
 
 describe('what the computer trains', () => {
   it('counters infantry with Razorbacks and armour with rockets', () => {

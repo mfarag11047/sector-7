@@ -202,11 +202,15 @@ same kind of economy.
    Drop into a fight, Nuke on a big cluster, Decoys on an attack, EMP in a big fight, a Nano Cloud
    over a retreat, a Swarm Host between the armies.
 
-| Difficulty | Thinks every | Income | First attack | Counter-picks | Powers |
-|---|---|---|---|---|---|
-| Easy | 4 s | ×0.7 | 9 min, 2400 army | No | None |
-| Normal | 2 s | ×1.0 | 5 min, 1800 army | Yes | T2 |
-| Hard | 1.2 s | ×1.35 | 3 min, 1400 army | Yes | T2, T3 |
+Easier levels aren't just slower; they're less attentive, the way a person juggling a base and a
+fight is. Each think they only tend some of their production structures, they leave a gap between
+buildings, get round to research and notice raids late, and don't always pick the right counter.
+
+| Difficulty | Thinks every | Income | Tends production | Gap between buildings | Research delay | Reacts to raids | Best counter | First attack | Powers |
+|---|---|---|---|---|---|---|---|---|---|
+| Easy | 6 s | ×0.7 | 40% | 90 s | 60 s | after 15 s | never (random) | 10 min, 2600 army | None |
+| Normal | 3.5 s | ×1.0 | 60% | 45 s | 25 s | after 6 s | 55% | 7 min, 2200 army | T2 |
+| Hard | 1.5 s | ×1.35 | 95% | 10 s | 3 s | at once | 90% | 3.5 min, 1500 army | T2, T3 |
 
 ### Headless matches
 
