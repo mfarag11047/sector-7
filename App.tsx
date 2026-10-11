@@ -1,20 +1,21 @@
 
 import React, { Suspense, useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, advance } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Loader } from '@react-three/drei';
-import CityMap from './components/CityMap';
+import CityMap, { MatchInfo } from './components/CityMap';
+import { MatchEnd, MatchSetup, MatchSummary } from './components/MatchScreens';
 import DroneCamera from './components/DroneCamera';
 import Atmosphere from './components/Atmosphere';
 import UIOverlay from './components/UIOverlay';
 import { GameStats, UnitData, BuildingData, RoadTileData, MinimapData, StructureData, DoctrineState, DoctrineType } from './types';
 import { DOCTRINE_CONFIG, CAMERA_FAR } from './constants';
-import { STARTING_CORES } from './sim/economy';
-import { MatchConfig } from './sim/match';
+import { MatchConfig, STARTING_CORES, aiTeamOf } from './sim/match';
+import type { Victory } from './sim/victory';
 
 const INITIAL_STATS: GameStats = {
   blue: { 
-    resources: STARTING_CORES, 
+    resources: STARTING_CORES.ai, 
     income: 0, 
     compute: 0,
     units: 0, 
@@ -23,7 +24,7 @@ const INITIAL_STATS: GameStats = {
     doctrine: { selected: null, unlockedTiers: 0, cooldowns: { tier2: 0, tier3: 0 } }
   },
   red: { 
-    resources: STARTING_CORES, 
+    resources: STARTING_CORES.ai, 
     income: 0, 
     compute: 0,
     units: 0, 
@@ -33,13 +34,37 @@ const INITIAL_STATS: GameStats = {
   }
 };
 
+// Debug: ?render=slow draws a frame every two seconds instead of continuously. For automated
+// tests on machines without a GPU, where software rendering would otherwise starve the game logic.
+const SLOW_RENDER = typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('render') === 'slow';
+const SlowRender: React.FC = () => {
+  useEffect(() => {
+    const timer = setInterval(() => advance(performance.now()), 2000);
+    return () => clearInterval(timer);
+  }, []);
+  return null;
+};
+
+// ?autostart=1 skips the setup screen with default settings (for automated tests).
+const AUTOSTART = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('autostart');
+
+export interface Notice { id: number; text: string; tone: 'info' | 'warn'; at: number }
+
+const NO_DOCTRINE: DoctrineState = { selected: null, unlockedTiers: 0, cooldowns: { tier2: 0, tier3: 0 } };
+
 function App() {
-  // Replaced by the setup screen's choice.
-  const [match] = useState<MatchConfig>(() => ({
-      mode: 'ai', seed: Math.floor(Math.random() * 1e9), playerTeam: 'blue', difficulty: 'normal', playerDoctrine: null, aiDoctrine: null,
-  }));
+  // The setup screen fills this in. Each new match bumps `round`, which remounts the map.
+  const [match, setMatch] = useState<MatchConfig | null>(() => AUTOSTART
+      ? { mode: 'ai', seed: Math.floor(Math.random() * 1e6), playerTeam: 'blue', difficulty: 'normal', playerDoctrine: 'heavy_metal', aiDoctrine: 'skunkworks' }
+      : null);
+  const [round, setRound] = useState(0);
+  const [result, setResult] = useState<{ victory: Victory, summary: MatchSummary } | null>(null);
+  const [showResult, setShowResult] = useState(false);
+  const [matchInfo, setMatchInfo] = useState<MatchInfo | null>(null);
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const noticeIdRef = useRef(0);
   const [stats, setStats] = useState<GameStats>(INITIAL_STATS);
-  const [playerTeam, setPlayerTeam] = useState<'blue' | 'red'>('blue');
+  const [playerTeam, setPlayerTeam] = useState<'blue' | 'red'>(match?.playerTeam ?? 'blue');
   const [minimapData, setMinimapData] = useState<MinimapData>({
       units: [],
       buildings: [],
@@ -49,10 +74,45 @@ function App() {
   });
 
   // Doctrine & Interaction State
-  const [doctrines, setDoctrines] = useState<{ blue: DoctrineState, red: DoctrineState }>({
-    blue: { selected: null, unlockedTiers: 0, cooldowns: { tier2: 0, tier3: 0 } },
-    red: { selected: null, unlockedTiers: 0, cooldowns: { tier2: 0, tier3: 0 } }
-  });
+  const doctrinesFor = (config: MatchConfig | null) => {
+      const ai = config ? aiTeamOf(config) : null;
+      const pick = (team: 'blue' | 'red') => !config ? null : team === config.playerTeam ? config.playerDoctrine : team === ai ? config.aiDoctrine : null;
+      return { blue: { ...NO_DOCTRINE, selected: pick('blue') }, red: { ...NO_DOCTRINE, selected: pick('red') } };
+  };
+  const [doctrines, setDoctrines] = useState<{ blue: DoctrineState, red: DoctrineState }>(() => doctrinesFor(match));
+
+  const startMatch = useCallback((config: MatchConfig) => {
+      setMatch(config);
+      setPlayerTeam(config.playerTeam);
+      setDoctrines(doctrinesFor(config));
+      setStats(INITIAL_STATS);
+      setResult(null);
+      setShowResult(false);
+      setMatchInfo(null);
+      setNotices([]);
+      setInteractionMode('select');
+      setTargetingDoctrine(null);
+      setRound(r => r + 1);
+  }, []);
+
+  const handleNotice = useCallback((text: string, tone: 'info' | 'warn' = 'info') => {
+      const at = Date.now();
+      setNotices(prev => {
+          // The same message twice in a row just refreshes it.
+          const rest = prev.filter(n => n.text !== text && at - n.at < 6000);
+          return [...rest.slice(-4), { id: ++noticeIdRef.current, text, tone, at }];
+      });
+  }, []);
+  useEffect(() => {
+      if (notices.length === 0) return;
+      const timer = setTimeout(() => setNotices(prev => prev.filter(n => Date.now() - n.at < 6000)), 1000);
+      return () => clearTimeout(timer);
+  }, [notices]);
+
+  const handleMatchEnd = useCallback((victory: Victory, summary: MatchSummary) => {
+      setResult({ victory, summary });
+      setShowResult(true);
+  }, []);
 
   const [interactionMode, setInteractionMode] = useState<'select' | 'target'>('select');
   const [pendingDoctrineAction, setPendingDoctrineAction] = useState<{ type: string, target: {x: number, z: number}, team: 'blue'|'red' } | null>(null);
@@ -164,8 +224,8 @@ function App() {
 
   // Merge dynamic game stats with persistent doctrine state for UI consumption
   const combinedStats = useMemo(() => ({
-      blue: { ...stats.blue, doctrine: { ...stats.blue.doctrine, ...doctrines.blue } },
-      red: { ...stats.red, doctrine: { ...stats.red.doctrine, ...doctrines.red } }
+      blue: { ...stats.blue, doctrine: { ...stats.blue.doctrine, ...doctrines.blue, cooldowns: stats.blue.doctrine?.cooldowns ?? doctrines.blue.cooldowns } },
+      red: { ...stats.red, doctrine: { ...stats.red.doctrine, ...doctrines.red, cooldowns: stats.red.doctrine?.cooldowns ?? doctrines.red.cooldowns } }
   }), [stats, doctrines]);
 
   // Expose global cheats for Doctrine testing
@@ -185,16 +245,22 @@ function App() {
         onContextMenu={(e) => e.preventDefault()}
     >
       <Canvas
+        frameloop={SLOW_RENDER ? 'never' : 'always'}
         shadows
         dpr={[1, 2]}
         style={{ overflow: 'clip' }}
         gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.22 }}
         camera={{ position: [0, 50, 50], fov: 45, far: CAMERA_FAR }}
       >
+        {SLOW_RENDER && <SlowRender />}
         <Suspense fallback={null}>
           <Atmosphere />
-          <CityMap 
+          {match && <CityMap 
+              key={round}
               match={match}
+              onNotice={handleNotice}
+              onMatchEnd={handleMatchEnd}
+              onMatchInfo={setMatchInfo}
               onStatsUpdate={handleStatsUpdate} 
               onMapInit={handleMapInit}
               onMinimapUpdate={handleMinimapUpdate}
@@ -204,12 +270,12 @@ function App() {
               pendingDoctrineAction={pendingDoctrineAction}
               doctrines={doctrines}
               targetingDoctrine={targetingDoctrine}
-          />
+          />}
           <DroneCamera cameraStateRef={cameraStateRef} />
         </Suspense>
       </Canvas>
       
-      <UIOverlay 
+      {match && <UIOverlay 
         stats={combinedStats} 
         minimapData={minimapData} 
         playerTeam={playerTeam} 
@@ -218,7 +284,21 @@ function App() {
         onSelectDoctrine={handleSelectDoctrine}
         onTriggerDoctrine={handleTriggerDoctrine}
         interactionMode={interactionMode}
-      />
+        match={match}
+        matchInfo={matchInfo}
+        notices={notices}
+      />}
+      {!match && <MatchSetup onStart={startMatch} />}
+      {match && result && showResult && (
+        <MatchEnd
+            victory={result.victory}
+            playerTeam={match.playerTeam}
+            summary={result.summary}
+            onContinue={() => setShowResult(false)}
+            onSetup={() => { setMatch(null); setResult(null); }}
+            onRematch={() => startMatch({ ...match })}
+        />
+      )}
       <Loader 
         containerStyles={{ backgroundColor: '#050505' }}
         innerStyles={{ width: '50vw', height: '4px', backgroundColor: '#1e293b' }}

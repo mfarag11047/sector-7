@@ -3,6 +3,12 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { GameStats, TeamStats, MinimapData, DoctrineType, DoctrineState } from '../types';
 import { BUILDING_COLORS, TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG, TEAM_BASES, BUILDING_VALUES } from '../constants';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
+import { HQ_INCOME } from '../sim/economy';
+import { POP_BASE, POP_MAX, POP_PER_CORE_NODE, TIER_REQUIREMENT } from '../sim/units';
+import { DOMINATION_MS, DOMINATION_NODES } from '../sim/victory';
+import type { MatchConfig } from '../sim/match';
+import type { MatchInfo } from './CityMap';
+import type { Notice } from '../App';
 
 interface ManualSection {
   title: string;
@@ -11,36 +17,35 @@ interface ManualSection {
 
 const MANUAL_DATA: ManualSection[] = [
   {
-    title: "Mission Objectives",
+    title: "Winning",
     items: [
-      { label: "Sector Capture", description: "Only infantry can capture a building. Stand next to it until capture reaches 100%. Claiming it extends your energy grid instead of paying cores." },
-      { label: "Domination", description: "Only infantry can neutralize an enemy building. Stand near it until its capture progress returns to zero." },
+      { label: "Destruction", description: "Destroy the enemy Command HQ. It has 5000 health and an anti-vehicle gun, so bring Titans or Lancers." },
+      { label: "Domination", description: `Hold ${DOMINATION_NODES} of the 6 core nodes for ${DOMINATION_MS / 60000} minutes without a break. The timer shows at the top of the screen for both sides.` },
     ]
   },
   {
-    title: "Building Blocks",
+    title: "Economy",
     items: [
-      { label: "Clumping", description: "Buildings exist in organic clusters of 3-6. All buildings in a block share the same economic tier." },
-      { label: "Fortification", description: "Capturing an entire block grants a Defense Bonus based on the number of buildings, slowing enemy capture." },
-      { label: "Energy Grid", description: `Your command base powers vehicles and drones within ${ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS} tiles. Each captured building adds a smaller ${ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS}-tile field. Inside that coverage they move without spending battery and refill their cells. Past it they run on battery until the next building is captured. Infantry walk without battery, but abilities such as the Ghost's still spend it.` },
+      { label: "Core Nodes", description: `Your HQ pays ${HQ_INCOME} cores a second. Each core node you hold pays ${BUILDING_VALUES.core_node.income} more and raises your population cap by ${POP_PER_CORE_NODE} (from ${POP_BASE}, up to ${POP_MAX}). Only infantry capture, and core nodes are slow.` },
+      { label: "Server Nodes", description: "Four in the centre, each guarded by a Sentinel that attacks everyone. Holding 1 unlocks Tier 2 units and doctrine powers; holding 2 unlocks Tier 3. Lose them and you lose the tier." },
+      { label: "Energy Grid", description: `Your HQ powers ${ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS} tiles around it, and every captured building (not core nodes) adds ${ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS} more. Vehicles and drones recharge inside it and drain outside. You can only build inside it.` },
     ]
   },
   {
-    title: "Compute System",
+    title: "Building",
     items: [
-      { label: "Server Nodes", description: "Special blue buildings that provide Compute and also extend your energy grid. Only infantry can capture one, and it takes longer than a normal building." },
-      { label: "Ability Gating", description: "Advanced abilities (Nuke, Hack, Decoy) require holding a specific number of Server Nodes to activate." },
-      { label: "Thresholds", description: "1: Decoy | 2: APS/Trophy | 3: Hack | 4: WMD Launch" },
+      { label: "HQ menu", description: "Double-click your HQ. Barracks (infantry), Factory (vehicles), Airpad (aircraft), Comm Link (support), Depot (Masons, walls, turrets), Ordnance Fab (missiles)." },
+      { label: "Training", description: "Double-click a finished structure to train. Up to 5 queue at once. Set a rally point and new units drive there." },
+      { label: "Defences", description: "With a Depot, Masons haul materials to Dragon's Teeth, Bulwark Walls and Sentry Turrets." },
     ]
   },
   {
-    title: "Core Nodes",
+    title: "Combat",
     items: [
-      { label: "Capture Sites", description: "Each node sits in the middle of a city block, the 5x5 lot between the roads. One is two city blocks in front of each command base. The other two occupy the far corner blocks, and the city blocks around those are empty so no captured building can power a grid beside them." },
-      { label: "Slow Capture", description: "Only infantry can capture a core node, and it takes much longer than a building. Hold the tile beside it until the node fills with your team color." },
-      { label: "Core Income", description: `Each node you hold pays ${BUILDING_VALUES.core_node.income} cores per second. Buildings still extend the energy grid and do not pay cores.` },
+      { label: "Counters", description: "Rifles shred infantry. Anti-vehicle rockets crack armour. Flak swats aircraft. High explosive levels buildings and clumped infantry. Razorbacks hunt Troopers; Lancers and Hornets hunt vehicles; Aegis and Troopers shoot down aircraft; Titans break infantry blobs and bases." },
+      { label: "Attack-move", description: "Ctrl-click, or press F then click. Units stop to fight anything on the way. A plain move drives through, shooting on the move." },
     ]
-  }
+  },
 ];
 
 const EditableStat: React.FC<{
@@ -131,7 +136,7 @@ const DoctrineIcon: React.FC<{ type: DoctrineType | null, className?: string }> 
     return null;
 };
 
-const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left' | 'right'; isVisible: boolean }> = ({ team, stats, isVisible }) => {
+const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left' | 'right'; isVisible: boolean; cheats: boolean }> = ({ team, stats, isVisible, cheats }) => {
   const isBlue = team === 'blue';
   const baseColor = isBlue ? 'text-cyan-300' : 'text-rose-400';
   
@@ -157,20 +162,27 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
         <div className="flex items-baseline gap-4 pointer-events-auto">
           {isVisible ? (
             <>
-                {/* Compute Stat */}
-                <EditableStat 
-                    value={stats.compute || 0}
-                    icon={<span className="text-blue-400">📶</span>}
-                    onSave={(val) => (window as any).GAME_CHEATS?.setCompute(team, val)}
-                />
-                
-                {/* Resource Stat */}
-                <EditableStat 
-                    value={Math.floor(stats.resources)}
-                    label={stats.income > 0 ? `CORES +${stats.income}/s` : 'CORES'}
-                    baseColor="hud-glow-amber"
-                    onSave={(val) => (window as any).GAME_CHEATS?.setResources(team, val)}
-                />
+                {/* Compute and cores. Editable as a cheat in the sandbox only. */}
+                {cheats ? (
+                  <>
+                    <EditableStat 
+                        value={stats.compute || 0}
+                        icon={<span className="text-blue-400">📶</span>}
+                        onSave={(val) => (window as any).GAME_CHEATS?.setCompute(team, val)}
+                    />
+                    <EditableStat 
+                        value={Math.floor(stats.resources)}
+                        label={stats.income > 0 ? `CORES +${stats.income}/s` : 'CORES'}
+                        baseColor="hud-glow-amber"
+                        onSave={(val) => (window as any).GAME_CHEATS?.setResources(team, val)}
+                    />
+                  </>
+                ) : (
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-white font-bold text-xl font-mono">{Math.floor(stats.resources)}</span>
+                    <span className="hud-glow-amber text-[10px] font-mono">CORES +{stats.income}/s</span>
+                  </div>
+                )}
             </>
           ) : (
              <span className="text-slate-500 font-mono text-sm animate-pulse">ENCRYPTED</span>
@@ -190,13 +202,31 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
           <span className="hud-label text-[10px] uppercase">Grid</span>
         </div>
         
-        <div className="flex flex-col items-end">
+        <div className="flex flex-col items-center" title="Core nodes held. Each pays cores and raises your population cap.">
            {isVisible ? (
-                <span className="text-white font-mono text-sm font-bold">{stats.units}</span>
+                <span className="text-amber-300 font-mono text-sm font-bold">{stats.buildings.core_node}/6</span>
            ) : (
                 <span className="text-slate-600 font-mono text-sm">--</span>
            )}
-           <span className="hud-label text-[10px] uppercase">Units</span>
+           <span className="hud-label text-[10px] uppercase">Cores</span>
+        </div>
+
+        <div className="flex flex-col items-center" title={`Tech tier from server nodes held. ${stats.tier && stats.tier < 3 ? 'Next: ' + TIER_REQUIREMENT[(stats.tier + 1) as 2 | 3] : 'Maximum tier'}`}>
+           {isVisible ? (
+                <span className="text-blue-300 font-mono text-sm font-bold">T{stats.tier ?? 1}</span>
+           ) : (
+                <span className="text-slate-600 font-mono text-sm">--</span>
+           )}
+           <span className="hud-label text-[10px] uppercase">Tier</span>
+        </div>
+
+        <div className="flex flex-col items-end" title="Population used / cap">
+           {isVisible ? (
+                <span className={`font-mono text-sm font-bold ${(stats.pop ?? 0) >= (stats.popCap ?? 1) ? 'text-red-400' : 'text-white'}`}>{stats.pop ?? stats.units}/{stats.popCap ?? '-'}</span>
+           ) : (
+                <span className="text-slate-600 font-mono text-sm">--</span>
+           )}
+           <span className="hud-label text-[10px] uppercase">Pop</span>
         </div>
       </div>
     </div>
@@ -305,8 +335,9 @@ const DoctrineHUD: React.FC<{
     type: DoctrineType;
     unlockedTiers: number;
     resources: number;
+    cooldowns?: { tier2: number; tier3: number };
     onTrigger: (type: string, tier: 2 | 3, cost: number) => void;
-}> = ({ type, unlockedTiers, resources, onTrigger }) => {
+}> = ({ type, unlockedTiers, resources, cooldowns, onTrigger }) => {
     const config = DOCTRINE_CONFIG[type];
     
     // Theme Colors
@@ -316,8 +347,10 @@ const DoctrineHUD: React.FC<{
         skunkworks: 'border-cyan-300 text-cyan-200',
     }[type];
 
-    const canAfford2 = resources >= config.tier2_cost;
-    const canAfford3 = resources >= config.tier3_cost;
+    const wait2 = Math.ceil((cooldowns?.tier2 || 0) / 1000);
+    const wait3 = Math.ceil((cooldowns?.tier3 || 0) / 1000);
+    const canAfford2 = resources >= config.tier2_cost && wait2 === 0;
+    const canAfford3 = resources >= config.tier3_cost && wait3 === 0;
     const isUnlocked2 = unlockedTiers >= 2;
     const isUnlocked3 = unlockedTiers >= 3;
 
@@ -344,7 +377,7 @@ const DoctrineHUD: React.FC<{
                 >
                     <span className="text-[9px] uppercase font-bold opacity-60">T2: {config.tier2_name}</span>
                     <span className="text-xs font-bold font-mono">
-                        {isUnlocked2 ? "ACTIVATE" : "LOCKED"}
+                        {!isUnlocked2 ? "LOCKED · 1 SERVER" : wait2 > 0 ? `${wait2}s` : "ACTIVATE"}
                     </span>
                     <div className="mt-auto pt-1 flex justify-between items-end">
                         <span className={`text-[9px] font-mono ${!canAfford2 && isUnlocked2 ? 'text-red-400' : 'text-slate-400'}`}>
@@ -372,7 +405,7 @@ const DoctrineHUD: React.FC<{
                 >
                     <span className="text-[9px] uppercase font-bold opacity-60">T3: {config.tier3_name}</span>
                     <span className="text-xs font-bold font-mono">
-                        {isUnlocked3 ? "EXECUTE" : "LOCKED"}
+                        {!isUnlocked3 ? "LOCKED · 2 SERVERS" : wait3 > 0 ? `${wait3}s` : "EXECUTE"}
                     </span>
                     <div className="mt-auto pt-1 flex justify-between items-end">
                         <span className={`text-[9px] font-mono ${!canAfford3 && isUnlocked3 ? 'text-red-400' : 'text-slate-400'}`}>
@@ -476,9 +509,27 @@ interface UIOverlayProps {
     onSelectDoctrine: (team: 'blue' | 'red', doctrine: DoctrineType) => void;
     onTriggerDoctrine?: (team: 'blue' | 'red', type: string, tier: 2 | 3, cost: number) => void;
     interactionMode?: 'select' | 'target';
+    match?: MatchConfig | null;
+    matchInfo?: MatchInfo | null;
+    notices?: Notice[];
 }
 
-const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef, onSelectDoctrine, onTriggerDoctrine, interactionMode }) => {
+// What the player should be doing next, from where they stand.
+const objective = (s: TeamStats) => {
+  if (s.buildings.core_node === 0) return 'Send infantry to capture the core node near your base for income.';
+  if ((s.tier ?? 1) < 2) return 'Build a Barracks and Factory, then take a server node in the centre to reach Tier 2.';
+  if ((s.tier ?? 1) < 3) return 'Hold a second server node for Tier 3. Push your grid forward by capturing buildings.';
+  if (s.buildings.core_node < DOMINATION_NODES) return `Hold ${DOMINATION_NODES} core nodes for ${DOMINATION_MS / 60000} minutes, or destroy the enemy HQ.`;
+  return 'Hold your core nodes until the domination timer runs out.';
+};
+
+const clockText = (ms: number) => {
+  const sec = Math.floor(ms / 1000);
+  return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+};
+
+const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef, onSelectDoctrine, onTriggerDoctrine, interactionMode, match, matchInfo, notices = [] }) => {
+  const sandbox = match?.mode === 'sandbox';
   const [isIntelOpen, setIsIntelOpen] = useState(false);
   const [isDoctrineOpen, setIsDoctrineOpen] = useState(false);
   const [minimapExpanded, setMinimapExpanded] = useState(false);
@@ -602,21 +653,29 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
       {/* Top HUD: Team Stats */}
       <div className="flex justify-between items-start w-full relative z-50">
         
-        {/* Admin Toggle (Hidden-ish) */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-2 pointer-events-auto z-50">
-             <button 
+        {/* Match clock and domination timers; the team switch in the sandbox only. */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-2 pointer-events-auto z-50 flex flex-col items-center gap-1">
+             {matchInfo && (
+                <div className="hud-plate hud-corners px-3 py-1 text-[11px] text-cyan-100 font-mono tracking-widest">{clockText(matchInfo.elapsedMs)}</div>
+             )}
+             {matchInfo && (['blue', 'red'] as const).map(team => matchInfo.domination[team] !== null && (
+                <div key={team} className={`hud-alert hud-corners px-3 py-1 text-[11px] font-mono font-bold tracking-wider ${team === playerTeam ? 'text-cyan-200' : 'text-rose-300'}`}>
+                    {team === playerTeam ? 'YOU HOLD' : 'ENEMY HOLDS'} {DOMINATION_NODES} CORE NODES · {clockText(matchInfo.domination[team]!)}
+                </div>
+             ))}
+             {sandbox && <button 
                 onClick={toggleTeam}
                 className="hud-plate hud-corners px-3 py-1 text-[10px] text-cyan-200 font-mono uppercase tracking-widest transition-colors hover:text-white"
                 title="Admin: Switch Player Team"
              >
                 Playing As: <span className={playerTeam === 'blue' ? 'text-blue-400' : 'text-red-400'}>{playerTeam.toUpperCase()}</span>
-             </button>
+             </button>}
         </div>
 
-        <TeamPanel team="blue" stats={stats.blue} align="left" isVisible={playerTeam === 'blue'} />
+        <TeamPanel team="blue" stats={stats.blue} align="left" isVisible={playerTeam === 'blue'} cheats={sandbox} />
         
         <div className="mt-8 flex flex-col items-center gap-2 pointer-events-auto">
-            <h1 className="hud-label font-mono text-[10px] uppercase">Sector 7 Conflict</h1>
+            <h1 className="hud-label font-mono text-[10px] uppercase mt-6">Sector 7 Conflict</h1>
             <div className="flex gap-2">
                 <button 
                     onClick={() => setIsIntelOpen(!isIntelOpen)}
@@ -643,7 +702,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
             </div>
         </div>
 
-        <TeamPanel team="red" stats={stats.red} align="right" isVisible={playerTeam === 'red'} />
+        <TeamPanel team="red" stats={stats.red} align="right" isVisible={playerTeam === 'red'} cheats={sandbox} />
       </div>
 
       {/* Manual / Intel Modal */}
@@ -734,9 +793,15 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                 System Message
               </h3>
               <p className="relative text-xs text-cyan-200 font-mono leading-relaxed hud-glow-cyan">
-                &gt; COMMAND: Select unit to initiate movement.<br/>
-                &gt; ALERT: Capture Server Nodes to unlock abilities.
+                &gt; {objective(activeStats)}
               </p>
+              {notices.length > 0 && (
+                <div className="relative mt-2 flex flex-col gap-0.5">
+                  {notices.map(n => (
+                    <p key={n.id} className={`text-xs font-mono leading-snug ${n.tone === 'warn' ? 'text-amber-300' : 'text-emerald-300'}`}>&gt; {n.text}</p>
+                  ))}
+                </div>
+              )}
             </div>
             
             {/* Active Doctrine HUD */}
@@ -744,6 +809,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                 <DoctrineHUD 
                     type={activeDoctrine} 
                     unlockedTiers={unlockedTiers} 
+                    cooldowns={activeStats.doctrine?.cooldowns}
                     resources={activeStats.resources}
                     onTrigger={(type, tier, cost) => onTriggerDoctrine(playerTeam, type, tier, cost)}
                 />

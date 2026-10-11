@@ -26,9 +26,11 @@ import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep,
 import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, resolveAttacks } from '../sim/combat';
 import { generateCity } from '../sim/mapgen';
 import { MatchConfig, STARTING_CORES, incomeMultipliers, startingRoster } from '../sim/match';
-import { OrderCommand, applyOrderToStructures, applyOrderToUnits, orderEffects, popUsed, serverNodesHeld, teamPopCap, teamTier } from '../sim/orders';
+import { OrderCommand, applyOrderToStructures, applyOrderToUnits, orderEffects, popUsed, coreNodesHeld, serverNodesHeld, teamPopCap, teamTier } from '../sim/orders';
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
 import { isAirType, tierFromCompute } from '../sim/units';
+import { Victory, checkVictory, dominationRemaining, freshDominationClock } from '../sim/victory';
+import type { MatchSummary } from './MatchScreens';
 import { Economy, createEconomy, canAfford, spend, setCores, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 
 
@@ -515,9 +517,19 @@ interface CityMapProps {
   targetingDoctrine?: { type: string, team: 'blue'|'red', cost: number } | null;
   // Short messages for the player: refused orders, finished buildings, trained units.
   onNotice?: (text: string, tone?: 'info' | 'warn') => void;
+  // Called once when a side wins.
+  onMatchEnd?: (victory: Victory, summary: MatchSummary) => void;
+  // Called every second with the match clock and objective state, for the HUD.
+  onMatchInfo?: (info: MatchInfo) => void;
 }
 
-const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine, onNotice }) => {
+export interface MatchInfo {
+  elapsedMs: number;
+  // Milliseconds until each side wins by domination, or null when it isn't holding enough nodes.
+  domination: Record<'blue' | 'red', number | null>;
+}
+
+const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine, onNotice, onMatchEnd, onMatchInfo }) => {
   const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
   const offset = (gridSize * tileSize) / 2;
   const baseA_Coord = TEAM_BASES.blue;
@@ -1144,6 +1156,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   matchRef.current = match;
   const onNoticeRef = useRef(onNotice);
   onNoticeRef.current = onNotice;
+  const onMatchEndRef = useRef(onMatchEnd);
+  onMatchEndRef.current = onMatchEnd;
+  const onMatchInfoRef = useRef(onMatchInfo);
+  onMatchInfoRef.current = onMatchInfo;
 
   // Doctrine powers. The player's (from App) and the AI's both come through here, which checks
   // the team chose that doctrine, holds the tier (server nodes), is off cooldown and can pay.
@@ -1737,6 +1753,43 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
     return () => clearInterval(timer);
   }, []);
 
+  // Match clock, losses and victory, once a second.
+  const matchStartRef = useRef(Date.now());
+  const dominationRef = useRef(freshDominationClock());
+  const matchOverRef = useRef(false);
+  const tallyRef = useRef({ blue: { trained: 0, lost: 0 }, red: { trained: 0, lost: 0 } });
+  const aliveRef = useRef(new Map<string, 'blue' | 'red'>());
+  useEffect(() => {
+    const timer = setInterval(() => {
+      const now = Date.now();
+      // A unit that was alive last second and is gone now was lost. Crawlers are ammunition.
+      const alive = new Map<string, 'blue' | 'red'>();
+      for (const u of unitsRef.current) {
+          if ((u.team === 'blue' || u.team === 'red') && u.health > 0 && u.type !== 'crawler_drone') alive.set(u.id, u.team);
+      }
+      aliveRef.current.forEach((team, id) => { if (!alive.has(id)) tallyRef.current[team].lost++; });
+      aliveRef.current = alive;
+
+      const result = checkVictory(structuresRef.current, buildingsRef.current, dominationRef.current, now);
+      dominationRef.current = result.clock;
+      const elapsedMs = now - matchStartRef.current;
+      onMatchInfoRef.current?.({
+          elapsedMs,
+          domination: { blue: dominationRemaining(result.clock, 'blue', now), red: dominationRemaining(result.clock, 'red', now) },
+      });
+      if (!result.victory || matchOverRef.current || matchRef.current.mode === 'sandbox') return;
+      matchOverRef.current = true;
+      const side = (team: 'blue' | 'red') => ({
+          ...tallyRef.current[team],
+          earned: economyRef.current[team].lifetimeIncome,
+          coreNodes: coreNodesHeld(buildingsRef.current, team),
+          serverNodes: serverNodesHeld(buildingsRef.current, team),
+      });
+      onMatchEndRef.current?.(result.victory, { durationMs: elapsedMs, teams: { blue: side('blue'), red: side('red') } });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
   // Report to the HUD whenever the economy changes: every income tick, and right after a purchase.
   // Layout effect so the HUD hears about it in the same pass, not after the next rendered frame.
   useLayoutEffect(() => {
@@ -1744,6 +1797,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
     const red = teamStats(economy, 'red', buildingsRef.current, unitsRef.current, cheatCompute.red, structuresRef.current);
     // Only set when it changed. Even a no-op set here re-runs this whole component.
     if (teamCompute.blue !== blue.compute || teamCompute.red !== red.compute) setTeamCompute({ blue: blue.compute, red: red.compute });
+    // Seconds until each doctrine power is ready again.
+    const now = Date.now();
+    for (const [team, s] of [['blue', blue], ['red', red]] as const) {
+        const ready = doctrineReadyAtRef.current[team];
+        s.doctrine = { ...s.doctrine!, cooldowns: { tier2: Math.max(0, ready.tier2 - now), tier3: Math.max(0, ready.tier3 - now) } };
+    }
     onStatsUpdate({ blue, red });
   }, [economy, cheatCompute, onStatsUpdate, teamCompute]);
 
@@ -1937,6 +1996,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   if (rally) unit.path = isAirType(unitType) ? aiHelpersRef.current.findAirPath(spawn, rally) : findPath(spawn, rally);
                   return unit;
               });
+              born.forEach(u => { if (u.team === 'blue' || u.team === 'red') tallyRef.current[u.team].trained++; });
               unitsRef.current = [...unitsRef.current, ...born];
               setUnits(prev => [...prev, ...born]);
           }
