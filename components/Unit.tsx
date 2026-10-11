@@ -7,6 +7,7 @@ import { TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, UNIT_STATS } from '../consta
 import { UnitType, UnitClass } from '../types';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
+import { AegisModel, HornetModel, LancerLauncher, RazorbackModel, TrooperKit } from './unitModels';
 import { follow, predictPosition, simClock, walkAlong } from './glide';
 
 // Helper component for spinning rotors
@@ -118,6 +119,7 @@ interface UnitProps {
   teamCompute: number; // New Prop
   firingLaserAt?: string | null;
   lastAttackTime?: number;
+  combatTargetId?: string | null;
   // Step 3 Updates
   isStunned?: boolean;
   activeBuffs?: ('speed' | 'damage' | 'regen')[];
@@ -181,8 +183,8 @@ vec3 ghostMarkings(vec3 p, vec3 n) {
 }
 `;
 
-const paintGhostMaterial = (mat: THREE.MeshStandardMaterial) => {
-  mat.color.set('#7c868f');
+const paintGhostMaterial = (mat: THREE.MeshStandardMaterial, bodyColor: string) => {
+  mat.color.set(bodyColor);
   mat.emissive.set('#000000');
   mat.emissiveIntensity = 1;
   mat.roughness = 0.62;
@@ -203,7 +205,8 @@ const paintGhostMaterial = (mat: THREE.MeshStandardMaterial) => {
 
 // Tripo export is 1 unit tall, feet on y=0, face along +Z.
 // Unit lookAt aims local -Z at the next waypoint, so the mesh is turned 180°.
-const GhostModel: React.FC = () => {
+// All infantry share this soldier mesh; the armor color tells them apart.
+const SoldierModel: React.FC<{ bodyColor: string }> = ({ bodyColor }) => {
   const { scene } = useGLTF(GHOST_MODEL_URL);
   const clone = useMemo(() => {
     const cloned = scene.clone(true);
@@ -215,13 +218,13 @@ const GhostModel: React.FC = () => {
       const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
       const clonedMats = mats.map(mat => {
         const copy = mat.clone() as THREE.MeshStandardMaterial;
-        if (copy.color) paintGhostMaterial(copy);
+        if (copy.color) paintGhostMaterial(copy, bodyColor);
         return copy;
       });
       mesh.material = Array.isArray(mesh.material) ? clonedMats : clonedMats[0];
     });
     return cloned;
-  }, [scene]);
+  }, [scene, bodyColor]);
 
   useEffect(() => {
     return () => {
@@ -239,8 +242,10 @@ const GhostModel: React.FC = () => {
 
 useGLTF.preload(GHOST_MODEL_URL);
 
+const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
+
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -276,7 +281,12 @@ const Unit: React.FC<UnitProps> = ({
   const isSwarmHost = type === 'swarm_host';
   const isCrawler = type === 'crawler_drone';
   const isBombard = type === 'bombard';
-  const isAir = isWasp || isDrone || isHelios || isBombard;
+  const isTrooper = type === 'trooper';
+  const isLancer = type === 'lancer';
+  const isRazorback = type === 'razorback';
+  const isAegis = type === 'aegis';
+  const isHornet = type === 'hornet';
+  const isAir = isWasp || isDrone || isHelios || isBombard || isHornet;
   
   const classConfig = UNIT_CLASSES[unitClass];
   const unitStats = UNIT_STATS[type];
@@ -290,7 +300,7 @@ const Unit: React.FC<UnitProps> = ({
 
   // Floating height difference
   // Raised ground units to 1.2 to clear the Base platform (height 1.0)
-  const hoverHeight = isBombard ? 42 : isDefenseDrone ? 12.0 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler) ? 1.2 : (isAir ? 75.0 : 2.0);
+  const hoverHeight = isBombard ? 42 : isDefenseDrone ? 12.0 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler || isTrooper || isLancer || isRazorback || isAegis) ? 1.2 : (isAir ? 75.0 : 2.0);
   
   // Logical World Position
   const logicalWorldPos = useMemo(() => new THREE.Vector3(
@@ -577,6 +587,18 @@ const Unit: React.FC<UnitProps> = ({
 
   // Model rendering based on unit type
   const renderModel = () => {
+    if (isTrooper || isLancer) return (
+        <group>
+            <group scale={3.7} rotation={[0, Math.PI, 0]}>
+                <SoldierModel bodyColor={isTrooper ? '#4b5563' : '#6b5a3e'} />
+                {isTrooper ? <TrooperKit teamColor={teamColor} /> : <LancerLauncher teamColor={teamColor} />}
+            </group>
+            <pointLight ref={flashRef} position={[0, 2.2, 0]} color="#fbbf24" distance={3} decay={2} visible={false} />
+        </group>
+    );
+    if (isRazorback) return <RazorbackModel teamColor={teamColor} />;
+    if (isAegis) return <AegisModel teamColor={teamColor} firing={!!combatTargetId} />;
+    if (isHornet) return <HornetModel teamColor={teamColor} />;
      if (isDefenseDrone) {
         const bodyColor = "#334155"; const glowColor = firingLaserAt ? "#ff0000" : "#ef4444"; const detailColor = "#1e293b";
         return ( <group scale={[3, 3, 3]}> <mesh><sphereGeometry args={[0.6, 16, 16]} /><meshStandardMaterial color={bodyColor} metalness={0.8} roughness={0.3} /></mesh> <mesh rotation={[Math.PI/2, 0, 0]}><torusGeometry args={[0.605, 0.015, 6, 24]} /><meshBasicMaterial color={glowColor} toneMapped={false} /></mesh> <mesh position={[0, 0.35, 0]} rotation={[Math.PI/2, 0, 0]}><torusGeometry args={[0.48, 0.015, 6, 24]} /><meshBasicMaterial color={glowColor} toneMapped={false} /></mesh> <mesh position={[0, -0.35, 0]} rotation={[Math.PI/2, 0, 0]}><torusGeometry args={[0.48, 0.015, 6, 24]} /><meshBasicMaterial color={glowColor} toneMapped={false} /></mesh> <group position={[0, 0, 0.52]} rotation={[Math.PI/2, 0, 0]}> <mesh><cylinderGeometry args={[0.22, 0.25, 0.15, 8]} /><meshStandardMaterial color={detailColor} metalness={0.9} /></mesh> <mesh position={[0, 0.08, 0]}><sphereGeometry args={[0.15, 8, 8, 0, Math.PI * 2, 0, Math.PI * 0.5]} /><meshBasicMaterial color={glowColor} toneMapped={false} /></mesh> <mesh position={[0, 0.2, 0]} rotation={[Math.PI/2, 0, 0]}><ringGeometry args={[0.06, 0.12, 8]} /><meshBasicMaterial color="#ffffff" transparent opacity={0.4} blending={THREE.AdditiveBlending} /></mesh> </group> {[90, 180, 270].map((deg) => { const rad = deg * Math.PI / 180; return ( <group key={deg} rotation={[0, rad, 0]}> <group position={[0, 0, 0.55]} rotation={[Math.PI/2, 0, 0]}> <mesh><cylinderGeometry args={[0.1, 0.12, 0.1, 8]} /><meshStandardMaterial color={detailColor} /></mesh> <mesh position={[0, 0.06, 0]}><sphereGeometry args={[0.06, 8, 8, 0, Math.PI * 2, 0, Math.PI * 0.5]} /><meshBasicMaterial color={glowColor} /></mesh> </group> </group> ); })} {[ [1, 1, 1], [-1, 1, 1], [1, -1, 1], [-1, -1, 1], [1, 1, -1], [-1, 1, -1], [1, -1, -1], [-1, -1, -1] ].map((vec, i) => { const dir = new THREE.Vector3(...vec).normalize(); const pos = dir.clone().multiplyScalar(0.58); const quaternion = new THREE.Quaternion(); quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); return ( <group key={i} position={pos} quaternion={quaternion}> <mesh position={[0, 0.05, 0]}><cylinderGeometry args={[0.06, 0.08, 0.1, 6]} /><meshStandardMaterial color={detailColor} /></mesh> <mesh position={[0, 0.25, 0]}><coneGeometry args={[0.03, 0.4, 8]} /><meshStandardMaterial color="#cbd5e1" metalness={1} roughness={0.1} /></mesh> </group> ); })} <group position={[0.2, 0.55, -0.2]} rotation={[0, 0, -0.2]}> <mesh position={[0, 0.2, 0]}><cylinderGeometry args={[0.02, 0.02, 0.6]} /><meshStandardMaterial color="#94a3b8" metalness={1} /></mesh> <mesh position={[0, 0.5, 0]}><sphereGeometry args={[0.03]} /><meshBasicMaterial color={glowColor} /></mesh> </group> <group position={[-0.2, 0.55, -0.1]} rotation={[0.1, 0, 0.2]}> <mesh position={[0, 0.15, 0]}><cylinderGeometry args={[0.015, 0.015, 0.4]} /><meshStandardMaterial color="#94a3b8" metalness={1} /></mesh> </group> <group position={[0, -0.6, 0]}> <mesh rotation={[Math.PI, 0, 0]}><cylinderGeometry args={[0.2, 0.3, 0.15, 6]} /><meshStandardMaterial color={detailColor} /></mesh> <mesh position={[0, -0.1, 0]}><cylinderGeometry args={[0.1, 0.1, 0.1, 8]} /><meshBasicMaterial color={glowColor} transparent opacity={0.8} /></mesh> </group> </group> );

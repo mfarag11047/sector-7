@@ -1,4 +1,5 @@
 
+import StructureStatus from './StructureStatus';
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges, Html } from '@react-three/drei';
@@ -1143,6 +1144,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
     <group ref={groupRef} position={position} onContextMenu={handleRightClick} onDoubleClick={handleDoubleClick} onClick={handleClick}>
       {renderMenu()}
       {renderModel()}
+      <StructureStatus data={data} height={config.height} />
     </group>
   );
 };

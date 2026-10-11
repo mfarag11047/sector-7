@@ -1,13 +1,13 @@
-// Who hurts whom each game tick: blasts, auto-attacks, Sentinel drones, Crawler drones,
+// Who hurts whom each game tick: weapons fire (units, HQs, turrets), blasts, Crawler drones,
 // Bombardment Drone strikes and HE clouds.
 //
-// These rules were moved out of the main loop in CityMap.tsx unchanged, except where a
-// comment says otherwise. Each function only reads the units it is given and reports
-// damage; the caller applies it, so the same code can run on a server.
+// Each function only reads the state it is given and reports damage; the caller applies it,
+// so the same code can run on a server. Weapons, armor and damage types are in sim/units.ts.
 
-import { ABILITY_CONFIG, UNIT_STATS } from '../constants';
-import type { BuildingData, CloudData, UnitData } from '../types';
+import { ABILITY_CONFIG } from '../constants';
+import type { BuildingData, CloudData, StructureType, UnitData } from '../types';
 import type { GridPos } from './commands';
+import { ArmorClass, canHit, DamageType, shotDamage, STRUCTURE_RULES, UNIT_RULES, Weapon } from './units';
 
 export type DamageMap = Map<string, number>;
 
@@ -66,57 +66,155 @@ export function crawlerDetonations(units: readonly UnitData[], tileSize: number,
   return detonations;
 }
 
-// Sentinel drones guard their server node: while a team is capturing it, the drone fires
-// on that team's nearest unit in range. Infantry and armor shoot back.
-export function sentinelFire(units: readonly UnitData[], buildings: readonly BuildingData[]) {
-  const damage: DamageMap = new Map();
-  const retaliation: DamageMap = new Map();
-  const targets = new Map<string, string>();
-  for (const drone of units) {
-    if (drone.type !== 'defense_drone' || drone.health <= 0) continue;
-    const building = buildings.find(b => b.gridX === drone.gridPos.x && b.gridZ === drone.gridPos.z);
-    if (!building || building.captureProgress <= 0 || !building.capturingTeam) continue;
-    const target = units.find(u =>
-      u.team === building.capturingTeam && u.health > 0 && !u.decoyActive &&
-      Math.abs(u.gridPos.x - drone.gridPos.x) <= ABILITY_CONFIG.DEFENSE_DRONE_RANGE &&
-      Math.abs(u.gridPos.z - drone.gridPos.z) <= ABILITY_CONFIG.DEFENSE_DRONE_RANGE);
-    if (!target) continue;
-    addDamage(damage, target.id, ABILITY_CONFIG.DEFENSE_DRONE_DAMAGE);
-    targets.set(drone.id, target.id);
-    if (['tank', 'ghost', 'ballista'].includes(target.type) || target.unitClass === 'armor' || target.unitClass === 'infantry') {
-      addDamage(retaliation, drone.id, ABILITY_CONFIG.UNIT_RETALIATION_DAMAGE);
-    }
-  }
-  return { damage, retaliation, targets };
+// --- Weapons fire ---
+
+export interface CombatStructure {
+  id: string;
+  type: StructureType;
+  team: 'blue' | 'red';
+  gridPos: GridPos;
+  health: number;
+  isBlueprint: boolean;
+  buildRemainingMs?: number;
+  lastAttackTime?: number;
+  combatTargetId?: string | null;
 }
 
-// Every armed unit fires at the nearest visible enemy within 2 tiles when off cooldown.
-// Units inside a nano cloud can neither shoot nor be shot.
-// Change from before: dead units no longer fire or draw fire in the tick they die.
-export function autoAttacks(units: readonly UnitData[], now: number, inNanoCloud: (pos: GridPos) => boolean) {
-  const damage: DamageMap = new Map();
-  const fired = new Set<string>();
-  for (const attacker of units) {
-    const stats = UNIT_STATS[attacker.type];
-    if (attacker.health <= 0 || !stats.attackDamage) continue;
-    if (now - (attacker.lastAttackTime || 0) < (stats.attackCooldown || 1000)) continue;
-    if (inNanoCloud(attacker.gridPos)) continue;
-    let targetId: string | null = null;
-    let nearest = Infinity;
-    for (const enemy of units) {
-      if (enemy.team === attacker.team || enemy.team === 'neutral' || enemy.decoyActive || enemy.health <= 0) continue;
-      if (inNanoCloud(enemy.gridPos)) continue;
-      const d = Math.hypot(attacker.gridPos.x - enemy.gridPos.x, attacker.gridPos.z - enemy.gridPos.z);
-      if (d <= 2 && d < nearest) {
-        nearest = d;
-        targetId = enemy.id;
+export interface Shot {
+  attackerId: string;
+  targetId: string;
+  from: GridPos;
+  to: GridPos;
+  type: DamageType;
+  // The target is an aircraft, so the shot is drawn upward.
+  toAir: boolean;
+  fromAir: boolean;
+}
+
+export interface AttackResult {
+  unitDamage: DamageMap;
+  structureDamage: DamageMap;
+  // Everyone who fired this tick, and at what.
+  fired: Map<string, string>;
+  // Every armed unit's current target in range, or null. Attack-move holds while it has one.
+  aiming: Map<string, string | null>;
+  shots: Shot[];
+}
+
+type Target = { id: string; gridPos: GridPos; armor: ArmorClass; isAir: boolean; structure: boolean };
+
+const hostile = (a: UnitData['team'], b: UnitData['team']) => a !== b;
+const tiles = (a: GridPos, b: GridPos) => Math.hypot(a.x - b.x, a.z - b.z);
+
+// One tick of weapons fire for every armed unit, the HQs and finished Sentry Turrets.
+//
+// Each picks a target its weapon can reach: it keeps its last target while that stays valid,
+// otherwise the nearest enemy unit, and only shoots buildings when no unit is in range.
+// Cloaked Ghosts and anything inside a nano cloud can neither shoot nor be shot.
+// Neutral Sentinels are hostile to both teams and both teams to them.
+export function resolveAttacks(
+  units: readonly UnitData[],
+  structures: readonly CombatStructure[],
+  now: number,
+  inNanoCloud: (pos: GridPos) => boolean,
+): AttackResult {
+  const result: AttackResult = { unitDamage: new Map(), structureDamage: new Map(), fired: new Map(), aiming: new Map(), shots: [] };
+
+  const unitTargets = units.filter(u => u.health > 0 && !u.decoyActive && !inNanoCloud(u.gridPos));
+  const structureTargets = structures.filter(s => s.health > 0);
+
+  const pick = (team: UnitData['team'], at: GridPos, weapon: Weapon, current: string | null | undefined): Target | null => {
+    let best: Target | null = null;
+    let bestDist = Infinity;
+    for (const t of unitTargets) {
+      if (!hostile(team, t.team)) continue;
+      const armor = UNIT_RULES[t.type].armor;
+      const isAir = armor === 'air';
+      if (!canHit(weapon, isAir)) continue;
+      const d = tiles(at, t.gridPos);
+      if (d > weapon.range) continue;
+      // Stick with the current target rather than flicking between equals.
+      const score = t.id === current ? -1 : d;
+      if (score < bestDist) {
+        bestDist = score;
+        best = { id: t.id, gridPos: t.gridPos, armor, isAir, structure: false };
       }
     }
-    if (!targetId) continue;
-    addDamage(damage, targetId, stats.attackDamage);
-    fired.add(attacker.id);
+    if (best || !weapon.hitsGround || team === 'neutral') return best;
+    for (const s of structureTargets) {
+      if (!hostile(team, s.team)) continue;
+      const d = tiles(at, s.gridPos);
+      if (d > weapon.range) continue;
+      const score = s.id === current ? -1 : d;
+      if (score < bestDist) {
+        bestDist = score;
+        best = { id: s.id, gridPos: s.gridPos, armor: 'structure', isAir: false, structure: true };
+      }
+    }
+    return best;
+  };
+
+  const fire = (attackerId: string, team: UnitData['team'], from: GridPos, fromAir: boolean, weapon: Weapon, target: Target) => {
+    const damage = shotDamage(weapon, target.armor);
+    addDamage(target.structure ? result.structureDamage : result.unitDamage, target.id, damage);
+    if (weapon.splash) {
+      for (const t of unitTargets) {
+        if (t.id === target.id || !hostile(team, t.team)) continue;
+        const armor = UNIT_RULES[t.type].armor;
+        if (armor === 'air' || tiles(t.gridPos, target.gridPos) > weapon.splash) continue;
+        addDamage(result.unitDamage, t.id, shotDamage(weapon, armor) * (weapon.splashFactor ?? 0.5));
+      }
+    }
+    result.fired.set(attackerId, target.id);
+    result.shots.push({ attackerId, targetId: target.id, from, to: target.gridPos, type: weapon.type, toAir: target.isAir, fromAir });
+  };
+
+  for (const u of units) {
+    const weapon = UNIT_RULES[u.type].weapon;
+    if (!weapon || u.health <= 0 || u.decoyActive || inNanoCloud(u.gridPos)) continue;
+    const target = pick(u.team, u.gridPos, weapon, u.combatTargetId);
+    result.aiming.set(u.id, target ? target.id : null);
+    if (!target || now - (u.lastAttackTime || 0) < weapon.cooldownMs) continue;
+    fire(u.id, u.team, u.gridPos, UNIT_RULES[u.type].armor === 'air', weapon, target);
   }
-  return { damage, fired };
+
+  for (const s of structures) {
+    const weapon = STRUCTURE_RULES[s.type].weapon;
+    if (!weapon || s.health <= 0 || s.isBlueprint || (s.buildRemainingMs || 0) > 0) continue;
+    const target = pick(s.team, s.gridPos, weapon, s.combatTargetId);
+    result.aiming.set(s.id, target ? target.id : null);
+    if (!target || now - (s.lastAttackTime || 0) < weapon.cooldownMs) continue;
+    fire(s.id, s.team, s.gridPos, false, weapon, target);
+  }
+  return result;
+}
+
+// Applies a tick of weapons fire to structures: damage taken, plus the HQ and turrets'
+// own firing state. Destroyed structures are removed, except an HQ, which stays at zero
+// health so the match can see it fell.
+export function applyStructureCombat<S extends { id: string; type: StructureType; health: number; lastAttackTime?: number; combatTargetId?: string | null }>(
+  structures: S[],
+  attack: Pick<AttackResult, 'structureDamage' | 'fired' | 'aiming'>,
+  now: number,
+): S[] {
+  let changed = false;
+  const next: S[] = [];
+  for (const s of structures) {
+    let after = s;
+    const damage = attack.structureDamage.get(s.id) || 0;
+    if (damage > 0) after = { ...after, health: Math.max(0, after.health - damage) };
+    if (attack.fired.has(s.id)) after = { ...after, lastAttackTime: now };
+    if (attack.aiming.has(s.id) && (s.combatTargetId ?? null) !== attack.aiming.get(s.id)) {
+      after = { ...after, combatTargetId: attack.aiming.get(s.id) ?? null };
+    }
+    if (after !== s) changed = true;
+    if (after.health <= 0 && after.type !== 'hq') {
+      changed = true;
+      continue;
+    }
+    next.push(after);
+  }
+  return changed ? next : structures;
 }
 
 // Bombardment Drones strike once they hover over their target square.

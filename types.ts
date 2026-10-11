@@ -79,7 +79,7 @@ export interface BuildingBlock {
   owner: 'blue' | 'red' | null;
 }
 
-export type UnitType = 'drone' | 'tank' | 'ghost' | 'guardian' | 'mule' | 'wasp' | 'mason' | 'helios' | 'sun_plate' | 'ballista' | 'courier' | 'banshee' | 'defense_drone' | 'titan_dropped' | 'swarm_host' | 'crawler_drone' | 'bombard';
+export type UnitType = 'drone' | 'tank' | 'ghost' | 'guardian' | 'mule' | 'wasp' | 'mason' | 'helios' | 'sun_plate' | 'ballista' | 'courier' | 'banshee' | 'defense_drone' | 'titan_dropped' | 'swarm_host' | 'crawler_drone' | 'bombard' | 'trooper' | 'lancer' | 'razorback' | 'aegis' | 'hornet';
 export type UnitClass = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'defense';
 
 export interface UnitData {
@@ -143,6 +143,10 @@ export interface UnitData {
   bombardmentTarget?: { x: number; z: number } | null;
   firingLaserAt?: string | null;
   lastAttackTime?: number;
+  // What this unit's weapon is aimed at this tick (sim/combat.ts resolveAttacks).
+  combatTargetId?: string | null;
+  // Attack-move: stop to fight anything in range, then carry on along the path.
+  attackMove?: boolean;
   charges?: {
     smoke?: number;
     aps?: number;
@@ -180,7 +184,7 @@ export interface UnitData {
   parentId?: string;
 }
 
-export type StructureType = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'ordnance_fab' | 'wall_tier1' | 'wall_tier2' | 'defense';
+export type StructureType = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'ordnance_fab' | 'wall_tier1' | 'wall_tier2' | 'defense' | 'hq';
 
 export interface StructureData {
   id: string;
@@ -198,6 +202,16 @@ export interface StructureData {
       progress: number;
       totalTime: number;
   };
+  // Base structures take time to go up and cannot train or fire until finished.
+  buildRemainingMs?: number;
+  buildTotalMs?: number;
+  // Units in training, front first. Pop and cores are paid when queued.
+  queue?: { unitType: UnitType; remainingMs: number; totalMs: number }[];
+  // New units walk here.
+  rallyPoint?: { x: number; z: number } | null;
+  // HQ and Sentry Turret weapons.
+  lastAttackTime?: number;
+  combatTargetId?: string | null;
 }
 
 export type RoadType = 'main' | 'street' | 'open';

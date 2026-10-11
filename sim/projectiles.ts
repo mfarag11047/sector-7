@@ -9,6 +9,7 @@
 
 import { ABILITY_CONFIG, CITY_CONFIG, STRUCTURE_INFO } from '../constants';
 import type { BuildingData, CloudData, DecoyData, Projectile, StructureData, UnitData } from '../types';
+import { isAirType } from './units';
 
 // Ballistic missiles are a closed-form arc, so the mesh can follow the same
 // curve the sim uses without waiting for the 10 Hz tick.
@@ -55,7 +56,8 @@ export const isHeavyOrdnance = (p: Projectile) => {
 };
 
 export const flightUnitY = (u: UnitData) => {
-    if (['wasp', 'drone', 'helios'].includes(u.type)) return 75.0;
+    if (u.type === 'bombard') return 42.0;
+    if (isAirType(u.type)) return 75.0;
     if (u.type === 'defense_drone') return 12.0;
     return 1.5;
 };

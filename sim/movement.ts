@@ -9,14 +9,15 @@
 import { ABILITY_CONFIG, UNIT_STATS } from '../constants';
 import type { RoadType, UnitData, UnitType } from '../types';
 import type { GridPos } from './commands';
+import { isAirType } from './units';
 
 // Movement advances on the main logic tick.
 export const MOVE_TICK_MS = 100;
 // World units per second at speed multiplier 1.
 export const BASE_SPEED = 12;
 
-const AIR_TYPES: ReadonlySet<UnitType> = new Set(['wasp', 'drone', 'helios', 'bombard']);
-export const isAirUnit = (type: UnitType) => AIR_TYPES.has(type);
+// Aircraft are whatever sim/units.ts gives air armor.
+export const isAirUnit = (type: UnitType) => isAirType(type);
 
 // The fields movement reads. Units and decoys both satisfy it.
 export interface Mover {
@@ -40,6 +41,8 @@ export interface Mover {
   isAnchored?: boolean;
   isDeployed?: boolean;
   surveillance?: UnitData['surveillance'];
+  attackMove?: boolean;
+  combatTargetId?: string | null;
 }
 
 export const parseTile = (key: string): GridPos => {
@@ -52,8 +55,10 @@ export const isPoweredDown = (u: Mover) =>
   (u.unitClass !== 'infantry' && u.battery <= 0) || (!!u.isHacked && u.hackType === 'drain') || !!u.isStunned;
 
 // Planted, loading or anchored units hold position even with a path queued.
+// On attack-move, a unit with something in range stops to fight it.
 export const isHeldInPlace = (u: Mover) =>
-  !!u.isDeployed || !!u.isAnchored || (u.type === 'ballista' && u.ammoState === 'loading');
+  !!u.isDeployed || !!u.isAnchored || (u.type === 'ballista' && u.ammoState === 'loading') ||
+  (!!u.attackMove && !!u.combatTargetId);
 
 // Speed relative to BASE_SPEED for the step toward path[0]. Zero means not moving.
 export function speedMultiplier(u: Mover, tileTypeOf: (key: string) => RoadType | undefined): number {

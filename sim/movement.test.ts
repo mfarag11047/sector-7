@@ -15,7 +15,8 @@ const env = (tiles: Record<string, RoadType> = {}, rules = open()): MovementEnv 
 });
 
 const unit = (patch: Partial<Mover> = {}): Mover => ({
-  type: 'ghost', unitClass: 'infantry', gridPos: { x: 0, z: 0 }, path: ['1,0', '2,0'], battery: 100, ...patch,
+  // Strike Troopers move at exactly speed 1, which keeps the timing arithmetic simple.
+  type: 'trooper', unitClass: 'infantry', gridPos: { x: 0, z: 0 }, path: ['1,0', '2,0'], battery: 100, ...patch,
 });
 
 // Ticks needed to cross one straight tile at this speed multiplier.
@@ -29,9 +30,9 @@ const run = (u: Mover, ticks: number, e = env()) => {
 describe('speed', () => {
   it('uses road type, unit speed and modifiers', () => {
     const tiles: Record<string, RoadType> = { '1,0': 'main' };
-    expect(speedMultiplier(unit(), k => tiles[k])).toBe(2 * UNIT_STATS.ghost.speedMod);
+    expect(speedMultiplier(unit(), k => tiles[k])).toBe(2 * UNIT_STATS.trooper.speedMod);
     expect(speedMultiplier(unit({ path: ['0,1'] }), () => 'open')).toBe(0.5);
-    expect(speedMultiplier(unit({ isDampenerActive: true }), () => 'street')).toBe(ABILITY_CONFIG.GHOST_SPEED_PENALTY);
+    expect(speedMultiplier(unit({ type: 'ghost', isDampenerActive: true }), () => 'street')).toBeCloseTo(UNIT_STATS.ghost.speedMod * ABILITY_CONFIG.GHOST_SPEED_PENALTY);
     expect(speedMultiplier(unit({ activeBuffs: ['speed'] }), () => 'street')).toBeCloseTo(1.2);
     expect(speedMultiplier(unit({ isJammed: true }), () => 'main')).toBe(0.5);
   });
@@ -155,7 +156,7 @@ describe('currentTilePosition', () => {
 describe('moveSpeed', () => {
   it('reports world speed while moving and zero once held or finished', () => {
     const moving = advanceMover(unit(), MOVE_TICK_MS, env());
-    expect(moving.moveSpeed).toBeCloseTo(BASE_SPEED * UNIT_STATS.ghost.speedMod);
+    expect(moving.moveSpeed).toBeCloseTo(BASE_SPEED * UNIT_STATS.trooper.speedMod);
     expect(advanceMover({ ...moving, isStunned: true }, MOVE_TICK_MS, env()).moveSpeed).toBe(0);
     expect(run(unit({ path: ['1,0'] }), 30).moveSpeed).toBe(0);
   });

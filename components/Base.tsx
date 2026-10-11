@@ -3,7 +3,8 @@ import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges, Float, Html } from '@react-three/drei';
 import * as THREE from 'three';
-import { StructureType, UnitClass } from '../types';
+import { StructureData, StructureType, UnitClass } from '../types';
+import StructureStatus from './StructureStatus';
 import { STRUCTURE_INFO, UNIT_CLASSES } from '../constants';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 
@@ -18,10 +19,12 @@ interface BaseProps {
   menuOpen?: boolean;
   resources?: number;
   onBuild?: (type: StructureType) => void;
+  // The HQ structure from game state, for its health bar.
+  hq?: StructureData;
 }
 
 const Base: React.FC<BaseProps> = ({ 
-  position, gridPos, teamColor, label, onMoveCommand, onRightClick, onDoubleClick, menuOpen, resources = 0, onBuild 
+  position, gridPos, teamColor, label, onMoveCommand, onRightClick, onDoubleClick, menuOpen, resources = 0, onBuild, hq
 }) => {
   const radarRef = useRef<THREE.Group>(null);
   const baseGroupRef = useRef<THREE.Group>(null);
@@ -89,6 +92,7 @@ const Base: React.FC<BaseProps> = ({
       onPointerOver={() => (document.body.style.cursor = 'crosshair')}
       onPointerOut={() => (document.body.style.cursor = 'auto')}
     >
+      {hq && <StructureStatus data={hq} height={10} />}
       {/* --- LEVEL 1: BASE PLATFORM (Octagonal/Chamfered look) --- */}
       <group position={[0, 0.5, 0]}>
           {/* Main Central Slab */}

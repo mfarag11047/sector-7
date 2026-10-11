@@ -30,24 +30,37 @@ export const COMPUTE_GATES = {
   LAUNCH_ORDNANCE: 4,
 };
 
-export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: string, visionRange: number, speedMod: number, maxHealth: number, attackDamage: number, attackCooldown: number, cost: number, unitClass: UnitClass }> = {
-  drone: { unitClass: 'air', cost: 50, captureMultiplier: 0, label: 'Infiltrator Drone', visionRange: 2, speedMod: 1.2, maxHealth: 50, attackDamage: 5, attackCooldown: 1000 },
-  tank: { unitClass: 'armor', cost: 300, captureMultiplier: 0, label: 'Titan Main Battle Tank', visionRange: 3, speedMod: 0.7, maxHealth: 400, attackDamage: 25, attackCooldown: 2000 },
-  ghost: { unitClass: 'infantry', cost: 150, captureMultiplier: 1.0, label: 'Ghost EW Specialist', visionRange: 3, speedMod: 1.0, maxHealth: 80, attackDamage: 8, attackCooldown: 800 },
-  guardian: { unitClass: 'support', cost: 200, captureMultiplier: 0, label: 'Guardian UGV', visionRange: 3, speedMod: 0.6, maxHealth: 150, attackDamage: 0, attackCooldown: 0 },
-  mule: { unitClass: 'ordnance', cost: 250, captureMultiplier: 0.0, label: 'Field Fabricator', visionRange: 3, speedMod: 0.9, maxHealth: 60, attackDamage: 0, attackCooldown: 0 },
-  wasp: { unitClass: 'air', cost: 200, captureMultiplier: 0.0, label: '"Wasp" Swarm Launcher', visionRange: 5, speedMod: 1.5, maxHealth: 40, attackDamage: 5, attackCooldown: 500 },
-  mason: { unitClass: 'builder', cost: 150, captureMultiplier: 0.0, label: '"Mason" Combat Engineer', visionRange: 2, speedMod: 0.7, maxHealth: 150, attackDamage: 0, attackCooldown: 0 },
-  helios: { unitClass: 'support', cost: 100, captureMultiplier: 0.0, label: '"Helios" Microwave Drone', visionRange: 4, speedMod: 1.3, maxHealth: 60, attackDamage: 0, attackCooldown: 0 },
-  sun_plate: { unitClass: 'armor', cost: 400, captureMultiplier: 0.0, label: 'Battery Mule', visionRange: 2, speedMod: 0.32, maxHealth: 500, attackDamage: 0, attackCooldown: 0 },
-  ballista: { unitClass: 'support', cost: 350, captureMultiplier: 0.0, label: '"Ballista" Launch Platform', visionRange: 3, speedMod: 0.4, maxHealth: 100, attackDamage: 0, attackCooldown: 0 },
-  courier: { unitClass: 'support', cost: 50, captureMultiplier: 0.0, label: 'Ordnance Courier', visionRange: 2, speedMod: 1.8, maxHealth: 30, attackDamage: 0, attackCooldown: 0 },
-  banshee: { unitClass: 'support', cost: 300, captureMultiplier: 0.0, label: '"Banshee" EW Vehicle', visionRange: 4, speedMod: 0.9, maxHealth: 350, attackDamage: 0, attackCooldown: 0 },
-  defense_drone: { unitClass: 'defense', cost: 0, captureMultiplier: 0.0, label: 'Sentinel Drone', visionRange: 2, speedMod: 0, maxHealth: 60, attackDamage: 10, attackCooldown: 500 },
-  titan_dropped: { unitClass: 'armor', cost: 0, captureMultiplier: 0, label: 'Titan (Orbital Drop)', visionRange: 3, speedMod: 0.7, maxHealth: 400, attackDamage: 25, attackCooldown: 2000 },
-  swarm_host: { unitClass: 'ordnance', cost: 0, captureMultiplier: 0, label: 'Swarm Host', visionRange: 3, speedMod: 0.8, maxHealth: 100, attackDamage: 0, attackCooldown: 0 },
-  crawler_drone: { unitClass: 'ordnance', cost: 25, captureMultiplier: 0, label: 'Crawler Drone', visionRange: 3, speedMod: 1.2, maxHealth: 30, attackDamage: 0, attackCooldown: 0 },
-  bombard: { unitClass: 'air', cost: 450, captureMultiplier: 0, label: 'Bombardment Drone', visionRange: 4, speedMod: 0.35, maxHealth: 180, attackDamage: 0, attackCooldown: 0 },
+// Identity, cost, health and movement for every unit. Weapons, armor, pop cost, tier and
+// production live in sim/units.ts; the reasoning is in docs/GAME_DESIGN.md.
+export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: string, visionRange: number, speedMod: number, maxHealth: number, cost: number, unitClass: UnitClass }> = {
+  // Barracks
+  trooper: { unitClass: 'infantry', cost: 80, captureMultiplier: 1.0, label: 'Strike Trooper', visionRange: 4, speedMod: 1.0, maxHealth: 100 },
+  ghost: { unitClass: 'infantry', cost: 150, captureMultiplier: 1.5, label: 'Ghost EW Specialist', visionRange: 5, speedMod: 1.1, maxHealth: 110 },
+  lancer: { unitClass: 'infantry', cost: 150, captureMultiplier: 1.0, label: 'Lancer Rocket Team', visionRange: 5, speedMod: 0.9, maxHealth: 100 },
+  // Factory
+  razorback: { unitClass: 'armor', cost: 200, captureMultiplier: 0, label: 'Razorback Raider', visionRange: 5, speedMod: 1.5, maxHealth: 300 },
+  tank: { unitClass: 'armor', cost: 420, captureMultiplier: 0, label: 'Titan Main Battle Tank', visionRange: 5, speedMod: 0.7, maxHealth: 700 },
+  aegis: { unitClass: 'armor', cost: 240, captureMultiplier: 0, label: 'Aegis Flak Carrier', visionRange: 6, speedMod: 1.0, maxHealth: 300 },
+  sun_plate: { unitClass: 'armor', cost: 250, captureMultiplier: 0, label: 'Battery Mule', visionRange: 3, speedMod: 0.32, maxHealth: 500 },
+  // Airpad
+  drone: { unitClass: 'air', cost: 60, captureMultiplier: 0, label: 'Infiltrator Drone', visionRange: 6, speedMod: 1.3, maxHealth: 60 },
+  wasp: { unitClass: 'air', cost: 240, captureMultiplier: 0, label: '"Wasp" Swarm Launcher', visionRange: 5, speedMod: 1.4, maxHealth: 160 },
+  hornet: { unitClass: 'air', cost: 320, captureMultiplier: 0, label: 'Hornet Gunship', visionRange: 5, speedMod: 1.25, maxHealth: 320 },
+  bombard: { unitClass: 'air', cost: 480, captureMultiplier: 0, label: 'Bombardment Drone', visionRange: 4, speedMod: 0.35, maxHealth: 260 },
+  // Comm Link
+  guardian: { unitClass: 'support', cost: 220, captureMultiplier: 0, label: 'Guardian UGV', visionRange: 4, speedMod: 0.8, maxHealth: 300 },
+  helios: { unitClass: 'support', cost: 110, captureMultiplier: 0, label: '"Helios" Microwave Drone', visionRange: 4, speedMod: 1.3, maxHealth: 90 },
+  banshee: { unitClass: 'support', cost: 320, captureMultiplier: 0, label: '"Banshee" EW Vehicle', visionRange: 5, speedMod: 0.9, maxHealth: 380 },
+  ballista: { unitClass: 'support', cost: 380, captureMultiplier: 0, label: '"Ballista" Launch Platform', visionRange: 4, speedMod: 0.5, maxHealth: 160 },
+  // Depot and Ordnance Fab
+  mason: { unitClass: 'builder', cost: 120, captureMultiplier: 0, label: '"Mason" Combat Engineer', visionRange: 3, speedMod: 0.8, maxHealth: 150 },
+  mule: { unitClass: 'ordnance', cost: 260, captureMultiplier: 0, label: 'Field Fabricator', visionRange: 3, speedMod: 0.9, maxHealth: 200 },
+  courier: { unitClass: 'support', cost: 50, captureMultiplier: 0, label: 'Ordnance Courier', visionRange: 3, speedMod: 1.8, maxHealth: 40 },
+  // Never trained: spawned by the map, abilities or doctrines
+  defense_drone: { unitClass: 'defense', cost: 0, captureMultiplier: 0, label: 'Sentinel Drone', visionRange: 4, speedMod: 0, maxHealth: 300 },
+  titan_dropped: { unitClass: 'armor', cost: 0, captureMultiplier: 0, label: 'Titan (Orbital Drop)', visionRange: 5, speedMod: 0.7, maxHealth: 700 },
+  swarm_host: { unitClass: 'ordnance', cost: 0, captureMultiplier: 0, label: 'Swarm Host', visionRange: 4, speedMod: 0.8, maxHealth: 300 },
+  crawler_drone: { unitClass: 'ordnance', cost: 0, captureMultiplier: 0, label: 'Crawler Drone', visionRange: 3, speedMod: 1.2, maxHealth: 40 },
 };
 
 export const BUILDING_HEALTH: Record<'residential' | 'commercial' | 'industrial' | 'hightech' | 'server_node' | 'core_node', number> = {
@@ -233,17 +246,20 @@ export const STRUCTURE_COST = 1000;
 export const BUILD_RADIUS = 15; 
 
 export const STRUCTURE_INFO: Record<StructureType, { label: string, color: string, height: number, cost: number, maxProgress: number, maxHealth: number }> = {
-    support: { label: 'Comm Link', color: '#8b5cf6', height: 12, cost: 1000, maxProgress: 0, maxHealth: 500 },
-    infantry: { label: 'Barracks', color: '#10b981', height: 6, cost: 1000, maxProgress: 0, maxHealth: 500 },
-    armor: { label: 'Factory', color: '#f59e0b', height: 8, cost: 1000, maxProgress: 0, maxHealth: 500 },
+    support: { label: 'Comm Link', color: '#8b5cf6', height: 12, cost: 450, maxProgress: 0, maxHealth: 900 },
+    infantry: { label: 'Barracks', color: '#10b981', height: 6, cost: 300, maxProgress: 0, maxHealth: 900 },
+    armor: { label: 'Factory', color: '#f59e0b', height: 8, cost: 550, maxProgress: 0, maxHealth: 1200 },
+    // Superseded by the Ordnance Fab. Kept so old saves and code paths still type-check; not buildable.
     ordnance: { label: 'Munitions', color: '#ef4444', height: 5, cost: 1000, maxProgress: 0, maxHealth: 500 },
-    air: { label: 'Airpad', color: '#0ea5e9', height: 3, cost: 1000, maxProgress: 0, maxHealth: 500 },
-    builder: { label: 'Depot', color: '#fbbf24', height: 6, cost: 1000, maxProgress: 0, maxHealth: 600 },
-    ordnance_fab: { label: 'Ordnance Fab', color: '#be185d', height: 7, cost: 1500, maxProgress: 0, maxHealth: 400 },
-    // Walls
-    wall_tier1: { label: "Dragons Teeth", color: '#475569', height: 1.5, cost: 200, maxProgress: 100, maxHealth: 300 }, // 1 Trip
-    wall_tier2: { label: "Bulwark Wall", color: '#334155', height: 4, cost: 500, maxProgress: 300, maxHealth: 1500 }, // 3 Trips
-    defense: { label: 'Defense Turret', color: '#ef4444', height: 4, cost: 500, maxProgress: 200, maxHealth: 800 },
+    air: { label: 'Airpad', color: '#0ea5e9', height: 3, cost: 600, maxProgress: 0, maxHealth: 1000 },
+    builder: { label: 'Depot', color: '#fbbf24', height: 6, cost: 200, maxProgress: 0, maxHealth: 700 },
+    ordnance_fab: { label: 'Ordnance Fab', color: '#be185d', height: 7, cost: 800, maxProgress: 0, maxHealth: 900 },
+    // Built by Masons
+    wall_tier1: { label: "Dragons Teeth", color: '#475569', height: 1.5, cost: 150, maxProgress: 100, maxHealth: 400 }, // 1 Trip
+    wall_tier2: { label: "Bulwark Wall", color: '#334155', height: 4, cost: 400, maxProgress: 300, maxHealth: 1800 }, // 3 Trips
+    defense: { label: 'Sentry Turret', color: '#ef4444', height: 4, cost: 400, maxProgress: 200, maxHealth: 900 },
+    // Each side starts with one. Losing it loses the match.
+    hq: { label: 'Command HQ', color: '#22d3ee', height: 10, cost: 0, maxProgress: 0, maxHealth: 5000 },
 };
 
 // Fortification / Block Bonuses

@@ -23,7 +23,7 @@ import { FlightEvent, FlightTickResult, LiveFlight, cloneProjectile, drawnShotPo
 import { chargeSources, isInsideEnergyGrid, powerTick } from '../sim/energy';
 import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, guardianRepair, leashStep, slowTick, surveillanceStep } from '../sim/support';
-import { Blast, applyDamage, autoAttacks, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, sentinelFire } from '../sim/combat';
+import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, resolveAttacks } from '../sim/combat';
 import { Economy, createEconomy, canAfford, spend, setCores, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 
 
@@ -392,6 +392,18 @@ const ProjectileMesh: React.FC<{ projectile: Projectile; flightRef: React.Mutabl
     );
 };
 
+// Weapon tracers: a brief line from shooter to target, colored by damage type.
+type TracerData = Shot & { id: string; createdAt: number };
+const TRACER_MS = 180;
+const TRACER_COLORS: Record<Shot['type'], string> = { rifle: '#fde047', ap: '#fb923c', flak: '#67e8f9', explosive: '#f87171' };
+const TracerMesh: React.FC<{ tracer: TracerData; tileSize: number; offset: number }> = ({ tracer, tileSize, offset }) => {
+    const points = useMemo(() => [
+        [(tracer.from.x * tileSize) - offset, tracer.fromAir ? 74 : 2.2, (tracer.from.z * tileSize) - offset],
+        [(tracer.to.x * tileSize) - offset, tracer.toAir ? 75 : 1.4, (tracer.to.z * tileSize) - offset],
+    ] as [number, number, number][], [tracer, tileSize, offset]);
+    return <Line points={points} color={TRACER_COLORS[tracer.type]} lineWidth={tracer.type === 'rifle' ? 1.5 : 3} transparent opacity={0.85} />;
+};
+
 // Explosion Component
 const ExplosionMesh: React.FC<{ explosion: Explosion }> = ({ explosion }) => {
     const meshRef = useRef<THREE.Mesh>(null);
@@ -697,11 +709,19 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
     ...initialDrones
   ]);
   
-  const [structuresState, setStructuresState] = useState<StructureData[]>([]);
+  // Each side's Command HQ is a structure with health: it can be attacked, fires back, and
+  // losing it loses the match. Base.tsx draws it.
+  const [structuresState, setStructuresState] = useState<StructureData[]>(() => (['blue', 'red'] as const).map(team => ({
+      id: `hq-${team}`, type: 'hq' as const, team, gridPos: team === 'blue' ? { ...baseA_Coord } : { ...baseB_Coord },
+      isBlueprint: false, constructionProgress: 0, maxProgress: 0,
+      health: STRUCTURE_INFO.hq.maxHealth, maxHealth: STRUCTURE_INFO.hq.maxHealth,
+  })));
   const [decoys, setDecoys] = useState<DecoyData[]>([]);
   const [clouds, setClouds] = useState<CloudData[]>([]);
   const [projectiles, setProjectiles] = useState<Projectile[]>([]);
   const [explosions, setExplosions] = useState<Explosion[]>([]);
+  // Brief weapon tracers from sim/combat.ts shots, cleared after TRACER_MS.
+  const [tracers, setTracers] = useState<TracerData[]>([]);
   
   // Refactored Selection State
   const [selectedUnitIds, setSelectedUnitIds] = useState<Set<string>>(new Set());
@@ -758,6 +778,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
   const flightRef = useRef(new Map<string, LiveFlight>());
   const trophyReadyRef = useRef(new Map<string, number>());
   const detonatedCrawlersRef = useRef(new Set<string>());
+  const lastShotRef = useRef(new Map<string, number>());
   const struckBombardTargetsRef = useRef(new WeakSet<object>());
   const flightIds = new Set(projectiles.map(p => p.id));
   for (const id of flightRef.current.keys()) {
@@ -2008,6 +2029,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
             return now - d.createdAt < ABILITY_CONFIG.DECOY_DURATION;
         }));
         setExplosions(prev => prev.filter(e => now - e.createdAt < e.duration));
+        setTracers(prev => prev.length === 0 ? prev : prev.filter(t => now - t.createdAt < TRACER_MS));
 
     }, 500); 
     return () => clearInterval(timer);
@@ -2113,6 +2135,30 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
           });
           const burningClouds = cloudsRef.current.filter(c => c.type === 'he' && now - c.createdAt < c.duration);
 
+          // Weapons fire for every armed unit, HQ and Sentry Turret (sim/combat.ts). Worked out
+          // once here, outside any state updater. lastShotRef is the authority on reloads, since
+          // the refs can trail the last render and would otherwise let a unit fire twice.
+          const nanoClouds = cloudsRef.current.filter(c => c.type === 'nano' && now - c.createdAt < c.duration);
+          const reloaded = <T extends { id: string; lastAttackTime?: number }>(x: T): T => {
+              const shot = lastShotRef.current.get(x.id);
+              return shot && shot > (x.lastAttackTime || 0) ? { ...x, lastAttackTime: shot } : x;
+          };
+          const attacks = resolveAttacks(
+              currentUnitsRef.map(reloaded),
+              structuresRef.current.map(reloaded) as CombatStructure[],
+              now,
+              pos => isPointInCloud(pos, nanoClouds, 'nano'),
+          );
+          attacks.fired.forEach((_, id) => lastShotRef.current.set(id, now));
+          if (attacks.shots.length > 0) {
+              setTracers(prev => [...prev, ...attacks.shots.map((shot, i) => ({ ...shot, id: `tracer-${now}-${i}`, createdAt: now }))]);
+          }
+          if (attacks.structureDamage.size > 0 || [...attacks.fired.keys(), ...attacks.aiming.keys()].some(id => structuresRef.current.some(st => st.id === id))) {
+              const applyFire = (list: StructureData[]) => applyStructureCombat(list, attacks, now);
+              structuresRef.current = applyFire(structuresRef.current);
+              setStructuresState(applyFire);
+          }
+
           // Infantry capture buildings and core nodes (sim/capture.ts).
           setBuildings(prev => captureTick(prev, unitsRef.current));
 
@@ -2143,11 +2189,9 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                   // Courier Delivery Events to be processed after map
                   const deliveries: Delivery[] = [];
 
-                  const sentinels = sentinelFire(prevUnits, buildingsRef.current);
                   const damageMap = blastDamage(prevUnits, damageEvents, tileSize, offset, { hitsCloaked: true });
-                  sentinels.damage.forEach((amount, id) => damageMap.set(id, (damageMap.get(id) || 0) + amount));
+                  attacks.unitDamage.forEach((amount, id) => damageMap.set(id, (damageMap.get(id) || 0) + amount));
                   heCloudDamage(prevUnits, burningClouds).forEach((amount, id) => damageMap.set(id, (damageMap.get(id) || 0) + amount));
-                  const unitRetaliationMap = sentinels.retaliation;
 
                   let activeUnits = prevUnits.filter(u => u.health > 0);
                   if (prevUnits.length !== activeUnits.length) unitsChanged = true;
@@ -2181,13 +2225,25 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                           uChanged = true;
                       }
 
-                      // Sentinel laser beam, drawn by Unit.tsx. Was computed but never set before.
-                      if (u.type === 'defense_drone') {
-                          const laserTarget = sentinels.targets.get(u.id) ?? null;
-                          if ((u.firingLaserAt ?? null) !== laserTarget) {
-                              newUnit.firingLaserAt = laserTarget;
+                      // What this unit is shooting at. Attack-move holds while it has a target, and
+                      // the Sentinel draws its laser beam to it (Unit.tsx).
+                      if (attacks.aiming.has(u.id)) {
+                          const aim = attacks.aiming.get(u.id) ?? null;
+                          if ((u.combatTargetId ?? null) !== aim) {
+                              newUnit.combatTargetId = aim;
                               uChanged = true;
                           }
+                          if (u.type === 'defense_drone' && (u.firingLaserAt ?? null) !== aim) {
+                              newUnit.firingLaserAt = aim;
+                              uChanged = true;
+                          }
+                      } else if (u.combatTargetId) {
+                          newUnit.combatTargetId = null;
+                          uChanged = true;
+                      }
+                      if (attacks.fired.has(u.id)) {
+                          newUnit.lastAttackTime = now;
+                          uChanged = true;
                       }
                       
                       const courier = courierStep(u, newUnit, activeUnits, structuresRef.current, findPath);
@@ -2196,7 +2252,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       if (surveillanceStep(newUnit, Date.now(), findPath)) uChanged = true;
 
                       // Apply accumulated damage
-                      const dmg = (damageMap.get(u.id) || 0) + (unitRetaliationMap.get(u.id) || 0);
+                      const dmg = damageMap.get(u.id) || 0;
                       if (dmg > 0) {
                           newUnit.health = Math.max(0, newUnit.health - dmg);
                           uChanged = true;
@@ -2254,11 +2310,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                       });
                   }
                   
-                  const attacks = autoAttacks(nextUnits, now, pos => isPointInCloud(pos, activeClouds, 'nano'));
-                  const finalUnits = applyDamage(
-                      nextUnits.map(u => attacks.fired.has(u.id) ? { ...u, lastAttackTime: now } : u),
-                      attacks.damage,
-                  ).filter(u => u.health > 0);
+                  const finalUnits = nextUnits.filter(u => u.health > 0);
 
                   // Identity check. Every changed unit is a new object, so there is no need to
                   // serialise the whole army to text twice a tick to find out.
@@ -2381,7 +2433,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
                 hovered={!!hoverGridPos && hoverGridPos.x === b.gridX && hoverGridPos.z === b.gridZ}
             /> 
         ))}
-        {structuresState.map(s => ( 
+        {structuresState.filter(s => s.type !== 'hq').map(s => ( 
             <Structure 
                 key={s.id} 
                 data={s} 
@@ -2445,6 +2497,10 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
         
         {/* Explosions */}
         {explosions.map(e => <ExplosionMesh key={e.id} explosion={e} />)}
+
+        {/* Weapon tracers, only where the player can see one end of the shot */}
+        {tracers.filter(t => visibleUnitIds.has(t.attackerId) || visibleUnitIds.has(t.targetId) || structuresState.some(st => st.id === t.attackerId || st.id === t.targetId))
+            .map(t => <TracerMesh key={t.id} tracer={t} tileSize={tileSize} offset={offset} />)}
         
         {/* Cloud Effects */}
         {clouds.map(c => <CloudMesh key={c.id} cloud={c} tileSize={CITY_CONFIG.tileSize} offset={offset} playerTeam={playerTeam} />)}
@@ -2460,6 +2516,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
             resources={teamResources.blue} 
             onBuild={handleBuild} 
             onRightClick={handleRightClick}
+            hq={structuresState.find(st => st.id === 'hq-blue')}
         />
         
         <Base 
@@ -2473,6 +2530,7 @@ const CityMap: React.FC<CityMapProps> = ({ onStatsUpdate, onMapInit, onMinimapUp
             resources={teamResources.red} 
             onBuild={handleBuild} 
             onRightClick={handleRightClick}
+            hq={structuresState.find(st => st.id === 'hq-red')}
         />
 
         {/* Movement Visualization for Friendly Moving Units */}

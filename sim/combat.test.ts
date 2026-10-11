@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
-import { ABILITY_CONFIG, UNIT_STATS } from '../constants';
+import { ABILITY_CONFIG } from '../constants';
 import type { BuildingData, CloudData, UnitData } from '../types';
 import {
-  applyDamage, autoAttacks, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage,
-  isBombardStrike, sentinelFire,
+  applyDamage, blastDamage, bombardBuildings, bombardUnitDamage, CombatStructure, crawlerDetonations, heCloudDamage,
+  isBombardStrike, resolveAttacks,
 } from './combat';
+import { DAMAGE_MULTIPLIER, UNIT_RULES } from './units';
 
 const TILE = 14;
 const OFFSET = 0;
@@ -48,50 +49,75 @@ describe('crawlerDetonations', () => {
   });
 });
 
-describe('sentinelFire', () => {
-  const sentinel = unit('s', { type: 'defense_drone', unitClass: 'defense', team: 'neutral', gridPos: { x: 5, z: 5 } });
-
-  it('only fires while its server node is being captured', () => {
-    const intruder = unit('g', { gridPos: { x: 6, z: 5 } });
-    expect(sentinelFire([sentinel, intruder], [building()]).damage.size).toBe(0);
-    const fire = sentinelFire([sentinel, intruder], [building({ captureProgress: 10, capturingTeam: 'blue' })]);
-    expect(fire.damage.get('g')).toBe(ABILITY_CONFIG.DEFENSE_DRONE_DAMAGE);
-    expect(fire.targets.get('s')).toBe('g');
-    expect(fire.retaliation.get('s')).toBe(ABILITY_CONFIG.UNIT_RETALIATION_DAMAGE);
-  });
-
-  it('ignores units out of range', () => {
-    const far = unit('g', { gridPos: { x: 9, z: 5 } });
-    expect(sentinelFire([sentinel, far], [building({ captureProgress: 10, capturingTeam: 'blue' })]).damage.size).toBe(0);
-  });
-});
-
-describe('autoAttacks', () => {
-  const tank = unit('t', { type: 'tank', unitClass: 'armor' });
-  const near = unit('near', { team: 'red', gridPos: { x: 1, z: 0 } });
-  const nearer = unit('nearer', { team: 'red', gridPos: { x: 0, z: 1 } });
+describe('resolveAttacks', () => {
   const noCloud = () => false;
-
-  it('hits the nearest enemy within 2 tiles', () => {
-    const far = unit('far', { team: 'red', gridPos: { x: 3, z: 0 } });
-    const { damage, fired } = autoAttacks([tank, far, near], 10_000, noCloud);
-    expect(damage.get('near')).toBe(UNIT_STATS.tank.attackDamage);
-    expect(damage.has('far')).toBe(false);
-    expect(fired.has('t')).toBe(true);
+  const trooper = (id: string, patch: Partial<UnitData> = {}) => unit(id, { type: 'trooper', ...patch });
+  const hq = (patch: Partial<CombatStructure> = {}): CombatStructure => ({
+    id: 'hq-red', type: 'hq', team: 'red', gridPos: { x: 4, z: 0 }, health: 5000, isBlueprint: false, ...patch,
   });
 
-  it('waits out its cooldown', () => {
-    const justFired = { ...tank, lastAttackTime: 10_000 - UNIT_STATS.tank.attackCooldown + 1 };
-    expect(autoAttacks([justFired, near], 10_000, noCloud).fired.has('t')).toBe(false);
+  it('shoots the nearest enemy in range for weapon damage times the armor multiplier', () => {
+    const near = trooper('near', { team: 'red', gridPos: { x: 2, z: 0 } });
+    const far = trooper('far', { team: 'red', gridPos: { x: 3, z: 0 } });
+    const out = trooper('out', { team: 'red', gridPos: { x: 9, z: 0 } });
+    const r = resolveAttacks([trooper('t'), far, near, out], [], 10_000, noCloud);
+    expect(r.fired.get('t')).toBe('near');
+    const rifle = UNIT_RULES.trooper.weapon!;
+    expect(r.unitDamage.get('near')).toBe(rifle.damage * DAMAGE_MULTIPLIER.rifle.infantry);
   });
 
-  it('cannot see into or out of a nano cloud', () => {
-    expect(autoAttacks([tank, near], 10_000, () => true).damage.size).toBe(0);
+  it('waits out its cooldown but still reports what it is aiming at', () => {
+    const enemy = trooper('e', { team: 'red', gridPos: { x: 1, z: 0 }, lastAttackTime: 10_000 });
+    const r = resolveAttacks([trooper('t', { lastAttackTime: 9_500 }), enemy], [], 10_000, noCloud);
+    expect(r.fired.has('t')).toBe(false);
+    expect(r.aiming.get('t')).toBe('e');
   });
 
-  it('ignores cloaked and dead targets', () => {
-    const units = [tank, { ...near, decoyActive: true }, { ...nearer, health: 0 }];
-    expect(autoAttacks(units, 10_000, noCloud).fired.has('t')).toBe(false);
+  it('only shoots aircraft with a weapon that can reach them', () => {
+    const hornet = unit('h', { type: 'hornet', unitClass: 'air', team: 'red', gridPos: { x: 2, z: 0 } });
+    const tank = unit('tk', { type: 'tank', unitClass: 'armor' });
+    expect(resolveAttacks([tank, hornet], [], 10_000, noCloud).fired.has('tk')).toBe(false);
+    expect(resolveAttacks([trooper('t'), hornet], [], 10_000, noCloud).fired.get('t')).toBe('h');
+  });
+
+  it('prefers units, then attacks buildings when no unit is in range', () => {
+    const r = resolveAttacks([trooper('t', { gridPos: { x: 2, z: 0 } })], [hq()], 10_000, noCloud);
+    expect(r.fired.get('t')).toBe('hq-red');
+    expect(r.structureDamage.get('hq-red')).toBeCloseTo(UNIT_RULES.trooper.weapon!.damage * DAMAGE_MULTIPLIER.rifle.structure);
+    const withGuard = resolveAttacks([trooper('t', { gridPos: { x: 2, z: 0 } }), trooper('g', { team: 'red', gridPos: { x: 4, z: 1 } })], [hq()], 10_000, noCloud);
+    expect(withGuard.fired.get('t')).toBe('g');
+  });
+
+  it('lets the HQ fire back, but not a structure still under construction', () => {
+    const attacker = trooper('t', { gridPos: { x: 2, z: 0 } });
+    expect(resolveAttacks([attacker], [hq()], 10_000, noCloud).fired.get('hq-red')).toBe('t');
+    expect(resolveAttacks([attacker], [hq({ buildRemainingMs: 1000 })], 10_000, noCloud).fired.has('hq-red')).toBe(false);
+  });
+
+  it('treats Sentinels as hostile to both teams', () => {
+    const sentinel = unit('s', { type: 'defense_drone', unitClass: 'defense', team: 'neutral', gridPos: { x: 2, z: 0 } });
+    const r = resolveAttacks([trooper('t'), sentinel], [], 10_000, noCloud);
+    expect(r.fired.get('t')).toBe('s');
+    expect(r.fired.get('s')).toBe('t');
+  });
+
+  it('splashes explosive shells onto neighbours, never friends or aircraft', () => {
+    const tank = unit('tk', { type: 'tank', unitClass: 'armor' });
+    // The red troopers have just fired, so only the tank shoots this tick.
+    const target = trooper('a', { team: 'red', gridPos: { x: 3, z: 0 }, lastAttackTime: 10_000 });
+    const beside = trooper('b', { team: 'red', gridPos: { x: 3, z: 1 }, lastAttackTime: 10_000 });
+    const friend = trooper('f', { gridPos: { x: 4, z: 0 } });
+    const r = resolveAttacks([tank, target, beside, friend], [], 10_000, noCloud);
+    expect(r.unitDamage.get('b')).toBeGreaterThan(0);
+    expect(r.unitDamage.get('b')!).toBeLessThan(r.unitDamage.get('a')!);
+    expect(r.unitDamage.has('f')).toBe(false);
+  });
+
+  it('ignores cloaked Ghosts and anything in a nano cloud', () => {
+    const cloaked = unit('g', { type: 'ghost', team: 'red', gridPos: { x: 1, z: 0 }, decoyActive: true });
+    expect(resolveAttacks([trooper('t'), cloaked], [], 10_000, noCloud).fired.size).toBe(0);
+    const enemy = trooper('e', { team: 'red', gridPos: { x: 1, z: 0 } });
+    expect(resolveAttacks([trooper('t'), enemy], [], 10_000, () => true).fired.size).toBe(0);
   });
 });
 
