@@ -237,7 +237,8 @@ export interface TeamStats {
   resources: number;
   income: number;
   compute: number;
-  // Tech tier from server nodes held, and population used / cap from core nodes held.
+  // Compute per second, the researched tech tier, and population used / cap.
+  computeRate?: number;
   tier?: number;
   pop?: number;
   popCap?: number;

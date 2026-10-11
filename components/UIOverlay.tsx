@@ -4,7 +4,7 @@ import { GameStats, TeamStats, MinimapData, DoctrineType, DoctrineState } from '
 import { BUILDING_COLORS, TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG, TEAM_BASES, BUILDING_VALUES } from '../constants';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 import { HQ_INCOME } from '../sim/economy';
-import { POP_BASE, POP_MAX, POP_PER_CORE_NODE, TIER_REQUIREMENT } from '../sim/units';
+import { COMPUTE_PER_SERVER_NODE, HQ_COMPUTE, POP_BASE, POP_MAX, POP_PER_CORE_NODE, TIER_REQUIREMENT, TIER_RESEARCH_COST } from '../sim/units';
 import { DOMINATION_MS, DOMINATION_NODES } from '../sim/victory';
 import type { MatchConfig } from '../sim/match';
 import type { MatchInfo } from './CityMap';
@@ -27,7 +27,8 @@ const MANUAL_DATA: ManualSection[] = [
     title: "Economy",
     items: [
       { label: "Core Nodes", description: `Your HQ pays ${HQ_INCOME} cores a second. Each core node you hold pays ${BUILDING_VALUES.core_node.income} more and raises your population cap by ${POP_PER_CORE_NODE} (from ${POP_BASE}, up to ${POP_MAX}). Only infantry capture, and core nodes are slow.` },
-      { label: "Server Nodes", description: "Four in the centre, each guarded by a Sentinel that attacks everyone. Holding 1 unlocks Tier 2 units and doctrine powers; holding 2 unlocks Tier 3. Lose them and you lose the tier." },
+      { label: "Compute & Tiers", description: `Server nodes produce ${COMPUTE_PER_SERVER_NODE} compute a second each (your HQ adds ${HQ_COMPUTE}). Spend it with Research in your team panel or HQ menu: Tier 2 costs ${TIER_RESEARCH_COST[2]}, Tier 3 ${TIER_RESEARCH_COST[3]}. Researched tiers are yours for good; holding more nodes just gets you there faster.` },
+      { label: "Server Nodes", description: "Five, each guarded by a Sentinel that attacks everyone: one in your own half, one in the enemy's, two contested ones on the flanks beside the outer core nodes, and one in the centre." },
       { label: "Energy Grid", description: `Your HQ powers ${ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS} tiles around it, and every captured building (not core nodes) adds ${ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS} more. Vehicles and aircraft recharge inside it and drain outside; on a flat battery they crawl at 30% speed until they get back. You can only build inside it.` },
     ]
   },
@@ -136,7 +137,7 @@ const DoctrineIcon: React.FC<{ type: DoctrineType | null, className?: string }> 
     return null;
 };
 
-const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left' | 'right'; isVisible: boolean; cheats: boolean }> = ({ team, stats, isVisible, cheats }) => {
+const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left' | 'right'; isVisible: boolean; cheats: boolean; onResearch?: (tier: 2 | 3) => void }> = ({ team, stats, isVisible, cheats, onResearch }) => {
   const isBlue = team === 'blue';
   const baseColor = isBlue ? 'text-cyan-300' : 'text-rose-400';
   
@@ -166,8 +167,8 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
                 {cheats ? (
                   <>
                     <EditableStat 
-                        value={stats.compute || 0}
-                        icon={<span className="text-blue-400">📶</span>}
+                        value={Math.floor(stats.compute || 0)}
+                        icon={<span className="text-blue-400">⚡</span>}
                         onSave={(val) => (window as any).GAME_CHEATS?.setCompute(team, val)}
                     />
                     <EditableStat 
@@ -178,10 +179,16 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
                     />
                   </>
                 ) : (
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-white font-bold text-xl font-mono">{Math.floor(stats.resources)}</span>
-                    <span className="hud-glow-amber text-[10px] font-mono">CORES +{stats.income}/s</span>
-                  </div>
+                  <>
+                    <div className="flex items-baseline gap-1" title="Compute: produced by server nodes (and a trickle from your HQ), spent researching tiers.">
+                      <span className="text-blue-300 font-bold text-xl font-mono">⚡{Math.floor(stats.compute || 0)}</span>
+                      <span className="text-blue-400 text-[10px] font-mono">+{(stats.computeRate ?? 0).toFixed(2).replace(/\.?0+$/, '')}/s</span>
+                    </div>
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-white font-bold text-xl font-mono">{Math.floor(stats.resources)}</span>
+                      <span className="hud-glow-amber text-[10px] font-mono">CORES +{stats.income}/s</span>
+                    </div>
+                  </>
                 )}
             </>
           ) : (
@@ -189,6 +196,25 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
           )}
         </div>
       </div>
+
+      {isVisible && onResearch && (stats.tier ?? 1) < 3 && (() => {
+        const next = ((stats.tier ?? 1) + 1) as 2 | 3;
+        const cost = TIER_RESEARCH_COST[next];
+        const have = stats.compute || 0;
+        const ready = have >= cost;
+        const eta = !ready && (stats.computeRate ?? 0) > 0 ? Math.ceil((cost - have) / stats.computeRate!) : 0;
+        return (
+          <button
+            disabled={!ready}
+            onClick={(e) => { e.stopPropagation(); onResearch(next); }}
+            title={next === 2 ? 'Tier 2: Ghosts, Lancers, Titans, Aegis, Wasps, Hornets, Banshees, Field Fabricators and T2 doctrine powers' : 'Tier 3: Bombardment Drones, Ballistas and T3 doctrine powers'}
+            className={`relative z-10 w-full flex items-center justify-between px-2 py-1 rounded border font-mono text-[11px] pointer-events-auto transition-colors ${ready ? 'border-blue-300 bg-blue-500/20 text-white hover:bg-blue-500/40 animate-pulse' : 'border-slate-700 text-slate-400 cursor-not-allowed'}`}
+          >
+            <span>RESEARCH TIER {next}</span>
+            <span>{ready ? `${cost} ⚡` : `${Math.floor(have)}/${cost} ⚡${eta ? ` · ${eta}s` : ''}`}</span>
+          </button>
+        );
+      })()}
 
       <div className="flex justify-between items-center relative z-10">
         <div className="flex flex-col">
@@ -516,13 +542,16 @@ interface UIOverlayProps {
     match?: MatchConfig | null;
     matchInfo?: MatchInfo | null;
     notices?: Notice[];
+    onResearch?: (tier: 2 | 3) => void;
 }
 
 // What the player should be doing next, from where they stand.
 const objective = (s: TeamStats) => {
   if (s.buildings.core_node === 0) return 'Send infantry to capture the core node near your base for income.';
-  if ((s.tier ?? 1) < 2) return 'Build a Barracks and Factory, then take a server node in the centre to reach Tier 2.';
-  if ((s.tier ?? 1) < 3) return 'Hold a second server node for Tier 3. Push your grid forward by capturing buildings.';
+  if ((s.tier ?? 1) < 3 && (s.compute ?? 0) >= TIER_RESEARCH_COST[((s.tier ?? 1) + 1) as 2 | 3]) return `You have the compute: research Tier ${(s.tier ?? 1) + 1} in your team panel.`;
+  if ((s.tier ?? 1) < 2 && s.buildings.server_node === 0) return 'Build a Barracks and Factory, then take the guarded server node in your half for compute.';
+  if ((s.tier ?? 1) < 2) return 'Compute is building up. Research Tier 2 when you reach it.';
+  if ((s.tier ?? 1) < 3) return 'Take the contested flank or centre server nodes to research Tier 3 sooner.';
   if (s.buildings.core_node < DOMINATION_NODES) return `Hold ${DOMINATION_NODES} core nodes for ${DOMINATION_MS / 60000} minutes, or destroy the enemy HQ.`;
   return 'Hold your core nodes until the domination timer runs out.';
 };
@@ -532,7 +561,7 @@ const clockText = (ms: number) => {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 };
 
-const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef, onSelectDoctrine, onTriggerDoctrine, interactionMode, match, matchInfo, notices = [] }) => {
+const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef, onSelectDoctrine, onTriggerDoctrine, interactionMode, match, matchInfo, notices = [], onResearch }) => {
   const sandbox = match?.mode === 'sandbox';
   const [isIntelOpen, setIsIntelOpen] = useState(false);
   const [isDoctrineOpen, setIsDoctrineOpen] = useState(false);
@@ -676,7 +705,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
              </button>}
         </div>
 
-        <TeamPanel team="blue" stats={stats.blue} align="left" isVisible={playerTeam === 'blue'} cheats={sandbox} />
+        <TeamPanel team="blue" stats={stats.blue} align="left" isVisible={playerTeam === 'blue'} cheats={sandbox} onResearch={playerTeam === 'blue' ? onResearch : undefined} />
         
         <div className="mt-8 flex flex-col items-center gap-2 pointer-events-auto">
             <h1 className="hud-label font-mono text-[10px] uppercase mt-6">Sector 7 Conflict</h1>
@@ -706,7 +735,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
             </div>
         </div>
 
-        <TeamPanel team="red" stats={stats.red} align="right" isVisible={playerTeam === 'red'} cheats={sandbox} />
+        <TeamPanel team="red" stats={stats.red} align="right" isVisible={playerTeam === 'red'} cheats={sandbox} onResearch={playerTeam === 'red' ? onResearch : undefined} />
       </div>
 
       {/* Manual / Intel Modal */}

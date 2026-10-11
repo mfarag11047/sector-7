@@ -9,9 +9,9 @@
 import { ABILITY_CONFIG, BUILDING_VALUES, STRUCTURE_INFO } from '../constants';
 import type { BuildingData, StructureData, StructureType, UnitData } from '../types';
 import type { GridPos, PlayerCommand, Team } from './commands';
-import { Economy, spend, structureCost, unitCost } from './economy';
+import { Economy, research, researchCost, spend, structureCost, unitCost } from './economy';
 import { isInsideEnergyGrid } from './energy';
-import { popCap, popUsed, STRUCTURE_RULES, Tier, tierFromCompute, UNIT_RULES } from './units';
+import { popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from './units';
 
 export { popUsed };
 
@@ -24,7 +24,7 @@ const held = (buildings: readonly BuildingData[], team: Team, type: BuildingData
   buildings.filter(b => b.type === type && b.owner === team && !b.destroyed).length;
 export const coreNodesHeld = (buildings: readonly BuildingData[], team: Team) => held(buildings, team, 'core_node');
 export const serverNodesHeld = (buildings: readonly BuildingData[], team: Team) => held(buildings, team, 'server_node');
-export const teamTier = (buildings: readonly BuildingData[], team: Team): Tier => tierFromCompute(serverNodesHeld(buildings, team));
+export const teamTier = (economy: Economy, team: Team): Tier => economy[team].tier;
 export const teamPopCap = (buildings: readonly BuildingData[], team: Team) => popCap(coreNodesHeld(buildings, team));
 
 // A structure that has finished going up and still stands.
@@ -32,9 +32,9 @@ export const isOperational = (s: StructureData) => !s.isBlueprint && !((s.buildR
 
 // --- Commands ---
 
-export type OrderCommand = Extract<PlayerCommand, { type: 'MOVE' | 'TRAIN_UNIT' | 'PLACE_STRUCTURE' | 'SET_RALLY' }>;
+export type OrderCommand = Extract<PlayerCommand, { type: 'MOVE' | 'TRAIN_UNIT' | 'PLACE_STRUCTURE' | 'SET_RALLY' | 'RESEARCH_TIER' }>;
 export const isOrderCommand = (c: PlayerCommand): c is OrderCommand =>
-  c.type === 'MOVE' || c.type === 'TRAIN_UNIT' || c.type === 'PLACE_STRUCTURE' || c.type === 'SET_RALLY';
+  c.type === 'MOVE' || c.type === 'TRAIN_UNIT' || c.type === 'PLACE_STRUCTURE' || c.type === 'SET_RALLY' || c.type === 'RESEARCH_TIER';
 
 export interface OrdersView {
   units: readonly UnitData[];
@@ -75,7 +75,17 @@ export function orderEffects(view: OrdersView, team: Team, command: OrderCommand
     case 'TRAIN_UNIT': return trainOrder(view, team, command.structureId, command.unitType);
     case 'PLACE_STRUCTURE': return placeOrder(view, team, command.structureType, command.at, ctx);
     case 'SET_RALLY': return rallyOrder(view, team, command.structureId, command.at, ctx);
+    case 'RESEARCH_TIER': return researchOrder(view, team, command.tier);
   }
+}
+
+function researchOrder(view: OrdersView, team: Team, tier: 2 | 3): OrderOutcome {
+  const e = view.economy[team];
+  if (tier <= e.tier) return reject(`Tier ${tier} is already researched`);
+  if (tier !== e.tier + 1) return reject(`research Tier ${e.tier + 1} first`);
+  if (!view.structures.some(s => s.type === 'hq' && s.team === team && s.health > 0)) return reject('needs your HQ');
+  if (!research(view.economy, team, tier)) return reject(`needs ${researchCost(tier)} compute`);
+  return effects({ economy: econ => research(econ, team, tier) });
 }
 
 function rallyOrder(view: OrdersView, team: Team, structureId: string, at: GridPos, ctx: OrdersContext): OrderOutcome {
@@ -91,7 +101,7 @@ function trainOrder(view: OrdersView, team: Team, structureId: string, unitType:
   if (!isOperational(s)) return reject(`${STRUCTURE_INFO[s.type].label} is not finished`);
   const rules = UNIT_RULES[unitType];
   if (rules.producer !== s.type) return reject(`${STRUCTURE_INFO[s.type].label} cannot train that`);
-  const tier = teamTier(view.buildings, team);
+  const tier = teamTier(view.economy, team);
   if (rules.tier > tier) return reject(`needs Tier ${rules.tier}`);
   if ((s.queue?.length || 0) >= MAX_QUEUE) return reject('queue full');
   const cap = teamPopCap(view.buildings, team);

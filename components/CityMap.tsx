@@ -29,10 +29,10 @@ import { MatchConfig, STARTING_CORES, aiTeamOf, incomeMultipliers, startingRoste
 import { AI_PROFILES, aiThink, freshAiMemory } from '../sim/ai';
 import { OrderCommand, applyOrderToStructures, applyOrderToUnits, orderEffects, popUsed, coreNodesHeld, serverNodesHeld, teamPopCap, teamTier } from '../sim/orders';
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
-import { isAirType, tierFromCompute } from '../sim/units';
+import { isAirType } from '../sim/units';
 import { Victory, checkVictory, dominationRemaining, freshDominationClock } from '../sim/victory';
 import type { MatchSummary } from './MatchScreens';
-import { Economy, createEconomy, canAfford, spend, setCores, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
+import { Economy, createEconomy, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 
 
 // Helper to check if a grid position is inside any cloud of a specific type (optional)
@@ -588,6 +588,8 @@ interface CityMapProps {
   onMatchEnd?: (victory: Victory, summary: MatchSummary) => void;
   // Called every second with the match clock and objective state, for the HUD.
   onMatchInfo?: (info: MatchInfo) => void;
+  // Filled in with a way for the HUD to give orders (research) through the same checks.
+  commandRef?: React.MutableRefObject<((command: OrderCommand) => boolean) | null>;
 }
 
 export interface MatchInfo {
@@ -596,7 +598,7 @@ export interface MatchInfo {
   domination: Record<'blue' | 'red', number | null>;
 }
 
-const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine, onNotice, onMatchEnd, onMatchInfo }) => {
+const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine, onNotice, onMatchEnd, onMatchInfo, commandRef }) => {
   const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
   const offset = (gridSize * tileSize) / 2;
   const baseA_Coord = TEAM_BASES.blue;
@@ -674,16 +676,15 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   economyRef.current = economy;
   const teamResources = useMemo(() => ({ blue: economy.blue.cores, red: economy.red.cores }), [economy]);
   const stockpile = useMemo(() => ({ blue: economy.blue.stockpile, red: economy.red.stockpile }), [economy]);
-  const [teamCompute, setTeamCompute] = useState<{blue: number, red: number}>({ blue: 0, red: 0 });
   // The player's tech tier and population, for menus.
   const supply = useMemo(() => ({
-      tier: teamTier(buildings, playerTeam),
+      tier: teamTier(economy, playerTeam),
       used: popUsed(units, structuresState, playerTeam),
       cap: teamPopCap(buildings, playerTeam),
-  }), [buildings, units, structuresState, playerTeam]);
+  }), [buildings, units, structuresState, playerTeam, economy]);
 
   // Cheat State
-  const [cheatCompute, setCheatCompute] = useState<{blue: number, red: number}>({ blue: 0, red: 0 });
+
   
   const [depotMenuOpenId, setDepotMenuOpenId] = useState<string | null>(null);
   // Set by a production menu's "Set rally point": the next map click places it.
@@ -808,7 +809,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         setEconomy(prev => setCores(prev, team, amount));
       },
       setCompute: (team: 'blue' | 'red', amount: number) => {
-        setCheatCompute(prev => ({ ...prev, [team]: amount }));
+        setEconomy(prev => setCompute(prev, team, amount));
       },
       // For tests and debugging: issue a checked order for either side, and read the state.
       order: (command: OrderCommand, team: 'blue' | 'red') => dispatchOrderRef.current(command, team),
@@ -1202,7 +1203,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               return false;
           };
           if (aiHelpersRef.current.doctrines?.[team]?.selected !== doctrine) return refuse('that is not your doctrine');
-          if (tierFromCompute(serverNodesHeld(buildingsRef.current, team) + cheatCompute[team]) < tier) return refuse(`needs Tier ${tier}: hold ${tier - 1} server node${tier > 2 ? 's' : ''}`);
+          if (economyRef.current[team].tier < tier) return refuse(`needs Tier ${tier}: research it at your HQ`);
           const key = tier === 2 ? 'tier2' : 'tier3';
           const now = Date.now();
           if (doctrineReadyAtRef.current[team][key] > now) return refuse(`recharging (${Math.ceil((doctrineReadyAtRef.current[team][key] - now) / 1000)}s)`);
@@ -1526,11 +1527,15 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           economyRef.current = charge(economyRef.current) ?? economyRef.current;
           setEconomy(prev => charge(prev) ?? prev);
       }
+      if (command.type === 'RESEARCH_TIER') {
+          onNotice?.(team === playerTeam ? `Tier ${command.tier} researched: new units and doctrine powers unlocked` : `The enemy has reached Tier ${command.tier}`, team === playerTeam ? 'info' : 'warn');
+      }
       if (fx.unitUpdates.size > 0) setUnits(prev => applyOrderToUnits(prev, fx));
       if (fx.structureUpdates.size > 0 || fx.newStructures.length > 0) setStructuresState(prev => applyOrderToStructures(prev, fx));
       return true;
   };
   dispatchOrderRef.current = dispatchOrder;
+  if (commandRef) commandRef.current = command => dispatchOrder(command);
 
   const dispatchAbility = (command: AbilityCommand, team: 'blue' | 'red' = playerTeam): boolean => {
       const outcome = abilityEffects(
@@ -1851,6 +1856,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           alertAtRef.current.set(key, now);
           onNoticeRef.current?.(text, tone);
       };
+      const myEconomy = economyRef.current[me];
+      if (myEconomy.tier < 3) {
+          const next = (myEconomy.tier + 1) as 2 | 3;
+          if (myEconomy.compute >= researchCost(next)) say(`research-${next}`, `Enough compute for Tier ${next}: research it in your team panel or HQ menu`, 'info', 60000);
+      }
       const myHq = me === 'blue' ? baseA_Coord : baseB_Coord;
       if (unitsRef.current.some(u => u.team !== me && u.team !== 'neutral' && u.health > 0 && Math.hypot(u.gridPos.x - myHq.x, u.gridPos.z - myHq.z) <= 10)) {
           say('base', 'Enemy forces at your base!', 'warn', 30000);
@@ -1892,10 +1902,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // Report to the HUD whenever the economy changes: every income tick, and right after a purchase.
   // Layout effect so the HUD hears about it in the same pass, not after the next rendered frame.
   useLayoutEffect(() => {
-    const blue = teamStats(economy, 'blue', buildingsRef.current, unitsRef.current, cheatCompute.blue, structuresRef.current);
-    const red = teamStats(economy, 'red', buildingsRef.current, unitsRef.current, cheatCompute.red, structuresRef.current);
-    // Only set when it changed. Even a no-op set here re-runs this whole component.
-    if (teamCompute.blue !== blue.compute || teamCompute.red !== red.compute) setTeamCompute({ blue: blue.compute, red: red.compute });
+    const blue = teamStats(economy, 'blue', buildingsRef.current, unitsRef.current, structuresRef.current);
+    const red = teamStats(economy, 'red', buildingsRef.current, unitsRef.current, structuresRef.current);
     // Seconds until each doctrine power is ready again.
     const now = Date.now();
     for (const [team, s] of [['blue', blue], ['red', red]] as const) {
@@ -1903,7 +1911,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         s.doctrine = { ...s.doctrine!, cooldowns: { tier2: Math.max(0, ready.tier2 - now), tier3: Math.max(0, ready.tier3 - now) } };
     }
     onStatsUpdate({ blue, red });
-  }, [economy, cheatCompute, onStatsUpdate, teamCompute]);
+  }, [economy, onStatsUpdate]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -2369,7 +2377,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
              const isVisible = visibleUnitIds.has(u.id);
              const atOrdnanceFab = structuresState.some(s => s.type === 'ordnance_fab' && s.team === u.team && !s.isBlueprint && Math.hypot(s.gridPos.x - u.gridPos.x, s.gridPos.z - u.gridPos.z) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE);
              const ballistaInRange = u.type === 'mule' && units.some(b => b.type === 'ballista' && b.team === u.team && b.health > 0 && Math.hypot(b.gridPos.x - u.gridPos.x, b.gridPos.z - u.gridPos.z) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE);
-             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? teamCompute[u.team] : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && (!!u.tetherTargetId || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} showBatteryRange={u.type === 'sun_plate' && !!u.isDeployed && (selectedUnitIds.has(u.id) || (targetingSourceId === u.id && targetingAbility === 'BATTERY_TETHER'))} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} isBatteryLinkCandidate={!!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE} warheadStock={u.team === playerTeam && (playerTeam === 'blue' || playerTeam === 'red') ? stockpile[playerTeam] : undefined} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={(u.team === 'blue' || u.team === 'red') ? teamResources[u.team] : 0} /> );
+             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? economy[u.team].tier : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && (!!u.tetherTargetId || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} showBatteryRange={u.type === 'sun_plate' && !!u.isDeployed && (selectedUnitIds.has(u.id) || (targetingSourceId === u.id && targetingAbility === 'BATTERY_TETHER'))} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} isBatteryLinkCandidate={!!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE} warheadStock={u.team === playerTeam && (playerTeam === 'blue' || playerTeam === 'red') ? stockpile[playerTeam] : undefined} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={(u.team === 'blue' || u.team === 'red') ? teamResources[u.team] : 0} /> );
         })}
         {decoys.map(d => {
             const seen = d.team === playerTeam || units.some(f => f.team === playerTeam && Math.hypot(f.gridPos.x - d.gridPos.x, f.gridPos.z - d.gridPos.z) <= (f.visionRange || 2));
@@ -2430,6 +2438,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             onBuild={handleBuild} 
             onRightClick={handleRightClick}
             hq={structuresState.find(st => st.id === 'hq-blue')}
+            tier={economy.blue.tier}
+            compute={economy.blue.compute}
+            onResearch={playerTeam === 'blue' ? (tier: 2 | 3) => dispatchOrder({ type: 'RESEARCH_TIER', tier }) : undefined}
         />
         
         <Base 
@@ -2444,6 +2455,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             onBuild={handleBuild} 
             onRightClick={handleRightClick}
             hq={structuresState.find(st => st.id === 'hq-red')}
+            tier={economy.red.tier}
+            compute={economy.red.compute}
+            onResearch={playerTeam === 'red' ? (tier: 2 | 3) => dispatchOrder({ type: 'RESEARCH_TIER', tier }) : undefined}
         />
 
         {/* Movement Visualization for Friendly Moving Units */}

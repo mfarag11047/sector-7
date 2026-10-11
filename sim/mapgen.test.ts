@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { generateCity, seededRandom } from './mapgen';
 
 const SIZE = 79;
+const BLUE = { x: 4, z: 4 };
+const RED = { x: 74, z: 74 };
 const options = (seed: number) => ({ seed, gridSize: SIZE, tileSize: 14, buildingDensity: 0.15, blueBase: { x: 4, z: 4 }, redBase: { x: 74, z: 74 } });
 const mirror = (x: number, z: number) => `${SIZE - 1 - x},${SIZE - 1 - z}`;
 
@@ -22,13 +24,23 @@ describe('generateCity', () => {
     }
   });
 
-  it('places 6 core nodes and 4 guarded server nodes', () => {
+  it('places 6 core nodes and 5 guarded server nodes', () => {
     const city = generateCity(options(7));
     expect(city.buildings.filter(b => b.type === 'core_node')).toHaveLength(6);
     const servers = city.buildings.filter(b => b.type === 'server_node');
-    expect(servers).toHaveLength(4);
-    expect(city.sentinels).toHaveLength(4);
+    expect(servers).toHaveLength(5);
+    expect(city.sentinels).toHaveLength(5);
     for (const s of servers) expect(city.sentinels.some(d => d.gridPos.x === s.gridX && d.gridPos.z === s.gridZ)).toBe(true);
+  });
+
+  it('gives each side a server node in its own half, two contested ones and one in the centre', () => {
+    const city = generateCity(options(7));
+    const servers = city.buildings.filter(b => b.type === 'server_node');
+    const toBlue = (b: typeof servers[0]) => Math.hypot(b.gridX - BLUE.x, b.gridZ - BLUE.z);
+    const toRed = (b: typeof servers[0]) => Math.hypot(b.gridX - RED.x, b.gridZ - RED.z);
+    expect(servers.filter(b => toBlue(b) < toRed(b) - 10)).toHaveLength(1);
+    expect(servers.filter(b => toRed(b) < toBlue(b) - 10)).toHaveLength(1);
+    expect(servers.filter(b => Math.abs(toBlue(b) - toRed(b)) < 1)).toHaveLength(3);
   });
 
   it('is reproducible from its seed, and different seeds differ', () => {

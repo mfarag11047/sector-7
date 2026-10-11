@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { StructureData, StructureType, UnitClass } from '../types';
 import StructureStatus from './StructureStatus';
 import { STRUCTURE_INFO, UNIT_CLASSES } from '../constants';
-import { STRUCTURE_RULES } from '../sim/units';
+import { STRUCTURE_RULES, TIER_RESEARCH_COST } from '../sim/units';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 
 interface BaseProps {
@@ -22,10 +22,14 @@ interface BaseProps {
   onBuild?: (type: StructureType) => void;
   // The HQ structure from game state, for its health bar.
   hq?: StructureData;
+  // Research, for the owner: the tier reached, compute in hand, and the order to send.
+  tier?: number;
+  compute?: number;
+  onResearch?: (tier: 2 | 3) => void;
 }
 
 const Base: React.FC<BaseProps> = ({ 
-  position, gridPos, teamColor, label, onMoveCommand, onRightClick, onDoubleClick, menuOpen, resources = 0, onBuild, hq
+  position, gridPos, teamColor, label, onMoveCommand, onRightClick, onDoubleClick, menuOpen, resources = 0, onBuild, hq, tier = 1, compute = 0, onResearch
 }) => {
   const radarRef = useRef<THREE.Group>(null);
   const baseGroupRef = useRef<THREE.Group>(null);
@@ -292,6 +296,23 @@ const Base: React.FC<BaseProps> = ({
              </div>
              
              <div className="flex flex-col gap-1 p-1">
+                {onResearch && tier < 3 && (() => {
+                    const next = (tier + 1) as 2 | 3;
+                    const ready = compute >= TIER_RESEARCH_COST[next];
+                    return (
+                        <button
+                            disabled={!ready}
+                            onClick={(e) => { e.stopPropagation(); onResearch(next); }}
+                            className={`flex items-center justify-between px-3 py-2 text-left rounded border ${ready ? 'border-blue-300 bg-blue-500/20 text-white hover:bg-blue-500/40' : 'border-slate-700 opacity-60 text-slate-400 cursor-not-allowed'}`}
+                        >
+                            <div className="flex flex-col">
+                                <span className="text-xs font-mono font-bold">Research Tier {next}</span>
+                                <span className="text-[9px] font-mono text-slate-400">Unlocks for good · compute from server nodes</span>
+                            </div>
+                            <span className="text-[10px] font-mono text-blue-300">{Math.floor(compute)}/{TIER_RESEARCH_COST[next]} ⚡</span>
+                        </button>
+                    );
+                })()}
                 {buildableStructures.map((type) => {
                     const info = STRUCTURE_INFO[type];
                     const canAfford = resources >= info.cost;

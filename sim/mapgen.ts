@@ -115,12 +115,19 @@ export function generateCity(opts: CityOptions): City {
     buildings.push(building(id, x, z, 'core_node', 6, id, [3.4, 6, 3.4]));
   }
 
-  // --- Server nodes: four, mirrored around the centre, each alone in its block and guarded
-  // by a Sentinel. Holding them unlocks tech tiers. ---
+  // --- Server nodes: five, each alone in its block and guarded by a Sentinel. They produce
+  // compute, which is spent researching tech tiers. Spread out so no single fight decides
+  // everyone's tech:
+  //   - one in each side's own half, off to the flank: every side can tech without winning
+  //     the middle, but has to go out and hold it;
+  //   - two on the line halfway between the bases, beside the outer core nodes: the
+  //     contested flanks;
+  //   - one in the very centre.
   const mid = blockIndexOf(center);
   const serverBlocks = [
-    { ix: mid - 1, iz: mid - 1 }, { ix: mid + 1, iz: mid + 1 },
-    { ix: mid - 1, iz: mid + 1 }, { ix: mid + 1, iz: mid - 1 },
+    { ix: blueBlock.ix + 1, iz: blueBlock.iz + 5 }, { ix: redBlock.ix - 1, iz: redBlock.iz - 5 },
+    { ix: mid - 2, iz: mid + 2 }, { ix: mid + 2, iz: mid - 2 },
+    { ix: mid, iz: mid },
   ];
   for (const sb of serverBlocks) {
     keepBlockEmpty(sb.ix, sb.iz);

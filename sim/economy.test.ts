@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { BUILDING_VALUES, DOCTRINE_CONFIG, TIER_UNLOCK_COSTS, UNIT_STATS } from '../constants';
+import { BUILDING_VALUES, DOCTRINE_CONFIG, UNIT_STATS } from '../constants';
+import { COMPUTE_PER_SERVER_NODE, HQ_COMPUTE, TIER_RESEARCH_COST } from './units';
 import type { BuildingData, StructureData, UnitData } from '../types';
 import {
   addWarheads, advanceWarheadProduction, canAfford, createEconomy, doctrinePowerCost, HQ_INCOME, incomeFor, payIncome,
-  productionStep, setCores, spend, STARTING_CORES, takeWarhead, teamStats, unitCost, unlockedTier, warheadBuildTime,
+  productionStep, setCores, spend, STARTING_CORES, takeWarhead, teamStats, unitCost, warheadBuildTime, computeRateFor, research, setCompute,
 } from './economy';
 
 const building = (id: string, type: BuildingData['type'], owner: BuildingData['owner'], destroyed = false): BuildingData => ({
@@ -21,7 +22,7 @@ const CORE_INCOME = BUILDING_VALUES.core_node.income;
 describe('spending', () => {
   it('starts both teams with the same cores and empty stockpiles', () => {
     const e = createEconomy();
-    expect(e.blue).toEqual({ cores: STARTING_CORES, lifetimeIncome: 0, stockpile: { eclipse: 0, he: 0 } });
+    expect(e.blue).toEqual({ cores: STARTING_CORES, lifetimeIncome: 0, stockpile: { eclipse: 0, he: 0 }, compute: 0, lifetimeCompute: 0, tier: 1 });
     expect(e.red).toEqual(e.blue);
   });
 
@@ -104,14 +105,34 @@ describe('income', () => {
   });
 });
 
-describe('doctrine tiers', () => {
-  it('unlock at the configured lifetime income', () => {
-    expect(unlockedTier(0)).toBe(1);
-    expect(unlockedTier(TIER_UNLOCK_COSTS.TIER2 - 1)).toBe(1);
-    expect(unlockedTier(TIER_UNLOCK_COSTS.TIER2)).toBe(2);
-    expect(unlockedTier(TIER_UNLOCK_COSTS.TIER3)).toBe(3);
+describe('compute and research', () => {
+  const servers = [building('s1', 'server_node', 'blue'), building('s2', 'server_node', 'blue'), building('s3', 'server_node', 'red'), building('s4', 'server_node', 'blue', true)];
+
+  it('pays the HQ trickle plus each live server node held', () => {
+    expect(computeRateFor(servers, 'blue')).toBe(HQ_COMPUTE + 2 * COMPUTE_PER_SERVER_NODE);
+    expect(computeRateFor([], 'red')).toBe(HQ_COMPUTE);
+    const e = payIncome(createEconomy(0), servers);
+    expect(e.blue.compute).toBe(HQ_COMPUTE + 2 * COMPUTE_PER_SERVER_NODE);
+    expect(e.red.compute).toBe(HQ_COMPUTE + COMPUTE_PER_SERVER_NODE);
   });
 
+  it('researches one tier at a time, permanently', () => {
+    let e = setCompute(createEconomy(0), 'blue', TIER_RESEARCH_COST[2] + TIER_RESEARCH_COST[3]);
+    expect(research(e, 'blue', 3)).toBeNull();
+    e = research(e, 'blue', 2)!;
+    expect(e.blue).toMatchObject({ tier: 2, compute: TIER_RESEARCH_COST[3] });
+    e = research(e, 'blue', 3)!;
+    expect(e.blue).toMatchObject({ tier: 3, compute: 0 });
+    // Losing every server node afterwards changes nothing.
+    expect(payIncome(e, []).blue.tier).toBe(3);
+  });
+
+  it('refuses research without the compute', () => {
+    expect(research(setCompute(createEconomy(0), 'red', TIER_RESEARCH_COST[2] - 1), 'red', 2)).toBeNull();
+  });
+});
+
+describe('doctrine powers', () => {
   it('price powers from the doctrine table', () => {
     expect(doctrinePowerCost('heavy_metal', 2)).toBe(DOCTRINE_CONFIG.heavy_metal.tier2_cost);
     expect(doctrinePowerCost('shadow_ops', 3)).toBe(DOCTRINE_CONFIG.shadow_ops.tier3_cost);
@@ -147,18 +168,20 @@ describe('HUD stats', () => {
   it('summarises a team', () => {
     const units = [{ team: 'blue', type: 'trooper', health: 1 }, { team: 'blue', type: 'tank', health: 1 }, { team: 'red', type: 'trooper', health: 1 }] as UnitData[];
     const map = [building('c1', 'core_node', 'blue'), building('s1', 'server_node', 'blue'), building('s2', 'server_node', 'blue', true)];
-    const stats = teamStats(addWarheads(createEconomy(500), 'blue', 'eclipse'), 'blue', map, units, 2);
+    const econ = research(setCompute(addWarheads(createEconomy(500), 'blue', 'eclipse'), 'blue', 200), 'blue', 2)!;
+    const stats = teamStats(econ, 'blue', map, units);
     expect(stats).toMatchObject({
       resources: 500,
       income: HQ_INCOME + CORE_INCOME,
-      compute: 1 + 2,
-      tier: 3,
+      compute: 200 - TIER_RESEARCH_COST[2],
+      computeRate: HQ_COMPUTE + COMPUTE_PER_SERVER_NODE,
+      tier: 2,
       units: 2,
       pop: 1 + 3,
       popCap: 28,
       stockpile: { eclipse: 1, he: 0 },
-      // Doctrine powers unlock with the tech tier from server nodes.
-      doctrine: { unlockedTiers: 3 },
+      // Doctrine powers unlock with the researched tier.
+      doctrine: { unlockedTiers: 2 },
     });
     expect(stats.buildings).toMatchObject({ core_node: 1, server_node: 1 });
   });

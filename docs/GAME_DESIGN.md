@@ -20,8 +20,9 @@ so tuning keeps the shape.
 The intended arc:
 - **Opening (0–4 min):** troopers take the home core node and nearby buildings to stretch the grid,
   then a Barracks and Factory go up.
-- **Mid game:** fights over the four outer core nodes. A strike on the guarded server nodes in the
-  centre unlocks Tier 2.
+- **Mid game:** taking the guarded server node in your own half starts compute flowing toward
+  Tier 2. Then come fights over the four outer core nodes and the contested flank and centre
+  server nodes, which speed research toward Tier 3.
 - **Late game:** Tier 3 units and doctrine powers, Bombardment Drones opening lanes through blocks,
   and the push on the HQ.
 
@@ -65,16 +66,36 @@ unit's pop cost is reserved when it is queued.
 
 ## Tech tiers (compute)
 
-| Tier | Requires |
-|---|---|
-| T1 | Start |
-| T2 | Hold 1 server node |
-| T3 | Hold 2 server nodes |
+Compute is a resource, like cores. Server nodes produce it and you spend it to research tiers,
+which stay unlocked for good.
 
-There are four server nodes, mirrored around the centre, each guarded by a Sentinel drone that
-fires on anyone nearby. Losing server nodes drops your tier. Units you already have stay, but you
-can't train above your tier. Doctrine powers need the matching tier (T2 power at T2, T3 power at T3)
-and respect their cooldowns.
+| Source | Compute per second |
+|---|---|
+| Command HQ (always) | 0.25 |
+| Each server node held | 1 |
+
+| Tier | Research cost | Unlocks |
+|---|---|---|
+| T1 | Start | Troopers, Razorbacks, Battery Mules, Drones, Guardians, Helios, Masons |
+| T2 | 120 compute | Ghosts, Lancers, Titans, Aegis, Wasps, Hornets, Banshees, Field Fabricators, T2 doctrine powers |
+| T3 | 360 compute | Bombardment Drones, Ballistas, T3 doctrine powers |
+
+Research from the button in your team panel or the HQ build menu.
+
+**Why research and not "hold N nodes":** in the first version, your tier was however many server
+nodes you held right now. All four sat in the centre, so whoever won the middle got every tier and
+the other side lost theirs: the game was over. Now holding more nodes only speeds research up.
+Losing them slows you down but never takes a tier back, and the HQ trickle means even a side holding
+nothing reaches Tier 2 in about 8 minutes.
+
+**Five server nodes**, each guarded by a Sentinel that fires on anyone nearby:
+- **One in each side's own half**, off to the flank. Every side can tech without winning the middle,
+  but has to go out and take it from its Sentinel, then hold it.
+- **Two contested flank nodes** on the line halfway between the bases, beside the outer core nodes.
+- **One in the centre.**
+
+Rough timings: holding just your own node, Tier 2 takes about 2 minutes of holding it, and Tier 3
+another 6. Holding three nodes gets you from Tier 2 to Tier 3 in about 2 minutes.
 
 ## Combat model
 
@@ -201,4 +222,4 @@ Drop, or Masons.
   **point-symmetric**: whatever is at a tile near your base is also at the matching tile near the
   enemy's.
 - Generation uses a seeded random number generator, so a seed reproduces a map.
-- There are 6 core nodes and 4 server nodes, all in mirrored pairs.
+- There are 6 core nodes and 5 server nodes, all in mirrored pairs (the centre node mirrors onto itself).

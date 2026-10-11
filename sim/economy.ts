@@ -7,7 +7,7 @@
 import { ABILITY_CONFIG, BUILDING_VALUES, DOCTRINE_CONFIG, STRUCTURE_INFO, TIER_UNLOCK_COSTS, UNIT_STATS } from '../constants';
 import type { BuildingData, DoctrineType, StructureData, StructureType, TeamStats, UnitData, UnitType } from '../types';
 import type { Team, Warhead } from './commands';
-import { popCap, popUsed, tierFromCompute } from './units';
+import { COMPUTE_PER_SERVER_NODE, HQ_COMPUTE, popCap, popUsed, Tier, TIER_RESEARCH_COST } from './units';
 
 export const STARTING_CORES = 2500;
 // Income is paid once per economy tick.
@@ -19,18 +19,25 @@ const SKUNKWORKS_PRODUCTION_BONUS = 1.1;
 
 export interface TeamEconomy {
   cores: number;
-  // Every core ever earned. Doctrine tiers unlock from this, so spending never re-locks them.
+  // Every core ever earned, for the end-of-match stats.
   lifetimeIncome: number;
   stockpile: Record<Warhead, number>;
+  // Compute from server nodes (and a trickle from the HQ), spent on research.
+  compute: number;
+  lifetimeCompute: number;
+  // The highest tech tier researched. Never goes down.
+  tier: Tier;
 }
 
 export type Economy = Record<Team, TeamEconomy>;
 
 export const TEAMS: readonly Team[] = ['blue', 'red'];
 
+const freshTeam = (cores: number): TeamEconomy => ({ cores, lifetimeIncome: 0, stockpile: { eclipse: 0, he: 0 }, compute: 0, lifetimeCompute: 0, tier: 1 });
+
 export const createEconomy = (startingCores = STARTING_CORES): Economy => ({
-  blue: { cores: startingCores, lifetimeIncome: 0, stockpile: { eclipse: 0, he: 0 } },
-  red: { cores: startingCores, lifetimeIncome: 0, stockpile: { eclipse: 0, he: 0 } },
+  blue: freshTeam(startingCores),
+  red: freshTeam(startingCores),
 });
 
 const withTeam = (economy: Economy, team: Team, patch: Partial<TeamEconomy>): Economy => ({
@@ -98,20 +105,38 @@ export function incomeFor(buildings: readonly BuildingData[], team: Team): numbe
 export function payIncome(economy: Economy, buildings: readonly BuildingData[], multiplier: Partial<Record<Team, number>> = {}): Economy {
   const next = { ...economy };
   for (const team of TEAMS) {
-    const income = incomeFor(buildings, team) * (multiplier[team] ?? 1);
+    const scale = multiplier[team] ?? 1;
+    const income = incomeFor(buildings, team) * scale;
+    const compute = computeRateFor(buildings, team) * scale;
     next[team] = {
       ...economy[team],
       cores: economy[team].cores + income,
       lifetimeIncome: economy[team].lifetimeIncome + income,
+      compute: economy[team].compute + compute,
+      lifetimeCompute: economy[team].lifetimeCompute + compute,
     };
   }
   return next;
 }
 
-export function unlockedTier(lifetimeIncome: number): 1 | 2 | 3 {
-  if (lifetimeIncome >= TIER_UNLOCK_COSTS.TIER3) return 3;
-  if (lifetimeIncome >= TIER_UNLOCK_COSTS.TIER2) return 2;
-  return 1;
+// --- Compute and research ---
+
+// Compute per second: the HQ trickle plus every live server node held.
+export const computeRateFor = (buildings: readonly BuildingData[], team: Team) =>
+  HQ_COMPUTE + COMPUTE_PER_SERVER_NODE * buildings.filter(b => b.type === 'server_node' && b.owner === team && !b.destroyed).length;
+
+export const researchCost = (tier: 2 | 3) => TIER_RESEARCH_COST[tier];
+
+// Returns the economy after researching `tier`, or null when it isn't the next tier or the
+// team lacks the compute.
+export function research(economy: Economy, team: Team, tier: 2 | 3): Economy | null {
+  const e = economy[team];
+  if (tier !== e.tier + 1 || e.compute < researchCost(tier)) return null;
+  return withTeam(economy, team, { compute: e.compute - researchCost(tier), tier });
+}
+
+export function setCompute(economy: Economy, team: Team, compute: number): Economy {
+  return withTeam(economy, team, { compute: Math.max(0, compute) });
 }
 
 // --- Production ---
@@ -154,7 +179,6 @@ export function teamStats(
   team: Team,
   buildings: readonly BuildingData[],
   units: readonly UnitData[],
-  bonusCompute = 0,
   structures: readonly StructureData[] = [],
 ): TeamStats {
   const owned = { residential: 0, commercial: 0, industrial: 0, hightech: 0, server_node: 0, core_node: 0 };
@@ -164,15 +188,16 @@ export function teamStats(
   return {
     resources: economy[team].cores,
     income: incomeFor(buildings, team),
-    compute: owned.server_node + bonusCompute,
-    tier: tierFromCompute(owned.server_node + bonusCompute),
+    compute: economy[team].compute,
+    computeRate: computeRateFor(buildings, team),
+    tier: economy[team].tier,
     pop: popUsed(units, structures, team),
     popCap: popCap(owned.core_node),
     units: units.filter(u => u.team === team && u.health > 0).length,
     buildings: owned,
     stockpile: { ...economy[team].stockpile },
     // The selected doctrine and its cooldowns live in App; only the tier comes from here.
-    // Doctrine powers unlock with the tech tier, so they too depend on holding server nodes.
-    doctrine: { selected: null, unlockedTiers: tierFromCompute(owned.server_node + bonusCompute), cooldowns: { tier2: 0, tier3: 0 } },
+    // Doctrine powers unlock with the researched tech tier.
+    doctrine: { selected: null, unlockedTiers: economy[team].tier, cooldowns: { tier2: 0, tier3: 0 } },
   };
 }

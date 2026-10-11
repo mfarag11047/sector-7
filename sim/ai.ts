@@ -19,7 +19,7 @@ import { ABILITY_CONFIG, DOCTRINE_CONFIG, UNIT_STATS } from '../constants';
 import type { BuildingData, DoctrineType, StructureData, StructureType, UnitData, UnitType } from '../types';
 import type { AbilityCommand } from './abilities';
 import type { GridPos, Team } from './commands';
-import { Economy, structureCost, unitCost } from './economy';
+import { Economy, researchCost, structureCost, unitCost } from './economy';
 import { isInsideEnergyGrid } from './energy';
 import type { Difficulty } from './match';
 import { isOperational, MAX_QUEUE, OrderCommand, popUsed, teamPopCap, teamTier } from './orders';
@@ -116,7 +116,12 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const mine = view.units.filter(u => u.team === team && alive(u));
   const theirs = view.units.filter(u => u.team === enemy && alive(u));
   const myStructures = view.structures.filter(s => s.team === team);
-  const tier = teamTier(view.buildings, team);
+  const tier = teamTier(view.economy, team);
+  // Research the next tier as soon as there's compute for it.
+  if (tier < 3) {
+    const next = (tier + 1) as 2 | 3;
+    if (view.economy[team].compute >= researchCost(next)) actions.push({ kind: 'order', command: { type: 'RESEARCH_TIER', tier: next } });
+  }
   let cores = view.economy[team].cores;
 
   // --- 1. Build order ---
@@ -185,7 +190,8 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   } else if (!retreating && escort.length > 0 && armyValue >= 400) {
     // Land first: income and population come from core nodes.
     mode = 'expand'; objective = posOf(escort[0]); objectiveId = escort[0].id;
-  } else if (!retreating && tier < 3 && canTech && freeServers.length > 0 && ownCores >= 2) {
+  } else if (!retreating && tier < 3 && canTech && freeServers.length > 0 && (ownCores >= 2 || dist(posOf(freeServers[0]), home) < dist(posOf(freeServers[0]), enemyHome))) {
+    // Compute: the server node in our own half early, the contested ones once we hold some land.
     mode = 'tech'; objective = posOf(freeServers[0]); objectiveId = freeServers[0].id;
   } else if (!retreating && canAttack && enemyCores.length > 0) {
     mode = 'attack'; objective = posOf(enemyCores[0]); objectiveId = enemyCores[0].id;

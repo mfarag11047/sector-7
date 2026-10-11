@@ -132,12 +132,17 @@ export const POP_PER_CORE_NODE = 8;
 export const POP_MAX = 60;
 export const popCap = (coreNodesHeld: number) => Math.min(POP_MAX, POP_BASE + POP_PER_CORE_NODE * coreNodesHeld);
 
-// Compute (server nodes held) unlocks tiers.
-export const tierFromCompute = (serverNodesHeld: number): Tier => (serverNodesHeld >= 2 ? 3 : serverNodesHeld >= 1 ? 2 : 1);
+// Compute is a resource: server nodes produce it, and it is spent at the HQ to research the
+// next tier, which then stays unlocked for good. Holding more nodes researches faster, but
+// losing them only slows you down; it never takes a tier back. The HQ's own trickle means a
+// side that holds no server node still reaches Tier 2 eventually.
+export const COMPUTE_PER_SERVER_NODE = 1; // per second
+export const HQ_COMPUTE = 0.25; // per second
+export const TIER_RESEARCH_COST: Record<2 | 3, number> = { 2: 120, 3: 360 };
 export const TIER_REQUIREMENT: Record<Tier, string> = {
   1: 'Available from the start',
-  2: 'Hold 1 server node',
-  3: 'Hold 2 server nodes',
+  2: `Research Tier 2 at the HQ (${TIER_RESEARCH_COST[2]} compute)`,
+  3: `Research Tier 3 at the HQ (${TIER_RESEARCH_COST[3]} compute)`,
 };
 
 // Living units plus everything queued, which reserves its population when ordered.

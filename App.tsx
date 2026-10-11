@@ -11,6 +11,7 @@ import UIOverlay from './components/UIOverlay';
 import { GameStats, UnitData, BuildingData, RoadTileData, MinimapData, StructureData, DoctrineState, DoctrineType } from './types';
 import { DOCTRINE_CONFIG, CAMERA_FAR, CITY_CONFIG, TEAM_BASES } from './constants';
 import { MatchConfig, STARTING_CORES, aiTeamOf } from './sim/match';
+import type { OrderCommand } from './sim/orders';
 import type { Victory } from './sim/victory';
 
 const INITIAL_STATS: GameStats = {
@@ -62,6 +63,9 @@ function App() {
   const [showResult, setShowResult] = useState(false);
   const [matchInfo, setMatchInfo] = useState<MatchInfo | null>(null);
   const [notices, setNotices] = useState<Notice[]>([]);
+  // Orders from the HUD (research) go through CityMap's checks.
+  const commandRef = useRef<((command: OrderCommand) => boolean) | null>(null);
+  const handleResearch = useCallback((tier: 2 | 3) => { commandRef.current?.({ type: 'RESEARCH_TIER', tier }); }, []);
   const noticeIdRef = useRef(0);
   const [stats, setStats] = useState<GameStats>(INITIAL_STATS);
   const [playerTeam, setPlayerTeam] = useState<'blue' | 'red'>(match?.playerTeam ?? 'blue');
@@ -273,6 +277,7 @@ function App() {
           <Atmosphere />
           {match && <CityMap 
               key={round}
+              commandRef={commandRef}
               match={match}
               onNotice={handleNotice}
               onMatchEnd={handleMatchEnd}
@@ -303,6 +308,7 @@ function App() {
         match={match}
         matchInfo={matchInfo}
         notices={notices}
+        onResearch={handleResearch}
       />}
       {!match && <MatchSetup onStart={startMatch} />}
       {match && result && showResult && (

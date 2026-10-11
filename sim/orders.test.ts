@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { BuildingData, StructureData, UnitData } from '../types';
-import { createEconomy } from './economy';
+import { createEconomy, research, setCompute } from './economy';
 import { applyOrderToStructures, applyOrderToUnits, OrderCommand, orderEffects, OrdersContext, OrdersView, popUsed } from './orders';
 import { advanceProduction, applyProduction, createUnit } from './production';
-import { POP_BASE, UNIT_RULES } from './units';
+import { POP_BASE, TIER_RESEARCH_COST, UNIT_RULES } from './units';
 
 const structure = (id: string, patch: Partial<StructureData> = {}): StructureData => ({
   id, type: 'infantry', team: 'blue', gridPos: { x: 6, z: 6 }, isBlueprint: false, constructionProgress: 0,
@@ -50,10 +50,25 @@ describe('training', () => {
     expect(run(view(), { type: 'TRAIN_UNIT', structureId: 'barracks', unitType: 'tank' }).refused).toMatch(/cannot train/);
   });
 
-  it('needs a server node for tier 2 units', () => {
+  it('needs Tier 2 researched for tier 2 units', () => {
     expect(run(view(), { type: 'TRAIN_UNIT', structureId: 'barracks', unitType: 'lancer' }).refused).toMatch(/Tier 2/);
-    const held = view({ buildings: [node('s', 'server_node', 'blue')] });
-    expect(run(held, { type: 'TRAIN_UNIT', structureId: 'barracks', unitType: 'lancer' }).refused).toBeUndefined();
+    const researched = view({ economy: research(setCompute(createEconomy(1000), 'blue', TIER_RESEARCH_COST[2]), 'blue', 2)! });
+    expect(run(researched, { type: 'TRAIN_UNIT', structureId: 'barracks', unitType: 'lancer' }).refused).toBeUndefined();
+  });
+});
+
+describe('research', () => {
+  const hq = structure('hq-blue', { type: 'hq' });
+  it('spends compute at the HQ for the next tier', () => {
+    const v = view({ structures: [hq], economy: setCompute(createEconomy(1000), 'blue', 500) });
+    expect(run(v, { type: 'RESEARCH_TIER', tier: 3 }).refused).toMatch(/Tier 2 first/);
+    const r = run(v, { type: 'RESEARCH_TIER', tier: 2 });
+    expect(r.economy!.blue).toMatchObject({ tier: 2, compute: 500 - TIER_RESEARCH_COST[2] });
+  });
+
+  it('refuses without compute or without an HQ', () => {
+    expect(run(view({ structures: [hq] }), { type: 'RESEARCH_TIER', tier: 2 }).refused).toMatch(/compute/);
+    expect(run(view({ structures: [], economy: setCompute(createEconomy(1000), 'blue', 500) }), { type: 'RESEARCH_TIER', tier: 2 }).refused).toMatch(/HQ/);
   });
 
   it('refuses a structure still under construction', () => {
