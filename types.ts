@@ -83,6 +83,9 @@ export type UnitType = 'drone' | 'tank' | 'ghost' | 'guardian' | 'mule' | 'wasp'
 export type UnitClass = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'defense';
 
 export interface UnitData {
+  // Timed effects from unit abilities (sim/unitAbilities.ts), and when each ability is ready again.
+  buffs?: { kind: 'stim' | 'nanoweave' | 'overcharge' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'emp'; until: number }[];
+  abilityReadyAt?: Record<string, number>;
   id: string;
   type: UnitType;
   unitClass: UnitClass;

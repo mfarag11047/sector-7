@@ -25,6 +25,7 @@ import type { Difficulty } from './match';
 import { isOperational, MAX_QUEUE, OrderCommand, popUsed, teamPopCap, teamTier } from './orders';
 import { ArmorClass, dps, Tier, UNIT_RULES, unitsProducedBy } from './units';
 import { DOMINATION_NODES } from './victory';
+import { abilitiesFor, abilityCooldownLeft } from './unitAbilities';
 
 export interface AiView {
   units: readonly UnitData[];
@@ -360,6 +361,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
       actions.push({ kind: 'ability', command: { type: 'SMOKE_SCREEN', unitIds: [u.id] } });
     }
   }
+  actions.push(...unitAbilityMoves(mine, theirs, tier, mode, now, profile, ctx.random));
   const power = ctx.doctrine ? doctrineMove(ctx.doctrine, profile, tier, cores, ctx.doctrineCooldowns, mode, objective, armyUnits, theirs) : null;
   if (power) actions.push(power);
 
@@ -367,6 +369,51 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
 }
 
 // --- Helpers ---
+
+// When to use the new units' abilities (sim/unitAbilities.ts). Each think, casters of the same
+// ability are grouped into one order. Easier levels notice the moment less often.
+function unitAbilityMoves(
+  mine: readonly UnitData[], theirs: readonly UnitData[], tier: Tier, mode: AiMemory['mode'], now: number,
+  profile: AiProfile, random: () => number,
+): AiAction[] {
+  const near = (u: UnitData, r: number, filter: (t: UnitData) => boolean = () => true) =>
+    theirs.filter(t => t.type !== 'defense_drone' && filter(t) && dist(t.gridPos, u.gridPos) <= r);
+  const armorOf = (t: UnitData) => UNIT_RULES[t.type].armor;
+  const isMachine = (t: UnitData) => armorOf(t) !== 'infantry';
+  const groups = new Map<string, string[]>();
+  const aimed: AiAction[] = [];
+  const want = (ability: string, u: UnitData) => groups.set(ability, [...(groups.get(ability) || []), u.id]);
+  for (const u of mine) {
+    const defs = abilitiesFor(u.type).filter(d => d.tier <= tier && abilityCooldownLeft(u, d.id, now) === 0);
+    if (defs.length === 0 || random() > profile.attention) continue;
+    const hurt = u.health < u.maxHealth * 0.5;
+    for (const d of defs) {
+      switch (d.id) {
+        case 'stim': if (near(u, 4).length > 0 && !hurt) want(d.id, u); break;
+        case 'nanoweave': if (near(u, 4).length > 0 && u.health < u.maxHealth * 0.75) want(d.id, u); break;
+        case 'overcharge': if (near(u, 5, isMachine).length > 0) want(d.id, u); break;
+        case 'nitro': if (mode === 'retreat' || (hurt && near(u, 5).length > 0)) want(d.id, u); break;
+        case 'overclock': if (near(u, 4).length >= 2) want(d.id, u); break;
+        case 'barrage': if (near(u, 6, t => armorOf(t) === 'air').length > 0) want(d.id, u); break;
+        case 'radar': if (near(u, 9).length > 0) want(d.id, u); break;
+        case 'afterburner': if (hurt && near(u, 6).length > 0) want(d.id, u); break;
+        case 'emp_rocket':
+        case 'hellfire': {
+          // Aim at the enemy unit with the most valid victims around it, if that's worth a shot.
+          const victims = (t: UnitData) => d.id === 'emp_rocket' ? isMachine(t) : armorOf(t) !== 'air';
+          let best: { at: GridPos; count: number } | null = null;
+          for (const t of near(u, d.targeted!.range, victims)) {
+            const count = theirs.filter(o => victims(o) && dist(o.gridPos, t.gridPos) <= d.targeted!.radius).length;
+            if (!best || count > best.count) best = { at: { ...t.gridPos }, count };
+          }
+          if (best && best.count >= 2) aimed.push({ kind: 'ability', command: { type: 'UNIT_ABILITY', unitIds: [u.id], ability: d.id, target: best.at } });
+          break;
+        }
+      }
+    }
+  }
+  return [...[...groups].map(([ability, unitIds]): AiAction => ({ kind: 'ability', command: { type: 'UNIT_ABILITY', unitIds, ability } })), ...aimed];
+}
 
 function centroid(points: GridPos[]): GridPos {
   const x = points.reduce((s, p) => s + p.x, 0) / points.length;

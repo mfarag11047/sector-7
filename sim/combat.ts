@@ -7,6 +7,7 @@
 import { ABILITY_CONFIG } from '../constants';
 import type { BuildingData, CloudData, StructureType, UnitData } from '../types';
 import type { GridPos } from './commands';
+import { damageMultiplier, damageTakenMultiplier, fireRateMultiplier, hasBuff, isEmpDisabled, rangeBonus } from './unitAbilities';
 import { ArmorClass, canHit, DamageType, shotDamage, STRUCTURE_RULES, UNIT_RULES, Weapon } from './units';
 
 export type DamageMap = Map<string, number>;
@@ -154,15 +155,21 @@ export function resolveAttacks(
     return best;
   };
 
+  // Nano-Weave and the like reduce what a unit takes.
+  const takenBy = new Map(unitTargets.map(t => [t.id, damageTakenMultiplier(t)]));
+  const hitUnit = (id: string, damage: number) => addDamage(result.unitDamage, id, damage * (takenBy.get(id) ?? 1));
+
   const fire = (attackerId: string, team: UnitData['team'], from: GridPos, fromAir: boolean, weapon: Weapon, target: Target) => {
     const damage = shotDamage(weapon, target.armor);
-    addDamage(target.structure ? result.structureDamage : result.unitDamage, target.id, damage);
+    if (target.structure) addDamage(result.structureDamage, target.id, damage);
+    else hitUnit(target.id, damage);
     if (weapon.splash) {
+      // Splash stays on the target's own layer: shells burst on the ground, flak in the air.
       for (const t of unitTargets) {
         if (t.id === target.id || !hostile(team, t.team)) continue;
         const armor = UNIT_RULES[t.type].armor;
-        if (armor === 'air' || tiles(t.gridPos, target.gridPos) > weapon.splash) continue;
-        addDamage(result.unitDamage, t.id, shotDamage(weapon, armor) * (weapon.splashFactor ?? 0.5));
+        if ((armor === 'air') !== target.isAir || tiles(t.gridPos, target.gridPos) > weapon.splash) continue;
+        hitUnit(t.id, shotDamage(weapon, armor) * (weapon.splashFactor ?? 0.5));
       }
     }
     result.fired.set(attackerId, target.id);
@@ -170,11 +177,18 @@ export function resolveAttacks(
   };
 
   for (const u of units) {
-    const weapon = UNIT_RULES[u.type].weapon;
-    if (!weapon || u.health <= 0 || u.decoyActive || inNanoCloud(u.gridPos)) continue;
+    const base = UNIT_RULES[u.type].weapon;
+    if (!base || u.health <= 0 || u.decoyActive || u.isStunned || isEmpDisabled(u) || inNanoCloud(u.gridPos)) continue;
+    // Ability buffs (sim/unitAbilities.ts): range, damage and, for Flak Barrage, air splash.
+    const weapon: Weapon = u.buffs?.length ? {
+      ...base,
+      range: base.range + rangeBonus(u),
+      damage: base.damage * damageMultiplier(u),
+      ...(hasBuff(u, 'barrage') ? { splash: 1.5, splashFactor: 0.5 } : {}),
+    } : base;
     const target = pick(u.team, u.gridPos, weapon, u.combatTargetId);
     result.aiming.set(u.id, target ? target.id : null);
-    if (!target || now - (u.lastAttackTime || 0) < weapon.cooldownMs) continue;
+    if (!target || now - (u.lastAttackTime || 0) < weapon.cooldownMs / fireRateMultiplier(u)) continue;
     fire(u.id, u.team, u.gridPos, UNIT_RULES[u.type].armor === 'air', weapon, target);
   }
 

@@ -44,6 +44,7 @@ const MANUAL_DATA: ManualSection[] = [
     title: "Combat",
     items: [
       { label: "Counters", description: "Rifles shred infantry. Anti-vehicle rockets crack armour. Flak swats aircraft. High explosive levels buildings and clumped infantry. Razorbacks hunt Troopers; Lancers and Hornets hunt vehicles; Aegis and Troopers shoot down aircraft; Titans break infantry blobs and bases." },
+      { label: "Unit abilities", description: "Troopers, Razorbacks, Lancers, Aegis and Hornets each have two abilities in their action menu: one from the start, a stronger one once your side researches the next tier. They act on every selected unit of that type; aimed ones take a map click." },
       { label: "Attack-move", description: "Ctrl-click, or press F then click. Units stop to fight anything on the way. A plain move drives through, shooting on the move." },
     ]
   },

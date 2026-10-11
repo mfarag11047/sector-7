@@ -30,6 +30,7 @@ import { AI_PROFILES, aiThink, freshAiMemory } from '../sim/ai';
 import { OrderCommand, applyOrderToStructures, applyOrderToUnits, orderEffects, popUsed, coreNodesHeld, serverNodesHeld, teamPopCap, teamTier } from '../sim/orders';
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
 import { isAirType } from '../sim/units';
+import { abilitiesFor, abilityDef, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
 import { Victory, checkVictory, dominationRemaining, freshDominationClock } from '../sim/victory';
 import type { MatchSummary } from './MatchScreens';
 import { Economy, createEconomy, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
@@ -638,7 +639,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const dragRef = useRef<{ active: boolean; start: ScreenPoint; current: ScreenPoint } | null>(null);
   
   const [targetingSourceId, setTargetingSourceId] = useState<string | null>(null);
-  const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'BATTERY_TETHER' | 'CANNON' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'SWARM' | 'BOMBARD' | null>(null);
+  // 'UNIT:<ability id>' while aiming a new unit's ability (sim/unitAbilities.ts).
+  const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'BATTERY_TETHER' | 'CANNON' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'SWARM' | 'BOMBARD' | `UNIT:${string}` | null>(null);
 
   const [baseMenuOpen, setBaseMenuOpen] = useState<'blue' | 'red' | null>(null);
   const [placementMode, setPlacementMode] = useState<{type: StructureType, cost: number} | null>(null);
@@ -961,6 +963,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const visibleUnitIds = useMemo(() => {
     const visible = new Set<string>();
     const teamKey = playerTeam === 'blue' || playerTeam === 'red' ? playerTeam : null;
+    const friendlies = units.filter(f => f.team === playerTeam);
     units.forEach(u => {
         if (u.team === playerTeam) { visible.add(u.id); return; }
         // Phantom Decoy cloaks the real Ghost from the other team entirely.
@@ -969,7 +972,6 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             visible.add(u.id);
             return;
         }
-        const friendlies = units.filter(f => f.team === playerTeam);
         const inHE = clouds.some(c => c.type === 'he' && Math.sqrt(Math.pow(u.gridPos.x - c.gridPos.x, 2) + Math.pow(u.gridPos.z - c.gridPos.z, 2)) <= c.radius);
         if (inHE) return; 
         if (u.smoke?.active) {
@@ -980,7 +982,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             const fInHE = clouds.some(c => c.type === 'he' && Math.sqrt(Math.pow(f.gridPos.x - c.gridPos.x, 2) + Math.pow(f.gridPos.z - c.gridPos.z, 2)) <= c.radius);
             if (fInHE) return false;
             const dist = Math.sqrt(Math.pow(u.gridPos.x - f.gridPos.x, 2) + Math.pow(u.gridPos.z - f.gridPos.z, 2));
-            return dist <= f.visionRange;
+            // Sky-Net Radar Sweep widens an Aegis' vision.
+            return dist <= visionOf(f);
         });
         if (isDetected) {
             visible.add(u.id);
@@ -1448,8 +1451,15 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       const tileOrders: Record<string, 'SURVEILLANCE' | 'CANNON_FIRE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD'> = {
           SURVEILLANCE: 'SURVEILLANCE', CANNON: 'CANNON_FIRE', MISSILE: 'FIRE_BALLISTA', SWARM: 'FIRE_SWARM', BOMBARD: 'BOMBARD',
       };
-      if (targetingSourceId && targetingAbility && tileOrders[targetingAbility]) {
-          dispatchAbility({ type: tileOrders[targetingAbility], unitId: targetingSourceId, target: { x, z } });
+      if (targetingSourceId && targetingAbility?.startsWith('UNIT:')) {
+          // Every selected unit of the same type that is in range joins the strike.
+          const ability = targetingAbility.slice(5);
+          const source = unitsRef.current.find(u => u.id === targetingSourceId);
+          const ids = unitsRef.current.filter(u => u.type === source?.type && (u.id === targetingSourceId || selectedUnitIds.has(u.id))).map(u => u.id);
+          dispatchAbility({ type: 'UNIT_ABILITY', unitIds: ids, ability, target: { x, z } });
+          clearTargeting();
+      } else if (targetingSourceId && targetingAbility && tileOrders[targetingAbility as keyof typeof tileOrders]) {
+          dispatchAbility({ type: tileOrders[targetingAbility as keyof typeof tileOrders], unitId: targetingSourceId, target: { x, z } });
           clearTargeting();
       } else if (targetingSourceId && (targetingAbility === 'TETHER' || targetingAbility === 'BATTERY_TETHER')) {
           // Tethers target a unit, not a tile — keep targeting until a vehicle is clicked or cancelled.
@@ -1549,7 +1559,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           },
       );
       if ('reason' in outcome) {
-          console.info(`Order refused (${command.type}): ${outcome.reason}`);
+          if (team === playerTeam) onNotice?.(`Can't do that: ${outcome.reason}`, 'warn');
           return false;
       }
       const fx = outcome.effects;
@@ -1565,6 +1575,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           setDecoys(prev => [...prev.filter(d => !d.ownerId || !fx.clearDecoysOf.includes(d.ownerId)), ...fx.spawnDecoys]);
       }
       if (fx.spawnProjectiles.length > 0) setProjectiles(prev => [...prev, ...fx.spawnProjectiles]);
+      // An aimed EMP rocket or Hellfire salvo: a burst at the target.
+      if (fx.strike) {
+          const at = { x: fx.strike.at.x * tileSize - offset, y: 1.5, z: fx.strike.at.z * tileSize - offset };
+          const now = Date.now();
+          setExplosions(prev => [...prev, { id: `strike-${now}-${spawnCounterRef.current++}`, position: at, radius: fx.strike!.radius * tileSize * 0.6, duration: fx.strike!.kind === 'emp' ? 900 : 700, createdAt: now }]);
+      }
       return true;
   };
 
@@ -1640,6 +1656,22 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (action.startsWith('TRANSFER_')) { dispatchAbility({ type: 'TRANSFER_WARHEAD', unitId, warhead: warheadIn(action) }); return; }
       if (action.startsWith('TAKE_')) { dispatchAbility({ type: 'TAKE_WARHEAD', unitId, warhead: warheadIn(action) }); return; }
       if (action === 'RESUPPLY_MATERIAL') { dispatchAbility({ type: 'RESUPPLY_MATERIAL', unitId }); return; }
+      if (action.startsWith('UNIT_ABILITY:')) {
+          const ability = action.slice('UNIT_ABILITY:'.length);
+          const def = abilityDef(ability);
+          if (!def) return;
+          if (def.targeted) {
+              // Aim with the next map click.
+              setTargetingSourceId(unitId);
+              setTargetingAbility(`UNIT:${ability}`);
+              onNotice?.(`${def.name}: click a spot within ${def.targeted.range} tiles`);
+              return;
+          }
+          // Acts on every selected unit of this type, plus the one whose menu was clicked.
+          const ids = unitsRef.current.filter(u => u.type === unit.type && (u.id === unitId || selectedUnitIds.has(u.id))).map(u => u.id);
+          dispatchAbility({ type: 'UNIT_ABILITY', unitIds: ids, ability });
+          return;
+      }
       if (action === 'PHANTOM_DECOY_INIT') { dispatchAbility({ type: 'PHANTOM_DECOY', unitId }); return; }
 
       if (action === 'DISCONNECT_TETHER') { dispatchAbility({ type: 'DISCONNECT_TETHER', unitId }); clearTargeting(); return; }
@@ -2172,7 +2204,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       }
                       if (attacks.fired.has(u.id)) {
                           newUnit.lastAttackTime = now;
+                          // A fired Overcharged Warhead is spent.
+                          if (hasBuff(newUnit, 'overcharge')) newUnit.buffs = newUnit.buffs!.filter(b => b.kind !== 'overcharge');
                           uChanged = true;
+                      }
+                      // Ability buffs run out (sim/unitAbilities.ts).
+                      if (u.buffs?.length) {
+                          const pruned = pruneBuffs(newUnit, now);
+                          if (pruned !== newUnit) { newUnit = pruned; uChanged = true; }
                       }
                       
                       const courier = courierStep(u, newUnit, activeUnits, structuresRef.current, findPath);

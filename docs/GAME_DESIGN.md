@@ -174,6 +174,30 @@ listed as damage / cooldown / range.
   Transfer Warhead, not trained.
 - **Command HQ:** 5000 HP; AP 30 / 1.0 s / 5, hits air.
 
+## New-unit abilities
+
+Each of the five units added in this build has two abilities, in the cyberpunk spirit of the rest:
+the first unlocks with the unit's own tier, the second with the next tier, so units grow stronger
+as your side researches. They're in the unit's action menu; aimed ones (⌖) take a map click.
+Abilities act on every selected unit of that type. Rules: `sim/unitAbilities.ts`.
+
+| Unit | Ability | Tier | Cooldown | Effect |
+|---|---|---|---|---|
+| Strike Trooper | Stim Injector | T1 | 30 s | +50% fire rate, +30% speed for 6 s; costs 15 health |
+| | Nano-Weave Mesh | T2 | 40 s | Takes 50% less damage for 6 s |
+| Razorback | Nitro Injection | T1 | 25 s | +80% speed for 5 s |
+| | Overclocked Autogun | T2 | 35 s | Double fire rate for 6 s |
+| Lancer | Overcharged Warhead | T2 | 25 s | Next rocket (within 15 s) does 2.5x damage |
+| | EMP Tandem Rocket ⌖ | T3 | 45 s | Range 6, radius 2: vehicles and aircraft can't move or fire for 4 s; infantry unaffected |
+| Aegis | Flak Barrage | T2 | 30 s | Double fire rate for 6 s, and bursts also hit aircraft within 1.5 tiles of the target |
+| | Sky-Net Radar Sweep | T3 | 40 s | Vision 14 and +2 weapon range for 10 s |
+| Hornet | Afterburners | T2 | 25 s | +70% speed for 5 s |
+| | Hellfire Salvo ⌖ | T3 | 40 s | Range 6, radius 1.5: 90 anti-armour damage to every enemy ground unit, per Hornet firing |
+
+A coloured ring under a unit shows an ability running (red: shut down by an EMP). The computer
+opponent uses them too: stims and overclocks when it's in a fight, Nano-Weave and Afterburners when
+hurt, Flak Barrage against aircraft, and aimed strikes on clusters of two or more.
+
 ## AI opponent
 
 The AI (`sim/ai.ts`) plays by the same rules as you. It returns commands; the game sends them

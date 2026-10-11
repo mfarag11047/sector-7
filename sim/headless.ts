@@ -22,6 +22,7 @@ import { applyOrderToStructures, applyOrderToUnits, OrderCommand, orderEffects, 
 import { advanceProduction, applyProduction, createUnit } from './production';
 import { guardianRepair } from './support';
 import { isAirType } from './units';
+import { hasBuff } from './unitAbilities';
 import { checkVictory, DominationClock, freshDominationClock, Victory } from './victory';
 import { DOCTRINE_CONFIG } from '../constants';
 
@@ -204,7 +205,11 @@ export function stepMatch(m: HeadlessMatch): void {
     const draft: UnitData = { ...u };
     const aim = attacks.aiming.get(u.id) ?? null;
     if (attacks.aiming.has(u.id) || u.combatTargetId) draft.combatTargetId = aim;
-    if (attacks.fired.has(u.id)) draft.lastAttackTime = now;
+    if (attacks.fired.has(u.id)) {
+      draft.lastAttackTime = now;
+      if (hasBuff(draft, 'overcharge')) draft.buffs = draft.buffs!.filter(b => b.kind !== 'overcharge');
+    }
+    if (draft.buffs?.length) draft.buffs = draft.buffs.filter(b => b.until > now);
     draft.health = Math.max(0, draft.health - (attacks.unitDamage.get(u.id) || 0));
     const heal = repair.heal.get(u.id) || 0;
     if (heal > 0 && draft.health > 0) draft.health = Math.min(draft.maxHealth, draft.health + heal);

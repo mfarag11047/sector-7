@@ -12,18 +12,19 @@ import { ABILITY_CONFIG, CITY_CONFIG } from '../constants';
 import type { DecoyData, Projectile, StructureData, UnitData, UnitType } from '../types';
 import type { GridPos, PlayerCommand, Team, Warhead } from './commands';
 import { Economy, spend, takeWarhead, warheadCost } from './economy';
+import { unitAbilityEffects } from './unitAbilities';
 
 export type AbilityCommand = Extract<PlayerCommand, { type:
   | 'TOGGLE_DAMPENER' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'SMOKE_SCREEN' | 'ACTIVATE_APS' | 'PHANTOM_DECOY'
   | 'LOAD_AMMO' | 'TAKE_WARHEAD' | 'FABRICATE' | 'RESUPPLY_MATERIAL' | 'TRANSFER_WARHEAD'
   | 'CANNON_FIRE' | 'SURVEILLANCE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD'
-  | 'HARDLINE_TETHER' | 'DISCONNECT_TETHER' | 'BATTERY_LINK' | 'DISCONNECT_BATTERY' }>;
+  | 'HARDLINE_TETHER' | 'DISCONNECT_TETHER' | 'BATTERY_LINK' | 'DISCONNECT_BATTERY' | 'UNIT_ABILITY' }>;
 
 const ABILITY_TYPES: ReadonlySet<string> = new Set<AbilityCommand['type']>([
   'TOGGLE_DAMPENER', 'TOGGLE_JAMMER', 'TOGGLE_ANCHOR', 'SMOKE_SCREEN', 'ACTIVATE_APS', 'PHANTOM_DECOY',
   'LOAD_AMMO', 'TAKE_WARHEAD', 'FABRICATE', 'RESUPPLY_MATERIAL', 'TRANSFER_WARHEAD',
   'CANNON_FIRE', 'SURVEILLANCE', 'FIRE_BALLISTA', 'FIRE_SWARM', 'BOMBARD',
-  'HARDLINE_TETHER', 'DISCONNECT_TETHER', 'BATTERY_LINK', 'DISCONNECT_BATTERY',
+  'HARDLINE_TETHER', 'DISCONNECT_TETHER', 'BATTERY_LINK', 'DISCONNECT_BATTERY', 'UNIT_ABILITY',
 ]);
 export const isAbilityCommand = (c: PlayerCommand): c is AbilityCommand => ABILITY_TYPES.has(c.type);
 
@@ -56,6 +57,8 @@ export interface AbilityEffects {
   // Ghosts whose Phantom Decoy projections should vanish.
   clearDecoysOf: string[];
   spawnProjectiles: Projectile[];
+  // An aimed new-unit ability went off here, for the explosion effect.
+  strike?: { at: GridPos; radius: number; kind: 'emp' | 'hellfire' };
   // Cores or stockpiled warheads the order uses. Returns null if they are gone by the time it applies.
   economy?: (e: Economy) => Economy | null;
 }
@@ -317,6 +320,13 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
       const u = ownUnit(view, team, command.unitId, ['sun_plate']);
       if (typeof u === 'string') return reject(u);
       return effects({ updates: new Map([[u.id, m => ({ ...m, batteryTetherIds: [] })]]) });
+    }
+
+    // --- Abilities of the new units, gated by the researched tier ---
+    case 'UNIT_ABILITY': {
+      const outcome = unitAbilityEffects(view.units, team, view.economy[team].tier, command, ctx.now);
+      if ('reason' in outcome) return reject(outcome.reason);
+      return effects({ updates: outcome.updates, strike: outcome.strike });
     }
   }
 }

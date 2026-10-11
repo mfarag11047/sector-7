@@ -73,6 +73,10 @@ export interface DisconnectTetherCommand { type: 'DISCONNECT_TETHER'; unitId: st
 export interface BatteryLinkCommand { type: 'BATTERY_LINK'; unitId: string; targetUnitId: string }
 export interface DisconnectBatteryCommand { type: 'DISCONNECT_BATTERY'; unitId: string }
 
+// --- New-unit abilities (sim/unitAbilities.ts) ---
+// Every listed unit of the ability's type uses it; aimed ones take a target tile.
+export interface UnitAbilityCommand { type: 'UNIT_ABILITY'; unitIds: string[]; ability: string; target?: GridPos }
+
 // --- Doctrine ---
 
 export interface SelectDoctrineCommand { type: 'SELECT_DOCTRINE'; doctrine: DoctrineType }
@@ -106,6 +110,7 @@ export type PlayerCommand =
   | DisconnectTetherCommand
   | BatteryLinkCommand
   | DisconnectBatteryCommand
+  | UnitAbilityCommand
   | SelectDoctrineCommand
   | DoctrinePowerCommand;
 
@@ -187,6 +192,7 @@ const CHECKS: Record<CommandType, (c: Fields) => boolean> = {
   DISCONNECT_TETHER: unit,
   BATTERY_LINK: unitLink,
   DISCONNECT_BATTERY: unit,
+  UNIT_ABILITY: c => isIdList(c.unitIds) && typeof c.ability === 'string' && c.ability.length <= 32 && (c.target === undefined || isTile(c.target)),
   SELECT_DOCTRINE: c => oneOf(DOCTRINES, c.doctrine),
   DOCTRINE_POWER: c => (c.tier === 2 || c.tier === 3) && (c.target === undefined || isTile(c.target)),
 };

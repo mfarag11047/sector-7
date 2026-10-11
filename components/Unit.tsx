@@ -4,7 +4,8 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Edges, Float, Html, Line, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, UNIT_STATS } from '../constants';
-import { UnitType, UnitClass } from '../types';
+import { UnitType, UnitClass, UnitData } from '../types';
+import { abilitiesFor } from '../sim/unitAbilities';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
 import { AegisModel, HornetModel, LancerLauncher, RazorbackModel, TrooperKit } from './unitModels';
@@ -28,6 +29,12 @@ const Rotor: React.FC = () => {
   );
 };
 
+
+// Ring colour while an ability's buff runs.
+const BUFF_COLORS: Record<NonNullable<UnitData['buffs']>[number]['kind'], string> = {
+  stim: '#f43f5e', nanoweave: '#a3e635', overcharge: '#facc15', nitro: '#fb923c', overclock: '#f97316',
+  barrage: '#38bdf8', radar: '#22d3ee', afterburner: '#fb923c', emp: '#ef4444',
+};
 interface UnitProps {
   id: string;
   type: UnitType;
@@ -120,6 +127,8 @@ interface UnitProps {
   firingLaserAt?: string | null;
   lastAttackTime?: number;
   combatTargetId?: string | null;
+  buffs?: UnitData['buffs'];
+  abilityReadyAt?: Record<string, number>;
   // Step 3 Updates
   isStunned?: boolean;
   activeBuffs?: ('speed' | 'damage' | 'regen')[];
@@ -245,7 +254,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -868,6 +877,14 @@ const Unit: React.FC<UnitProps> = ({
         </mesh>
       )}
 
+      {/* An ability is running: a coloured ring at the unit's feet (an EMP shows as a red ring). */}
+      {buffs && buffs.length > 0 && (
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.3, 0]} raycast={() => null}>
+          <ringGeometry args={[tileSize * 0.3, tileSize * 0.36, 24]} />
+          <meshBasicMaterial color={BUFF_COLORS[buffs[buffs.length - 1].kind]} transparent opacity={0.85} toneMapped={false} depthWrite={false} />
+        </mesh>
+      )}
+
       {/* Hitbox */}
       <mesh position={[0, 0, 0]} visible={true}>
           <boxGeometry args={[3.5, 3.5, 3.5]} />
@@ -1113,6 +1130,25 @@ const Unit: React.FC<UnitProps> = ({
                           </div>
                       )}
                   </div>
+
+                  {/* New-unit abilities: unlocked by the team's researched tier (teamCompute carries it). */}
+                  {abilitiesFor(type).map(a => {
+                      const locked = teamCompute < a.tier;
+                      const wait = Math.ceil(Math.max(0, (abilityReadyAt?.[a.id] ?? 0) - Date.now()) / 1000);
+                      const active = !!buffs?.some(b => b.kind === a.id);
+                      return (
+                          <button
+                              key={a.id}
+                              disabled={locked || wait > 0}
+                              title={`${a.description}${locked ? ` Needs Tier ${a.tier}.` : ''}`}
+                              onClick={(e) => { e.stopPropagation(); handleMenuAction(`UNIT_ABILITY:${a.id}`); }}
+                              className={`text-[10px] px-2 py-1 rounded text-left flex justify-between gap-2 ${active ? 'bg-cyan-900 text-cyan-200' : locked ? 'bg-slate-900 text-slate-500' : 'bg-slate-800 hover:bg-slate-700 text-white'} disabled:cursor-not-allowed`}
+                          >
+                              <span>{a.name}{a.targeted ? ' ⌖' : ''}</span>
+                              <span className="font-mono">{locked ? `T${a.tier}` : wait > 0 ? `${wait}s` : active ? 'ON' : ''}</span>
+                          </button>
+                      );
+                  })}
 
                   {/* Actions based on unit type */}
                   {isTank && (

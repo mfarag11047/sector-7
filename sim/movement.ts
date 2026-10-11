@@ -6,6 +6,7 @@
 // gridPos plus moveProgress toward path[0], advanced by a fixed amount every tick.
 // Unit.tsx only animates toward that position.
 
+import { speedBuffMultiplier } from './unitAbilities';
 import { ABILITY_CONFIG, UNIT_STATS } from '../constants';
 import type { RoadType, UnitData, UnitType } from '../types';
 import type { GridPos } from './commands';
@@ -37,6 +38,7 @@ export interface Mover {
   isJammed?: boolean;
   isDampenerActive?: boolean;
   activeBuffs?: UnitData['activeBuffs'];
+  buffs?: UnitData['buffs'];
   ammoState?: UnitData['ammoState'];
   isAnchored?: boolean;
   isDeployed?: boolean;
@@ -80,6 +82,8 @@ export function speedMultiplier(u: Mover, tileTypeOf: (key: string) => RoadType 
   }
   speed *= UNIT_STATS[u.type].speedMod || 1;
   if (isOnReserve(u)) speed *= RESERVE_SPEED;
+  // Stims, Nitro, Afterburners; an EMP stops the unit dead.
+  if (u.buffs?.length) speed *= speedBuffMultiplier(u);
   if (u.type === 'ghost' && u.isDampenerActive) speed *= ABILITY_CONFIG.GHOST_SPEED_PENALTY;
   if (u.activeBuffs?.includes('speed')) speed *= 1.2;
   return speed;
