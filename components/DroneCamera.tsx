@@ -8,9 +8,11 @@ import { CAMERA_SPEED, CITY_CONFIG, CAMERA_ZOOM_SPEED, MIN_ZOOM, MAX_ZOOM } from
 
 interface DroneCameraProps {
     cameraStateRef?: React.MutableRefObject<{ x: number, y: number, z: number, yaw: number }>;
+    // Where the camera starts, in world units, and which way it faces.
+    start?: { x: number, z: number, yaw: number };
 }
 
-const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef }) => {
+const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef, start }) => {
   const { camera, gl, scene, raycaster } = useThree();
 
   // The scene root never moves. Leaving it auto-updating dirties it every frame,
@@ -27,11 +29,13 @@ const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef }) => {
   }, [scene, gl, camera, raycaster]);
   
   // Position State
-  const positionRef = useRef(new THREE.Vector3(0, 80, 80)); 
+  const positionRef = useRef(new THREE.Vector3(start?.x ?? 0, 80, start?.z ?? 80));
   
   // Rotation State
   // Yaw: Rotation around Y axis (0 = North/-Z)
-  const yawRef = useRef(0); 
+  const yawRef = useRef(start?.yaw ?? 0);
+  // Start in place rather than gliding over from wherever the camera was.
+  useEffect(() => { camera.position.copy(positionRef.current); }, [camera]);
   // Pitch: Angle down from horizon (0 = Horizon, PI/2 = Straight Down)
   const pitchRef = useRef(1.0); 
 

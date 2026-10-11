@@ -272,7 +272,11 @@ const MinimapBackground = React.memo(({
                 />
             ))}
             {/* Structures Layer */}
-            {structures?.map((s) => (
+            {structures?.map((s) => s.type === 'hq' ? (
+                // Each Command HQ as a 3x3 block in its team's colour.
+                <rect key={s.id} x={s.gridPos.x - 1} y={s.gridPos.z - 1} width={3} height={3}
+                    fill={TEAM_COLORS[s.team as 'blue' | 'red']} stroke="#e0f2fe" strokeWidth={0.25} opacity={s.health > 0 ? 0.95 : 0.3} />
+            ) : (
                 <rect 
                     key={s.id}
                     x={s.gridPos.x}

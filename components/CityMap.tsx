@@ -763,30 +763,6 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // Minimap Update Loop
   useEffect(() => {
     if (onMinimapUpdate) {
-        // Include static base in the structures list for minimap visibility
-        const staticBaseBlue: StructureData = {
-            id: 'base-hq-blue',
-            type: 'support',
-            team: 'blue',
-            gridPos: { x: 4, z: 4 },
-            isBlueprint: false,
-            constructionProgress: 100,
-            maxProgress: 100,
-            health: 1000,
-            maxHealth: 1000
-        };
-        const staticBaseRed: StructureData = {
-            id: 'base-hq-red',
-            type: 'support',
-            team: 'red',
-            gridPos: { x: gridSize - 5, z: gridSize - 5 },
-            isBlueprint: false,
-            constructionProgress: 100,
-            maxProgress: 100,
-            health: 1000,
-            maxHealth: 1000
-        };
-
         const interval = setInterval(() => {
             // Filter real units (hide active decoys source)
             const realUnits = unitsRef.current;
@@ -826,7 +802,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             onMinimapUpdate({ 
                 units: [...realUnits, ...fakeUnits], 
                 buildings: buildingsRef.current,
-                structures: [staticBaseBlue, staticBaseRed, ...structuresRef.current],
+                structures: structuresRef.current,
                 selectedUnitIds: Array.from(selectedUnitIdsRef.current),
                 missiles,
             });

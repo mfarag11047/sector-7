@@ -175,19 +175,24 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const retreating = now - mem.retreatedAt < 30_000;
   // The enemy is close to a domination win: break their hold on a node whatever it takes.
   const enemyDominating = enemyCores.length >= DOMINATION_NODES && armyValue >= 400;
+  // Free core nodes the capture team isn't already on. The army escorts the nearest of them.
+  const escort = captureTarget ? freeCores.slice(1) : freeCores;
+  const ownCores = coreNodes.filter(b => b.owner === team).length;
   if (threat) {
     mode = 'defend'; objective = threat;
   } else if (enemyDominating) {
     mode = 'attack'; objective = posOf(enemyCores[0]); objectiveId = enemyCores[0].id;
-  } else if (!retreating && tier < 3 && canTech && freeServers.length > 0) {
+  } else if (!retreating && escort.length > 0 && armyValue >= 400) {
+    // Land first: income and population come from core nodes.
+    mode = 'expand'; objective = posOf(escort[0]); objectiveId = escort[0].id;
+  } else if (!retreating && tier < 3 && canTech && freeServers.length > 0 && ownCores >= 2) {
     mode = 'tech'; objective = posOf(freeServers[0]); objectiveId = freeServers[0].id;
   } else if (!retreating && canAttack && enemyCores.length > 0) {
     mode = 'attack'; objective = posOf(enemyCores[0]); objectiveId = enemyCores[0].id;
   } else if (!retreating && canAttack && armyValue >= profile.attackValue * 1.6) {
     mode = 'attack'; objective = enemyHome; objectiveId = `hq-${enemy}`;
-  } else if (freeCores.length > 1 && armyValue >= 600) {
-    // Escort a second capture at the next free node.
-    mode = 'expand'; objective = posOf(freeCores[1]); objectiveId = freeCores[1].id;
+  } else if (!retreating && tier < 3 && canTech && freeServers.length > 0) {
+    mode = 'tech'; objective = posOf(freeServers[0]); objectiveId = freeServers[0].id;
   }
   // Outmatched where it's heading: fall back and try again later (unless the match is at stake).
   if (mode !== 'defend' && mode !== 'gather' && !enemyDominating) {

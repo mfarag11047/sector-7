@@ -9,7 +9,7 @@ import DroneCamera from './components/DroneCamera';
 import Atmosphere from './components/Atmosphere';
 import UIOverlay from './components/UIOverlay';
 import { GameStats, UnitData, BuildingData, RoadTileData, MinimapData, StructureData, DoctrineState, DoctrineType } from './types';
-import { DOCTRINE_CONFIG, CAMERA_FAR } from './constants';
+import { DOCTRINE_CONFIG, CAMERA_FAR, CITY_CONFIG, TEAM_BASES } from './constants';
 import { MatchConfig, STARTING_CORES, aiTeamOf } from './sim/match';
 import type { Victory } from './sim/victory';
 
@@ -222,6 +222,20 @@ function App() {
       return () => window.removeEventListener('keydown', handleKeyDown);
   }, [interactionMode]);
 
+  // Open each match over your own HQ, looking toward the centre of the city.
+  const cameraStart = useMemo(() => {
+      const team = match?.playerTeam ?? 'blue';
+      const offset = (CITY_CONFIG.gridSize * CITY_CONFIG.tileSize) / 2;
+      const hq = TEAM_BASES[team];
+      const x = hq.x * CITY_CONFIG.tileSize - offset;
+      const z = hq.z * CITY_CONFIG.tileSize - offset;
+      // Forward is -Z turned by yaw: -3π/4 faces +x+z (from blue), π/4 faces -x-z (from red).
+      const yaw = team === 'blue' ? -3 * Math.PI / 4 : Math.PI / 4;
+      const back = 40;
+      const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
+      return { x: x - fx * back, z: z - fz * back, yaw };
+  }, [match]);
+
   // Merge dynamic game stats with persistent doctrine state for UI consumption
   const combinedStats = useMemo(() => ({
       blue: { ...stats.blue, doctrine: { ...stats.blue.doctrine, ...doctrines.blue, cooldowns: stats.blue.doctrine?.cooldowns ?? doctrines.blue.cooldowns } },
@@ -271,7 +285,7 @@ function App() {
               doctrines={doctrines}
               targetingDoctrine={targetingDoctrine}
           />}
-          <DroneCamera cameraStateRef={cameraStateRef} />
+          <DroneCamera key={round} cameraStateRef={cameraStateRef} start={cameraStart} />
         </Suspense>
       </Canvas>
       
