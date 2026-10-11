@@ -67,13 +67,14 @@ export interface AiMemory {
   // Human-like delays (see AiProfile): when it last placed a structure, when it first had the
   // compute for its next tier, and when it first noticed the current threat.
   lastBuildAt: number;
+  lastProductionAt: number;
   researchReadySince: number | null;
   threatSince: number | null;
 }
 
 export const freshAiMemory = (): AiMemory => ({
   lastOrder: {}, mode: 'gather', objective: null, objectiveId: null, retreatedAt: -Infinity,
-  lastBuildAt: -Infinity, researchReadySince: null, threatSince: null,
+  lastBuildAt: -Infinity, lastProductionAt: -Infinity, researchReadySince: null, threatSince: null,
 });
 
 // How each difficulty plays.
@@ -92,7 +93,9 @@ export interface AiProfile {
   counterAccuracy: number;
   // How many units it keeps queued per structure.
   queueDepth: number;
-  // Chance, each think, of tending a given production structure at all.
+  // How often it goes round its production structures to queue units, and then the chance
+  // of tending each one. A finished unit leaves its structure idle until the next round.
+  productionCycleMs: number;
   attention: number;
   // Minimum time between placing structures.
   buildGapMs: number;
@@ -108,17 +111,17 @@ export interface AiProfile {
 export const AI_PROFILES: Record<Difficulty, AiProfile> = {
   easy: {
     thinkMs: 6000, attackValue: 2600, firstAttackMs: 10 * 60_000, firstTechMs: 7 * 60_000, counterAccuracy: 0,
-    queueDepth: 1, attention: 0.4, buildGapMs: 90_000, researchDelayMs: 60_000, reactionMs: 15_000,
+    queueDepth: 1, productionCycleMs: 30_000, attention: 0.5, buildGapMs: 90_000, researchDelayMs: 60_000, reactionMs: 15_000,
     doctrineTiers: [], secondBarracks: false, capturers: 3,
   },
   normal: {
     thinkMs: 3500, attackValue: 2200, firstAttackMs: 7 * 60_000, firstTechMs: 4 * 60_000, counterAccuracy: 0.55,
-    queueDepth: 1, attention: 0.6, buildGapMs: 45_000, researchDelayMs: 25_000, reactionMs: 6_000,
+    queueDepth: 1, productionCycleMs: 15_000, attention: 0.7, buildGapMs: 45_000, researchDelayMs: 25_000, reactionMs: 6_000,
     doctrineTiers: [2], secondBarracks: false, capturers: 3,
   },
   hard: {
     thinkMs: 1500, attackValue: 1500, firstAttackMs: 3.5 * 60_000, firstTechMs: 2.5 * 60_000, counterAccuracy: 0.9,
-    queueDepth: 2, attention: 0.95, buildGapMs: 10_000, researchDelayMs: 3_000, reactionMs: 0,
+    queueDepth: 2, productionCycleMs: 0, attention: 0.95, buildGapMs: 10_000, researchDelayMs: 3_000, reactionMs: 0,
     doctrineTiers: [2, 3], secondBarracks: true, capturers: 4,
   },
 };
@@ -325,7 +328,10 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const enemyMix = armorMix(theirs);
   const infantryCount = mine.filter(u => UNIT_RULES[u.type].armor === 'infantry').length;
   const guardians = mine.filter(u => u.type === 'guardian').length;
-  for (const s of myStructures) {
+  // Under attack it gets around to production more often.
+  const productionRound = now - mem.lastProductionAt >= (threat ? profile.productionCycleMs / 2 : profile.productionCycleMs);
+  if (productionRound) mem.lastProductionAt = now;
+  for (const s of productionRound ? myStructures : []) {
     if (!isOperational(s) || unitsProducedBy(s.type).length === 0) continue;
     if ((s.queue?.length || 0) >= Math.min(MAX_QUEUE, profile.queueDepth)) continue;
     // Not every structure gets looked at every time, so production has idle gaps.

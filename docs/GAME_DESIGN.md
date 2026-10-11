@@ -203,14 +203,18 @@ same kind of economy.
    over a retreat, a Swarm Host between the armies.
 
 Easier levels aren't just slower; they're less attentive, the way a person juggling a base and a
-fight is. Each think they only tend some of their production structures, they leave a gap between
+fight is. They only go round their production structures every so often (and skip some), they leave a gap between
 buildings, get round to research and notice raids late, and don't always pick the right counter.
 
-| Difficulty | Thinks every | Income | Tends production | Gap between buildings | Research delay | Reacts to raids | Best counter | First attack | Powers |
+| Difficulty | Thinks every | Income | Production rounds | Gap between buildings | Research delay | Reacts to raids | Best counter | First attack | Powers |
 |---|---|---|---|---|---|---|---|---|---|
-| Easy | 6 s | ×0.7 | 40% | 90 s | 60 s | after 15 s | never (random) | 10 min, 2600 army | None |
-| Normal | 3.5 s | ×1.0 | 60% | 45 s | 25 s | after 6 s | 55% | 7 min, 2200 army | T2 |
-| Hard | 1.5 s | ×1.35 | 95% | 10 s | 3 s | at once | 90% | 3.5 min, 1500 army | T2, T3 |
+| Easy | 6 s | ×0.7 | every 30 s, 50% of structures | 90 s | 60 s | after 15 s | never (random) | 10 min, 2600 army | None |
+| Normal | 3.5 s | ×1.0 | every 15 s, 70% of structures | 45 s | 25 s | after 6 s | 55% | 7 min, 2200 army | T2 |
+| Hard | 1.5 s | ×1.35 | every think, 95% | 10 s | 3 s | at once | 90% | 3.5 min, 1500 army | T2, T3 |
+
+A finished unit leaves its structure idle until the next production round, as it would for a
+person busy elsewhere. In computer-vs-computer tests Normal fields about 15 units by 8 minutes,
+against 24 for the old, perfectly efficient Normal; Hard still beats Normal and Normal beats Easy.
 
 ### Headless matches
 
