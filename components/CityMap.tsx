@@ -25,7 +25,8 @@ import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, guardianRepair, leashStep, slowTick, surveillanceStep } from '../sim/support';
 import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, resolveAttacks } from '../sim/combat';
 import { generateCity } from '../sim/mapgen';
-import { MatchConfig, STARTING_CORES, incomeMultipliers, startingRoster } from '../sim/match';
+import { MatchConfig, STARTING_CORES, aiTeamOf, incomeMultipliers, startingRoster } from '../sim/match';
+import { AI_PROFILES, aiThink, freshAiMemory } from '../sim/ai';
 import { OrderCommand, applyOrderToStructures, applyOrderToUnits, orderEffects, popUsed, coreNodesHeld, serverNodesHeld, teamPopCap, teamTier } from '../sim/orders';
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
 import { isAirType, tierFromCompute } from '../sim/units';
@@ -1466,6 +1467,15 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // Moving, training and building go through sim/orders.ts the same way, for the player and
   // the computer opponent alike: checked for the team (ownership, tier, population, cores,
   // energy grid), then applied. Quiet orders (plain moves) don't report a refusal.
+  // Free to build on: no building, structure or HQ pad, with a road beside it for access.
+  const canBuildOnTile = (bx: number, bz: number) => {
+      if (Math.abs(bx - baseA_Coord.x) <= 1 && Math.abs(bz - baseA_Coord.z) <= 1) return false;
+      if (Math.abs(bx - baseB_Coord.x) <= 1 && Math.abs(bz - baseB_Coord.z) <= 1) return false;
+      if (structuresRef.current.some(st => st.gridPos.x === bx && st.gridPos.z === bz)) return false;
+      if (buildingsRef.current.some(b => b.gridX === bx && b.gridZ === bz)) return false;
+      return [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => isWalkable(bx + dx, bz + dz));
+  };
+
   const dispatchOrder = (command: OrderCommand, team: 'blue' | 'red' = playerTeam, quiet = false): boolean => {
       const outcome = orderEffects(
           { units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current },
@@ -1474,13 +1484,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           {
               gridSize, bases: { blue: baseA_Coord, red: baseB_Coord },
               isWalkable, findPath, findAirPath, newId,
-              canBuildOn: (bx, bz) => {
-                  if (Math.abs(bx - baseA_Coord.x) <= 1 && Math.abs(bz - baseA_Coord.z) <= 1) return false;
-                  if (Math.abs(bx - baseB_Coord.x) <= 1 && Math.abs(bz - baseB_Coord.z) <= 1) return false;
-                  if (structuresRef.current.some(st => st.gridPos.x === bx && st.gridPos.z === bz)) return false;
-                  if (buildingsRef.current.some(b => b.gridX === bx && b.gridZ === bz)) return false;
-                  return [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => isWalkable(bx + dx, bz + dz));
-              },
+              canBuildOn: canBuildOnTile,
           },
       );
       if ('reason' in outcome) {
@@ -1502,10 +1506,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   };
   dispatchOrderRef.current = dispatchOrder;
 
-  const dispatchAbility = (command: AbilityCommand): boolean => {
+  const dispatchAbility = (command: AbilityCommand, team: 'blue' | 'red' = playerTeam): boolean => {
       const outcome = abilityEffects(
           { units: unitsRef.current, structures: structuresRef.current, economy: economyRef.current },
-          playerTeam,
+          team,
           command,
           {
               now: Date.now(), offset, tileSize, isWalkable, findPath, findAirPath, findAdjacentSpawn, createCrawler,
@@ -1532,6 +1536,46 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (fx.spawnProjectiles.length > 0) setProjectiles(prev => [...prev, ...fx.spawnProjectiles]);
       return true;
   };
+
+  // The computer opponent (sim/ai.ts). It thinks every few seconds and sends its commands
+  // through dispatchOrder, dispatchAbility and runDoctrinePower, the same checks as yours.
+  const aiRef = useRef({ memory: freshAiMemory() });
+  const aiCallsRef = useRef({ dispatchOrder, dispatchAbility, canBuildOnTile });
+  aiCallsRef.current = { dispatchOrder, dispatchAbility, canBuildOnTile };
+  useEffect(() => {
+      const aiTeam = aiTeamOf(match);
+      if (!aiTeam) return;
+      const profile = AI_PROFILES[match.difficulty];
+      const timer = setInterval(() => {
+          const now = Date.now();
+          const { isWalkable } = aiHelpersRef.current;
+          const ready = doctrineReadyAtRef.current[aiTeam];
+          const { actions, memory } = aiThink(
+              { units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, elapsedMs: now - matchStartRef.current },
+              aiTeam,
+              aiRef.current.memory,
+              {
+                  gridSize, bases: { blue: baseA_Coord, red: baseB_Coord },
+                  difficulty: match.difficulty, doctrine: match.aiDoctrine,
+                  canBuildOn: aiCallsRef.current.canBuildOnTile,
+                  isOpenGround: (x, z) => tileTypeMap[`${x},${z}`] === 'open',
+                  isWalkable,
+                  doctrineCooldowns: { tier2: Math.max(0, ready.tier2 - now), tier3: Math.max(0, ready.tier3 - now) },
+                  random: Math.random,
+              },
+          );
+          aiRef.current.memory = memory;
+          for (const action of actions) {
+              if (action.kind === 'order') aiCallsRef.current.dispatchOrder(action.command, aiTeam, true);
+              else if (action.kind === 'ability') aiCallsRef.current.dispatchAbility(action.command, aiTeam);
+              else {
+                  const doctrine = match.aiDoctrine;
+                  if (doctrine) runDoctrinePowerRef.current({ type: `${doctrine.toUpperCase()}_TIER${action.tier}`, target: action.target, team: aiTeam });
+              }
+          }
+      }, profile.thinkMs);
+      return () => clearInterval(timer);
+  }, [match, gridSize, baseA_Coord, baseB_Coord, tileTypeMap]);
 
   const clearTargeting = () => {
       setTargetingSourceId(null);
@@ -1759,6 +1803,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const matchOverRef = useRef(false);
   const tallyRef = useRef({ blue: { trained: 0, lost: 0 }, red: { trained: 0, lost: 0 } });
   const aliveRef = useRef(new Map<string, 'blue' | 'red'>());
+  const alertAtRef = useRef(new Map<string, number>());
+  const nodeOwnerRef = useRef(new Map<string, BuildingData['owner']>());
+  const playerTeamRef = useRef(playerTeam);
+  playerTeamRef.current = playerTeam;
   useEffect(() => {
     const timer = setInterval(() => {
       const now = Date.now();
@@ -1769,6 +1817,31 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       }
       aliveRef.current.forEach((team, id) => { if (!alive.has(id)) tallyRef.current[team].lost++; });
       aliveRef.current = alive;
+
+      // Alerts for the player: their base under attack, their nodes being taken, nodes changing hands.
+      const me = playerTeamRef.current;
+      const say = (key: string, text: string, tone: 'info' | 'warn', everyMs: number) => {
+          if ((alertAtRef.current.get(key) || 0) + everyMs > now) return;
+          alertAtRef.current.set(key, now);
+          onNoticeRef.current?.(text, tone);
+      };
+      const myHq = me === 'blue' ? baseA_Coord : baseB_Coord;
+      if (unitsRef.current.some(u => u.team !== me && u.team !== 'neutral' && u.health > 0 && Math.hypot(u.gridPos.x - myHq.x, u.gridPos.z - myHq.z) <= 10)) {
+          say('base', 'Enemy forces at your base!', 'warn', 30000);
+      }
+      for (const b of buildingsRef.current) {
+          if (b.type !== 'core_node' && b.type !== 'server_node') continue;
+          const label = b.type === 'core_node' ? 'core node' : 'server node';
+          const before = nodeOwnerRef.current.get(b.id);
+          if (before !== undefined && before !== b.owner) {
+              if (b.owner === me) say(`own-${b.id}`, `${label[0].toUpperCase()}${label.slice(1)} captured`, 'info', 0);
+              else if (before === me) say(`lost-${b.id}`, `You lost a ${label}`, 'warn', 0);
+          }
+          nodeOwnerRef.current.set(b.id, b.owner);
+          if (b.owner === me && b.capturingTeam && b.capturingTeam !== me && b.captureProgress > 0) {
+              say(`taking-${b.id}`, `The enemy is taking your ${label}`, 'warn', 20000);
+          }
+      }
 
       const result = checkVictory(structuresRef.current, buildingsRef.current, dominationRef.current, now);
       dominationRef.current = result.clock;
