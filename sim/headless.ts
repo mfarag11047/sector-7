@@ -7,7 +7,7 @@
 // smoke, clouds, doctrine powers other than Orbital Drop, Masons and walls, and breaching.
 
 import { CITY_CONFIG, STRUCTURE_INFO, TEAM_BASES } from '../constants';
-import type { BuildingData, DoctrineType, StructureData, UnitData } from '../types';
+import type { BuildingData, DoctrineType, RoadType, StructureData, UnitData } from '../types';
 import { abilityEffects, applyUnitEffects } from './abilities';
 import { AiMemory, AI_PROFILES, aiThink, freshAiMemory } from './ai';
 import { captureTick } from './capture';
@@ -22,6 +22,7 @@ import { applyOrderToStructures, applyOrderToUnits, OrderCommand, orderEffects, 
 import { advanceProduction, applyProduction, createUnit } from './production';
 import { guardianRepair } from './support';
 import { isAirType } from './units';
+import { airPath, fastestPath } from './pathfinding';
 import { hasBuff } from './unitAbilities';
 import { checkVictory, DominationClock, freshDominationClock, Victory } from './victory';
 import { DOCTRINE_CONFIG } from '../constants';
@@ -100,38 +101,10 @@ function blockedTiles(m: HeadlessMatch): Set<string> {
 function pathfinder(m: HeadlessMatch) {
   const blocked = blockedTiles(m);
   const walkable = (x: number, z: number) => x >= 0 && z >= 0 && x < m.gridSize && z < m.gridSize && m.roads.has(key(x, z)) && !blocked.has(key(x, z));
-  const bfs = (from: GridPos, to: GridPos, open: (x: number, z: number) => boolean): string[] => {
-    if (from.x === to.x && from.z === to.z) return [];
-    const n = m.gridSize;
-    const prev = new Int32Array(n * n).fill(-1);
-    const start = from.x * n + from.z;
-    const goal = to.x * n + to.z;
-    prev[start] = start;
-    const queue = [start];
-    for (let i = 0; i < queue.length; i++) {
-      const cur = queue[i];
-      if (cur === goal) break;
-      const cx = Math.floor(cur / n);
-      const cz = cur % n;
-      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        const x = cx + dx;
-        const z = cz + dz;
-        if (x < 0 || z < 0 || x >= n || z >= n) continue;
-        const id = x * n + z;
-        if (prev[id] !== -1 || !open(x, z)) continue;
-        prev[id] = cur;
-        queue.push(id);
-      }
-    }
-    if (prev[goal] === -1) return [];
-    const path: string[] = [];
-    for (let c = goal; c !== start; c = prev[c]) path.push(key(Math.floor(c / n), c % n));
-    return path.reverse();
-  };
   return {
     walkable,
-    findPath: (from: GridPos, to: GridPos) => bfs(from, to, walkable),
-    findAirPath: (from: GridPos, to: GridPos) => bfs(from, to, () => true),
+    findPath: (from: GridPos, to: GridPos) => fastestPath(from, to, m.gridSize, walkable, (x, z) => m.tileType[key(x, z)] as RoadType | undefined),
+    findAirPath: (from: GridPos, to: GridPos) => airPath(from, to),
   };
 }
 

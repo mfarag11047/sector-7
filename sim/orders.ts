@@ -11,7 +11,7 @@ import type { BuildingData, StructureData, StructureType, UnitData } from '../ty
 import type { GridPos, PlayerCommand, Team } from './commands';
 import { Economy, research, researchCost, spend, structureCost, unitCost } from './economy';
 import { isInsideEnergyGrid } from './energy';
-import { popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from './units';
+import { isAirType, popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from './units';
 
 export { popUsed };
 
@@ -199,7 +199,8 @@ function moveOrder(view: OrdersView, team: Team, unitIds: readonly string[], tar
     }
     if (!dest) continue;
     reserved.add(`${dest.x},${dest.z}`);
-    const path = ctx.findPath(u.gridPos, dest);
+    // Aircraft fly straight there; ground units take the quickest road.
+    const path = isAirType(u.type) ? ctx.findAirPath(u.gridPos, dest) : ctx.findPath(u.gridPos, dest);
     if (path.length > 0) unitUpdates.set(u.id, x => ({ ...x, path, attackMove }));
     else if (attackMove !== !!u.attackMove) unitUpdates.set(u.id, x => ({ ...x, attackMove }));
   }

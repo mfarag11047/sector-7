@@ -30,6 +30,7 @@ import { AI_PROFILES, aiThink, freshAiMemory } from '../sim/ai';
 import { OrderCommand, applyOrderToStructures, applyOrderToUnits, orderEffects, popUsed, coreNodesHeld, serverNodesHeld, teamPopCap, teamTier } from '../sim/orders';
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
 import { isAirType } from '../sim/units';
+import { airPath, fastestPath } from '../sim/pathfinding';
 import { abilitiesFor, abilityDef, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
 import { Victory, checkVictory, dominationRemaining, freshDominationClock } from '../sim/victory';
 import type { MatchSummary } from './MatchScreens';
@@ -1029,45 +1030,13 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
     return set;
   }, [structuresState]);
 
-  // Breadth-first search over the 4-connected grid, recording each tile's parent instead of
-  // copying the path at every step. Returns the tiles after `start` up to `end`, or [] if unreachable.
-  const searchPath = useCallback((start: {x: number, z: number}, end: {x: number, z: number}, open: (x: number, z: number) => boolean) => {
-      if (start.x === end.x && start.z === end.z) return [] as string[];
-      if (end.x < 0 || end.z < 0 || end.x >= gridSize || end.z >= gridSize) return [] as string[];
-      const prev = new Int32Array(gridSize * gridSize).fill(-1);
-      const startId = start.x * gridSize + start.z;
-      const endId = end.x * gridSize + end.z;
-      prev[startId] = startId;
-      const queue = new Int32Array(gridSize * gridSize);
-      let head = 0, tail = 0;
-      queue[tail++] = startId;
-      while (head < tail) {
-          const cur = queue[head++];
-          if (cur === endId) break;
-          const cx = Math.floor(cur / gridSize);
-          const cz = cur - cx * gridSize;
-          for (let k = 0; k < 4; k++) {
-              const nx = cx + (k === 0 ? 1 : k === 1 ? -1 : 0);
-              const nz = cz + (k === 2 ? 1 : k === 3 ? -1 : 0);
-              if (nx < 0 || nz < 0 || nx >= gridSize || nz >= gridSize) continue;
-              const id = nx * gridSize + nz;
-              if (prev[id] !== -1 || !open(nx, nz)) continue;
-              prev[id] = cur;
-              queue[tail++] = id;
-          }
-      }
-      if (prev[endId] === -1) return [] as string[];
-      const path: string[] = [];
-      for (let c = endId; c !== startId; c = prev[c]) path.push(`${Math.floor(c / gridSize)},${c % gridSize}`);
-      return path.reverse();
-  }, [gridSize]);
-
+  // Ground units take the quickest route by travel time, preferring main roads (sim/pathfinding.ts).
   const findPath = useCallback((start: {x: number, z: number}, end: {x: number, z: number}) =>
-      searchPath(start, end, (x, z) => dynamicRoadTileSet.has((x << 16) | z)), [searchPath, dynamicRoadTileSet]);
+      fastestPath(start, end, gridSize, (x, z) => dynamicRoadTileSet.has((x << 16) | z), (x, z) => tileTypeMap[`${x},${z}`]),
+      [gridSize, dynamicRoadTileSet, tileTypeMap]);
 
-  // Bombardment Drones fly over everything.
-  const findAirPath = useCallback((start: {x: number, z: number}, end: {x: number, z: number}) =>
-      searchPath(start, end, () => true), [searchPath]);
+  // Aircraft fly straight over everything.
+  const findAirPath = useCallback((start: {x: number, z: number}, end: {x: number, z: number}) => airPath(start, end), []);
 
   const isWalkable = useCallback((x: number, z: number) => (
       x >= 0 && x < gridSize && z >= 0 && z < gridSize && dynamicRoadTileSet.has((x << 16) | z)
@@ -1124,7 +1093,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           let changed = false;
           const next = prev.map(u => {
               // The bombardment drone hovers, so building tiles are a valid route.
-              if (u.type === 'bombard') return u;
+              if (isAirType(u.type)) return u;
               const settled = settle(u);
               if (!settled) return u;
               changed = true;
@@ -2217,7 +2186,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       const courier = courierStep(u, newUnit, activeUnits, structuresRef.current, findPath);
                       if (courier.changed) uChanged = true;
                       if (courier.delivery) deliveries.push(courier.delivery);
-                      if (surveillanceStep(newUnit, Date.now(), findPath)) uChanged = true;
+                      // Drones fly: their surveillance and leash routes ignore the streets.
+                      if (surveillanceStep(newUnit, Date.now(), aiHelpersRef.current.findAirPath)) uChanged = true;
 
                       // Apply accumulated damage
                       const dmg = damageMap.get(u.id) || 0;
@@ -2245,7 +2215,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       // If dead from damage, handled by filter later, but we update ref
                       if (newUnit.health <= 0) return newUnit;
 
-                      if (leashStep(u, newUnit, power.tetherHosts.get(u.id), findPath)) uChanged = true;
+                      if (leashStep(u, newUnit, power.tetherHosts.get(u.id), isAirType(u.type) ? aiHelpersRef.current.findAirPath : findPath)) uChanged = true;
                       if (fabricationStep(u, newUnit, aiHelpersRef.current.doctrines?.[u.team as 'blue' | 'red']?.selected)) uChanged = true;
                       if (ballistaLoadStep(u, newUnit, TICK_RATE)) uChanged = true;
                       // Battery drain and charging (sim/energy.ts).

@@ -97,11 +97,11 @@ export interface ArrivalRules {
 }
 
 // The unit steps onto path[0]. A wall or building that appeared on that tile sends it
-// around instead. Bombardment Drones fly over everything.
+// around instead. Aircraft fly over everything.
 export function arriveAtNextTile<T extends Mover>(u: T, rules: ArrivalRules): T {
   if (u.path.length === 0) return u;
   const next = parseTile(u.path[0]);
-  if (u.type !== 'bombard' && !rules.isWalkable(next.x, next.z)) {
+  if (!isAirUnit(u.type) && !rules.isWalkable(next.x, next.z)) {
     return { ...u, path: rules.reroute(u.gridPos, u.path) };
   }
 

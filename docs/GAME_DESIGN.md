@@ -59,6 +59,14 @@ The intended arc:
 - Infantry don't need the grid to move, which is why they lead the way, capturing buildings to pull
   the grid forward behind them.
 
+## Movement
+
+- Ground units move at 2× speed on main roads, 1× on streets and 0.5× on open ground, and they
+  route by travel time (`sim/pathfinding.ts`): a unit will detour onto a highway when that gets it
+  there sooner than the direct line through side streets and empty lots.
+- Aircraft ignore terrain: they fly a straight line, diagonals included, over buildings and city
+  blocks, at the same speed everywhere.
+
 ## Population
 
 `cap = 20 + 8 × core nodes held`, up to 60. Holding more of the map lets you field a bigger army. A
