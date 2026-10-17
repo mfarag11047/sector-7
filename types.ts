@@ -197,7 +197,7 @@ export interface UnitData {
   parentId?: string;
 }
 
-export type StructureType = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'ordnance_fab' | 'wall_tier1' | 'wall_tier2' | 'defense' | 'hq';
+export type StructureType = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'ordnance_fab' | 'wall_tier1' | 'wall_tier2' | 'defense' | 'aa_turret' | 'hq';
 
 export interface StructureData {
   id: string;
@@ -225,6 +225,11 @@ export interface StructureData {
   // HQ and Sentry Turret weapons.
   lastAttackTime?: number;
   combatTargetId?: string | null;
+  // CIWS turret (sim/ciws.ts): magazine used (ms of fire), reloading until, last shot, target.
+  ciwsUsedMs?: number;
+  ciwsReloadUntil?: number;
+  ciwsLastFiredAt?: number;
+  ciwsTargetId?: string | null;
 }
 
 export type RoadType = 'main' | 'street' | 'open';

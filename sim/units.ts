@@ -110,7 +110,11 @@ export const STRUCTURE_RULES: Record<StructureType, StructureRules> = {
   // Mason-built: their build time is the Mason's hauls.
   wall_tier1: { buildable: false, buildTimeMs: 0, weapon: null },
   wall_tier2: { buildable: false, buildTimeMs: 0, weapon: null },
-  defense: { buildable: false, buildTimeMs: 0, weapon: rifle(18, 800, 5) },
+  // Anti-vehicle cannon: armour-piercing shells, ground only.
+  defense: { buildable: false, buildTimeMs: 0, weapon: ap(40, 1500, 6) },
+  // Rotary cannon fired through sim/ciws.ts like the Aegis'; shown here as its rate while firing.
+  // Against ground units it does half its flak damage.
+  aa_turret: { buildable: false, buildTimeMs: 0, weapon: { damage: 1.6, cooldownMs: 100, range: 10, type: 'flak', hitsGround: true, hitsAir: true, ciws: true } },
   hq: { buildable: false, buildTimeMs: 0, weapon: ap(30, 1000, 5, true) },
 };
 

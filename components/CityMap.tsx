@@ -27,7 +27,7 @@ import { Blackout, chargeSources, isInsideEnergyGrid, powerTick } from '../sim/e
 import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, leashStep, repairTick, slowTick, surveillanceStep } from '../sim/support';
 import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells, shellGroundPos } from '../sim/artillery';
-import { AirThreat, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY } from '../sim/ciws';
+import { AirThreat, applyCiwsState, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, resolveAttacks } from '../sim/combat';
 import { generateCity } from '../sim/mapgen';
 import { MatchConfig, STARTING_CORES, aiTeamOf, incomeMultipliers, startingRoster } from '../sim/match';
@@ -535,11 +535,21 @@ const CiwsTracers: React.FC<{
     unitsRef: React.MutableRefObject<UnitData[]>;
     flightRef: React.MutableRefObject<Map<string, LiveFlight>>;
     shellsRef: React.MutableRefObject<ArtilleryShell[]>;
+    structuresRef: React.MutableRefObject<StructureData[]>;
     // Fire from an enemy Aegis you can't see isn't drawn, so it doesn't give the gun away.
     canSee: (aegis: UnitData) => boolean;
     tileSize: number;
     offset: number;
-}> = ({ linksRef, unitsRef, flightRef, shellsRef, canSee, tileSize, offset }) => {
+}> = ({ linksRef, unitsRef, flightRef, shellsRef, structuresRef, canSee, tileSize, offset }) => {
+    // Where a gun's muzzle is: on an Aegis' turret, or atop a CIWS turret (always in plain view).
+    const muzzleOf = (link: CiwsLink) => {
+        if (link.fromStructure) {
+            const s = structuresRef.current.find(x => x.id === link.gunId);
+            return s ? { x: s.gridPos.x * tileSize - offset, y: 11, z: s.gridPos.z * tileSize - offset } : null;
+        }
+        const gun = unitsRef.current.find(u => u.id === link.gunId);
+        return gun && canSee(gun) ? unitWorld(gun, tileSize, offset, 6.5) : null;
+    };
     const mesh = useRef<THREE.InstancedMesh>(null);
     const rounds = useRef<{ from: THREE.Vector3; to: THREE.Vector3; born: number; life: number }[]>([]);
     const owed = useRef(new Map<string, number>());
@@ -552,13 +562,12 @@ const CiwsTracers: React.FC<{
         const t = state.clock.elapsedTime;
         // New rounds for every gun firing this tick.
         for (const link of linksRef.current) {
-            const gun = unitsRef.current.find(u => u.id === link.aegisId);
+            const muzzle = muzzleOf(link);
             const target = airThreatWorld(link.targetId, unitsRef.current, flightRef.current, shellsRef.current, tileSize, offset, now);
-            if (!gun || !target || !canSee(gun)) continue;
-            const muzzle = unitWorld(gun, tileSize, offset, 6.5);
-            const n = (owed.current.get(link.aegisId) || 0) + CIWS.roundsPerSecond * Math.min(delta, 0.5);
+            if (!muzzle || !target) continue;
+            const n = (owed.current.get(link.gunId) || 0) + CIWS.roundsPerSecond * Math.min(delta, 0.5);
             const whole = Math.floor(n);
-            owed.current.set(link.aegisId, n - whole);
+            owed.current.set(link.gunId, n - whole);
             for (let i = 0; i < whole && rounds.current.length < CIWS_POOL; i++) {
                 const from = new THREE.Vector3(muzzle.x + (Math.random() - 0.5) * 1.2, muzzle.y, muzzle.z + (Math.random() - 0.5) * 1.2);
                 const spread = 5;
@@ -588,9 +597,8 @@ const CiwsTracers: React.FC<{
         if (flashes) {
             let n = 0;
             for (const link of linksRef.current) {
-                const gun = unitsRef.current.find(u => u.id === link.aegisId);
-                if (!gun || !canSee(gun) || n >= flashes.children.length) continue;
-                const w = unitWorld(gun, tileSize, offset, 6.5);
+                const w = muzzleOf(link);
+                if (!w || n >= flashes.children.length) continue;
                 const f = flashes.children[n++];
                 f.visible = true;
                 f.position.set(w.x, w.y, w.z);
@@ -1238,6 +1246,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           return unit.id;
       },
       select: (ids: string[]) => setSelectedUnitIds(new Set(ids)),
+      // A finished structure, for testing turrets and the like.
+      spawnStructure: (type: StructureType, team: 'blue' | 'red', at: { x: number; z: number }) => {
+          const info = STRUCTURE_INFO[type];
+          const s: StructureData = { id: `cheat-${type}-${Date.now()}-${++spawnCounterRef.current}`, type, team, gridPos: { ...at }, isBlueprint: false, constructionProgress: info.maxProgress || 100, maxProgress: info.maxProgress || 100, health: info.maxHealth, maxHealth: info.maxHealth };
+          structuresRef.current = [...structuresRef.current, s];
+          setStructuresState(prev => [...prev, s]);
+          return s.id;
+      },
       state: () => ({ units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, selected: [...selectedUnitIdsRef.current] }),
     };
     return () => { (window as any).GAME_CHEATS = undefined; };
@@ -2644,7 +2660,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               ordnance.push({ id: p.id, team: p.team, at: { x: (pos.x + offset) / tileSize, z: (pos.z + offset) / tileSize }, kind });
           }
           for (const s of shellsRef.current) ordnance.push({ id: s.id, team: s.team, at: shellGroundPos(s, now), kind: 'shell' });
-          const ciws = ciwsTick(currentUnitsRef, ordnance, now, TICK_RATE);
+          const ciws = ciwsTick(currentUnitsRef, ordnance, now, TICK_RATE, structuresRef.current);
+          if (ciws.structureUpdates.size > 0) {
+              structuresRef.current = applyCiwsState(structuresRef.current, ciws.structureUpdates);
+              setStructuresState(prev => applyCiwsState(prev, ciws.structureUpdates));
+          }
           ciwsLinksRef.current = ciws.links;
           ciws.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
           if (ciws.ordnanceDamage.size > 0) {
@@ -3081,7 +3101,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         {projectiles.map(p => <ProjectileMesh key={p.id} projectile={p} flightRef={flightRef} />)}
         
         {/* Aegis rotary cannon fire */}
-        <CiwsTracers linksRef={ciwsLinksRef} unitsRef={unitsRef} flightRef={flightRef} shellsRef={shellsRef} canSee={canSeeGun} tileSize={tileSize} offset={offset} />
+        <CiwsTracers linksRef={ciwsLinksRef} unitsRef={unitsRef} flightRef={flightRef} shellsRef={shellsRef} structuresRef={structuresRef} canSee={canSeeGun} tileSize={tileSize} offset={offset} />
 
         {/* Aegis radar contacts: dots for enemy aircraft and ordnance nothing can see */}
         {(playerTeam === 'blue' || playerTeam === 'red') && (

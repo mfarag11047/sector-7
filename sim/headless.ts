@@ -158,7 +158,8 @@ export function stepMatch(m: HeadlessMatch): void {
   const volley = fireArtillery(m.units.map(reloaded), m.structures, now, team => (team === 'neutral' ? 1 : m.economy[team].tier), m.random, () => `shell-${++m.nextId}`);
   volley.fired.forEach((_, id) => { m.lastShot.set(id, now); attacks.fired.set(id, ''); });
   // Aegis rotary cannons: aircraft, and Thunderhead shells (the only ordnance flown here).
-  const ciws = ciwsTick(m.units, m.shells.map(s => ({ id: s.id, team: s.team, at: shellGroundPos(s, now), kind: 'shell' as const })), now, MOVE_TICK_MS);
+  const ciws = ciwsTick(m.units, m.shells.map(s => ({ id: s.id, team: s.team, at: shellGroundPos(s, now), kind: 'shell' as const })), now, MOVE_TICK_MS, m.structures);
+  m.structures = applyCiwsState(m.structures, ciws.structureUpdates);
   ciws.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
   ciws.ordnanceDamage.forEach((n, id) => m.shellHits.set(id, (m.shellHits.get(id) || 0) + n));
   m.shells = m.shells.filter(s => (m.shellHits.get(s.id) || 0) < ORDNANCE_INTEGRITY.shell);

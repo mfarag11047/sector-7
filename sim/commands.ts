@@ -137,7 +137,7 @@ export interface CommandEnvelope {
 
 // Written as Records so the compiler flags a type added to types.ts but missing here.
 const STRUCTURE_TYPES = Object.keys({
-  support: 1, infantry: 1, armor: 1, ordnance: 1, air: 1, builder: 1, ordnance_fab: 1, wall_tier1: 1, wall_tier2: 1, defense: 1, hq: 1,
+  support: 1, infantry: 1, armor: 1, ordnance: 1, air: 1, builder: 1, ordnance_fab: 1, wall_tier1: 1, wall_tier2: 1, defense: 1, aa_turret: 1, hq: 1,
 } satisfies Record<StructureType, 1>);
 const UNIT_TYPES = Object.keys({
   drone: 1, tank: 1, ghost: 1, guardian: 1, mule: 1, wasp: 1, mason: 1, helios: 1, sun_plate: 1, ballista: 1, courier: 1,

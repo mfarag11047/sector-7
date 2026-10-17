@@ -494,7 +494,7 @@ const UnitsTab: React.FC<{ color: string; open: UnitType | null; onOpen: (t: Uni
   );
 };
 
-const STRUCTURE_ORDER: StructureType[] = ['infantry', 'armor', 'air', 'support', 'builder', 'ordnance_fab', 'wall_tier1', 'wall_tier2', 'defense', 'hq'];
+const STRUCTURE_ORDER: StructureType[] = ['infantry', 'armor', 'air', 'support', 'builder', 'ordnance_fab', 'wall_tier1', 'wall_tier2', 'defense', 'aa_turret', 'hq'];
 const STRUCTURE_TEXT: Partial<Record<StructureType, string>> = {
   infantry: 'Trains infantry.',
   armor: 'Trains vehicles.',
@@ -504,7 +504,8 @@ const STRUCTURE_TEXT: Partial<Record<StructureType, string>> = {
   ordnance_fab: 'Builds EMP and HE warheads for Ballistas, and trains Field Fabricators.',
   wall_tier1: 'Cheap tank traps that block a lane. One Mason haul.',
   wall_tier2: 'A heavy wall. Three Mason hauls.',
-  defense: 'Turret that shoots ground and air. Mason-built.',
+  defense: 'Anti-vehicle cannon: armour-piercing shells that crack tanks and light vehicles. Cannot shoot aircraft. Mason-built.',
+  aa_turret: 'CIWS turret: the Aegis rotary cannon on a fixed mount with its own tracking radar. Shoots down aircraft and incoming missiles within 10 tiles; with the sky clear it hoses ground units within 6 tiles at a fraction of the damage. Fires in bursts and reloads. Mason-built.',
   hq: 'Your headquarters. Builds structures, researches tiers and earns income. Lose it and you lose.',
 };
 

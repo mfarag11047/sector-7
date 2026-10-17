@@ -16,7 +16,7 @@ import { isAirType, popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from '.
 export { popUsed };
 
 export const MAX_QUEUE = 5;
-const MASON_BUILT: readonly StructureType[] = ['wall_tier1', 'wall_tier2', 'defense'];
+const MASON_BUILT: readonly StructureType[] = ['wall_tier1', 'wall_tier2', 'defense', 'aa_turret'];
 
 // --- Team numbers ---
 

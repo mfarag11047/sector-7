@@ -199,8 +199,13 @@ listed as damage / cooldown / range.
 
 ### Other producers
 
-- **Depot:** Mason (120, pop 1, T1), plus Dragon's Teeth, Bulwark and the **Sentry Turret** (rifle
-  18 / 0.8 s / 5, hits air, 900 HP).
+- **Depot:** Mason (120, pop 1, T1), plus Dragon's Teeth, Bulwark and two turrets:
+  - **Sentry Turret** (400): anti-vehicle cannon, AP 40 / 1.5 s / 6, ground only, 900 HP.
+  - **CIWS Turret** (450, three Mason hauls): the Aegis rotary cannon on a fixed mount with its own
+    tracking radar (`sim/ciws.ts`). Shoots aircraft and incoming ordnance within 10 tiles exactly as
+    the Aegis does (32/s to aircraft, 60/s to ordnance, 3.5 s bursts, 6 s reload); with the sky
+    clear it fires on ground units within 6 tiles at half its flak damage (about 6/s to infantry
+    and light vehicles, 3/s to heavy armour). 800 HP.
 - **Ordnance Fab:** Field Fabricator (260, T2) and EMP and HE warheads. Couriers are sent by
   Transfer Warhead, not trained.
 - **Command HQ:** 5000 HP; AP 30 / 1.0 s / 5, hits air.
