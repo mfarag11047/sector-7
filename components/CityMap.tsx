@@ -2784,7 +2784,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   }
 
                   // Guardians and the base block are the only healing (sim/support.ts).
-                  const repair = repairTick(activeUnits, TICK_RATE, { blue: baseA_Coord, red: baseB_Coord }, team => (team === 'blue' || team === 'red') ? doctrines?.[team]?.selected : null);
+                  const repair = repairTick(activeUnits, TICK_RATE, { blue: baseA_Coord, red: baseB_Coord }, team => (team === 'blue' || team === 'red') ? doctrines?.[team]?.selected : null, team => economyRef.current[team].tier, now);
 
                   const chargers = activeUnits.filter(u => u.type === 'helios');
                   
@@ -2847,6 +2847,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       const dmg = damageMap.get(u.id) || 0;
                       if (dmg > 0) {
                           newUnit.health = Math.max(0, newUnit.health - dmg);
+                          newUnit.lastDamageTime = now;
                           uChanged = true;
                       }
 

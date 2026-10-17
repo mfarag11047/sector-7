@@ -192,7 +192,7 @@ export function stepMatch(m: HeadlessMatch): void {
 
   // Damage, repair and batteries.
   const power = chargeSources(m.units);
-  const repair = repairTick(m.units, MOVE_TICK_MS, bases, team => (team === 'blue' || team === 'red') ? m.opts.doctrine[team] : null);
+  const repair = repairTick(m.units, MOVE_TICK_MS, bases, team => (team === 'blue' || team === 'red') ? m.opts.doctrine[team] : null, team => m.economy[team].tier, now);
   const helios = m.units.filter(u => u.type === 'helios');
   const living = m.units;
   m.units = m.units.map(u => {
@@ -205,7 +205,9 @@ export function stepMatch(m: HeadlessMatch): void {
       if (hasBuff(draft, 'overcharge')) draft.buffs = draft.buffs!.filter(b => b.kind !== 'overcharge');
     }
     if (draft.buffs?.length) draft.buffs = draft.buffs.filter(b => b.until > now);
-    draft.health = Math.max(0, draft.health - (attacks.unitDamage.get(u.id) || 0));
+    const hit = attacks.unitDamage.get(u.id) || 0;
+    if (hit > 0) draft.lastDamageTime = now;
+    draft.health = Math.max(0, draft.health - hit);
     const heal = repair.heal.get(u.id) || 0;
     if (heal > 0 && draft.health > 0) draft.health = Math.min(draft.maxHealth, draft.health + heal);
     if (draft.health > 0) {

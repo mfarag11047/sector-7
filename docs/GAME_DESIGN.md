@@ -213,8 +213,9 @@ Units never regain health on their own. Health comes back only from:
 - **Base repair:** any unit standing in its own HQ's city block (the 5x5 lot, the roads around it
   and the HQ pad) recovers 4% of its full health a second (`repairTick` in `sim/support.ts`).
 
-Heavy Metal's passive makes both repair armour 50% faster (it used to regenerate armour for free
-out of combat).
+Heavy Metal's passive makes both repair armour 50% faster, and once its side has researched Tier 2
+its armour also repairs itself at 5 HP a second after 5 s without firing or being hit: the one
+exception to no free healing.
 
 ## Aegis air-search radar
 

@@ -162,4 +162,17 @@ describe('repairTick', () => {
     const { heal } = repairTick([hurt('home', 5, 5)], 1000, bases, () => 'heavy_metal');
     expect(heal.get('home')).toBeCloseTo(700 * BASE_REPAIR.perSecond * 1.5);
   });
+
+  it('Heavy Metal armour repairs itself out of combat, but only from Tier 2', () => {
+    const field = hurt('field', 30, 30, { lastAttackTime: 0, lastDamageTime: 0 });
+    const hm = () => 'heavy_metal' as const;
+    expect(repairTick([field], 1000, bases, hm, () => 1, 10_000).heal.has('field')).toBe(false);
+    expect(repairTick([field], 1000, bases, hm, () => 2, 10_000).heal.get('field')).toBeCloseTo(BASE_REPAIR.heavyMetalSelfRepair);
+    // Still in a fight: just fired or just hit.
+    expect(repairTick([{ ...field, lastDamageTime: 9_000 }], 1000, bases, hm, () => 2, 10_000).heal.has('field')).toBe(false);
+    expect(repairTick([{ ...field, lastAttackTime: 9_000 }], 1000, bases, hm, () => 2, 10_000).heal.has('field')).toBe(false);
+    // Other doctrines, and infantry, never self-repair.
+    expect(repairTick([field], 1000, bases, () => 'shadow_ops', () => 3, 10_000).heal.has('field')).toBe(false);
+    expect(repairTick([{ ...field, unitClass: 'infantry', type: 'trooper' }], 1000, bases, hm, () => 3, 10_000).heal.has('field')).toBe(false);
+  });
 });

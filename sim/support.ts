@@ -54,6 +54,10 @@ const ROAD_STRIDE = 6;
 export const BASE_REPAIR = {
   // Share of a unit's full health restored each second inside its base block.
   perSecond: 0.04,
+  // Heavy Metal at Tier 2: armour repairs itself this many HP a second once it has neither
+  // fired nor been hit for outOfCombatMs.
+  heavyMetalSelfRepair: 5,
+  outOfCombatMs: 5000,
   // The cleared pad around the HQ, which spills a tile past its block.
   padRadius: 3,
 };
@@ -69,21 +73,31 @@ export function inBaseBlock(pos: GridPos, base: GridPos): boolean {
 }
 
 // All the healing in a tick: Guardian beams, plus repair for units in their own base's block.
-// Heavy Metal's passive makes both repair armour half as fast again.
+// Heavy Metal's passive makes both repair armour half as fast again, and from Tier 2 its armour
+// also repairs itself out of combat, the one exception to "no free healing".
 export function repairTick(
   units: readonly UnitData[],
   tickMs: number,
   bases: Record<'blue' | 'red', GridPos>,
   doctrineOf: (team: UnitData['team']) => DoctrineType | null | undefined,
+  tierOf: (team: 'blue' | 'red') => number = () => 1,
+  now = 0,
 ) {
   const { assignments, heal } = guardianRepair(units, tickMs);
+  const add = (id: string, n: number) => heal.set(id, (heal.get(id) || 0) + n);
+  const heavyMetalArmour = (u: UnitData) => u.unitClass === 'armor' && doctrineOf(u.team) === 'heavy_metal';
   for (const u of units) {
     if (u.health <= 0 || u.health >= u.maxHealth || (u.team !== 'blue' && u.team !== 'red')) continue;
-    if (inBaseBlock(u.gridPos, bases[u.team])) heal.set(u.id, (heal.get(u.id) || 0) + u.maxHealth * BASE_REPAIR.perSecond * (tickMs / 1000));
+    if (inBaseBlock(u.gridPos, bases[u.team])) add(u.id, u.maxHealth * BASE_REPAIR.perSecond * (tickMs / 1000));
   }
   for (const [id, amount] of heal) {
     const u = units.find(x => x.id === id);
-    if (u && u.unitClass === 'armor' && doctrineOf(u.team) === 'heavy_metal') heal.set(id, amount * 1.5);
+    if (u && heavyMetalArmour(u)) heal.set(id, amount * 1.5);
+  }
+  for (const u of units) {
+    if (u.health <= 0 || u.health >= u.maxHealth || (u.team !== 'blue' && u.team !== 'red') || !heavyMetalArmour(u) || tierOf(u.team) < 2) continue;
+    const quiet = now - Math.max(u.lastAttackTime ?? -Infinity, u.lastDamageTime ?? -Infinity) >= BASE_REPAIR.outOfCombatMs;
+    if (quiet) add(u.id, BASE_REPAIR.heavyMetalSelfRepair * (tickMs / 1000));
   }
   return { assignments, heal };
 }

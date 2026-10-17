@@ -390,7 +390,7 @@ const UnitDetail: React.FC<{ type: UnitType; color: string; onOpen: (t: UnitType
             })}
           </ol>
           {rules.armor !== 'infantry' && rules.armor !== 'air' && UNIT_STATS[type].unitClass === 'armor' && (
-            <p className="text-[11px] text-slate-400">Doctrine: with Heavy Metal, Guardians and your base repair armour units 50% faster.</p>
+            <p className="text-[11px] text-slate-400">Doctrine: with Heavy Metal, Guardians and your base repair armour units 50% faster, and from Tier 2 armour repairs itself out of combat.</p>
           )}
         </div>
       </div>
@@ -628,7 +628,7 @@ const CombatTab: React.FC = () => (
         <Item label="Artillery">Thunderheads only fire when anchored, need vision (or a Fire Mission) and can't hit within {ARTILLERY.minRange} tiles. Shells take a moment to land, so keep moving under fire.</Item>
         <Item label="EMP">EMPs shut down anything that runs on a battery (vehicles and aircraft) caught in the blast: they can't move or fire until it wears off. Infantry are unaffected. The Ballista's EMP missile also blacks out the enemy energy grid inside the blast (a crackling blue zone): no recharging and no building there until it fades.</Item>
         <Item label="Abilities">Many units have abilities that unlock as you research tiers. Open a unit's page in the Units tab to see them.</Item>
-        <Item label="Repairs">Units never heal on their own. They recover only beside a Guardian (repair beams) or inside your HQ's own city block, where everything repairs at {Math.round(BASE_REPAIR.perSecond * 100)}% of its health a second. Pull damaged units back to base or bring Guardians.</Item>
+        <Item label="Repairs">Units never heal on their own (except Heavy Metal armour from Tier 2, out of combat). They recover beside a Guardian (repair beams) or inside your HQ's own city block, where everything repairs at {Math.round(BASE_REPAIR.perSecond * 100)}% of its health a second. Pull damaged units back to base or bring Guardians.</Item>
       </div>
     </div>
   </div>
