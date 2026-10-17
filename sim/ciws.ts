@@ -15,19 +15,22 @@ import { UNIT_RULES } from './units';
 
 export const CIWS = {
   range: 10,
-  // Damage per second of fire, to aircraft and to ordnance integrity.
-  dps: 60,
+  // Damage per second of fire. Aircraft are armoured and evasive; missiles, shells and pods
+  // are what the gun is built for, so they come apart much faster.
+  airDps: 32,
+  ordnanceDps: 60,
   // Seconds of continuous fire in one magazine, and the reload when it runs dry.
-  burstMs: 5000,
+  burstMs: 3500,
   reloadMs: 6000,
   // A part-used magazine is topped up after this long without firing.
   topUpMs: 4000,
   // Rounds a second, for drawing the tracer stream.
-  roundsPerSecond: 90,
+  roundsPerSecond: 75,
 };
 
 // How much fire each kind of ordnance takes to knock down.
-export const ORDNANCE_INTEGRITY = { missile: 120, nuke: 240, shell: 30, pod: 200 } as const;
+// A missile takes 2 s of fire; one magazine (3.5 s) is enough for anything but a nuke.
+export const ORDNANCE_INTEGRITY = { missile: 120, nuke: 240, shell: 30, pod: 180 } as const;
 export type OrdnanceKind = keyof typeof ORDNANCE_INTEGRITY;
 
 // Something in the air the gun can shoot at: in fractional tiles.
@@ -86,9 +89,9 @@ export function ciwsTick(units: readonly UnitData[], ordnance: readonly AirThrea
     }
     if (!target) { state.ciwsTargetId = null; done(); continue; }
 
-    const damage = CIWS.dps * fireRateMultiplier(u) * (dtMs / 1000);
-    if (target.ordnance) add(result.ordnanceDamage, target.id, damage);
-    else add(result.unitDamage, target.id, damage * damageTakenMultiplier(units.find(t => t.id === target!.id)!));
+    const rate = fireRateMultiplier(u) * (dtMs / 1000);
+    if (target.ordnance) add(result.ordnanceDamage, target.id, CIWS.ordnanceDps * rate);
+    else add(result.unitDamage, target.id, CIWS.airDps * rate * damageTakenMultiplier(units.find(t => t.id === target!.id)!));
     result.links.push({ aegisId: u.id, targetId: target.id, ordnance: target.ordnance });
     state.ciwsTargetId = target.id;
     state.ciwsLastFiredAt = now;

@@ -233,12 +233,13 @@ sweeping beam.
 
 The Aegis' gun is an automatic rotary cannon (`sim/ciws.ts`). While its radar works, it fires on
 its own at any enemy aircraft, or missile, Thunderhead shell or drop pod in flight, within 10
-tiles, incoming ordnance first: 60 damage a second (doubled by Flak Barrage; Sky-Net Radar Sweep
-adds 2 tiles). A magazine holds 5 s of fire; empty, the gun stops for a 6 s reload, and after 4 s
-without firing a part-used magazine is topped up. Ordnance has integrity rather than health:
-missiles take 120 (2 s of fire), nukes 240, drop pods 200, shells 30. A downed missile bursts in
-the air and does nothing. The fire is drawn as a dense stream of glowing rounds; an enemy Aegis
-you can't see doesn't show its stream.
+tiles, incoming ordnance first. It does 32 damage a second to aircraft but 60 to ordnance: it is
+built to stop missiles and only fairly good against aircraft (Flak Barrage doubles its rate; Sky-Net
+Radar Sweep adds 2 tiles). A magazine holds 3.5 s of fire; empty, the gun stops for a 6 s reload,
+and after 4 s without firing a part-used magazine is topped up. Ordnance has integrity rather than
+health: missiles take 120 (2 s of fire), nukes 240, drop pods 180, shells 30. A downed missile
+bursts in the air and does nothing. The fire is drawn as a dense stream of glowing rounds; an
+enemy Aegis you can't see doesn't show its stream.
 
 ## EMP
 

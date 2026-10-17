@@ -65,8 +65,8 @@ export const UNIT_RULES: Record<UnitType, UnitRules> = {
   tank: { armor: 'heavy', weapon: shell(60, 2200, 4), pop: 3, tier: 2, producer: 'armor', buildTimeMs: 30000, role: 'Main battle tank. High-explosive shells flatten infantry and buildings.' },
   // Its weapon is shown here for menus and balance; it fires through sim/artillery.ts. Range grows with tier.
   howitzer: { armor: 'light', weapon: { ...shell(70, 5000, 12, 1.6, 0.4), indirect: true }, pop: 3, tier: 1, producer: 'armor', buildTimeMs: 28000, role: 'Long-range artillery. Anchors to shell a target; helpless while moving.' },
-  // Its rotary cannon fires through sim/ciws.ts in bursts (5 s on, 6 s reload); shown here as its rate while firing.
-  aegis: { armor: 'light', weapon: { damage: 3, cooldownMs: 100, range: 10, type: 'flak', hitsGround: false, hitsAir: true, ciws: true }, pop: 2, tier: 2, producer: 'armor', buildTimeMs: 20000, role: 'Air-defence carrier: radar and an automatic rotary cannon that shreds aircraft and missiles. Helpless on the ground.' },
+  // Its rotary cannon fires through sim/ciws.ts in bursts (3.5 s on, 6 s reload); shown here as its rate against aircraft while firing.
+  aegis: { armor: 'light', weapon: { damage: 1.6, cooldownMs: 100, range: 10, type: 'flak', hitsGround: false, hitsAir: true, ciws: true }, pop: 2, tier: 2, producer: 'armor', buildTimeMs: 20000, role: 'Air-defence carrier: radar and an automatic rotary cannon that shreds aircraft and missiles. Helpless on the ground.' },
 
   // --- Airpad: aircraft. Ignore walls and terrain, beat vehicles. ---
   drone: { armor: 'air', weapon: null, pop: 1, tier: 1, producer: 'air', buildTimeMs: 10000, role: 'Scout. Loiters for wide surveillance.' },

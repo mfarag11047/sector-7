@@ -11,7 +11,7 @@ describe('Aegis CIWS', () => {
   it('fires on its own at enemy aircraft within range, not ground units or anything farther', () => {
     const r = ciwsTick([aegis(), red('hornet', 'h', CIWS.range - 1), red('tank', 't', 2), red('wasp', 'far', CIWS.range + 1)], [], 1000, 100);
     expect(r.links).toEqual([{ aegisId: 'a', targetId: 'h', ordnance: false }]);
-    expect(r.unitDamage.get('h')).toBeCloseTo(CIWS.dps * 0.1);
+    expect(r.unitDamage.get('h')).toBeCloseTo(CIWS.airDps * 0.1);
   });
 
   it("goes for incoming ordnance before aircraft, and ignores its own side's", () => {
@@ -19,7 +19,7 @@ describe('Aegis CIWS', () => {
     const ours = { id: 'mine', team: 'blue' as const, at: { x: 2, z: 0 }, kind: 'missile' as const };
     const r = ciwsTick([aegis(), red('hornet', 'h', 3)], [ours, missile], 1000, 100);
     expect(r.links[0]).toMatchObject({ targetId: 'm', ordnance: true });
-    expect(r.ordnanceDamage.get('m')).toBeCloseTo(CIWS.dps * 0.1);
+    expect(r.ordnanceDamage.get('m')).toBeCloseTo(CIWS.ordnanceDps * 0.1);
   });
 
   it('fires a sustained burst, then has to stop and reload', () => {
