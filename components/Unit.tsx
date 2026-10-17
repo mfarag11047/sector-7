@@ -39,8 +39,8 @@ const BUFF_COLORS: Record<NonNullable<UnitData['buffs']>[number]['kind'], string
   stim: '#f43f5e', nanoweave: '#a3e635', overcharge: '#facc15', nitro: '#fb923c', overclock: '#f97316',
   barrage: '#38bdf8', radar: '#22d3ee', afterburner: '#fb923c', emp: '#818cf8',
 };
-// Aegis air-search radar: a wide green circle with range rings and a sweeping beam that leaves
-// a fading trail. Flat on the ground under the vehicle; brighter while it is selected.
+// Aegis air-search radar: a wide green circle. Selected, it also shows range rings and a sweeping
+// beam that leaves a fading trail. Flat on the ground under the vehicle.
 const RADAR_GREEN = '#22c55e';
 const RadarSweep: React.FC<{ radius: number; y: number; strong: boolean }> = ({ radius, y, strong }) => {
   const beam = useRef<THREE.Group>(null);
@@ -57,26 +57,28 @@ const RadarSweep: React.FC<{ radius: number; y: number; strong: boolean }> = ({ 
           <ringGeometry args={[radius - 1.4, radius, 128]} />
           <meshBasicMaterial color={RADAR_GREEN} transparent opacity={0.75 * a} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
         </mesh>
-        {[1 / 3, 2 / 3].map(f => (
+        {/* Range rings, fill and sweeping beam only while this Aegis is selected; otherwise just
+            the outer edge, so a field of radars isn't a field of spinning distractions. */}
+        {strong && [1 / 3, 2 / 3].map(f => (
           <mesh key={f} raycast={() => null}>
             <ringGeometry args={[radius * f - 0.4, radius * f + 0.4, 96]} />
             <meshBasicMaterial color={RADAR_GREEN} transparent opacity={0.25 * a} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
           </mesh>
         ))}
-        <mesh raycast={() => null}>
+        {strong && <mesh raycast={() => null}>
           <circleGeometry args={[radius, 96]} />
           <meshBasicMaterial color={RADAR_GREEN} transparent opacity={0.04 * a} toneMapped={false} depthWrite={false} />
-        </mesh>
+        </mesh>}
       </group>
       {/* The beam and its fading trail: wedges of decreasing brightness behind the leading edge. */}
-      <group ref={beam}>
+      {strong && <group ref={beam}>
         {[0.45, 0.25, 0.12, 0.05].map((o, i) => (
           <mesh key={i} rotation={[-Math.PI / 2, 0, i * 0.22]} position={[0, 0.05 * i, 0]} raycast={() => null}>
             <circleGeometry args={[radius, 32, 0, 0.24]} />
             <meshBasicMaterial color={RADAR_GREEN} transparent opacity={o * a} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
           </mesh>
         ))}
-      </group>
+      </group>}
     </group>
   );
 };

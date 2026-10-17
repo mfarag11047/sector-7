@@ -214,7 +214,8 @@ of yours can see shows only as a pulsing red dot, on the map and the minimap: ra
 something is there, not what it is. Without radar, an enemy missile launch still raises a
 minimap alert: a warning triangle at the launch site and, once the missile is past halfway, a
 single blip at the midpoint of its course, but never its live position.
-Your Aegis draw their coverage as a green circle with a sweeping beam.
+Your Aegis draw their coverage as a green circle; a selected Aegis also shows range rings and a
+sweeping beam.
 
 ## Aegis CIWS
 

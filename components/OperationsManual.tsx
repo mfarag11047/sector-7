@@ -671,7 +671,7 @@ const InterfaceTab: React.FC<{ color: string }> = ({ color }) => (
       <Item label={<span className="flex items-center gap-2"><RoleBadge role="infantry" color={color} size={18} /> Role badges</span>}>Above each unit you can see. A unit's badge hides while it is selected.</Item>
       <Item label="Rings">Team-coloured ring: selected. Coloured ring at a unit's feet: an ability is running (electric indigo with blue static: knocked out by an EMP). Orange ring: a Thunderhead's range. Red reticle: its fire mission. Yellow ring: a Battery Mule's reach. Blue ring: a Banshee's tether leash.</Item>
       <Item label="Bars">Health, and battery for vehicles and aircraft, over damaged or selected units.</Item>
-      <Item label="Radar">A green sweeping circle around your Aegis is its radar. Red pulsing dots inside it (and on the minimap) are enemy aircraft or ordnance it has picked up but nothing can see yet.</Item>
+      <Item label="Radar">A green circle around your Aegis is its radar's reach; select the Aegis to see the sweep. Red pulsing dots inside it (and on the minimap) are enemy aircraft or ordnance it has picked up but nothing can see yet.</Item>
       <Item label="Incoming fire">Glowing shells dropping from the sky are enemy artillery: move out from under them. A blue crackling zone is an energy grid blacked out by an EMP.</Item>
     </div>
   </div>
