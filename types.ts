@@ -290,6 +290,9 @@ export interface MinimapData {
     missiles?: MinimapMissile[];
     // Aegis radar: enemy contacts as plain dots, and where your radars are.
     radarContacts?: { id: string; x: number; z: number }[];
+    // Enemy missiles in flight, without their live position: where each launched from, and once
+    // it has passed halfway, one blip at the midpoint of its course.
+    missileWarnings?: { id: string; launchX: number; launchZ: number; midX?: number; midZ?: number }[];
     radars?: { x: number; z: number; range: number }[];
 }
 

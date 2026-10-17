@@ -11,6 +11,12 @@ import { ABILITY_CONFIG, CITY_CONFIG, STRUCTURE_INFO } from '../constants';
 import type { BuildingData, CloudData, DecoyData, Explosion, Projectile, StructureData, UnitData } from '../types';
 import { isAirType } from './units';
 
+// How far along its arc a ballistic missile is, 0 at launch to 1 at impact.
+export const ballisticProgress = (p: Projectile, nowMs: number) => {
+    const totalDuration = (p.maxDistance / ABILITY_CONFIG.MISSILE_CRUISE_SPEED) * 1000;
+    return totalDuration > 0 ? Math.min(1, Math.max(0, (nowMs - (p.startTime || nowMs)) / totalDuration)) : 1;
+};
+
 // Ballistic missiles are a closed-form arc, so the mesh can follow the same
 // curve the sim uses without waiting for the 10 Hz tick.
 export const sampleBallistic = (p: Projectile, nowMs: number) => {

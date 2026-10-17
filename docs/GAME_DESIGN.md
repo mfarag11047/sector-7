@@ -211,7 +211,9 @@ Every working Aegis (not EMP-disabled or stunned) carries an air-search radar, a
 16 tiles (`sim/radar.ts`). It picks up enemy aircraft and large ordnance in flight (ballistic
 missiles, Thunderhead shells, drop pods; not small arms or swarm darts). A contact that nothing
 of yours can see shows only as a pulsing red dot, on the map and the minimap: radar says
-something is there, not what it is. Enemy missiles no longer show on the minimap otherwise.
+something is there, not what it is. Without radar, an enemy missile launch still raises a
+minimap alert: a warning triangle at the launch site and, once the missile is past halfway, a
+single blip at the midpoint of its course, but never its live position.
 Your Aegis draw their coverage as a green circle with a sweeping beam.
 
 ## EMP

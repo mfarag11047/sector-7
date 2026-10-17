@@ -663,6 +663,7 @@ const InterfaceTab: React.FC<{ color: string }> = ({ color }) => (
     </div>
     <div>
       <H>Minimap</H>
+      <Item label="Missile launch">A flashing MISSILE LAUNCH alert, an orange warning triangle where an enemy missile took off, and a red blip halfway along its course once it gets there. Its live position shows only inside your Aegis radar.</Item>
       <Item label="What it shows">Team-coloured role badges for every unit you can see, your HQs as squares, the camera's view, your energy grid outline and warning marks at guarded server nodes.</Item>
       <H>On the map</H>
       <Item label={<span className="flex items-center gap-2"><RoleBadge role="infantry" color={color} size={18} /> Role badges</span>}>Above each unit you can see. A unit's badge hides while it is selected.</Item>

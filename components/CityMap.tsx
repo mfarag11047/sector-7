@@ -19,7 +19,7 @@ import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from
 import { simClock } from './glide';
 import { AbilityCommand, abilityEffects, applyUnitEffects, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
 import { Warhead } from '../sim/commands';
-import { FlightEvent, FlightTickResult, LiveFlight, cloneProjectile, drawnShotPosition, flightUnitY, isHeavyOrdnance, sampleBallistic, stepProjectiles } from '../sim/projectiles';
+import { FlightEvent, FlightTickResult, LiveFlight, cloneProjectile, drawnShotPosition, ballisticProgress, flightUnitY, isHeavyOrdnance, sampleBallistic, stepProjectiles } from '../sim/projectiles';
 import { isRadarActive, onRadar, RADAR, radarAircraft, radarSources } from '../sim/radar';
 import { Blackout, chargeSources, isInsideEnergyGrid, powerTick } from '../sim/energy';
 import { captureTick } from '../sim/capture';
@@ -842,7 +842,7 @@ interface CityMapProps {
   match: MatchConfig;
   onStatsUpdate: (stats: GameStats) => void;
   onMapInit?: (data: { roadTiles: RoadTileData[], gridSize: number }) => void;
-  onMinimapUpdate?: (data: { units: UnitData[], buildings: BuildingData[], structures: StructureData[], selectedUnitIds?: string[], missiles?: MinimapMissile[], radarContacts?: MinimapData['radarContacts'], radars?: MinimapData['radars'] }) => void;
+  onMinimapUpdate?: (data: { units: UnitData[], buildings: BuildingData[], structures: StructureData[], selectedUnitIds?: string[], missiles?: MinimapMissile[], radarContacts?: MinimapData['radarContacts'], radars?: MinimapData['radars'], missileWarnings?: MinimapData['missileWarnings'] }) => void;
   playerTeam?: 'blue' | 'red';
   interactionMode?: 'select' | 'target';
   onMapTarget?: (location: {x: number, z: number}) => void;
@@ -1140,11 +1140,22 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             const radarContacts = contacts.map(c => ({ id: c.id, x: (c.x + offset) / tileSize, z: (c.z + offset) / tileSize }));
             const radars = unitsRef.current.filter(u => u.team === team && isRadarActive(u)).map(u => ({ x: u.gridPos.x, z: u.gridPos.z, range: RADAR.range }));
             const missiles: MinimapMissile[] = [];
+            const missileWarnings: NonNullable<MinimapData['missileWarnings']> = [];
             for (const live of flightRef.current.values()) {
                 const shot = live.shot;
                 if (live.impacted || shot.trajectory !== 'ballistic' || !shot.startPos || !shot.targetPos) continue;
-                // Enemy missiles only appear when radar has them, and then only as a contact dot.
-                if (shot.team !== team) continue;
+                // Enemy missiles: a launch warning and a midcourse blip, never the live position
+                // (radar coverage adds a live contact dot on top).
+                if (shot.team !== team) {
+                    const toGrid = (w: number) => (w + offset) / tileSize;
+                    const half = ballisticProgress(shot, now) >= 0.5;
+                    missileWarnings.push({
+                        id: shot.id,
+                        launchX: toGrid(shot.startPos.x), launchZ: toGrid(shot.startPos.z),
+                        ...(half ? { midX: toGrid((shot.startPos.x + shot.targetPos.x) / 2), midZ: toGrid((shot.startPos.z + shot.targetPos.z) / 2) } : {}),
+                    });
+                    continue;
+                }
                 const pose = sampleBallistic(shot, now);
                 missiles.push({
                     id: shot.id,
@@ -1164,6 +1175,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 missiles,
                 radarContacts,
                 radars,
+                missileWarnings,
             });
         }, 100); 
         

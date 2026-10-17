@@ -883,7 +883,31 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                   </g>
               </g>
 
-              {/* Airborne ballistic missiles. The owner sees the path to impact; the other team only sees the live position. */}
+              {/* Enemy missile launches: a warning triangle where it took off, then one blip at the
+                  midpoint once it has passed halfway. Never its live position. */}
+              {(minimapData.missileWarnings || []).map(w => (
+                  <g key={`warn-${w.id}`}>
+                      <g transform={`translate(${w.launchX}, ${w.launchZ})`}>
+                          <circle r={1.6} fill="none" stroke="#f97316" strokeWidth={0.25}>
+                              <animate attributeName="r" values="1;2.6;1" dur="1.2s" repeatCount="indefinite" />
+                              <animate attributeName="opacity" values="1;0.2;1" dur="1.2s" repeatCount="indefinite" />
+                          </circle>
+                          <polygon points="0,-1.5 1.35,1.1 -1.35,1.1" fill="#f97316" stroke="#fff7ed" strokeWidth={0.15} />
+                          <rect x={-0.13} y={-0.6} width={0.26} height={0.85} rx={0.05} fill="#1c1917" />
+                          <rect x={-0.13} y={0.42} width={0.26} height={0.26} rx={0.05} fill="#1c1917" />
+                      </g>
+                      {w.midX !== undefined && w.midZ !== undefined && (
+                          <g transform={`translate(${w.midX}, ${w.midZ})`}>
+                              <circle r={1.2} fill="none" stroke="#ef4444" strokeWidth={0.2}>
+                                  <animate attributeName="r" values="1.1;2.3;1.1" dur="0.9s" repeatCount="indefinite" />
+                              </circle>
+                              <circle r={0.85} fill="#ef4444" stroke="#fff1ee" strokeWidth={0.15} />
+                          </g>
+                      )}
+                  </g>
+              ))}
+
+              {/* Your own missiles in flight, with the path to impact. */}
               {(minimapData.missiles || []).map((m) => {
                   const color = m.team === 'red' ? '#f87171' : (m.team === 'blue' ? '#38bdf8' : '#fbbf24');
                   const showTrajectory = m.team === playerTeam;
@@ -915,6 +939,11 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
               })}
            </svg>
            
+           {(minimapData.missileWarnings?.length ?? 0) > 0 && (
+             <div className="absolute top-1.5 left-1.5 z-20 flex items-center gap-1 px-1.5 py-0.5 bg-orange-600/90 border border-orange-300 text-[10px] font-mono font-bold text-white uppercase tracking-wider animate-pulse pointer-events-none" data-testid="missile-alert">
+               <span>⚠</span><span>Missile launch</span>
+             </div>
+           )}
            <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900/40 pointer-events-none">
              <span className="text-cyan-400 text-[10px] font-mono tracking-tighter">TACTICAL VIEWPORT</span>
            </div>
