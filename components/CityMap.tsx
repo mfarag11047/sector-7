@@ -25,7 +25,7 @@ import { FlightEvent, FlightTickResult, LiveFlight, cloneProjectile, drawnShotPo
 import { isRadarActive, onRadar, RADAR, radarAircraft, radarSources } from '../sim/radar';
 import { Blackout, chargeSources, isInsideEnergyGrid, powerTick } from '../sim/energy';
 import { captureTick } from '../sim/capture';
-import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, guardianRepair, leashStep, slowTick, surveillanceStep } from '../sim/support';
+import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, leashStep, repairTick, slowTick, surveillanceStep } from '../sim/support';
 import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells, shellGroundPos } from '../sim/artillery';
 import { AirThreat, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, resolveAttacks } from '../sim/combat';
@@ -2783,7 +2783,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       if (activeUnits.length !== beforeCount) unitsChanged = true;
                   }
 
-                  const repair = guardianRepair(activeUnits, TICK_RATE);
+                  // Guardians and the base block are the only healing (sim/support.ts).
+                  const repair = repairTick(activeUnits, TICK_RATE, { blue: baseA_Coord, red: baseB_Coord }, team => (team === 'blue' || team === 'red') ? doctrines?.[team]?.selected : null);
 
                   const chargers = activeUnits.filter(u => u.type === 'helios');
                   

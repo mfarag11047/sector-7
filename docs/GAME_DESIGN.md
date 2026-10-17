@@ -205,6 +205,17 @@ listed as damage / cooldown / range.
   Transfer Warhead, not trained.
 - **Command HQ:** 5000 HP; AP 30 / 1.0 s / 5, hits air.
 
+## Healing
+
+Units never regain health on their own. Health comes back only from:
+
+- **Guardians:** repair beams on up to three wounded allies within 2 tiles, 15 HP a second each.
+- **Base repair:** any unit standing in its own HQ's city block (the 5x5 lot, the roads around it
+  and the HQ pad) recovers 4% of its full health a second (`repairTick` in `sim/support.ts`).
+
+Heavy Metal's passive makes both repair armour 50% faster (it used to regenerate armour for free
+out of combat).
+
 ## Aegis air-search radar
 
 Every working Aegis (not EMP-disabled or stunned) carries an air-search radar, always on, reaching

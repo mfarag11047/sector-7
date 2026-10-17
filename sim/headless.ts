@@ -22,7 +22,7 @@ import { Difficulty, MatchConfig, startingRoster } from './match';
 import { advanceMover, arriveAtNextTile, MovementEnv, MOVE_TICK_MS } from './movement';
 import { applyOrderToStructures, applyOrderToUnits, OrderCommand, orderEffects, OrdersContext } from './orders';
 import { advanceProduction, applyProduction, createUnit } from './production';
-import { guardianRepair } from './support';
+import { repairTick } from './support';
 import { isAirType } from './units';
 import { airPath, fastestPath } from './pathfinding';
 import { hasBuff } from './unitAbilities';
@@ -192,7 +192,7 @@ export function stepMatch(m: HeadlessMatch): void {
 
   // Damage, repair and batteries.
   const power = chargeSources(m.units);
-  const repair = guardianRepair(m.units, MOVE_TICK_MS);
+  const repair = repairTick(m.units, MOVE_TICK_MS, bases, team => (team === 'blue' || team === 'red') ? m.opts.doctrine[team] : null);
   const helios = m.units.filter(u => u.type === 'helios');
   const living = m.units;
   m.units = m.units.map(u => {

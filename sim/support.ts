@@ -1,4 +1,5 @@
-// Abilities that run on their own: Guardian repairs, couriers, surveillance flights,
+// Health is never regained for free. It comes back only from Guardians and from standing in
+// your own base's city block (repairTick). Abilities that run on their own: Guardian repairs, couriers, surveillance flights,
 // Banshee leashes, Field Fabricator production, the Swarm Host and its Crawlers,
 // doctrine passives, and the timers behind stuns, cooldowns, smoke and APS.
 //
@@ -42,6 +43,47 @@ export function guardianRepair(units: readonly UnitData[], tickMs: number) {
     const ids = [...kept, ...newcomers];
     assignments.set(guardian.id, ids);
     for (const id of ids) heal.set(id, (heal.get(id) || 0) + healPerTick);
+  }
+  return { assignments, heal };
+}
+
+// --- Base repair ---
+
+// Roads run every ROAD_STRIDE tiles, so each city block is the lot between two road lines.
+const ROAD_STRIDE = 6;
+export const BASE_REPAIR = {
+  // Share of a unit's full health restored each second inside its base block.
+  perSecond: 0.04,
+  // The cleared pad around the HQ, which spills a tile past its block.
+  padRadius: 3,
+};
+
+// Whether a tile is in the same city block as a base: inside the lot or on the roads around
+// it, or on the HQ's own cleared pad.
+export function inBaseBlock(pos: GridPos, base: GridPos): boolean {
+  const lo = (c: number) => Math.floor(c / ROAD_STRIDE) * ROAD_STRIDE;
+  const bx = lo(base.x), bz = lo(base.z);
+  const inBlock = pos.x >= bx && pos.x <= bx + ROAD_STRIDE && pos.z >= bz && pos.z <= bz + ROAD_STRIDE;
+  const onPad = Math.abs(pos.x - base.x) <= BASE_REPAIR.padRadius && Math.abs(pos.z - base.z) <= BASE_REPAIR.padRadius;
+  return inBlock || onPad;
+}
+
+// All the healing in a tick: Guardian beams, plus repair for units in their own base's block.
+// Heavy Metal's passive makes both repair armour half as fast again.
+export function repairTick(
+  units: readonly UnitData[],
+  tickMs: number,
+  bases: Record<'blue' | 'red', GridPos>,
+  doctrineOf: (team: UnitData['team']) => DoctrineType | null | undefined,
+) {
+  const { assignments, heal } = guardianRepair(units, tickMs);
+  for (const u of units) {
+    if (u.health <= 0 || u.health >= u.maxHealth || (u.team !== 'blue' && u.team !== 'red')) continue;
+    if (inBaseBlock(u.gridPos, bases[u.team])) heal.set(u.id, (heal.get(u.id) || 0) + u.maxHealth * BASE_REPAIR.perSecond * (tickMs / 1000));
+  }
+  for (const [id, amount] of heal) {
+    const u = units.find(x => x.id === id);
+    if (u && u.unitClass === 'armor' && doctrineOf(u.team) === 'heavy_metal') heal.set(id, amount * 1.5);
   }
   return { assignments, heal };
 }
@@ -213,13 +255,6 @@ export function slowTick(prevUnits: UnitData[], ctx: SlowTickContext): UnitData[
     }
 
     const doctrine = ctx.doctrineOf(unit.team);
-
-    // Heavy Metal: armor out of combat for 5 s repairs itself.
-    if (doctrine === 'heavy_metal' && unit.unitClass === 'armor'
-      && (!unit.lastAttackTime || ctx.now - unit.lastAttackTime > 5000) && unit.health < unit.maxHealth) {
-      unit = { ...unit, health: Math.min(unit.maxHealth, unit.health + 5) };
-      changed = true;
-    }
 
     // Shadow Ops: Ghosts and stealthed units move faster.
     if (doctrine === 'shadow_ops' && (unit.type === 'ghost' || unit.isStealthed) && !unit.activeBuffs?.includes('speed')) {

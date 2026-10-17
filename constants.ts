@@ -321,7 +321,7 @@ export const DOCTRINE_CONFIG: Record<DoctrineType, {
 }> = {
   heavy_metal: {
     label: "Heavy Metal",
-    tier1_passive: "Mechanized Repair: Armor units regen 2 HP/s when out of combat.",
+    tier1_passive: "Mechanized Repair: Guardians and your base repair armor units 50% faster.",
     tier2_cost: 500,
     tier2_cooldown: 120000,
     tier2_name: "Orbital Drop",

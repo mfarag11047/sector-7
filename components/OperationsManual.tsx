@@ -8,6 +8,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ABILITY_CONFIG, BUILDING_VALUES, DOCTRINE_CONFIG, STRUCTURE_INFO, UNIT_STATS } from '../constants';
 import type { DoctrineType, StructureType, UnitType } from '../types';
 import { ARTILLERY } from '../sim/artillery';
+import { BASE_REPAIR } from '../sim/support';
 import { RADAR } from '../sim/radar';
 import { CIWS, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { HQ_INCOME } from '../sim/economy';
@@ -389,7 +390,7 @@ const UnitDetail: React.FC<{ type: UnitType; color: string; onOpen: (t: UnitType
             })}
           </ol>
           {rules.armor !== 'infantry' && rules.armor !== 'air' && UNIT_STATS[type].unitClass === 'armor' && (
-            <p className="text-[11px] text-slate-400">Doctrine: with Heavy Metal, armour units repair themselves out of combat.</p>
+            <p className="text-[11px] text-slate-400">Doctrine: with Heavy Metal, Guardians and your base repair armour units 50% faster.</p>
           )}
         </div>
       </div>
@@ -627,7 +628,7 @@ const CombatTab: React.FC = () => (
         <Item label="Artillery">Thunderheads only fire when anchored, need vision (or a Fire Mission) and can't hit within {ARTILLERY.minRange} tiles. Shells take a moment to land, so keep moving under fire.</Item>
         <Item label="EMP">EMPs shut down anything that runs on a battery (vehicles and aircraft) caught in the blast: they can't move or fire until it wears off. Infantry are unaffected. The Ballista's EMP missile also blacks out the enemy energy grid inside the blast (a crackling blue zone): no recharging and no building there until it fades.</Item>
         <Item label="Abilities">Many units have abilities that unlock as you research tiers. Open a unit's page in the Units tab to see them.</Item>
-        <Item label="Retreat">Damaged vehicles repair near a Guardian or, with Heavy Metal, on their own out of combat.</Item>
+        <Item label="Repairs">Units never heal on their own. They recover only beside a Guardian (repair beams) or inside your HQ's own city block, where everything repairs at {Math.round(BASE_REPAIR.perSecond * 100)}% of its health a second. Pull damaged units back to base or bring Guardians.</Item>
       </div>
     </div>
   </div>

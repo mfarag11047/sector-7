@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ABILITY_CONFIG, BUILDING_VALUES, UNIT_STATS } from '../constants';
 import type { BuildingData, UnitData } from '../types';
 import { captureTick } from './capture';
-import { ballistaLoadStep, courierStep, guardianRepair, slowTick, SlowTickContext, surveillanceStep } from './support';
+import { ballistaLoadStep, BASE_REPAIR, courierStep, guardianRepair, inBaseBlock, repairTick, slowTick, SlowTickContext, surveillanceStep } from './support';
 
 const unit = (id: string, patch: Partial<UnitData> = {}): UnitData => ({
   id, type: 'ghost', unitClass: 'infantry', team: 'blue', gridPos: { x: 5, z: 5 }, path: [], visionRange: 3,
@@ -132,5 +132,34 @@ describe('slowTick', () => {
   it('returns the same array when nothing happens', () => {
     const units = [unit('g')];
     expect(slowTick(units, ctx)).toBe(units);
+  });
+});
+
+describe('repairTick', () => {
+  const bases = { blue: { x: 4, z: 4 }, red: { x: 74, z: 74 } };
+  const hurt = (id: string, x: number, z: number, patch: Partial<UnitData> = {}): UnitData => ({
+    id, type: 'tank', unitClass: 'armor', team: 'blue', gridPos: { x, z }, path: [], visionRange: 3,
+    health: 100, maxHealth: 700, battery: 100, maxBattery: 100, cooldowns: {}, ...patch,
+  });
+
+  it('repairs only units in their own base block; nothing heals on its own elsewhere', () => {
+    const units = [hurt('home', 6, 2), hurt('pad', 7, 7), hurt('field', 20, 20), hurt('enemy-base', 74, 72), hurt('red-home', 75, 73, { team: 'red' })];
+    const { heal } = repairTick(units, 1000, bases, () => null);
+    expect(heal.get('home')).toBeCloseTo(700 * BASE_REPAIR.perSecond);
+    expect(heal.get('pad')).toBeCloseTo(700 * BASE_REPAIR.perSecond);
+    expect(heal.has('field')).toBe(false);
+    expect(heal.has('enemy-base')).toBe(false);
+    expect(heal.get('red-home')).toBeCloseTo(700 * BASE_REPAIR.perSecond);
+  });
+
+  it('knows the base block from the road grid', () => {
+    expect(inBaseBlock({ x: 0, z: 6 }, bases.blue)).toBe(true);
+    expect(inBaseBlock({ x: 8, z: 4 }, bases.blue)).toBe(false);
+    expect(inBaseBlock({ x: 12, z: 12 }, bases.blue)).toBe(false);
+  });
+
+  it('Heavy Metal repairs armour half as fast again', () => {
+    const { heal } = repairTick([hurt('home', 5, 5)], 1000, bases, () => 'heavy_metal');
+    expect(heal.get('home')).toBeCloseTo(700 * BASE_REPAIR.perSecond * 1.5);
   });
 });
