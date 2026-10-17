@@ -59,6 +59,8 @@ export interface TransferWarheadCommand { type: 'TRANSFER_WARHEAD'; unitId: stri
 
 // --- Abilities aimed at a tile ---
 
+// Thunderhead batteries shell a tile until told otherwise; no target ceases fire.
+export interface ArtilleryFireCommand { type: 'ARTILLERY_FIRE'; unitIds: string[]; target?: GridPos }
 export interface CannonFireCommand { type: 'CANNON_FIRE'; unitId: string; target: GridPos } // Titan
 export interface SurveillanceCommand { type: 'SURVEILLANCE'; unitId: string; target: GridPos } // Infiltrator Drone
 export interface FireBallistaCommand { type: 'FIRE_BALLISTA'; unitId: string; target: GridPos } // Ballista, fires the armed warhead
@@ -102,6 +104,7 @@ export type PlayerCommand =
   | ResupplyMaterialCommand
   | TransferWarheadCommand
   | CannonFireCommand
+  | ArtilleryFireCommand
   | SurveillanceCommand
   | FireBallistaCommand
   | FireSwarmCommand
@@ -139,7 +142,7 @@ const STRUCTURE_TYPES = Object.keys({
 const UNIT_TYPES = Object.keys({
   drone: 1, tank: 1, ghost: 1, guardian: 1, mule: 1, wasp: 1, mason: 1, helios: 1, sun_plate: 1, ballista: 1, courier: 1,
   banshee: 1, defense_drone: 1, titan_dropped: 1, swarm_host: 1, crawler_drone: 1, bombard: 1,
-  trooper: 1, lancer: 1, razorback: 1, aegis: 1, hornet: 1,
+  trooper: 1, lancer: 1, razorback: 1, aegis: 1, hornet: 1, howitzer: 1,
 } satisfies Record<UnitType, 1>);
 const DOCTRINES = Object.keys({ heavy_metal: 1, shadow_ops: 1, skunkworks: 1 } satisfies Record<DoctrineType, 1>);
 const WARHEADS = Object.keys({ eclipse: 1, he: 1 } satisfies Record<Warhead, 1>);
@@ -184,6 +187,7 @@ const CHECKS: Record<CommandType, (c: Fields) => boolean> = {
   RESUPPLY_MATERIAL: unit,
   TRANSFER_WARHEAD: unitWarhead,
   CANNON_FIRE: unitAt,
+  ARTILLERY_FIRE: c => isIdList(c.unitIds) && (c.target === undefined || isTile(c.target)),
   SURVEILLANCE: unitAt,
   FIRE_BALLISTA: unitAt,
   FIRE_SWARM: unitAt,

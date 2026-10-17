@@ -9,7 +9,8 @@ import { abilitiesFor } from '../sim/unitAbilities';
 import { roleBadgeTexture, UNIT_ROLE } from './unitIcons';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
-import { AegisModel, HornetModel, LancerLauncher, RazorbackModel, TrooperKit } from './unitModels';
+import { AegisModel, HornetModel, LancerLauncher, RazorbackModel, ThunderheadModel, TrooperKit } from './unitModels';
+import { ARTILLERY, artilleryRange } from '../sim/artillery';
 import { follow, predictPosition, simClock, walkAlong } from './glide';
 
 // Helper component for spinning rotors
@@ -130,6 +131,10 @@ interface UnitProps {
   combatTargetId?: string | null;
   buffs?: UnitData['buffs'];
   abilityReadyAt?: Record<string, number>;
+  // Thunderhead (sim/artillery.ts)
+  anchoredAt?: number;
+  artilleryTarget?: { x: number; z: number } | null;
+  artilleryAim?: { x: number; z: number } | null;
   // Step 3 Updates
   isStunned?: boolean;
   activeBuffs?: ('speed' | 'damage' | 'regen')[];
@@ -255,7 +260,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -275,6 +280,21 @@ const Unit: React.FC<UnitProps> = ({
   const apsRef = useRef<THREE.Group>(null);
 
   const teamColor = TEAM_COLORS[team];
+  // Thunderhead: its range follows the side's tier; the gun turns to where it last fired.
+  const howitzerTier = Math.min(3, Math.max(1, teamCompute)) as 1 | 2 | 3;
+  const aimWorld = useMemo(() => {
+    const at = artilleryTarget ?? artilleryAim;
+    return at ? new THREE.Vector3(at.x * tileSize - offset, 0, at.z * tileSize - offset) : null;
+  }, [artilleryTarget?.x, artilleryTarget?.z, artilleryAim?.x, artilleryAim?.z, tileSize, offset]);
+  const [settingUp, setSettingUp] = useState(false);
+  useEffect(() => {
+    if (type !== 'howitzer' || !isDeployed || !anchoredAt) { setSettingUp(false); return; }
+    const left = anchoredAt + ARTILLERY.setupMs - Date.now();
+    setSettingUp(left > 0);
+    if (left <= 0) return;
+    const timer = setTimeout(() => setSettingUp(false), left);
+    return () => clearTimeout(timer);
+  }, [type, isDeployed, anchoredAt]);
   const isTank = type === 'tank' || type === 'titan_dropped';
   const isGhost = type === 'ghost';
   const isGuardian = type === 'guardian';
@@ -294,6 +314,7 @@ const Unit: React.FC<UnitProps> = ({
   const isTrooper = type === 'trooper';
   const isLancer = type === 'lancer';
   const isRazorback = type === 'razorback';
+  const isHowitzer = type === 'howitzer';
   const isAegis = type === 'aegis';
   const isHornet = type === 'hornet';
   const isAir = isWasp || isDrone || isHelios || isBombard || isHornet;
@@ -308,7 +329,7 @@ const Unit: React.FC<UnitProps> = ({
 
   // Floating height difference
   // Raised ground units to 1.2 to clear the Base platform (height 1.0)
-  const hoverHeight = isBombard ? 42 : isDefenseDrone ? 12.0 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler || isTrooper || isLancer || isRazorback || isAegis) ? 1.2 : (isAir ? 75.0 : 2.0);
+  const hoverHeight = isBombard ? 42 : isDefenseDrone ? 12.0 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler || isTrooper || isLancer || isRazorback || isAegis || isHowitzer) ? 1.2 : (isAir ? 75.0 : 2.0);
   
   // Logical World Position
   const logicalWorldPos = useMemo(() => new THREE.Vector3(
@@ -601,6 +622,7 @@ const Unit: React.FC<UnitProps> = ({
         </group>
     );
     if (isRazorback) return <RazorbackModel teamColor={teamColor} />;
+    if (isHowitzer) return <ThunderheadModel teamColor={teamColor} deployed={!!isDeployed} aim={aimWorld} />;
     if (isAegis) return <AegisModel teamColor={teamColor} firing={!!combatTargetId} />;
     if (isHornet) return <HornetModel teamColor={teamColor} />;
      if (isDefenseDrone) {
@@ -997,6 +1019,19 @@ const Unit: React.FC<UnitProps> = ({
           <meshBasicMaterial color="#38bdf8" transparent opacity={0.45} side={THREE.DoubleSide} />
         </mesh>
       )}
+      {/* Thunderhead anchored and selected: its reach at the side's tier, and the dead zone inside. */}
+      {isHowitzer && isDeployed && (isSelected || actionMenuOpen) && (
+        <group rotation={[-Math.PI/2, 0, 0]} position={[0, 0.25, 0]}>
+          <mesh raycast={() => null}>
+            <ringGeometry args={[artilleryRange(howitzerTier) * tileSize - 0.6, artilleryRange(howitzerTier) * tileSize + 0.6, 96]} />
+            <meshBasicMaterial color="#f97316" transparent opacity={0.6} side={THREE.DoubleSide} toneMapped={false} depthWrite={false} />
+          </mesh>
+          <mesh raycast={() => null}>
+            <ringGeometry args={[ARTILLERY.minRange * tileSize - 0.3, ARTILLERY.minRange * tileSize + 0.3, 48]} />
+            <meshBasicMaterial color="#f97316" transparent opacity={0.3} side={THREE.DoubleSide} toneMapped={false} depthWrite={false} />
+          </mesh>
+        </group>
+      )}
       {showBatteryRange && (
         <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.15, 0]} raycast={() => null}>
           <ringGeometry args={[ABILITY_CONFIG.BATTERY_MULE_RANGE * tileSize, ABILITY_CONFIG.BATTERY_MULE_RANGE * tileSize + 0.45, 64]} />
@@ -1180,6 +1215,16 @@ const Unit: React.FC<UnitProps> = ({
                         {tetherTargetId && (
                           <button onClick={(e) => { e.stopPropagation(); handleMenuAction('DISCONNECT_TETHER'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left">Disconnect</button>
                         )}
+                      </>
+                  )}
+                  {isHowitzer && (
+                      <>
+                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TOGGLE_ANCHOR'); }} disabled={!isDeployed && path.length > 0} className={`text-[10px] ${isDeployed ? 'bg-orange-900 text-orange-200' : path.length > 0 ? 'bg-slate-900 text-slate-500' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>{isDeployed ? 'Pack Up' : path.length > 0 ? 'Stop to Anchor' : 'Anchor Down'}</button>
+                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('FIRE_MISSION'); }} disabled={!isDeployed} className={`text-[10px] ${isDeployed ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-slate-900 text-slate-500'} px-2 py-1 rounded text-left flex justify-between`}><span>{isTargetingMode ? 'Pick Target' : 'Fire Mission'}</span><span>{artilleryRange(howitzerTier)} tiles</span></button>
+                        {artilleryTarget && (
+                          <button onClick={(e) => { e.stopPropagation(); handleMenuAction('CEASE_FIRE'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left">Cease Fire</button>
+                        )}
+                        <div className="text-[9px] text-slate-400 px-1">{!isDeployed ? 'Mobile: cannot fire' : settingUp ? 'Setting up…' : artilleryTarget ? 'Shelling target' : 'Firing on sight'}</div>
                       </>
                   )}
                   {isSunPlate && (

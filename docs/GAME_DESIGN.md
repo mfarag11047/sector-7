@@ -84,7 +84,7 @@ which stay unlocked for good.
 
 | Tier | Research cost | Unlocks |
 |---|---|---|
-| T1 | Start | Troopers, Razorbacks, Battery Mules, Drones, Guardians, Helios, Masons |
+| T1 | Start | Troopers, Razorbacks, Thunderheads, Battery Mules, Drones, Guardians, Helios, Masons |
 | T2 | 120 compute | Ghosts, Lancers, Titans, Aegis, Wasps, Hornets, Banshees, Field Fabricators, T2 doctrine powers |
 | T3 | 360 compute | Bombardment Drones, Ballistas, T3 doctrine powers |
 
@@ -122,7 +122,7 @@ uses the same badge. A unit's badge hides while that unit is selected. Roles com
 | Wings | Aircraft | Wasp, Hornet |
 | Eye | Scout | Drone |
 | + | Support | Guardian, Helios, Banshee, Sun Plate |
-| Shell | Artillery / ordnance | Ballista, Bombard, Mule |
+| Shell | Artillery / ordnance | Thunderhead, Ballista, Bombard, Mule |
 | Bracket | Engineer | Mason |
 | Hexagon | Sentinel | Defense drone |
 | Dots | Swarm | Swarm Host, Crawler |
@@ -174,6 +174,7 @@ listed as damage / cooldown / range.
 | Unit | Cost | Pop | Tier | HP | Armor | Weapon | Role |
 |---|---|---|---|---|---|---|---|
 | **Razorback** (new) | 200 | 2 | T1 | 300 | Light | Rifle 10 / 0.5 s / 3, hits air | Fast raider, anti-infantry |
+| **Thunderhead** (new) | 320 | 3 | T1 | 240 | Light | Explosive 70 / 5 s / 12–20, splash 1.6, ground only | Mobile artillery; fires only when anchored |
 | **Battery Mule** | 250 | 2 | T1 | 500 | Heavy | None | Mobile power for vehicles |
 | **Titan MBT** | 420 | 3 | T2 | 700 | Heavy | Explosive 60 / 2.2 s / 4, splash 1 | Main battle tank, cannon, smoke, APS |
 | **Aegis** (new) | 240 | 2 | T2 | 300 | Light | Flak 30 / 1.2 s / 5, air only | Anti-air escort |
@@ -203,6 +204,29 @@ listed as damage / cooldown / range.
 - **Ordnance Fab:** Field Fabricator (260, T2) and Eclipse and HE warheads. Couriers are sent by
   Transfer Warhead, not trained.
 - **Command HQ:** 5000 HP; AP 30 / 1.0 s / 5, hits air.
+
+## Thunderhead mobile artillery
+
+The Thunderhead (`sim/artillery.ts`) is a six-wheeled rail-gun truck from the Factory, there from
+Tier 1. It trades every close-range strength for reach:
+
+- **Mobile, it cannot fire.** It anchors only once it has stopped (Anchor Down), then takes
+  3 s to set up. A move order packs it up straight away and drops its fire mission.
+- **Anchored, it fires on its own** at the nearest enemy ground unit, then structure, that its
+  side can see in range. It never hits aircraft.
+- **Fire Mission** shells a tile the player picks, again every 5 s, whether or not anyone can
+  see it, until Cease Fire, a new mission, or packing up. Several selected batteries take the
+  same mission.
+- **Range grows with tech:** 12 tiles at Tier 1, 16 at Tier 2, 20 at Tier 3. Nothing closer
+  than 3 tiles can be shelled. Selected and anchored, it shows its range (and the dead zone) as
+  an orange ring; a fire mission's target shows as a red reticle.
+- **Shells fly.** Each takes 1.2 s plus 0.09 s per tile to land and drifts up to 0.7 tiles, so a
+  target that keeps moving can get out from under it. A shell does 70 explosive damage at the
+  centre, down to 40% at the 1.6-tile edge, to enemy ground units and structures. Enemy shells
+  show only on the way down.
+
+The AI fields about one Thunderhead for every six units, keeps it standing off behind the army,
+plants it when something is in reach and packs up to follow when nothing is.
 
 ## New-unit abilities
 

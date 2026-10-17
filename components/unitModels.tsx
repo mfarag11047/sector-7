@@ -235,3 +235,110 @@ export const HornetModel: React.FC<{ teamColor: string }> = ({ teamColor }) => (
     </group>
   </Float>
 );
+
+// Thunderhead: a six-wheeled gun truck. On the move the barrel lies forward over the cab; when
+// anchored, stabiliser legs swing out and down, and the gun turns to its target and elevates.
+// `aim` is the world point it last fired at, if any.
+export const ThunderheadModel: React.FC<{ teamColor: string; deployed: boolean; aim: THREE.Vector3 | null }> = ({ teamColor, deployed, aim }) => {
+  const turret = useRef<THREE.Group>(null);
+  const barrel = useRef<THREE.Group>(null);
+  const legs = useRef<THREE.Group[]>([]);
+  const scratch = useRef({ q: new THREE.Quaternion(), p: new THREE.Vector3(), d: new THREE.Vector3() });
+  useFrame((_, delta) => {
+    const k = 1 - Math.exp(-Math.min(delta, 0.05) * 4);
+    // Legs fold out to the sides and plant; the barrel lifts once planted.
+    for (const leg of legs.current) {
+      if (!leg) continue;
+      leg.rotation.z += ((deployed ? 1.1 : 0) * Math.sign(leg.position.x) - leg.rotation.z) * k;
+    }
+    if (barrel.current) barrel.current.rotation.x += ((deployed ? 0.75 : 0) - barrel.current.rotation.x) * k;
+    const t = turret.current;
+    if (!t || !t.parent) return;
+    let yaw = 0;
+    if (deployed && aim) {
+      const { q, p, d } = scratch.current;
+      t.getWorldPosition(p);
+      t.parent.getWorldQuaternion(q);
+      d.copy(aim).sub(p).applyQuaternion(q.invert());
+      yaw = Math.atan2(-d.x, -d.z);
+    }
+    // Turn the short way round.
+    let diff = yaw - t.rotation.y;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    t.rotation.y += diff * k;
+  });
+  return (
+    <group scale={[2.6, 2.6, 2.6]}>
+      {/* Chassis and armoured cab at the front (-Z) */}
+      <mesh position={[0, 0.5, 0.15]}>
+        <boxGeometry args={[1.15, 0.28, 2.5]} />
+        <meshStandardMaterial color={STEEL} metalness={0.6} roughness={0.35} />
+        <Edges color={DARK} />
+      </mesh>
+      <mesh position={[0, 0.85, -0.85]}>
+        <boxGeometry args={[1.05, 0.45, 0.6]} />
+        <meshStandardMaterial color={HULL} metalness={0.6} />
+        <Edges color={DARK} />
+      </mesh>
+      <mesh position={[0, 0.92, -1.16]}>
+        <boxGeometry args={[0.85, 0.16, 0.02]} />
+        <meshBasicMaterial color="#38bdf8" toneMapped={false} />
+      </mesh>
+      {/* Six wheels */}
+      {[-0.85, 0.2, 0.95].flatMap(z => [-0.64, 0.64].map(x => (
+        <mesh key={`${x},${z}`} position={[x, 0.3, z]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.3, 0.3, 0.22, 10]} />
+          <meshStandardMaterial color="#0f172a" roughness={0.9} />
+        </mesh>
+      )))}
+      {/* Stabiliser legs, hinged at the deck edge */}
+      {[[-0.58, -0.3], [0.58, -0.3], [-0.58, 1.2], [0.58, 1.2]].map(([x, z], i) => (
+        <group key={i} ref={g => { if (g) legs.current[i] = g; }} position={[x, 0.6, z]}>
+          <mesh position={[0, -0.25, 0]}>
+            <boxGeometry args={[0.1, 0.5, 0.1]} />
+            <meshStandardMaterial color="#94a3b8" metalness={0.8} />
+          </mesh>
+          <mesh position={[0, -0.5, 0]}>
+            <boxGeometry args={[0.22, 0.05, 0.22]} />
+            <meshStandardMaterial color={DARK} />
+          </mesh>
+        </group>
+      ))}
+      {/* Turntable and gun */}
+      <group ref={turret} position={[0, 0.72, 0.45]}>
+        <mesh>
+          <cylinderGeometry args={[0.45, 0.5, 0.2, 12]} />
+          <meshStandardMaterial color={HULL} metalness={0.6} />
+        </mesh>
+        <mesh position={[0, 0.25, 0.1]}>
+          <boxGeometry args={[0.7, 0.35, 0.7]} />
+          <meshStandardMaterial color={STEEL} metalness={0.6} />
+          <Edges color={DARK} />
+        </mesh>
+        {[-0.36, 0.36].map(x => (
+          <mesh key={x} position={[x, 0.25, 0.1]}>
+            <boxGeometry args={[0.02, 0.08, 0.6]} />
+            <meshBasicMaterial color={teamColor} toneMapped={false} />
+          </mesh>
+        ))}
+        <group ref={barrel} position={[0, 0.3, -0.15]}>
+          <mesh position={[0, 0, -1.0]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.08, 0.1, 2.0, 10]} />
+            <meshStandardMaterial color="#0f172a" metalness={0.8} roughness={0.3} />
+          </mesh>
+          {/* Rail coils along the barrel */}
+          {[-0.5, -1.0, -1.5].map(z => (
+            <mesh key={z} position={[0, 0, z]} rotation={[Math.PI / 2, 0, 0]}>
+              <torusGeometry args={[0.12, 0.03, 6, 12]} />
+              <meshBasicMaterial color={teamColor} toneMapped={false} />
+            </mesh>
+          ))}
+          <mesh position={[0, 0, -2.02]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.13, 0.13, 0.12, 10]} />
+            <meshStandardMaterial color={DARK} />
+          </mesh>
+        </group>
+      </group>
+    </group>
+  );
+};

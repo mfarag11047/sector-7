@@ -201,7 +201,9 @@ function moveOrder(view: OrdersView, team: Team, unitIds: readonly string[], tar
     reserved.add(`${dest.x},${dest.z}`);
     // Aircraft fly straight there; ground units take the quickest road.
     const path = isAirType(u.type) ? ctx.findAirPath(u.gridPos, dest) : ctx.findPath(u.gridPos, dest);
-    if (path.length > 0) unitUpdates.set(u.id, x => ({ ...x, path, attackMove }));
+    // A planted Thunderhead packs up to move, dropping its fire mission.
+    const packUp = (x: UnitData): UnitData => x.type === 'howitzer' && x.isDeployed ? { ...x, isDeployed: false, anchoredAt: undefined, artilleryTarget: null, artilleryAim: null } : x;
+    if (path.length > 0) unitUpdates.set(u.id, x => ({ ...packUp(x), path, attackMove }));
     else if (attackMove !== !!u.attackMove) unitUpdates.set(u.id, x => ({ ...x, attackMove }));
   }
   return unitUpdates.size > 0 ? effects({ unitUpdates }) : reject('no route there');

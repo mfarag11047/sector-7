@@ -30,6 +30,7 @@ export function createUnit(type: UnitType, team: UnitData['team'], id: string, g
       battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY,
       secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY,
     };
+    case 'howitzer': return { ...unit, isDeployed: false, artilleryTarget: null };
     case 'sun_plate': return {
       ...unit, isDeployed: false, batteryTetherIds: [],
       battery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, maxBattery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY,

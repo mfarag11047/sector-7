@@ -12,18 +12,20 @@ import { ABILITY_CONFIG, CITY_CONFIG } from '../constants';
 import type { DecoyData, Projectile, StructureData, UnitData, UnitType } from '../types';
 import type { GridPos, PlayerCommand, Team, Warhead } from './commands';
 import { Economy, spend, takeWarhead, warheadCost } from './economy';
+import { ARTILLERY, artilleryRange, inArtilleryReach } from './artillery';
+import { teamTier } from './orders';
 import { unitAbilityEffects } from './unitAbilities';
 
 export type AbilityCommand = Extract<PlayerCommand, { type:
   | 'TOGGLE_DAMPENER' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'SMOKE_SCREEN' | 'ACTIVATE_APS' | 'PHANTOM_DECOY'
   | 'LOAD_AMMO' | 'TAKE_WARHEAD' | 'FABRICATE' | 'RESUPPLY_MATERIAL' | 'TRANSFER_WARHEAD'
-  | 'CANNON_FIRE' | 'SURVEILLANCE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD'
+  | 'CANNON_FIRE' | 'ARTILLERY_FIRE' | 'SURVEILLANCE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD'
   | 'HARDLINE_TETHER' | 'DISCONNECT_TETHER' | 'BATTERY_LINK' | 'DISCONNECT_BATTERY' | 'UNIT_ABILITY' }>;
 
 const ABILITY_TYPES: ReadonlySet<string> = new Set<AbilityCommand['type']>([
   'TOGGLE_DAMPENER', 'TOGGLE_JAMMER', 'TOGGLE_ANCHOR', 'SMOKE_SCREEN', 'ACTIVATE_APS', 'PHANTOM_DECOY',
   'LOAD_AMMO', 'TAKE_WARHEAD', 'FABRICATE', 'RESUPPLY_MATERIAL', 'TRANSFER_WARHEAD',
-  'CANNON_FIRE', 'SURVEILLANCE', 'FIRE_BALLISTA', 'FIRE_SWARM', 'BOMBARD',
+  'CANNON_FIRE', 'ARTILLERY_FIRE', 'SURVEILLANCE', 'FIRE_BALLISTA', 'FIRE_SWARM', 'BOMBARD',
   'HARDLINE_TETHER', 'DISCONNECT_TETHER', 'BATTERY_LINK', 'DISCONNECT_BATTERY', 'UNIT_ABILITY',
 ]);
 export const isAbilityCommand = (c: PlayerCommand): c is AbilityCommand => ABILITY_TYPES.has(c.type);
@@ -177,6 +179,8 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
     }
 
     // --- Aimed at a tile ---
+    case 'ARTILLERY_FIRE':
+      return artilleryFire(view, team, command.unitIds, command.target);
     case 'CANNON_FIRE': {
       // Change: any unit could fire this, and the cooldown was set but never checked.
       const u = ownUnit(view, team, command.unitId, TANKS);
@@ -351,9 +355,18 @@ function toggleEach(view: AbilityView, team: Team, ids: readonly string[], types
 function toggleAnchor(view: AbilityView, team: Team, ids: readonly string[], ctx: AbilityContext): AbilityOutcome {
   const updates = new Map<string, (u: UnitData) => UnitData>();
   const spawnUnits: UnitData[] = [];
+  let refused = 'no unit can do that';
   for (const id of ids) {
-    const u = ownUnit(view, team, id, ['sun_plate', 'swarm_host']);
+    const u = ownUnit(view, team, id, ['sun_plate', 'swarm_host', 'howitzer']);
     if (typeof u === 'string') continue;
+    if (u.type === 'howitzer') {
+      // A Thunderhead plants only once it has stopped; packing up drops its fire mission.
+      if (!u.isDeployed && u.path.length > 0) { refused = 'stop the Thunderhead before anchoring'; continue; }
+      const anchoring = !u.isDeployed;
+      const now = ctx.now;
+      updates.set(u.id, h => ({ ...h, isDeployed: anchoring, path: [], anchoredAt: anchoring ? now : undefined, artilleryTarget: null, artilleryAim: null }));
+      continue;
+    }
     if (u.type === 'sun_plate') {
       const anchoring = !u.isDeployed;
       updates.set(u.id, m => ({ ...m, isDeployed: anchoring, path: [], batteryTetherIds: anchoring ? (m.batteryTetherIds || []) : [] }));
@@ -375,7 +388,29 @@ function toggleAnchor(view: AbilityView, team: Team, ids: readonly string[], ctx
       cooldowns: { ...h.cooldowns, spawnCrawler: anchoring ? ABILITY_CONFIG.SWARM_HOST_SPAWN_INTERVAL : 0 },
     }));
   }
-  return updates.size > 0 ? effects({ updates, spawnUnits }) : reject('no unit can do that');
+  return updates.size > 0 ? effects({ updates, spawnUnits }) : reject(refused);
+}
+
+// Sets (or, with no target, clears) the fire mission of every listed anchored Thunderhead that
+// can reach the tile. Range grows with the team's researched tier.
+function artilleryFire(view: AbilityView, team: Team, ids: readonly string[], target: GridPos | undefined): AbilityOutcome {
+  const tier = teamTier(view.economy, team);
+  const updates = new Map<string, (u: UnitData) => UnitData>();
+  let reason = 'no Thunderhead selected';
+  for (const id of ids) {
+    const u = ownUnit(view, team, id, ['howitzer']);
+    if (typeof u === 'string') continue;
+    if (!u.isDeployed) { reason = 'anchor the Thunderhead first'; continue; }
+    if (target && !inArtilleryReach(u.gridPos, target, tier)) {
+      reason = Math.hypot(target.x - u.gridPos.x, target.z - u.gridPos.z) < ARTILLERY.minRange
+        ? 'too close for the guns'
+        : `out of range (${artilleryRange(tier)} tiles at Tier ${tier})`;
+      continue;
+    }
+    const at = target ? { ...target } : null;
+    updates.set(u.id, h => ({ ...h, artilleryTarget: at }));
+  }
+  return updates.size > 0 ? effects({ updates }) : reject(reason);
 }
 
 // Titan smoke and APS. Change: charges were never spent and cooldowns never checked, so

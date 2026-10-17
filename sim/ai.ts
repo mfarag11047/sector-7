@@ -26,6 +26,7 @@ import { isOperational, MAX_QUEUE, OrderCommand, popUsed, teamPopCap, teamTier }
 import { ArmorClass, dps, Tier, UNIT_RULES, unitsProducedBy } from './units';
 import { DOMINATION_NODES } from './victory';
 import { abilitiesFor, abilityCooldownLeft } from './unitAbilities';
+import { artilleryRange, inArtilleryReach } from './artillery';
 
 export interface AiView {
   units: readonly UnitData[];
@@ -286,7 +287,30 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const pushing = mode === 'attack' || mode === 'tech' || mode === 'expand';
   const joined = (u: UnitData) => dist(u.gridPos, staging) <= 8 || dist(u.gridPos, objective) <= dist(staging, objective) + 2;
 
+  const anchorIds: string[] = [];
   for (const u of mine) {
+    if (u.type === 'howitzer') {
+      // Thunderheads trail the army, plant when something is in reach and shell it, and pack up
+      // to follow when nothing is left in range.
+      const reach = (p: GridPos) => inArtilleryReach(u.gridPos, p, tier);
+      const targets = theirs.some(t => UNIT_RULES[t.type].armor !== 'air' && reach(t.gridPos)) ||
+        view.structures.some(s => s.team === enemy && reach(s.gridPos)) ||
+        (mode !== 'gather' && mode !== 'retreat' && reach(objective));
+      if (targets && mode !== 'retreat') {
+        if (!u.isDeployed && u.path.length === 0) anchorIds.push(u.id);
+        if (u.isDeployed || u.path.length === 0) continue;
+      }
+      if (u.isDeployed && mode !== 'retreat' && !pushing) continue;
+      // Stand off short of the objective, toward home.
+      const away = dist(objective, home) || 1;
+      const back = Math.min(away, artilleryRange(tier) * 0.6);
+      const standoff = mode === 'gather' || mode === 'retreat' ? objective : {
+        x: Math.round(objective.x + ((home.x - objective.x) / away) * back),
+        z: Math.round(objective.z + ((home.z - objective.z) / away) * back),
+      };
+      send(u, standoff, false);
+      continue;
+    }
     // Fighters and capturers take orders; Masons, scouts and drones look after themselves.
     if (!FIGHTERS.includes(u.type) && !CAPTURERS.includes(u.type) && u.type !== 'titan_dropped') continue;
     const onGrid = isInsideEnergyGrid(u.gridPos, team, view.buildings, ctx.bases.blue, ctx.bases.red);
@@ -318,6 +342,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   for (const g of groups.values()) {
     actions.push({ kind: 'order', command: { type: 'MOVE', unitIds: g.ids, target: g.target, attackMove: g.attackMove } });
   }
+  if (anchorIds.length > 0) actions.push({ kind: 'ability', command: { type: 'TOGGLE_ANCHOR', unitIds: anchorIds } });
   // Forget orders for units that are gone.
   const living = new Set(mine.map(u => u.id));
   for (const id of Object.keys(mem.lastOrder)) if (!living.has(id)) delete mem.lastOrder[id];
@@ -329,6 +354,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const enemyMix = armorMix(theirs);
   const infantryCount = mine.filter(u => UNIT_RULES[u.type].armor === 'infantry').length;
   const guardians = mine.filter(u => u.type === 'guardian').length;
+  const howitzers = mine.filter(u => u.type === 'howitzer').length;
   // Under attack it gets around to production more often.
   const productionRound = now - mem.lastProductionAt >= (threat ? profile.productionCycleMs / 2 : profile.productionCycleMs);
   if (productionRound) mem.lastProductionAt = now;
@@ -343,7 +369,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     }
     const pick = chooseUnit(s.type, tier, enemyMix, {
       counterAccuracy: profile.counterAccuracy, random: ctx.random,
-      needInfantry: infantryCount < 6, guardians, army: armyUnits.length,
+      needInfantry: infantryCount < 6, guardians, howitzers, army: armyUnits.length,
     });
     if (!pick) continue;
     const cost = unitCost(pick);
@@ -443,12 +469,14 @@ export function chooseUnit(
   producer: StructureType,
   tier: Tier,
   enemyMix: Record<ArmorClass, number>,
-  opts: { counterAccuracy: number; random: () => number; needInfantry: boolean; guardians: number; army: number },
+  opts: { counterAccuracy: number; random: () => number; needInfantry: boolean; guardians: number; army: number; howitzers?: number },
 ): UnitType | null {
   const options = unitsProducedBy(producer).filter(t => FIGHTERS.includes(t) && UNIT_RULES[t].tier <= tier);
   if (options.length === 0) return null;
   if (producer === 'infantry' && opts.needInfantry) return 'trooper';
   if (producer === 'support') return opts.guardians < Math.floor(opts.army / 8) ? 'guardian' : null;
+  // A Thunderhead for every six or so in the army, once there's an army to screen it.
+  if (producer === 'armor' && (opts.howitzers ?? 0) < Math.floor(opts.army / 6) && opts.random() < 0.5) return 'howitzer';
   const fighters = options.filter(t => t !== 'guardian');
   if (opts.random() >= opts.counterAccuracy) return fighters[Math.floor(opts.random() * fighters.length)] ?? null;
   const score = (t: UnitType) => {

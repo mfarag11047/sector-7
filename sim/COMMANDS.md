@@ -27,7 +27,7 @@ Swarm Host spawns and grid charging. They become simulation rules in step 2.
 | `BUILD_WARHEAD` | Ordnance Fab | structure id, warhead | `handleStructureAction` `BUILD_WARHEAD` (~2770) |
 | `TOGGLE_DAMPENER` | Ghost | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `TOGGLE_JAMMER` | Banshee | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
-| `TOGGLE_ANCHOR` | Battery Mule, Swarm Host | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `TOGGLE_ANCHOR` | Battery Mule, Swarm Host, Thunderhead (stationary only) | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `SMOKE_SCREEN` | Titan | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `ACTIVATE_APS` | Titan | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `PHANTOM_DECOY` | Ghost | unit id | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
@@ -36,6 +36,7 @@ Swarm Host spawns and grid charging. They become simulation rules in step 2.
 | `FABRICATE` | Field Fabricator | unit id, warhead | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `RESUPPLY_MATERIAL` | Field Fabricator beside an Ordnance Fab | unit id | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `TRANSFER_WARHEAD` | Field Fabricator → nearest Ballista | unit id, warhead | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `ARTILLERY_FIRE` | Anchored Thunderheads | unit ids, target tile (none to cease fire) | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `CANNON_FIRE` | Titan | unit id, target tile | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `SURVEILLANCE` | Infiltrator Drone | unit id, target tile | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `FIRE_BALLISTA` | Ballista (armed) | unit id, target tile | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |

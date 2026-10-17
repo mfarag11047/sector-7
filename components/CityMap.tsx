@@ -23,6 +23,7 @@ import { FlightEvent, FlightTickResult, LiveFlight, cloneProjectile, drawnShotPo
 import { chargeSources, isInsideEnergyGrid, powerTick } from '../sim/energy';
 import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, guardianRepair, leashStep, slowTick, surveillanceStep } from '../sim/support';
+import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells } from '../sim/artillery';
 import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, resolveAttacks } from '../sim/combat';
 import { generateCity } from '../sim/mapgen';
 import { MatchConfig, STARTING_CORES, aiTeamOf, incomeMultipliers, startingRoster } from '../sim/match';
@@ -403,6 +404,45 @@ const TracerMesh: React.FC<{ tracer: TracerData; tileSize: number; offset: numbe
     return <Line points={points} color={TRACER_COLORS[tracer.type]} lineWidth={tracer.type === 'rifle' ? 1.5 : 3} transparent opacity={0.85} />;
 };
 
+// Thunderhead shells (sim/artillery.ts): a glowing round on a high arc from the gun to where it
+// lands. Enemy shells show only on the way down, so they warn of a barrage without giving the
+// battery away.
+const SHELL_PEAK = 90;
+const ShellMesh: React.FC<{ shell: ArtilleryShell; tileSize: number; offset: number; enemy: boolean }> = ({ shell, tileSize, offset, enemy }) => {
+    const meshRef = useRef<THREE.Mesh>(null);
+    useFrame(() => {
+        const mesh = meshRef.current;
+        if (!mesh) return;
+        const t = Math.min(1, Math.max(0, (Date.now() - shell.firedAt) / (shell.landsAt - shell.firedAt)));
+        mesh.visible = !enemy || t > 0.5;
+        mesh.position.set(
+            ((shell.from.x + (shell.at.x - shell.from.x) * t) * tileSize) - offset,
+            2.5 + 4 * SHELL_PEAK * t * (1 - t),
+            ((shell.from.z + (shell.at.z - shell.from.z) * t) * tileSize) - offset,
+        );
+    });
+    return (
+        <mesh ref={meshRef} visible={false} raycast={() => null}>
+            <sphereGeometry args={[0.9, 8, 6]} />
+            <meshBasicMaterial color="#fdba74" toneMapped={false} />
+        </mesh>
+    );
+};
+
+// Where a selected battery's fire mission is landing: a red reticle on the ground.
+const FireMissionMarker: React.FC<{ at: { x: number; z: number }; tileSize: number; offset: number }> = ({ at, tileSize, offset }) => (
+    <group position={[(at.x * tileSize) - offset, 0.4, (at.z * tileSize) - offset]} rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh raycast={() => null}>
+            <ringGeometry args={[ARTILLERY.splash * tileSize - 1.2, ARTILLERY.splash * tileSize, 32]} />
+            <meshBasicMaterial color="#ef4444" transparent opacity={0.8} toneMapped={false} depthWrite={false} />
+        </mesh>
+        <mesh raycast={() => null}>
+            <ringGeometry args={[1.2, 2.2, 16]} />
+            <meshBasicMaterial color="#ef4444" toneMapped={false} depthWrite={false} />
+        </mesh>
+    </group>
+);
+
 // Explosion Component
 const ExplosionMesh: React.FC<{ explosion: Explosion }> = ({ explosion }) => {
     const meshRef = useRef<THREE.Mesh>(null);
@@ -633,6 +673,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const [explosions, setExplosions] = useState<Explosion[]>([]);
   // Brief weapon tracers from sim/combat.ts shots, cleared after TRACER_MS.
   const [tracers, setTracers] = useState<TracerData[]>([]);
+  // Thunderhead shells in flight. The ref is the authority; the state is for drawing them.
+  const [shells, setShells] = useState<ArtilleryShell[]>([]);
+  const shellsRef = useRef<ArtilleryShell[]>([]);
   
   // Refactored Selection State
   const [selectedUnitIds, setSelectedUnitIds] = useState<Set<string>>(new Set());
@@ -641,7 +684,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   
   const [targetingSourceId, setTargetingSourceId] = useState<string | null>(null);
   // 'UNIT:<ability id>' while aiming a new unit's ability (sim/unitAbilities.ts).
-  const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'BATTERY_TETHER' | 'CANNON' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'SWARM' | 'BOMBARD' | `UNIT:${string}` | null>(null);
+  const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'BATTERY_TETHER' | 'CANNON' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'SWARM' | 'BOMBARD' | 'ARTILLERY' | `UNIT:${string}` | null>(null);
 
   const [baseMenuOpen, setBaseMenuOpen] = useState<'blue' | 'red' | null>(null);
   const [placementMode, setPlacementMode] = useState<{type: StructureType, cost: number} | null>(null);
@@ -816,6 +859,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       },
       // For tests and debugging: issue a checked order for either side, and read the state.
       order: (command: OrderCommand, team: 'blue' | 'red') => dispatchOrderRef.current(command, team),
+      ability: (command: AbilityCommand, team: 'blue' | 'red') => aiCallsRef.current.dispatchAbility(command, team),
+      spawn: (type: UnitType, team: 'blue' | 'red', at: { x: number; z: number }) => {
+          const unit = createUnit(type, team, `cheat-${type}-${Date.now()}`, at);
+          unitsRef.current = [...unitsRef.current, unit];
+          setUnits(prev => [...prev, unit]);
+          return unit.id;
+      },
+      select: (ids: string[]) => setSelectedUnitIds(new Set(ids)),
       state: () => ({ units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, selected: [...selectedUnitIdsRef.current] }),
     };
     return () => { (window as any).GAME_CHEATS = undefined; };
@@ -1420,7 +1471,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       const tileOrders: Record<string, 'SURVEILLANCE' | 'CANNON_FIRE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD'> = {
           SURVEILLANCE: 'SURVEILLANCE', CANNON: 'CANNON_FIRE', MISSILE: 'FIRE_BALLISTA', SWARM: 'FIRE_SWARM', BOMBARD: 'BOMBARD',
       };
-      if (targetingSourceId && targetingAbility?.startsWith('UNIT:')) {
+      if (targetingSourceId && targetingAbility === 'ARTILLERY') {
+          // Every selected Thunderhead joins the fire mission; ones out of reach are refused.
+          const ids = unitsRef.current.filter(u => u.type === 'howitzer' && (u.id === targetingSourceId || selectedUnitIds.has(u.id))).map(u => u.id);
+          dispatchAbility({ type: 'ARTILLERY_FIRE', unitIds: ids, target: { x, z } });
+          clearTargeting();
+      } else if (targetingSourceId && targetingAbility?.startsWith('UNIT:')) {
           // Every selected unit of the same type that is in range joins the strike.
           const ability = targetingAbility.slice(5);
           const source = unitsRef.current.find(u => u.id === targetingSourceId);
@@ -1639,6 +1695,18 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           // Acts on every selected unit of this type, plus the one whose menu was clicked.
           const ids = unitsRef.current.filter(u => u.type === unit.type && (u.id === unitId || selectedUnitIds.has(u.id))).map(u => u.id);
           dispatchAbility({ type: 'UNIT_ABILITY', unitIds: ids, ability });
+          return;
+      }
+      if (action === 'FIRE_MISSION') {
+          if (targetingSourceId === unitId && targetingAbility === 'ARTILLERY') { clearTargeting(); return; }
+          setTargetingSourceId(unitId);
+          setTargetingAbility('ARTILLERY');
+          onNotice?.('Fire mission: click a tile inside the orange ring');
+          return;
+      }
+      if (action === 'CEASE_FIRE') {
+          const ids = unitsRef.current.filter(u => u.type === 'howitzer' && (u.id === unitId || selectedUnitIds.has(u.id))).map(u => u.id);
+          dispatchAbility({ type: 'ARTILLERY_FIRE', unitIds: ids });
           return;
       }
       if (action === 'PHANTOM_DECOY_INIT') { dispatchAbility({ type: 'PHANTOM_DECOY', unitId }); return; }
@@ -2046,6 +2114,31 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               pos => isPointInCloud(pos, nanoClouds, 'nano'),
           );
           attacks.fired.forEach((_, id) => lastShotRef.current.set(id, now));
+
+          // Thunderhead batteries (sim/artillery.ts): ready guns fire, and shells whose flight is
+          // over come down. Their damage joins this tick's weapons fire.
+          const volley = fireArtillery(
+              currentUnitsRef.map(reloaded), structuresRef.current, now,
+              t => (t === 'blue' || t === 'red') ? economyRef.current[t].tier : 1,
+              Math.random, () => `shell-${now}-${Math.random().toString(36).slice(2, 8)}`,
+          );
+          volley.fired.forEach((_, id) => { lastShotRef.current.set(id, now); attacks.fired.set(id, ''); });
+          if (volley.shells.length > 0 || shellsRef.current.length > 0) {
+              const impact = landShells([...shellsRef.current, ...volley.shells], now, currentUnitsRef, structuresRef.current);
+              impact.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+              impact.structureDamage.forEach((n, id) => attacks.structureDamage.set(id, (attacks.structureDamage.get(id) || 0) + n));
+              if (impact.landed.length > 0) {
+                  setExplosions(prev => [...prev, ...impact.landed.map(s => ({
+                      id: `shell-exp-${s.id}`,
+                      position: { x: (s.at.x * CITY_CONFIG.tileSize) - offset, y: 1.5, z: (s.at.z * CITY_CONFIG.tileSize) - offset },
+                      radius: 3.5, duration: 700, createdAt: now,
+                  }))]);
+              }
+              if (volley.shells.length > 0 || impact.landed.length > 0) {
+                  shellsRef.current = impact.flying;
+                  setShells(impact.flying);
+              }
+          }
           if (attacks.shots.length > 0) {
               setTracers(prev => [...prev, ...attacks.shots.map((shot, i) => ({ ...shot, id: `tracer-${now}-${i}`, createdAt: now }))]);
           }
@@ -2171,6 +2264,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                           newUnit.combatTargetId = null;
                           uChanged = true;
                       }
+                      if (volley.fired.has(u.id)) newUnit.artilleryAim = volley.fired.get(u.id);
                       if (attacks.fired.has(u.id)) {
                           newUnit.lastAttackTime = now;
                           // A fired Overcharged Warhead is spent.
@@ -2425,6 +2519,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         {/* Projectiles */}
         {projectiles.map(p => <ProjectileMesh key={p.id} projectile={p} flightRef={flightRef} />)}
         
+        {/* Thunderhead shells, and the fire missions of selected batteries */}
+        {shells.map(s => <ShellMesh key={s.id} shell={s} tileSize={tileSize} offset={offset} enemy={s.team !== playerTeam} />)}
+        {units.filter(u => u.type === 'howitzer' && u.artilleryTarget && u.team === playerTeam && selectedUnitIds.has(u.id))
+            .map(u => <FireMissionMarker key={`fm-${u.id}`} at={u.artilleryTarget!} tileSize={tileSize} offset={offset} />)}
+
         {/* Explosions */}
         {explosions.map(e => <ExplosionMesh key={e.id} explosion={e} />)}
 

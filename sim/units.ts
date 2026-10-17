@@ -20,6 +20,8 @@ export interface Weapon {
   // at splashFactor of the damage. Keeps clumped infantry honest.
   splash?: number;
   splashFactor?: number;
+  // Lobbed shells that land later (the Thunderhead, sim/artillery.ts), not direct fire.
+  indirect?: boolean;
 }
 
 // How hard each damage type hits each armor class.
@@ -59,6 +61,8 @@ export const UNIT_RULES: Record<UnitType, UnitRules> = {
   razorback: { armor: 'light', weapon: rifle(10, 500, 3), pop: 2, tier: 1, producer: 'armor', buildTimeMs: 18000, role: 'Fast raider. Shreds infantry.' },
   sun_plate: { armor: 'heavy', weapon: null, pop: 2, tier: 1, producer: 'armor', buildTimeMs: 20000, role: 'Anchors to power linked vehicles away from the grid.' },
   tank: { armor: 'heavy', weapon: shell(60, 2200, 4), pop: 3, tier: 2, producer: 'armor', buildTimeMs: 30000, role: 'Main battle tank. High-explosive shells flatten infantry and buildings.' },
+  // Its weapon is shown here for menus and balance; it fires through sim/artillery.ts. Range grows with tier.
+  howitzer: { armor: 'light', weapon: { ...shell(70, 5000, 12, 1.6, 0.4), indirect: true }, pop: 3, tier: 1, producer: 'armor', buildTimeMs: 28000, role: 'Long-range artillery. Anchors to shell a target; helpless while moving.' },
   aegis: { armor: 'light', weapon: { damage: 30, cooldownMs: 1200, range: 5, type: 'flak', hitsGround: false, hitsAir: true }, pop: 2, tier: 2, producer: 'armor', buildTimeMs: 20000, role: 'Flak carrier. Clears the sky, helpless on the ground.' },
 
   // --- Airpad: aircraft. Ignore walls and terrain, beat vehicles. ---

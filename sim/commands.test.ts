@@ -7,6 +7,8 @@ describe('isPlayerCommand', () => {
     { type: 'TRAIN_UNIT', structureId: 's1', unitType: 'ghost' },
     { type: 'PLACE_STRUCTURE', structureType: 'wall_tier2', at: { x: 1, z: 2 } },
     { type: 'LOAD_AMMO', unitId: 'b1', warhead: 'he' },
+    { type: 'ARTILLERY_FIRE', unitIds: ['h1'], target: { x: 20, z: 4 } },
+    { type: 'ARTILLERY_FIRE', unitIds: ['h1'] },
     { type: 'DOCTRINE_POWER', tier: 3 },
     { type: 'DOCTRINE_POWER', tier: 2, target: { x: 0, z: 0 } },
   ])('accepts $type', command => {
@@ -28,6 +30,6 @@ describe('isPlayerCommand', () => {
   });
 
   it('covers every command type', () => {
-    expect(COMMAND_TYPES).toHaveLength(29);
+    expect(COMMAND_TYPES).toHaveLength(30);
   });
 });

@@ -10,6 +10,7 @@ import { CITY_CONFIG, STRUCTURE_INFO, TEAM_BASES } from '../constants';
 import type { BuildingData, DoctrineType, RoadType, StructureData, UnitData } from '../types';
 import { abilityEffects, applyUnitEffects } from './abilities';
 import { AiMemory, AI_PROFILES, aiThink, freshAiMemory } from './ai';
+import { ArtilleryShell, fireArtillery, landShells } from './artillery';
 import { captureTick } from './capture';
 import type { GridPos, Team } from './commands';
 import { applyStructureCombat, resolveAttacks } from './combat';
@@ -49,6 +50,8 @@ export interface HeadlessMatch {
   domination: DominationClock;
   victory: Victory | null;
   lastShot: Map<string, number>;
+  // Thunderhead shells in the air.
+  shells: ArtilleryShell[];
   nextId: number;
   // Seeded, so the same options always play out the same match.
   random: () => number;
@@ -81,6 +84,7 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     domination: freshDominationClock(),
     victory: null,
     lastShot: new Map(),
+    shells: [],
     nextId: 0,
     random: seededRandom(opts.seed ^ 0x5eed),
     gridSize,
@@ -146,6 +150,13 @@ export function stepMatch(m: HeadlessMatch): void {
   const attacks = resolveAttacks(m.units.map(reloaded), m.structures.map(reloaded) as never, now, () => false);
   attacks.fired.forEach((_, id) => m.lastShot.set(id, now));
   m.structures = applyStructureCombat(m.structures, attacks, now);
+  // Artillery: new shells go up, and the ones whose flight is over come down.
+  const volley = fireArtillery(m.units.map(reloaded), m.structures, now, team => (team === 'neutral' ? 1 : m.economy[team].tier), m.random, () => `shell-${++m.nextId}`);
+  volley.fired.forEach((_, id) => { m.lastShot.set(id, now); attacks.fired.set(id, ''); });
+  const impact = landShells([...m.shells, ...volley.shells], now, m.units, m.structures);
+  m.shells = impact.flying;
+  impact.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+  if (impact.structureDamage.size > 0) m.structures = applyStructureCombat(m.structures, { structureDamage: impact.structureDamage, fired: new Map(), aiming: new Map() }, now);
 
   // Capture.
   m.buildings = captureTick(m.buildings, m.units);
@@ -178,6 +189,7 @@ export function stepMatch(m: HeadlessMatch): void {
     const draft: UnitData = { ...u };
     const aim = attacks.aiming.get(u.id) ?? null;
     if (attacks.aiming.has(u.id) || u.combatTargetId) draft.combatTargetId = aim;
+    if (volley.fired.has(u.id)) draft.artilleryAim = volley.fired.get(u.id);
     if (attacks.fired.has(u.id)) {
       draft.lastAttackTime = now;
       if (hasBuff(draft, 'overcharge')) draft.buffs = draft.buffs!.filter(b => b.kind !== 'overcharge');

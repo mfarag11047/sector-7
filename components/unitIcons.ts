@@ -22,7 +22,7 @@ export const UNIT_ROLE: Record<UnitType, UnitRole> = {
   wasp: 'gunship', hornet: 'gunship',
   drone: 'scout',
   guardian: 'support', helios: 'support', banshee: 'support',
-  ballista: 'artillery', bombard: 'artillery', mule: 'artillery',
+  ballista: 'artillery', bombard: 'artillery', mule: 'artillery', howitzer: 'artillery',
   mason: 'engineer',
   defense_drone: 'sentinel',
   swarm_host: 'swarm', crawler_drone: 'swarm',

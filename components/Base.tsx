@@ -78,7 +78,7 @@ const Base: React.FC<BaseProps> = ({
   // What each one is for, so a new player knows what to build.
   const PURPOSE: Partial<Record<StructureType, string>> = {
     infantry: 'Troopers, Ghosts, Lancers',
-    armor: 'Razorbacks, Titans, Aegis, Battery Mules',
+    armor: 'Razorbacks, Thunderheads, Titans, Aegis, Battery Mules',
     air: 'Drones, Wasps, Hornets, Bombards',
     support: 'Guardians, Helios, Banshees, Ballistas',
     builder: 'Masons; walls and turrets',

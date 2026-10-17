@@ -79,7 +79,7 @@ export interface BuildingBlock {
   owner: 'blue' | 'red' | null;
 }
 
-export type UnitType = 'drone' | 'tank' | 'ghost' | 'guardian' | 'mule' | 'wasp' | 'mason' | 'helios' | 'sun_plate' | 'ballista' | 'courier' | 'banshee' | 'defense_drone' | 'titan_dropped' | 'swarm_host' | 'crawler_drone' | 'bombard' | 'trooper' | 'lancer' | 'razorback' | 'aegis' | 'hornet';
+export type UnitType = 'drone' | 'tank' | 'ghost' | 'guardian' | 'mule' | 'wasp' | 'mason' | 'helios' | 'sun_plate' | 'ballista' | 'courier' | 'banshee' | 'defense_drone' | 'titan_dropped' | 'swarm_host' | 'crawler_drone' | 'bombard' | 'trooper' | 'lancer' | 'razorback' | 'aegis' | 'hornet' | 'howitzer';
 export type UnitClass = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'defense';
 
 export interface UnitData {
@@ -121,7 +121,12 @@ export interface UnitData {
   cargo?: number;
   constructionTargetId?: string | null;
   isDampenerActive?: boolean;
-  isDeployed?: boolean; // Battery Mule anchor. While planted it cannot move.
+  isDeployed?: boolean; // Battery Mule or Thunderhead anchor. While planted it cannot move.
+  // Thunderhead battery (sim/artillery.ts): when it planted, the tile its fire mission is
+  // shelling, and where its last shell was aimed (for the gun to point at).
+  anchoredAt?: number;
+  artilleryTarget?: { x: number; z: number } | null;
+  artilleryAim?: { x: number; z: number } | null;
   batteryTetherIds?: string[]; // Vehicles the anchored Battery Mule is feeding
   isAnchored?: boolean; // Added for Swarm Host
   anchorTime?: number; // Added for Swarm Host spawn delay logic
