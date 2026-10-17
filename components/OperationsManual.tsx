@@ -8,6 +8,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ABILITY_CONFIG, BUILDING_VALUES, DOCTRINE_CONFIG, STRUCTURE_INFO, UNIT_STATS } from '../constants';
 import type { DoctrineType, StructureType, UnitType } from '../types';
 import { ARTILLERY } from '../sim/artillery';
+import { RADAR } from '../sim/radar';
 import { HQ_INCOME } from '../sim/economy';
 import { abilitiesFor } from '../sim/unitAbilities';
 import {
@@ -38,7 +39,7 @@ const ROLE_INFO: Record<UnitRole, string> = {
   anti_armor: 'Infantry with rockets. Slow and fragile, but they crack vehicles and gunships.',
   raider: 'Fast, light vehicles. Hunt infantry, raid undefended nodes, run before armour arrives.',
   armor: 'Heavy tanks. Slow and expensive; they break infantry blobs and buildings and soak fire.',
-  anti_air: 'Flak vehicles that only shoot aircraft. Escort your army and helpless against ground units.',
+  anti_air: 'Flak vehicles that only shoot aircraft, and long-range radar that spots aircraft and missiles far away. Escort your army; helpless against ground units.',
   gunship: 'Aircraft. Fly straight over the city ignoring roads and terrain, and punish vehicles.',
   scout: 'Unarmed eyes. Spot for your army and for artillery.',
   artillery: 'Long-range and ordnance units. Hit far away, but need protecting up close.',
@@ -84,7 +85,10 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
       { name: 'Activate APS', text: `Active protection shoots down incoming missiles and shells for ${ABILITY_CONFIG.TITAN_APS_DURATION / 1000}s. Limited charges.` },
     ],
   },
-  aegis: { use: 'Flak carrier. Park it with your army when the enemy fields Hornets or Wasps. It cannot hit ground targets at all.' },
+  aegis: {
+    use: 'Flak carrier and air-search radar. Park it with your army when the enemy fields Hornets or Wasps. It cannot hit ground targets at all.',
+    actions: [{ name: 'Air-search radar', text: `Always on: a green sweep ${RADAR.range} tiles across. Enemy aircraft and incoming missiles, shells and drop pods inside it show as red dots on the map and minimap, even in fog. A dot tells you something is there, not what it is. An EMP knocks the radar out.` }],
+  },
   sun_plate: {
     use: 'Mobile power. Plant it beyond your energy grid so vehicles can keep going.',
     actions: [
@@ -664,6 +668,7 @@ const InterfaceTab: React.FC<{ color: string }> = ({ color }) => (
       <Item label={<span className="flex items-center gap-2"><RoleBadge role="infantry" color={color} size={18} /> Role badges</span>}>Above each unit you can see. A unit's badge hides while it is selected.</Item>
       <Item label="Rings">Team-coloured ring: selected. Coloured ring at a unit's feet: an ability is running (electric indigo with blue static: knocked out by an EMP). Orange ring: a Thunderhead's range. Red reticle: its fire mission. Yellow ring: a Battery Mule's reach. Blue ring: a Banshee's tether leash.</Item>
       <Item label="Bars">Health, and battery for vehicles and aircraft, over damaged or selected units.</Item>
+      <Item label="Radar">A green sweeping circle around your Aegis is its radar. Red pulsing dots inside it (and on the minimap) are enemy aircraft or ordnance it has picked up but nothing can see yet.</Item>
       <Item label="Incoming fire">Glowing shells dropping from the sky are enemy artillery: move out from under them. A blue crackling zone is an energy grid blacked out by an EMP.</Item>
     </div>
   </div>

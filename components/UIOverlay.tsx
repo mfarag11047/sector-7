@@ -830,6 +830,11 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                   </>
               )}
 
+              {/* Aegis radar coverage, faint green */}
+              {(minimapData.radars || []).map((r, i) => (
+                  <circle key={`radar-${i}`} cx={r.x + 0.5} cy={r.z + 0.5} r={r.range} fill="rgba(34,197,94,0.06)" stroke="#22c55e" strokeOpacity={0.5} strokeWidth={0.25} />
+              ))}
+
               {/* Units Layer - Uses visibleUnits (Filtered by Fog of War) */}
               {visibleUnits.map((u) => {
                   const role = UNIT_ROLE[u.type] ?? 'infantry';
@@ -842,6 +847,13 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                       </g>
                   );
               })}
+
+              {/* Radar contacts: something is there, not what. Pulsing red dots. */}
+              {(minimapData.radarContacts || []).map(c => (
+                  <circle key={`contact-${c.id}`} cx={c.x + 0.5} cy={c.z + 0.5} r={0.7} fill="#ff5a46" stroke="#fff1ee" strokeWidth={0.2}>
+                      <animate attributeName="r" values="0.55;0.9;0.55" dur="1s" repeatCount="indefinite" />
+                  </circle>
+              ))}
 
               {/* Viewfinder Overlay */}
               <MinimapViewfinder 

@@ -205,6 +205,15 @@ listed as damage / cooldown / range.
   Transfer Warhead, not trained.
 - **Command HQ:** 5000 HP; AP 30 / 1.0 s / 5, hits air.
 
+## Aegis air-search radar
+
+Every working Aegis (not EMP-disabled or stunned) carries an air-search radar, always on, reaching
+16 tiles (`sim/radar.ts`). It picks up enemy aircraft and large ordnance in flight (ballistic
+missiles, Thunderhead shells, drop pods; not small arms or swarm darts). A contact that nothing
+of yours can see shows only as a pulsing red dot, on the map and the minimap: radar says
+something is there, not what it is. Enemy missiles no longer show on the minimap otherwise.
+Your Aegis draw their coverage as a green circle with a sweeping beam.
+
 ## EMP
 
 Anything that runs on a battery (vehicles and aircraft, not infantry) caught in an EMP shuts down:

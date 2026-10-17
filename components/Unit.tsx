@@ -11,6 +11,7 @@ import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
 import { AegisModel, HornetModel, LancerLauncher, RazorbackModel, ThunderheadModel, TrooperKit } from './unitModels';
 import { ARTILLERY, artilleryRange } from '../sim/artillery';
+import { RADAR } from '../sim/radar';
 import { follow, predictPosition, simClock, walkAlong } from './glide';
 
 // Helper component for spinning rotors
@@ -37,6 +38,48 @@ const BUFF_COLORS: Record<NonNullable<UnitData['buffs']>[number]['kind'], string
   stim: '#f43f5e', nanoweave: '#a3e635', overcharge: '#facc15', nitro: '#fb923c', overclock: '#f97316',
   barrage: '#38bdf8', radar: '#22d3ee', afterburner: '#fb923c', emp: '#818cf8',
 };
+// Aegis air-search radar: a wide green circle with range rings and a sweeping beam that leaves
+// a fading trail. Flat on the ground under the vehicle; brighter while it is selected.
+const RADAR_GREEN = '#22c55e';
+const RadarSweep: React.FC<{ radius: number; y: number; strong: boolean }> = ({ radius, y, strong }) => {
+  const beam = useRef<THREE.Group>(null);
+  useFrame((_, delta) => {
+    const b = beam.current;
+    if (!b) return;
+    b.rotation.y -= delta * 1.6;
+  });
+  const a = strong ? 1 : 0.6;
+  return (
+    <group position={[0, y, 0]}>
+      <group rotation={[-Math.PI / 2, 0, 0]}>
+        <mesh raycast={() => null}>
+          <ringGeometry args={[radius - 1.4, radius, 128]} />
+          <meshBasicMaterial color={RADAR_GREEN} transparent opacity={0.75 * a} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
+        </mesh>
+        {[1 / 3, 2 / 3].map(f => (
+          <mesh key={f} raycast={() => null}>
+            <ringGeometry args={[radius * f - 0.4, radius * f + 0.4, 96]} />
+            <meshBasicMaterial color={RADAR_GREEN} transparent opacity={0.25 * a} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
+          </mesh>
+        ))}
+        <mesh raycast={() => null}>
+          <circleGeometry args={[radius, 96]} />
+          <meshBasicMaterial color={RADAR_GREEN} transparent opacity={0.04 * a} toneMapped={false} depthWrite={false} />
+        </mesh>
+      </group>
+      {/* The beam and its fading trail: wedges of decreasing brightness behind the leading edge. */}
+      <group ref={beam}>
+        {[0.45, 0.25, 0.12, 0.05].map((o, i) => (
+          <mesh key={i} rotation={[-Math.PI / 2, 0, i * 0.22]} position={[0, 0.05 * i, 0]} raycast={() => null}>
+            <circleGeometry args={[radius, 32, 0, 0.24]} />
+            <meshBasicMaterial color={RADAR_GREEN} transparent opacity={o * a} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  );
+};
+
 // Static crackling over a unit an EMP has shut down.
 const EmpStatic: React.FC<{ size: number }> = ({ size }) => {
   const ref = useRef<THREE.Mesh>(null);
@@ -148,6 +191,8 @@ interface UnitProps {
   combatTargetId?: string | null;
   buffs?: UnitData['buffs'];
   abilityReadyAt?: Record<string, number>;
+  // Aegis with a working radar on the player's side: draw its sweep (sim/radar.ts).
+  showRadar?: boolean;
   // Thunderhead (sim/artillery.ts)
   anchoredAt?: number;
   artilleryTarget?: { x: number; z: number } | null;
@@ -277,7 +322,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, showRadar, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -403,7 +448,9 @@ const Unit: React.FC<UnitProps> = ({
   useFrame((state, delta) => {
     let isVisible = true;
     if (meshRef.current) {
-        isVisible = isObjectInFrustum(meshRef.current, 15);
+        // Units with a wide ring on the ground stay drawn while any of the ring is on screen.
+        const cullRadius = showRadar ? RADAR.range * tileSize : (isHowitzer && isDeployed ? artilleryRange(howitzerTier) * tileSize : 15);
+        isVisible = isObjectInFrustum(meshRef.current, cullRadius);
         if (meshRef.current.visible !== isVisible) {
             meshRef.current.visible = isVisible;
         }
@@ -1080,6 +1127,7 @@ const Unit: React.FC<UnitProps> = ({
         </group>
       )}
       {isHacked && hackerPos && (<group><Line points={[[0, 1, 0],[hackerPos.x - meshRef.current!.position.x, hackerPos.y - meshRef.current!.position.y, hackerPos.z - meshRef.current!.position.z]]} color="#c084fc" lineWidth={1} transparent opacity={0.5}/><mesh position={[0, 1.5, 0]} raycast={() => null}><octahedronGeometry args={[0.5]} /><meshBasicMaterial color="#c084fc" wireframe /></mesh></group>)}
+      {showRadar && <RadarSweep radius={RADAR.range * tileSize} y={-hoverHeight + 0.35} strong={isSelected || !!actionMenuOpen} />}
       {/* Knocked out by an EMP: a shell of blue static flickering over the machine. */}
       {buffs?.some(b => b.kind === 'emp') && <EmpStatic size={hoverHeight > 20 ? 5 : 4} />}
       {isJammed && (<mesh position={[0, 2, 0]} raycast={() => null}><sphereGeometry args={[1]} /><meshBasicMaterial color="#ffffff" wireframe transparent opacity={0.3} /></mesh>)}

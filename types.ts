@@ -288,6 +288,9 @@ export interface MinimapData {
     gridSize: number;
     selectedUnitIds?: string[];
     missiles?: MinimapMissile[];
+    // Aegis radar: enemy contacts as plain dots, and where your radars are.
+    radarContacts?: { id: string; x: number; z: number }[];
+    radars?: { x: number; z: number; range: number }[];
 }
 
 export interface DecoyData {
