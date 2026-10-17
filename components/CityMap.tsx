@@ -20,7 +20,7 @@ import { simClock } from './glide';
 import { AbilityCommand, abilityEffects, applyUnitEffects, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
 import { Warhead } from '../sim/commands';
 import { FlightEvent, FlightTickResult, LiveFlight, cloneProjectile, drawnShotPosition, sampleBallistic, stepProjectiles } from '../sim/projectiles';
-import { chargeSources, isInsideEnergyGrid, powerTick } from '../sim/energy';
+import { Blackout, chargeSources, isInsideEnergyGrid, powerTick } from '../sim/energy';
 import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, guardianRepair, leashStep, slowTick, surveillanceStep } from '../sim/support';
 import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells } from '../sim/artillery';
@@ -32,7 +32,7 @@ import { OrderCommand, applyOrderToStructures, applyOrderToUnits, orderEffects, 
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
 import { isAirType } from '../sim/units';
 import { airPath, fastestPath } from '../sim/pathfinding';
-import { abilitiesFor, abilityDef, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
+import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
 import { Victory, checkVictory, dominationRemaining, freshDominationClock } from '../sim/victory';
 import type { MatchSummary } from './MatchScreens';
 import { Economy, createEconomy, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
@@ -223,7 +223,9 @@ const DetailedMissileModel = ({ color }: { color: string }) => {
 };
 
 // CloudMesh Component
-const CloudMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number; playerTeam: 'blue' | 'red' }> = ({ cloud, tileSize, offset, playerTeam }) => {
+const CloudMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number; playerTeam: 'blue' | 'red' }> = (props) =>
+    props.cloud.type === 'emp' ? <EmpFieldMesh cloud={props.cloud} tileSize={props.tileSize} offset={props.offset} /> : <SmokeCloudMesh {...props} />;
+const SmokeCloudMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number; playerTeam: 'blue' | 'red' }> = ({ cloud, tileSize, offset, playerTeam }) => {
     const meshRef = useRef<THREE.Mesh>(null);
     
     useFrame((state) => {
@@ -253,9 +255,6 @@ const CloudMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number; 
         const isFriendly = cloud.team === playerTeam;
         color = isFriendly ? "#10b981" : "#ef4444"; // Green if friendly, Red if enemy
         opacity = 0.3;
-    } else if (cloud.type === 'eclipse') {
-        color = "#c084fc"; // Purple
-        opacity = 0.5;
     } else if (cloud.type === 'he') {
         color = "#fdba74"; // Orange/White
         opacity = 0.4;
@@ -357,7 +356,7 @@ const ProjectileMesh: React.FC<{ projectile: Projectile; flightRef: React.Mutabl
     }
 
     if (projectile.trajectory === 'ballistic') {
-        const payloadColor = projectile.payload === 'eclipse' ? '#c084fc' : (projectile.payload === 'nuke' ? '#f59e0b' : '#ef4444');
+        const payloadColor = projectile.payload === 'emp' ? EMP_BLUE : (projectile.payload === 'nuke' ? '#f59e0b' : '#ef4444');
         return (
             <group ref={meshRef}>
                  <DetailedMissileModel color={payloadColor} />
@@ -443,8 +442,133 @@ const FireMissionMarker: React.FC<{ at: { x: number; z: number }; tileSize: numb
     </group>
 );
 
+// --- EMP visuals: blue energy discharge rather than fire ---
+
+// Jagged lightning from the centre outward, as flat point lists for drei's Line.
+function lightningBolts(count: number, reach: number, seed: number): [number, number, number][][] {
+    let s = seed;
+    const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647; };
+    return Array.from({ length: count }, () => {
+        const angle = rnd() * Math.PI * 2;
+        const length = reach * (0.45 + rnd() * 0.55);
+        const steps = 6;
+        const pts: [number, number, number][] = [[0, 2, 0]];
+        for (let i = 1; i <= steps; i++) {
+            const d = (length * i) / steps;
+            const jitter = (rnd() - 0.5) * reach * 0.18;
+            pts.push([Math.cos(angle) * d - Math.sin(angle) * jitter, 1 + rnd() * 4, Math.sin(angle) * d + Math.cos(angle) * jitter]);
+        }
+        return pts;
+    });
+}
+
+const EMP_CORE = '#e0f2fe';
+const EMP_BLUE = '#38bdf8';
+const EMP_INDIGO = '#818cf8';
+
+// An EMP going off: a white-blue flash, two shockwave rings racing out to the blast radius and
+// lightning crackling across it, flickering between three sets of bolts.
+const EmpDischargeMesh: React.FC<{ explosion: Explosion }> = ({ explosion }) => {
+    const R = explosion.radius;
+    const flash = useRef<THREE.Mesh>(null);
+    const ring1 = useRef<THREE.Mesh>(null);
+    const ring2 = useRef<THREE.Mesh>(null);
+    const bolts = useRef<THREE.Group>(null);
+    const sets = useMemo(() => [0, 1, 2].map(i => lightningBolts(R > 40 ? 10 : 6, R, explosion.createdAt % 100000 + i * 7919 + 1)), [R, explosion.createdAt]);
+    useFrame(() => {
+        const t = Math.min(1, Math.max(0, (Date.now() - explosion.createdAt) / explosion.duration));
+        const fade = 1 - t;
+        if (flash.current) {
+            flash.current.scale.setScalar(0.3 + t * 1.2);
+            (flash.current.material as THREE.MeshBasicMaterial).opacity = Math.max(0, 0.9 - t * 2.2);
+        }
+        const ease = 1 - Math.pow(1 - t, 3);
+        if (ring1.current) {
+            ring1.current.scale.setScalar(Math.max(0.01, ease));
+            (ring1.current.material as THREE.MeshBasicMaterial).opacity = 0.9 * fade;
+        }
+        if (ring2.current) {
+            const t2 = Math.max(0, (t - 0.15) / 0.85);
+            ring2.current.scale.setScalar(Math.max(0.01, 1 - Math.pow(1 - t2, 3)) * 0.8);
+            (ring2.current.material as THREE.MeshBasicMaterial).opacity = 0.7 * fade;
+        }
+        if (bolts.current) {
+            const pick = Math.floor(Date.now() / 70) % 3;
+            bolts.current.children.forEach((c, i) => { c.visible = i === pick && t < 0.85 && Math.random() > 0.15; });
+        }
+    });
+    return (
+        <group position={[explosion.position.x, 0.6, explosion.position.z]}>
+            <mesh ref={flash} position={[0, 2, 0]} raycast={() => null}>
+                <sphereGeometry args={[Math.max(3, R * 0.22), 20, 14]} />
+                <meshBasicMaterial color={EMP_CORE} transparent opacity={0.9} toneMapped={false} depthWrite={false} blending={THREE.AdditiveBlending} />
+            </mesh>
+            <mesh ref={ring1} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+                <ringGeometry args={[R * 0.9, R, 64]} />
+                <meshBasicMaterial color={EMP_BLUE} transparent opacity={0.9} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+            </mesh>
+            <mesh ref={ring2} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+                <ringGeometry args={[R * 0.93, R, 64]} />
+                <meshBasicMaterial color={EMP_INDIGO} transparent opacity={0.7} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} />
+            </mesh>
+            <group ref={bolts}>
+                {sets.map((set, i) => (
+                    <group key={i} visible={false}>
+                        {set.map((pts, j) => <Line key={j} points={pts} color={j % 2 ? EMP_CORE : EMP_BLUE} lineWidth={2} transparent opacity={0.95} toneMapped={false} />)}
+                    </group>
+                ))}
+            </group>
+        </group>
+    );
+};
+
+// A grid blacked out by an EMP missile: a faint blue disc with a bright, flickering edge and
+// sparks of static, fading out over the last few seconds.
+const EmpFieldMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number }> = ({ cloud, tileSize, offset }) => {
+    const R = cloud.radius * tileSize;
+    const disc = useRef<THREE.Mesh>(null);
+    const edge = useRef<THREE.Mesh>(null);
+    const sparks = useRef<THREE.Group>(null);
+    const sets = useMemo(() => [0, 1, 2, 3].map(i => lightningBolts(3, R * 0.6, cloud.createdAt % 100000 + i * 104729 + 3)), [R, cloud.createdAt]);
+    useFrame(state => {
+        const left = cloud.duration - (Date.now() - cloud.createdAt);
+        const fade = Math.max(0, Math.min(1, left / 3000));
+        const flicker = 0.75 + 0.25 * Math.sin(state.clock.elapsedTime * 23) * Math.sin(state.clock.elapsedTime * 7.3);
+        if (disc.current) (disc.current.material as THREE.MeshBasicMaterial).opacity = 0.13 * fade;
+        if (edge.current) (edge.current.material as THREE.MeshBasicMaterial).opacity = 0.85 * fade * flicker;
+        if (sparks.current) {
+            const pick = Math.floor(state.clock.elapsedTime * 6) % 4;
+            sparks.current.children.forEach((c, i) => { c.visible = i === pick && fade > 0.2 && Math.random() > 0.5; });
+            sparks.current.rotation.y = state.clock.elapsedTime * 0.4;
+        }
+    });
+    return (
+        <group position={[(cloud.gridPos.x * tileSize) - offset, 0.5, (cloud.gridPos.z * tileSize) - offset]}>
+            <mesh ref={disc} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+                <circleGeometry args={[R, 64]} />
+                <meshBasicMaterial color={EMP_BLUE} transparent opacity={0.13} toneMapped={false} depthWrite={false} />
+            </mesh>
+            <mesh ref={edge} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.1, 0]} raycast={() => null}>
+                <ringGeometry args={[R - 1.2, R, 96]} />
+                <meshBasicMaterial color={EMP_BLUE} transparent opacity={0.85} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
+            </mesh>
+            <group ref={sparks}>
+                {sets.map((set, i) => (
+                    <group key={i} visible={false}>
+                        {set.map((pts, j) => <Line key={j} points={pts} color={EMP_CORE} lineWidth={1.5} transparent opacity={0.8} toneMapped={false} />)}
+                    </group>
+                ))}
+            </group>
+        </group>
+    );
+};
+
 // Explosion Component
 const ExplosionMesh: React.FC<{ explosion: Explosion }> = ({ explosion }) => {
+    if (explosion.style === 'emp') return <EmpDischargeMesh explosion={explosion} />;
+    return <FireballMesh explosion={explosion} />;
+};
+const FireballMesh: React.FC<{ explosion: Explosion }> = ({ explosion }) => {
     const meshRef = useRef<THREE.Mesh>(null);
     useFrame(() => {
         if(meshRef.current) {
@@ -785,6 +909,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   position: event.position,
                   radius: event.radius,
                   duration: event.duration,
+                  style: event.style,
                   createdAt: now,
               });
           } else if (event.kind === 'damage') {
@@ -792,20 +917,29 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           } else if (event.kind === 'decoy') {
               poppedDecoys.push(event.id);
           } else if (event.kind === 'cloud') {
-              const radius = event.cloudType === 'nano' ? ABILITY_CONFIG.NANO_CLOUD_RADIUS : ABILITY_CONFIG.ECLIPSE_RADIUS;
-              const duration = event.cloudType === 'nano' ? ABILITY_CONFIG.NANO_CLOUD_DURATION : ABILITY_CONFIG.ECLIPSE_DURATION;
-              setClouds(prev => [...prev, {
-                  id: `cloud-${now}-${Math.random()}`,
-                  type: event.cloudType,
-                  gridPos: {
-                      x: Math.round((event.position.x + offset) / CITY_CONFIG.tileSize),
-                      z: Math.round((event.position.z + offset) / CITY_CONFIG.tileSize),
-                  },
-                  radius,
-                  duration,
-                  createdAt: now,
-                  team: event.team,
-              }]);
+              const radius = event.cloudType === 'nano' ? ABILITY_CONFIG.NANO_CLOUD_RADIUS : ABILITY_CONFIG.EMP_RADIUS;
+              const duration = event.cloudType === 'nano' ? ABILITY_CONFIG.NANO_CLOUD_DURATION : ABILITY_CONFIG.EMP_DURATION;
+              const gridPos = {
+                  x: Math.round((event.position.x + offset) / CITY_CONFIG.tileSize),
+                  z: Math.round((event.position.z + offset) / CITY_CONFIG.tileSize),
+              };
+              const cloud: CloudData = { id: `cloud-${now}-${Math.random()}`, type: event.cloudType, gridPos, radius, duration, createdAt: now, team: event.team };
+              // Refs too, so this same tick's charging already sees the blackout.
+              cloudsRef.current = [...cloudsRef.current, cloud];
+              setClouds(prev => [...prev, cloud]);
+              if (event.cloudType === 'emp') {
+                  // EMP missile: the enemy grid goes dark inside the blast (the cloud is the
+                  // blackout), and every enemy vehicle and aircraft caught in it shuts down.
+                  const victims = new Set(empVictims(unitsRef.current, gridPos, radius, event.team).map(u => u.id));
+                  if (victims.size > 0) {
+                      const shutDown = (list: UnitData[]) => list.map(u => victims.has(u.id) ? addBuff(u, 'emp', now + duration) : u);
+                      unitsRef.current = shutDown(unitsRef.current);
+                      setUnits(shutDown);
+                  }
+                  onNoticeRef.current?.(event.team === playerTeam
+                      ? `EMP hit: enemy grid down and ${victims.size} machine${victims.size === 1 ? '' : 's'} disabled for ${duration / 1000}s`
+                      : `Enemy EMP: your grid is down in the blast for ${duration / 1000}s`, event.team === playerTeam ? undefined : 'warn');
+              }
           } else if (event.kind === 'titan') {
               const targetPos = event.position;
               const team = event.team;
@@ -845,6 +979,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   useEffect(() => { blocksRef.current = blocks; }, [blocks]);
   useEffect(() => { buildingsRef.current = buildings; }, [buildings]);
   useEffect(() => { cloudsRef.current = clouds; }, [clouds]);
+  // EMP missile blackouts still in effect: the enemy grid is down inside each (sim/energy.ts).
+  const activeBlackouts = (): Blackout[] => cloudsRef.current.filter(c => c.type === 'emp' && Date.now() - c.createdAt < c.duration);
   useEffect(() => { structuresRef.current = structuresState; }, [structuresState]);
   useEffect(() => { selectedUnitIdsRef.current = selectedUnitIds; }, [selectedUnitIds]);
 
@@ -1044,6 +1180,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
     });
     return visible;
   }, [units, playerTeam, clouds]);
+  const visibleUnitIdsRef = useRef(visibleUnitIds);
+  visibleUnitIdsRef.current = visibleUnitIds;
 
 
   const breachedTiles = useMemo(() => {
@@ -1304,6 +1442,15 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   }
                   return u;
               }));
+              // A blue discharge over every stunned unit the player can see (never revealing hidden ones).
+              const now = Date.now();
+              const hit = unitsRef.current.filter(u => u.team !== team && u.team !== 'neutral' && u.health > 0 &&
+                  (u.team === playerTeam || visibleUnitIdsRef.current.has(u.id))).slice(0, 40);
+              setExplosions(prev => [...prev, ...hit.map((u, i) => ({
+                  id: `gemp-${now}-${i}`,
+                  position: { x: (u.gridPos.x * tileSize) - offset, y: 1.5, z: (u.gridPos.z * tileSize) - offset },
+                  radius: tileSize * 1.3, duration: 900 + (i % 5) * 120, createdAt: now + (i % 7) * 60, style: 'emp' as const,
+              }))]);
           }
           else if (type === 'SKUNKWORKS_TIER2') {
               // Nano Cloud Projectile Volley
@@ -1411,7 +1558,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (structuresState.some(s => s.gridPos.x === x && s.gridPos.z === z)) return false;
       if (buildings.some(b => b.gridX === x && b.gridZ === z)) return false;
       // You can only build where you hold power: around the HQ and captured buildings.
-      if (!isInsideEnergyGrid({ x, z }, playerTeam, buildings, baseA_Coord, baseB_Coord)) return false;
+      if (!isInsideEnergyGrid({ x, z }, playerTeam, buildings, baseA_Coord, baseB_Coord, activeBlackouts())) return false;
       // The structure occupies its own tile, so the Mason needs a road beside it.
       const beside = [
           {x: x + 1, z}, {x: x - 1, z}, {x, z: z + 1}, {x, z: z - 1},
@@ -1540,7 +1687,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
   const dispatchOrder = (command: OrderCommand, team: 'blue' | 'red' = playerTeam, quiet = false): boolean => {
       const outcome = orderEffects(
-          { units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current },
+          { units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, blackouts: activeBlackouts() },
           team,
           command,
           {
@@ -1604,7 +1751,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (fx.strike) {
           const at = { x: fx.strike.at.x * tileSize - offset, y: 1.5, z: fx.strike.at.z * tileSize - offset };
           const now = Date.now();
-          setExplosions(prev => [...prev, { id: `strike-${now}-${spawnCounterRef.current++}`, position: at, radius: fx.strike!.radius * tileSize * 0.6, duration: fx.strike!.kind === 'emp' ? 900 : 700, createdAt: now }]);
+          const emp = fx.strike.kind === 'emp';
+          setExplosions(prev => [...prev, { id: `strike-${now}-${spawnCounterRef.current++}`, position: at, radius: fx.strike!.radius * tileSize * (emp ? 1 : 0.6), duration: emp ? 1100 : 700, createdAt: now, style: emp ? 'emp' : undefined }]);
       }
       return true;
   };
@@ -1670,7 +1818,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       'FIRE_SWARM': 'SWARM',
       'BOMBARD': 'BOMBARD',
   };
-  const warheadIn = (action: string): Warhead => action.endsWith('ECLIPSE') ? 'eclipse' : 'he';
+  const warheadIn = (action: string): Warhead => action.endsWith('EMP') ? 'emp' : 'he';
 
   const handleUnitAction = (unitId: string, action: string) => {
       const unit = unitsRef.current.find(u => u.id === unitId);
@@ -1758,8 +1906,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (!struct) return;
 
       if (action === 'BUILD_WARHEAD' && struct.type === 'ordnance_fab' && !struct.isBlueprint) {
-          const item = payload as 'eclipse' | 'he';
-          if (item !== 'eclipse' && item !== 'he') return;
+          const item = payload as 'emp' | 'he';
+          if (item !== 'emp' && item !== 'he') return;
           if (struct.production?.active) return;
           const cost = warheadCost(item);
           const totalTime = warheadBuildTime(item);
@@ -2098,6 +2246,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               return active.length === prev.length ? prev : active;
           });
           const burningClouds = cloudsRef.current.filter(c => c.type === 'he' && now - c.createdAt < c.duration);
+          const blackouts = activeBlackouts();
 
           // Weapons fire for every armed unit, HQ and Sentry Turret (sim/combat.ts). Worked out
           // once here, outside any state updater. lastShotRef is the authority on reloads, since
@@ -2316,7 +2465,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       if (powerTick(u, newUnit, {
                           units: activeUnits,
                           sources: power,
-                          onGrid: isInsideEnergyGrid(u.gridPos, u.team, buildingsRef.current, baseA_Coord, baseB_Coord),
+                          onGrid: isInsideEnergyGrid(u.gridPos, u.team, buildingsRef.current, baseA_Coord, baseB_Coord, blackouts),
                           inNanoCloud: isPointInCloud(u.gridPos, activeClouds, 'nano'),
                           helios: chargers,
                       })) uChanged = true;

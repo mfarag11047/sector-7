@@ -138,7 +138,7 @@ export function fabricationStep(u: UnitData, draft: UnitData, doctrine: Doctrine
   }
   const material = u.ordnanceMaterial || 0;
   if (material > 0) {
-    const inv = { eclipse: u.missileInventory?.eclipse || 0, he: u.missileInventory?.he || 0 };
+    const inv = { emp: u.missileInventory?.emp || 0, he: u.missileInventory?.he || 0 };
     inv[u.fabrication.item] += 1;
     draft.ordnanceMaterial = material - 1;
     draft.missileInventory = inv;

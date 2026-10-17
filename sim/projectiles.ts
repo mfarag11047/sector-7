@@ -8,7 +8,7 @@
 // unchanged and were moved here from CityMap.tsx.
 
 import { ABILITY_CONFIG, CITY_CONFIG, STRUCTURE_INFO } from '../constants';
-import type { BuildingData, CloudData, DecoyData, Projectile, StructureData, UnitData } from '../types';
+import type { BuildingData, CloudData, DecoyData, Explosion, Projectile, StructureData, UnitData } from '../types';
 import { isAirType } from './units';
 
 // Ballistic missiles are a closed-form arc, so the mesh can follow the same
@@ -34,10 +34,10 @@ export const sampleBallistic = (p: Projectile, nowMs: number) => {
 export type LiveFlight = { shot: Projectile; impacted: boolean };
 
 export type FlightEvent =
-    | { kind: 'explosion'; position: { x: number; y: number; z: number }; radius: number; duration: number }
+    | { kind: 'explosion'; position: { x: number; y: number; z: number }; radius: number; duration: number; style?: Explosion['style'] }
     | { kind: 'damage'; position: { x: number; y: number; z: number }; radius: number; damage: number; team: UnitData['team'] }
     | { kind: 'decoy'; id: string }
-    | { kind: 'cloud'; cloudType: 'nano' | 'eclipse'; position: { x: number; y: number; z: number }; team: CloudData['team'] }
+    | { kind: 'cloud'; cloudType: 'nano' | 'emp'; position: { x: number; y: number; z: number }; team: CloudData['team'] }
     | { kind: 'titan'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' };
 
 export const cloneProjectile = (p: Projectile): Projectile => ({
@@ -50,7 +50,7 @@ export const cloneProjectile = (p: Projectile): Projectile => ({
 
 // Trophy systems stop heavy ordnance only. Small-arms fire and swarm darts are not shots it can catch.
 export const isHeavyOrdnance = (p: Projectile) => {
-    if (p.trajectory === 'ballistic' && (p.payload === 'eclipse' || p.payload === 'he' || p.payload === 'nuke')) return true;
+    if (p.trajectory === 'ballistic' && (p.payload === 'emp' || p.payload === 'he' || p.payload === 'nuke')) return true;
     if (p.trajectory === 'direct' && !p.payload && p.damage >= ABILITY_CONFIG.TITAN_CANNON_DAMAGE) return true;
     return false;
 };
@@ -93,6 +93,12 @@ export const advanceFlight = (
 
         const events: FlightEvent[] = [];
         const isNuke = p.payload === 'nuke';
+        if (p.payload === 'emp') {
+            // A blue energy discharge the size of the blast, not a fireball.
+            events.push({ kind: 'explosion', position: p.targetPos, radius: ABILITY_CONFIG.EMP_RADIUS * tileSize, duration: 1400, style: 'emp' });
+            events.push({ kind: 'cloud', cloudType: 'emp', position: p.targetPos, team: p.team });
+            return events;
+        }
         events.push({
             kind: 'explosion',
             position: p.targetPos,
@@ -105,7 +111,6 @@ export const advanceFlight = (
             events.push({ kind: 'damage', position: p.targetPos, damage: 150, radius: 4 * tileSize, team: p.team });
         }
         if (p.payload === 'nano_cloud_master') events.push({ kind: 'cloud', cloudType: 'nano', position: p.targetPos, team: p.team });
-        else if (p.payload === 'eclipse') events.push({ kind: 'cloud', cloudType: 'eclipse', position: p.targetPos, team: p.team });
         return events;
     }
 

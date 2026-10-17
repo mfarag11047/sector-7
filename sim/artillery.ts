@@ -11,7 +11,7 @@
 
 import type { StructureData, UnitData } from '../types';
 import type { GridPos } from './commands';
-import { damageTakenMultiplier, visionOf } from './unitAbilities';
+import { damageTakenMultiplier, isEmpDisabled, visionOf } from './unitAbilities';
 import { ArmorClass, DAMAGE_MULTIPLIER, Tier, UNIT_RULES } from './units';
 
 export const ARTILLERY = {
@@ -77,7 +77,7 @@ export function fireArtillery(
   const shells: ArtilleryShell[] = [];
   const fired = new Map<string, GridPos>();
   for (const u of units) {
-    if (u.health <= 0 || u.isStunned || !isArtilleryReady(u, now)) continue;
+    if (u.health <= 0 || u.isStunned || isEmpDisabled(u) || !isArtilleryReady(u, now)) continue;
     if (now - (u.lastAttackTime || 0) < ARTILLERY.cooldownMs) continue;
     const tier = tierOf(u.team);
     let aim: GridPos | null = u.artilleryTarget && inArtilleryReach(u.gridPos, u.artilleryTarget, tier) ? u.artilleryTarget : null;

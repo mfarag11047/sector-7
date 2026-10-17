@@ -4,7 +4,8 @@
 // free and only spend it on abilities. The grid is a circle around the command base plus
 // a smaller one around every captured building (core nodes pay cores instead). Units
 // standing in it recharge, as do units near a Helios, tethered to a Banshee or linked to an
-// anchored Battery Mule. Nano clouds block Helios charging but not the grid.
+// anchored Battery Mule. Nano clouds block Helios charging but not the grid. An EMP missile
+// blacks out the enemy's grid inside its blast for a while (see Blackout).
 //
 // Moved out of the main loop in CityMap.tsx unchanged.
 
@@ -12,14 +13,27 @@ import { ABILITY_CONFIG } from '../constants';
 import type { BuildingData, UnitData } from '../types';
 import type { GridPos } from './commands';
 
+// Where an EMP missile has knocked out the grid. `team` fired it: only the other side's grid
+// goes dark there.
+export interface Blackout {
+  gridPos: GridPos;
+  radius: number;
+  team: UnitData['team'];
+}
+
+export const isBlackedOut = (pos: GridPos, team: UnitData['team'], blackouts: readonly Blackout[]) =>
+  blackouts.some(b => b.team !== team && Math.hypot(pos.x - b.gridPos.x, pos.z - b.gridPos.z) <= b.radius);
+
 export function isInsideEnergyGrid(
   pos: GridPos,
   team: UnitData['team'],
   buildings: readonly BuildingData[],
   blueBase: GridPos,
   redBase: GridPos,
+  blackouts: readonly Blackout[] = [],
 ): boolean {
   if (team !== 'blue' && team !== 'red') return false;
+  if (blackouts.length > 0 && isBlackedOut(pos, team, blackouts)) return false;
   const baseRadiusSq = ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS * ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS;
   const buildingRadiusSq = ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS * ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS;
   const base = team === 'blue' ? blueBase : redBase;

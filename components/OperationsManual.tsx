@@ -121,17 +121,17 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
     ],
   },
   ballista: {
-    use: 'Missile launcher. Strikes anywhere on the map with Eclipse or HE warheads built at the Ordnance Fab.',
+    use: 'Missile launcher. Strikes anywhere on the map with EMP or HE warheads built at the Ordnance Fab.',
     actions: [
       { name: 'Take / Load', text: 'Take warheads from your stockpile beside an Ordnance Fab, then load one.' },
-      { name: 'Launch', text: `Fires the loaded missile at any tile. HE burns infantry and light aircraft in a ${ABILITY_CONFIG.HE_RADIUS}-tile cloud; Eclipse leaves a ${ABILITY_CONFIG.ECLIPSE_RADIUS}-tile cloud for ${ABILITY_CONFIG.ECLIPSE_DURATION / 1000}s.` },
+      { name: 'Launch', text: `Fires the loaded missile at any tile. HE burns infantry and light aircraft in a ${ABILITY_CONFIG.HE_RADIUS}-tile cloud; EMP knocks out the enemy energy grid within ${ABILITY_CONFIG.EMP_RADIUS} tiles and shuts down every enemy vehicle and aircraft caught in the blast, both for ${ABILITY_CONFIG.EMP_DURATION / 1000}s.` },
     ],
   },
   mason: { use: 'Combat engineer. Place walls and turrets from the Depot and Masons haul materials to build them.' },
   mule: {
     use: 'Field Fabricator. Builds missiles at the front and hands them to Ballistas.',
     actions: [
-      { name: 'Fabricate', text: `Turns material into an Eclipse or HE missile (${ABILITY_CONFIG.FABRICATOR_BUILD_TIME / 1000}s each, ${ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY} material).` },
+      { name: 'Fabricate', text: `Turns material into an EMP or HE missile (${ABILITY_CONFIG.FABRICATOR_BUILD_TIME / 1000}s each, ${ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY} material).` },
       { name: 'Transfer', text: 'Hands a finished missile to a Ballista alongside.' },
     ],
   },
@@ -494,7 +494,7 @@ const STRUCTURE_TEXT: Partial<Record<StructureType, string>> = {
   air: 'Trains aircraft.',
   support: 'Trains support units and the Ballista.',
   builder: 'Trains Masons and unlocks walls and turrets.',
-  ordnance_fab: 'Builds Eclipse and HE warheads for Ballistas, and trains Field Fabricators.',
+  ordnance_fab: 'Builds EMP and HE warheads for Ballistas, and trains Field Fabricators.',
   wall_tier1: 'Cheap tank traps that block a lane. One Mason haul.',
   wall_tier2: 'A heavy wall. Three Mason hauls.',
   defense: 'Turret that shoots ground and air. Mason-built.',
@@ -618,6 +618,7 @@ const CombatTab: React.FC = () => (
       <div>
         <H>Tactics</H>
         <Item label="Artillery">Thunderheads only fire when anchored, need vision (or a Fire Mission) and can't hit within {ARTILLERY.minRange} tiles. Shells take a moment to land, so keep moving under fire.</Item>
+        <Item label="EMP">EMPs shut down anything that runs on a battery (vehicles and aircraft) caught in the blast: they can't move or fire until it wears off. Infantry are unaffected. The Ballista's EMP missile also blacks out the enemy energy grid inside the blast (a crackling blue zone): no recharging and no building there until it fades.</Item>
         <Item label="Abilities">Many units have abilities that unlock as you research tiers. Open a unit's page in the Units tab to see them.</Item>
         <Item label="Retreat">Damaged vehicles repair near a Guardian or, with Heavy Metal, on their own out of combat.</Item>
       </div>
@@ -661,9 +662,9 @@ const InterfaceTab: React.FC<{ color: string }> = ({ color }) => (
       <Item label="What it shows">Team-coloured role badges for every unit you can see, your HQs as squares, the camera's view, your energy grid outline and warning marks at guarded server nodes.</Item>
       <H>On the map</H>
       <Item label={<span className="flex items-center gap-2"><RoleBadge role="infantry" color={color} size={18} /> Role badges</span>}>Above each unit you can see. A unit's badge hides while it is selected.</Item>
-      <Item label="Rings">Team-coloured ring: selected. Coloured ring at a unit's feet: an ability is running (red: knocked out by EMP). Orange ring: a Thunderhead's range. Red reticle: its fire mission. Yellow ring: a Battery Mule's reach. Blue ring: a Banshee's tether leash.</Item>
+      <Item label="Rings">Team-coloured ring: selected. Coloured ring at a unit's feet: an ability is running (electric indigo with blue static: knocked out by an EMP). Orange ring: a Thunderhead's range. Red reticle: its fire mission. Yellow ring: a Battery Mule's reach. Blue ring: a Banshee's tether leash.</Item>
       <Item label="Bars">Health, and battery for vehicles and aircraft, over damaged or selected units.</Item>
-      <Item label="Incoming fire">Glowing shells dropping from the sky are enemy artillery: move out from under them.</Item>
+      <Item label="Incoming fire">Glowing shells dropping from the sky are enemy artillery: move out from under them. A blue crackling zone is an energy grid blacked out by an EMP.</Item>
     </div>
   </div>
 );

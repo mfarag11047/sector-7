@@ -140,14 +140,14 @@ export interface UnitData {
   hackedBy?: string | null;
   isJammed?: boolean;
   ammoState?: 'empty' | 'loading' | 'armed' | 'awaiting_delivery';
-  loadedAmmo?: 'eclipse' | 'he' | null;
-  missileInventory?: { eclipse: number; he: number };
+  loadedAmmo?: 'emp' | 'he' | null;
+  missileInventory?: { emp: number; he: number };
   // Field Fabricator: untyped charges, spent one per missile fabricated in the field.
   ordnanceMaterial?: number;
-  fabrication?: { active: boolean; item: 'eclipse' | 'he'; progress: number; totalTime: number };
+  fabrication?: { active: boolean; item: 'emp' | 'he'; progress: number; totalTime: number };
   loadingProgress?: number;
   courierTargetId?: string;
-  courierPayload?: 'eclipse' | 'he';
+  courierPayload?: 'emp' | 'he';
   bombardmentTarget?: { x: number; z: number } | null;
   firingLaserAt?: string | null;
   lastAttackTime?: number;
@@ -206,7 +206,7 @@ export interface StructureData {
   maxHealth: number;
   production?: {
       active: boolean;
-      item: 'eclipse' | 'he';
+      item: 'emp' | 'he';
       progress: number;
       totalTime: number;
   };
@@ -260,7 +260,7 @@ export interface TeamStats {
     core_node: number;
   };
   stockpile: {
-      eclipse: number;
+      emp: number;
       he: number;
   };
   doctrine?: DoctrineState;
@@ -304,7 +304,7 @@ export interface DecoyData {
 
 export interface CloudData {
     id: string;
-    type: 'eclipse' | 'he' | 'nano';
+    type: 'emp' | 'he' | 'nano';
     team: 'blue' | 'red' | 'neutral';
     gridPos: { x: number; z: number };
     radius: number;
@@ -324,7 +324,7 @@ export interface Projectile {
     distanceTraveled: number;
     targetPos?: { x: number, y: number, z: number }; // For guided/ballistic
     trajectory: 'direct' | 'ballistic' | 'swarm';
-    payload?: 'eclipse' | 'he' | 'nuke' | 'nano_canister' | 'nano_cloud_master' | 'titan_drop' | null; // For warheads
+    payload?: 'emp' | 'he' | 'nuke' | 'nano_canister' | 'nano_cloud_master' | 'titan_drop' | null; // For warheads
     startPos?: { x: number, y: number, z: number };
     startTime?: number;
     lockedTargetId?: string | null; // For swarm homing
@@ -340,6 +340,8 @@ export interface Explosion {
     radius: number;
     duration: number;
     createdAt: number;
+    // 'emp': a blue energy discharge whose ring reaches `radius`, instead of a fireball.
+    style?: 'emp';
 }
 
 export interface CityConfig {

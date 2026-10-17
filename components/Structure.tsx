@@ -21,7 +21,7 @@ interface StructureProps {
   onAction?: (action: string, payload?: any) => void;
   hasMason?: boolean;
   resources?: number;
-  warheadStock?: { eclipse: number; he: number };
+  warheadStock?: { emp: number; he: number };
   // The owner's tech tier and population, for the production menu.
   tier?: number;
   popUsed?: number;
@@ -893,12 +893,12 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                         <>
                             <div className="text-[10px] text-slate-400 font-mono uppercase mb-1 px-1 mt-2 border-t border-slate-700 pt-1">Warheads</div>
                             <div className="text-[9px] text-slate-500 font-mono px-1 mb-1">
-                                Eclipse {warheadStock?.eclipse ?? 0} · HE {warheadStock?.he ?? 0}
+                                EMP {warheadStock?.emp ?? 0} · HE {warheadStock?.he ?? 0}
                             </div>
                             {data.production?.active && (
                                 <div className="px-1 mb-1">
                                     <div className="text-[9px] text-yellow-300 font-mono uppercase">
-                                        Building {data.production.item === 'eclipse' ? 'Eclipse' : 'HE'} {Math.min(100, Math.floor((data.production.progress / data.production.totalTime) * 100))}%
+                                        Building {data.production.item === 'emp' ? 'EMP' : 'HE'} {Math.min(100, Math.floor((data.production.progress / data.production.totalTime) * 100))}%
                                     </div>
                                     <div className="hud-meter w-full h-1.5 mt-1">
                                         <div className="hud-meter-cell h-full" style={{ width: `${Math.max(4, Math.min(100, (data.production.progress / data.production.totalTime) * 100))}%` }} />
@@ -906,7 +906,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                 </div>
                             )}
                             {([
-                                { item: 'eclipse' as const, label: 'Eclipse Missile', cost: ABILITY_CONFIG.WARHEAD_COST_ECLIPSE, seconds: ABILITY_CONFIG.WARHEAD_BUILD_TIME_ECLIPSE / 1000 },
+                                { item: 'emp' as const, label: 'EMP Missile', cost: ABILITY_CONFIG.WARHEAD_COST_EMP, seconds: ABILITY_CONFIG.WARHEAD_BUILD_TIME_EMP / 1000 },
                                 { item: 'he' as const, label: 'HE Missile', cost: ABILITY_CONFIG.WARHEAD_COST_HE, seconds: ABILITY_CONFIG.WARHEAD_BUILD_TIME_HE / 1000 },
                             ]).map(missile => {
                                 const busy = !!data.production?.active;
@@ -919,7 +919,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                         className={`flex items-center justify-between px-3 py-2 text-left transition-colors rounded text-xs font-mono ${canAfford ? 'hover:bg-slate-700 text-slate-200' : 'opacity-50 text-slate-500 cursor-not-allowed'}`}
                                     >
                                         <div className="flex flex-col">
-                                            <span className={missile.item === 'eclipse' ? 'text-fuchsia-300' : 'text-red-300'}>{missile.label}</span>
+                                            <span className={missile.item === 'emp' ? 'text-sky-300' : 'text-red-300'}>{missile.label}</span>
                                             <span className="text-[9px] text-slate-500">{missile.seconds}s</span>
                                         </div>
                                         <span>{missile.cost}</span>

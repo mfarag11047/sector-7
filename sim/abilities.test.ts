@@ -84,30 +84,30 @@ describe('Titan cannon', () => {
 });
 
 describe('Ballista and Field Fabricator', () => {
-  const ballista = (patch: Partial<UnitData> = {}) => unit('b', { type: 'ballista', unitClass: 'support', missileInventory: { eclipse: 1, he: 1 }, ammoState: 'empty', ...patch });
+  const ballista = (patch: Partial<UnitData> = {}) => unit('b', { type: 'ballista', unitClass: 'support', missileInventory: { emp: 1, he: 1 }, ammoState: 'empty', ...patch });
 
   it('loads a missile from the inventory', () => {
     expect(after(run(view([ballista()]), { type: 'LOAD_AMMO', unitId: 'b', warhead: 'he' }), 'b'))
-      .toMatchObject({ ammoState: 'loading', loadedAmmo: 'he', missileInventory: { eclipse: 1, he: 0 } });
+      .toMatchObject({ ammoState: 'loading', loadedAmmo: 'he', missileInventory: { emp: 1, he: 0 } });
   });
 
   it('will not load over an armed missile, which used to throw it away', () => {
-    expect(run(view([ballista({ ammoState: 'armed', loadedAmmo: 'eclipse' })]), { type: 'LOAD_AMMO', unitId: 'b', warhead: 'he' }).refused).toBeTruthy();
+    expect(run(view([ballista({ ammoState: 'armed', loadedAmmo: 'emp' })]), { type: 'LOAD_AMMO', unitId: 'b', warhead: 'he' }).refused).toBeTruthy();
   });
 
   it('fires only when armed', () => {
     expect(run(view([ballista()]), { type: 'FIRE_BALLISTA', unitId: 'b', target: { x: 30, z: 5 } }).refused).toBeTruthy();
-    const r = run(view([ballista({ ammoState: 'armed', loadedAmmo: 'eclipse' })]), { type: 'FIRE_BALLISTA', unitId: 'b', target: { x: 30, z: 5 } });
-    expect(r.fx!.spawnProjectiles[0]).toMatchObject({ trajectory: 'ballistic', payload: 'eclipse' });
+    const r = run(view([ballista({ ammoState: 'armed', loadedAmmo: 'emp' })]), { type: 'FIRE_BALLISTA', unitId: 'b', target: { x: 30, z: 5 } });
+    expect(r.fx!.spawnProjectiles[0]).toMatchObject({ trajectory: 'ballistic', payload: 'emp' });
     expect(after(r, 'b')).toMatchObject({ ammoState: 'empty', loadedAmmo: null });
   });
 
   it('draws from the stockpile only beside an Ordnance Fab', () => {
-    const economy = addWarheads(createEconomy(), 'blue', 'eclipse');
-    expect(run(view([ballista()], { economy }), { type: 'TAKE_WARHEAD', unitId: 'b', warhead: 'eclipse' }).refused).toMatch(/Fab/);
-    const r = run(view([ballista()], { economy, structures: [fab()] }), { type: 'TAKE_WARHEAD', unitId: 'b', warhead: 'eclipse' });
-    expect(r.fx!.economy!(economy)!.blue.stockpile.eclipse).toBe(0);
-    expect(after(r, 'b').missileInventory).toEqual({ eclipse: 2, he: 1 });
+    const economy = addWarheads(createEconomy(), 'blue', 'emp');
+    expect(run(view([ballista()], { economy }), { type: 'TAKE_WARHEAD', unitId: 'b', warhead: 'emp' }).refused).toMatch(/Fab/);
+    const r = run(view([ballista()], { economy, structures: [fab()] }), { type: 'TAKE_WARHEAD', unitId: 'b', warhead: 'emp' });
+    expect(r.fx!.economy!(economy)!.blue.stockpile.emp).toBe(0);
+    expect(after(r, 'b').missileInventory).toEqual({ emp: 2, he: 1 });
   });
 
   it('charges cores to fabricate and refuses when broke', () => {

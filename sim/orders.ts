@@ -10,7 +10,7 @@ import { ABILITY_CONFIG, BUILDING_VALUES, STRUCTURE_INFO } from '../constants';
 import type { BuildingData, StructureData, StructureType, UnitData } from '../types';
 import type { GridPos, PlayerCommand, Team } from './commands';
 import { Economy, research, researchCost, spend, structureCost, unitCost } from './economy';
-import { isInsideEnergyGrid } from './energy';
+import { Blackout, isBlackedOut, isInsideEnergyGrid } from './energy';
 import { isAirType, popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from './units';
 
 export { popUsed };
@@ -41,6 +41,8 @@ export interface OrdersView {
   structures: readonly StructureData[];
   buildings: readonly BuildingData[];
   economy: Economy;
+  // Live EMP blackouts: no building where your grid is down.
+  blackouts?: readonly Blackout[];
 }
 
 export interface OrdersContext {
@@ -123,6 +125,7 @@ function placeOrder(view: OrdersView, team: Team, type: StructureType, at: GridP
   if (masonBuilt && !view.structures.some(s => s.team === team && s.type === 'builder' && isOperational(s))) {
     return reject('needs a finished Depot');
   }
+  if (view.blackouts && isBlackedOut(at, team, view.blackouts)) return reject('the grid is down there (EMP)');
   if (!ctx.canBuildOn(at.x, at.z)) return reject('cannot build there');
   // Holding ground is what lets you build forward: only inside your own energy grid.
   if (!isInsideEnergyGrid(at, team, view.buildings, ctx.bases.blue, ctx.bases.red)) return reject('must be inside your energy grid');

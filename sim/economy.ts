@@ -33,7 +33,7 @@ export type Economy = Record<Team, TeamEconomy>;
 
 export const TEAMS: readonly Team[] = ['blue', 'red'];
 
-const freshTeam = (cores: number): TeamEconomy => ({ cores, lifetimeIncome: 0, stockpile: { eclipse: 0, he: 0 }, compute: 0, lifetimeCompute: 0, tier: 1 });
+const freshTeam = (cores: number): TeamEconomy => ({ cores, lifetimeIncome: 0, stockpile: { emp: 0, he: 0 }, compute: 0, lifetimeCompute: 0, tier: 1 });
 
 export const createEconomy = (startingCores = STARTING_CORES): Economy => ({
   blue: freshTeam(startingCores),
@@ -50,9 +50,9 @@ const withTeam = (economy: Economy, team: Team, patch: Partial<TeamEconomy>): Ec
 export const unitCost = (type: UnitType) => UNIT_STATS[type].cost || 0;
 export const structureCost = (type: StructureType) => STRUCTURE_INFO[type].cost;
 export const warheadCost = (warhead: Warhead) =>
-  warhead === 'eclipse' ? ABILITY_CONFIG.WARHEAD_COST_ECLIPSE : ABILITY_CONFIG.WARHEAD_COST_HE;
+  warhead === 'emp' ? ABILITY_CONFIG.WARHEAD_COST_EMP : ABILITY_CONFIG.WARHEAD_COST_HE;
 export const warheadBuildTime = (warhead: Warhead) =>
-  warhead === 'eclipse' ? ABILITY_CONFIG.WARHEAD_BUILD_TIME_ECLIPSE : ABILITY_CONFIG.WARHEAD_BUILD_TIME_HE;
+  warhead === 'emp' ? ABILITY_CONFIG.WARHEAD_BUILD_TIME_EMP : ABILITY_CONFIG.WARHEAD_BUILD_TIME_HE;
 export const doctrinePowerCost = (doctrine: DoctrineType, tier: 2 | 3) =>
   tier === 2 ? DOCTRINE_CONFIG[doctrine].tier2_cost : DOCTRINE_CONFIG[doctrine].tier3_cost;
 

@@ -39,10 +39,10 @@ export function createUnit(type: UnitType, team: UnitData['team'], id: string, g
     case 'bombard': return { ...unit, battery: ABILITY_CONFIG.BOMBARD_BATTERY, maxBattery: ABILITY_CONFIG.BOMBARD_BATTERY };
     case 'tank': return { ...unit, charges: { smoke: ABILITY_CONFIG.MAX_CHARGES_SMOKE, aps: ABILITY_CONFIG.MAX_CHARGES_APS } };
     // A new Ballista rolls out with one of each warhead.
-    case 'ballista': return { ...unit, ammoState: 'empty', loadedAmmo: null, missileInventory: { eclipse: 1, he: 1 }, loadingProgress: 0 };
+    case 'ballista': return { ...unit, ammoState: 'empty', loadedAmmo: null, missileInventory: { emp: 1, he: 1 }, loadingProgress: 0 };
     case 'mule': return {
       ...unit, cooldowns: { combatPrint: 0, smogShell: 0 },
-      ordnanceMaterial: ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY, missileInventory: { eclipse: 0, he: 0 },
+      ordnanceMaterial: ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY, missileInventory: { emp: 0, he: 0 },
     };
     default: return unit;
   }

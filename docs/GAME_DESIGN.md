@@ -195,15 +195,29 @@ listed as damage / cooldown / range.
 | **Guardian** | 220 | 2 | T1 | 300 | Light | Heals 3 allies, Trophy system |
 | **Helios** | 110 | 1 | T1 | 90 | Air | Wireless charging |
 | **Banshee** | 320 | 3 | T2 | 380 | Light | Jammer, drone tether |
-| **Ballista** | 380 | 3 | T3 | 160 | Light | Eclipse and HE missiles |
+| **Ballista** | 380 | 3 | T3 | 160 | Light | EMP and HE missiles (EMP: grid blackout and vehicle shutdown, 8 tiles, 20 s) |
 
 ### Other producers
 
 - **Depot:** Mason (120, pop 1, T1), plus Dragon's Teeth, Bulwark and the **Sentry Turret** (rifle
   18 / 0.8 s / 5, hits air, 900 HP).
-- **Ordnance Fab:** Field Fabricator (260, T2) and Eclipse and HE warheads. Couriers are sent by
+- **Ordnance Fab:** Field Fabricator (260, T2) and EMP and HE warheads. Couriers are sent by
   Transfer Warhead, not trained.
 - **Command HQ:** 5000 HP; AP 30 / 1.0 s / 5, hits air.
+
+## EMP
+
+Anything that runs on a battery (vehicles and aircraft, not infantry) caught in an EMP shuts down:
+it can't move, fire or use abilities until the effect wears off. Every EMP shows as a blue
+energy discharge rather than a fireball, and disabled machines crackle with blue static.
+
+- **EMP missile** (Ballista; replaces the old Eclipse warhead, same 500-core cost at the
+  Ordnance Fab): an 8-tile blast that disables enemy machines in it for 20 s and blacks out the
+  enemy's energy grid there for the same time: nothing recharges from the grid inside the zone and
+  nothing can be built there. The blackout shows as a crackling blue disc. Rules: `Blackout` and
+  `isInsideEnergyGrid` in `sim/energy.ts`, `empVictims` in `sim/unitAbilities.ts`.
+- **Lancer EMP Tandem Rocket** (Tier 3 ability): 2-tile blast, 4 s shutdown.
+- **Shadow Ops Global EMP** (Tier 3 doctrine power): stuns every enemy unit for 10 s.
 
 ## Thunderhead mobile artillery
 

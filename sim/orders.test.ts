@@ -147,3 +147,13 @@ describe('moving', () => {
     expect(run(view({ units }), { type: 'MOVE', unitIds: ['a'], target: { x: 10, z: 10 } }).refused).toBeTruthy();
   });
 });
+
+describe('building under an EMP blackout', () => {
+  it('is refused where your grid is down', () => {
+    const at = { x: 8, z: 8 };
+    const place = { type: 'PLACE_STRUCTURE' as const, structureType: 'armor' as const, at };
+    expect(run(view({ structures: [] }), place).refused).toBeUndefined();
+    const blackouts = [{ gridPos: at, radius: 2, team: 'red' as const }];
+    expect(run(view({ structures: [], blackouts }), place).refused).toMatch(/EMP/);
+  });
+});

@@ -201,10 +201,12 @@ export const ABILITY_CONFIG = {
   FABRICATOR_BUILD_TIME: 8000,
   // Beside a fab or a Ballista, same reach the Mason uses to work a site.
   FABRICATOR_DOCK_RANGE: 1.5,
-  WARHEAD_COST_ECLIPSE: 500,
-  WARHEAD_BUILD_TIME_ECLIPSE: 20000, 
-  ECLIPSE_DURATION: 60000,
-  ECLIPSE_RADIUS: 10,
+  WARHEAD_COST_EMP: 500,
+  WARHEAD_BUILD_TIME_EMP: 20000, 
+  // EMP missile: knocks out the enemy energy grid and the vehicles and aircraft caught in the
+  // blast, both for EMP_DURATION.
+  EMP_DURATION: 20000,
+  EMP_RADIUS: 8,
 
   WARHEAD_COST_HE: 300,
   WARHEAD_BUILD_TIME_HE: 15000, 

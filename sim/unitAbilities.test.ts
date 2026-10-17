@@ -3,7 +3,7 @@ import type { UnitData } from '../types';
 import { resolveAttacks } from './combat';
 import { speedMultiplier } from './movement';
 import { createUnit } from './production';
-import { abilitiesFor, HELLFIRE_DAMAGE, pruneBuffs, spendOvercharge, STIM_HEALTH_COST, unitAbilityEffects, UNIT_ABILITIES } from './unitAbilities';
+import { abilitiesFor, empVictims, HELLFIRE_DAMAGE, pruneBuffs, spendOvercharge, STIM_HEALTH_COST, unitAbilityEffects, UNIT_ABILITIES } from './unitAbilities';
 import { shotDamage, UNIT_RULES } from './units';
 
 const at = (u: UnitData, x: number, z = 0): UnitData => ({ ...u, gridPos: { x, z } });
@@ -109,5 +109,14 @@ describe('effects in combat and movement', () => {
     expect(fire([{ ...aegis, buffs: [{ kind: 'radar', until: 99_999 }] }, wasp], 10_000).fired.has('a')).toBe(true);
     const rb = { ...createUnit('razorback', 'blue', 'r', { x: 0, z: 0 }), path: ['1,0'] };
     expect(speedMultiplier({ ...rb, buffs: [{ kind: 'nitro', until: 9 }] }, () => 'street')).toBeCloseTo(speedMultiplier(rb, () => 'street') * 1.8);
+  });
+});
+
+describe('empVictims', () => {
+  it("takes out the other side's vehicles and aircraft in the blast, not infantry or friends", () => {
+    const blue = (type: UnitData['type'], id: string, x: number) => at(createUnit(type, 'blue', id, { x: 0, z: 0 }), x);
+    const red = (type: UnitData['type'], id: string, x: number) => at(createUnit(type, 'red', id, { x: 0, z: 0 }), x);
+    const units = [red('tank', 'tank', 2), red('hornet', 'air', 3), red('trooper', 'inf', 2), red('razorback', 'far', 9), blue('tank', 'mine', 2)];
+    expect(empVictims(units, { x: 2, z: 0 }, 3, 'blue').map(u => u.id)).toEqual(['tank', 'air']);
   });
 });

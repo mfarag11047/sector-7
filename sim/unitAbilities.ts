@@ -85,6 +85,12 @@ export const visionOf = (u: UnitData) => (hasBuff(u, 'radar') ? Math.max(u.visio
 // Shut down by an EMP: can neither move nor fire.
 export const isEmpDisabled = (u: { buffs?: Buff[] }) => hasBuff(u, 'emp');
 
+// Units an EMP blast at `at` knocks out: the other side's living vehicles and aircraft, anything
+// that runs on a battery. Infantry shrug it off.
+export const empVictims = (units: readonly UnitData[], at: GridPos, radius: number, team: UnitData['team']) =>
+  units.filter(u => u.team !== team && u.health > 0 && UNIT_RULES[u.type].armor !== 'infantry' &&
+    Math.hypot(u.gridPos.x - at.x, u.gridPos.z - at.z) <= radius);
+
 // Drops expired buffs. Returns the same unit when nothing expired.
 export function pruneBuffs<T extends { buffs?: Buff[] }>(u: T, now: number): T {
   if (!u.buffs || u.buffs.length === 0) return u;
@@ -96,7 +102,7 @@ export function pruneBuffs<T extends { buffs?: Buff[] }>(u: T, now: number): T {
 export const spendOvercharge = <T extends { buffs?: Buff[] }>(u: T): T =>
   hasBuff(u, 'overcharge') ? { ...u, buffs: u.buffs!.filter(b => b.kind !== 'overcharge') } : u;
 
-const addBuff = (u: UnitData, kind: BuffKind, until: number): UnitData =>
+export const addBuff = (u: UnitData, kind: BuffKind, until: number): UnitData =>
   ({ ...u, buffs: [...(u.buffs || []).filter(b => b.kind !== kind), { kind, until }] });
 
 // Milliseconds until a unit can use an ability again.
@@ -145,14 +151,13 @@ export function unitAbilityEffects(
   if (inRange.length === 0) return { ok: false, reason: `out of range (${def.targeted.range} tiles)` };
   for (const c of inRange) updates.set(c.id, ready);
 
+  if (def.id === 'emp_rocket') {
+    for (const victim of empVictims(units, target, def.targeted.radius, team)) updates.set(victim.id, u => addBuff(u, 'emp', now + def.durationMs));
+  }
   const hit = units.filter(u => u.team !== team && u.health > 0 && Math.hypot(u.gridPos.x - target.x, u.gridPos.z - target.z) <= def.targeted!.radius);
   for (const victim of hit) {
     const armor = UNIT_RULES[victim.type].armor;
-    if (def.id === 'emp_rocket') {
-      // Only machines: infantry shrug off the pulse.
-      if (armor === 'infantry') continue;
-      updates.set(victim.id, u => addBuff(u, 'emp', now + def.durationMs));
-    } else if (def.id === 'hellfire') {
+    if (def.id === 'hellfire') {
       if (armor === 'air') continue;
       const damage = shotDamage({ damage: HELLFIRE_DAMAGE, cooldownMs: 0, range: 0, type: 'ap', hitsGround: true, hitsAir: false }, armor)
         * inRange.length * damageTakenMultiplier(victim);

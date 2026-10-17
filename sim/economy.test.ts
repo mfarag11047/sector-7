@@ -22,7 +22,7 @@ const CORE_INCOME = BUILDING_VALUES.core_node.income;
 describe('spending', () => {
   it('starts both teams with the same cores and empty stockpiles', () => {
     const e = createEconomy();
-    expect(e.blue).toEqual({ cores: STARTING_CORES, lifetimeIncome: 0, stockpile: { eclipse: 0, he: 0 }, compute: 0, lifetimeCompute: 0, tier: 1 });
+    expect(e.blue).toEqual({ cores: STARTING_CORES, lifetimeIncome: 0, stockpile: { emp: 0, he: 0 }, compute: 0, lifetimeCompute: 0, tier: 1 });
     expect(e.red).toEqual(e.blue);
   });
 
@@ -60,12 +60,12 @@ describe('warhead stockpile', () => {
   it('adds and draws per team and type', () => {
     let e = addWarheads(createEconomy(), 'red', 'he', 2);
     e = takeWarhead(e, 'red', 'he')!;
-    expect(e.red.stockpile).toEqual({ eclipse: 0, he: 1 });
-    expect(e.blue.stockpile).toEqual({ eclipse: 0, he: 0 });
+    expect(e.red.stockpile).toEqual({ emp: 0, he: 1 });
+    expect(e.blue.stockpile).toEqual({ emp: 0, he: 0 });
   });
 
   it('cannot draw from an empty stockpile', () => {
-    expect(takeWarhead(createEconomy(), 'blue', 'eclipse')).toBeNull();
+    expect(takeWarhead(createEconomy(), 'blue', 'emp')).toBeNull();
   });
 });
 
@@ -168,7 +168,7 @@ describe('HUD stats', () => {
   it('summarises a team', () => {
     const units = [{ team: 'blue', type: 'trooper', health: 1 }, { team: 'blue', type: 'tank', health: 1 }, { team: 'red', type: 'trooper', health: 1 }] as UnitData[];
     const map = [building('c1', 'core_node', 'blue'), building('s1', 'server_node', 'blue'), building('s2', 'server_node', 'blue', true)];
-    const econ = research(setCompute(addWarheads(createEconomy(500), 'blue', 'eclipse'), 'blue', 200), 'blue', 2)!;
+    const econ = research(setCompute(addWarheads(createEconomy(500), 'blue', 'emp'), 'blue', 200), 'blue', 2)!;
     const stats = teamStats(econ, 'blue', map, units);
     expect(stats).toMatchObject({
       resources: 500,
@@ -179,7 +179,7 @@ describe('HUD stats', () => {
       units: 2,
       pop: 1 + 3,
       popCap: 28,
-      stockpile: { eclipse: 1, he: 0 },
+      stockpile: { emp: 1, he: 0 },
       // Doctrine powers unlock with the researched tier.
       doctrine: { unlockedTiers: 2 },
     });

@@ -14,7 +14,7 @@
 import type { DoctrineType, StructureType, UnitType } from '../types';
 
 export type GridPos = { x: number; z: number };
-export type Warhead = 'eclipse' | 'he';
+export type Warhead = 'emp' | 'he';
 export type Team = 'blue' | 'red';
 
 // --- Movement ---
@@ -145,7 +145,7 @@ const UNIT_TYPES = Object.keys({
   trooper: 1, lancer: 1, razorback: 1, aegis: 1, hornet: 1, howitzer: 1,
 } satisfies Record<UnitType, 1>);
 const DOCTRINES = Object.keys({ heavy_metal: 1, shadow_ops: 1, skunkworks: 1 } satisfies Record<DoctrineType, 1>);
-const WARHEADS = Object.keys({ eclipse: 1, he: 1 } satisfies Record<Warhead, 1>);
+const WARHEADS = Object.keys({ emp: 1, he: 1 } satisfies Record<Warhead, 1>);
 
 // Large enough for any real selection, small enough to stop a flood.
 const MAX_UNIT_IDS = 200;

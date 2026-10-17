@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ABILITY_CONFIG } from '../constants';
 import type { BuildingData, UnitData } from '../types';
-import { batteryDrain, chargeSources, isInsideEnergyGrid, PowerContext, powerTick } from './energy';
+import { batteryDrain, chargeSources, isBlackedOut, isInsideEnergyGrid, PowerContext, powerTick } from './energy';
 
 const BLUE_BASE = { x: 4, z: 4 };
 const RED_BASE = { x: 75, z: 75 };
@@ -87,5 +87,16 @@ describe('powerTick', () => {
   it('reports no change for a full unit idling on the grid', () => {
     const full = unit('t', { battery: 100, chargingStatus: 0, isInNanoCloud: false });
     expect(tick(full, ctx({ onGrid: true })).changed).toBe(false);
+  });
+});
+
+describe('EMP blackouts', () => {
+  const emp = { gridPos: { x: 6, z: 6 }, radius: 3, team: 'red' as const };
+  it("take down only the other side's grid inside the blast", () => {
+    expect(isInsideEnergyGrid({ x: 6, z: 6 }, 'blue', [], BLUE_BASE, RED_BASE)).toBe(true);
+    expect(isInsideEnergyGrid({ x: 6, z: 6 }, 'blue', [], BLUE_BASE, RED_BASE, [emp])).toBe(false);
+    expect(isInsideEnergyGrid({ x: 2, z: 2 }, 'blue', [], BLUE_BASE, RED_BASE, [emp])).toBe(true);
+    expect(isInsideEnergyGrid({ x: 6, z: 6 }, 'blue', [], BLUE_BASE, RED_BASE, [{ ...emp, team: 'blue' }])).toBe(true);
+    expect(isBlackedOut({ x: 8, z: 6 }, 'blue', [emp])).toBe(true);
   });
 });
