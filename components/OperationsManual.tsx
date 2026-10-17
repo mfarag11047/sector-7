@@ -558,6 +558,7 @@ const BasicsTab: React.FC = () => (
       <Item label="Select">Click a unit, or drag a box over several with the left mouse button. Clicking empty ground with nothing selected clears the selection.</Item>
       <Item label="Move">With units selected, click the ground. Ground units take the quickest route (main roads are twice as fast, open ground half as fast); aircraft fly straight.</Item>
       <Item label="Attack-move">Hold <Key>Ctrl</Key> while clicking, or press <Key>F</Key> then click. Units stop to fight anything on the way.</Item>
+      <Item label="Armies">Everything you select is listed above the minimap, one line per unit type with a count (×3). Click a line to open that type's orders: aimed attacks such as missile launches, cannon shots and fire missions are then carried out by every selected unit of that type at once. Group Army saves the selection as Army 1, 2, 3...; click it or press its number key to select it again, and click again to centre the camera on it.</Item>
       <Item label="Unit actions">A selected unit shows its action menu above it: abilities, anchors, fire missions. Aimed ones take a map click; <Key>Esc</Key> cancels.</Item>
     </div>
     <div>

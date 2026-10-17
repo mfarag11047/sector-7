@@ -12,6 +12,11 @@ interface DroneCameraProps {
     start?: { x: number, z: number, yaw: number };
 }
 
+// Somewhere for the rest of the game to ask the camera to look: a point on the ground in world
+// units. The camera glides so that point sits in the middle of the view, keeping its height and
+// angle. Cleared once taken.
+export const cameraFocus: { target: { x: number; z: number } | null } = { target: null };
+
 const UP = new THREE.Vector3(0, 1, 0);
 const _forward = new THREE.Vector3();
 const _right = new THREE.Vector3();
@@ -157,6 +162,16 @@ const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef, start }) => {
     }
     if (keys.current['ArrowRight'] || keys.current['KeyD']) {
         moveVector.add(right);
+    }
+
+    // A requested focus point: back off from it along the view direction far enough that the
+    // line of sight lands on it.
+    if (cameraFocus.target) {
+        const { x, z } = cameraFocus.target;
+        cameraFocus.target = null;
+        const back = positionRef.current.y / Math.tan(Math.max(0.15, pitchRef.current));
+        positionRef.current.x = Math.max(-maxPos, Math.min(maxPos, x - forward.x * back));
+        positionRef.current.z = Math.max(-maxPos, Math.min(maxPos, z - forward.z * back));
     }
 
     // 3. Apply Movement

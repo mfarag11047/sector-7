@@ -1,5 +1,6 @@
 
 import React, { Suspense, useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import type { ArmyControls, ArmyInfo, SelectionSummary } from './components/ArmyPanel';
 import { Canvas, advance } from '@react-three/fiber';
 import * as THREE from 'three';
 import { Loader } from '@react-three/drei';
@@ -65,6 +66,10 @@ function App() {
   const [notices, setNotices] = useState<Notice[]>([]);
   // Orders from the HUD (research) go through CityMap's checks.
   const commandRef = useRef<((command: OrderCommand) => boolean) | null>(null);
+  // Selection and army panel: CityMap reports, the panel's buttons call back in.
+  const armyControlsRef = useRef<ArmyControls | null>(null);
+  const [armyState, setArmyState] = useState<{ selection: SelectionSummary; armies: ArmyInfo[] }>({ selection: { types: [], focused: null, total: 0 }, armies: [] });
+  const handleArmyUpdate = useCallback((selection: SelectionSummary, armies: ArmyInfo[]) => setArmyState({ selection, armies }), []);
   const handleResearch = useCallback((tier: 2 | 3) => { commandRef.current?.({ type: 'RESEARCH_TIER', tier }); }, []);
   const noticeIdRef = useRef(0);
   const [stats, setStats] = useState<GameStats>(INITIAL_STATS);
@@ -278,6 +283,8 @@ function App() {
           {match && <CityMap 
               key={round}
               commandRef={commandRef}
+              onArmyUpdate={handleArmyUpdate}
+              armyControlsRef={armyControlsRef}
               match={match}
               onNotice={handleNotice}
               onMatchEnd={handleMatchEnd}
@@ -309,6 +316,8 @@ function App() {
         matchInfo={matchInfo}
         notices={notices}
         onResearch={handleResearch}
+        armyState={armyState}
+        armyControlsRef={armyControlsRef}
       />}
       {!match && <MatchSetup onStart={startMatch} />}
       {match && result && showResult && (

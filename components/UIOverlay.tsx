@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { GameStats, TeamStats, MinimapData, DoctrineType, DoctrineState } from '../types';
 import { OperationsManual } from './OperationsManual';
+import { ArmyControls, ArmyInfo, ArmyPanel, SelectionSummary } from './ArmyPanel';
 import { ROLE_GLYPH, roleGlyphFilled, teamBadgeColor, UNIT_ROLE } from './unitIcons';
 import { BUILDING_COLORS, TEAM_COLORS, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG, TEAM_BASES } from '../constants';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
@@ -505,6 +506,8 @@ interface UIOverlayProps {
     matchInfo?: MatchInfo | null;
     notices?: Notice[];
     onResearch?: (tier: 2 | 3) => void;
+    armyState?: { selection: SelectionSummary; armies: ArmyInfo[] };
+    armyControlsRef?: React.MutableRefObject<ArmyControls | null>;
 }
 
 // What the player should be doing next, from where they stand.
@@ -523,7 +526,7 @@ const clockText = (ms: number) => {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 };
 
-const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef, onSelectDoctrine, onTriggerDoctrine, interactionMode, match, matchInfo, notices = [], onResearch }) => {
+const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef, onSelectDoctrine, onTriggerDoctrine, interactionMode, match, matchInfo, notices = [], onResearch, armyState, armyControlsRef }) => {
   const sandbox = match?.mode === 'sandbox';
   const [isIntelOpen, setIsIntelOpen] = useState(false);
   const [isDoctrineOpen, setIsDoctrineOpen] = useState(false);
@@ -774,6 +777,9 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
             )}
         </div>
 
+        {/* Selection and armies above the minimap */}
+        <div className="flex flex-col items-end gap-2">
+        {armyState && armyControlsRef && <ArmyPanel team={playerTeam} selection={armyState.selection} armies={armyState.armies} controls={armyControlsRef} />}
         {/* Live Mini Map */}
         <div className={`${minimapExpanded ? 'w-[28rem] h-[28rem]' : 'w-56 h-56'} hud-plate hud-corners backdrop-blur relative overflow-hidden pointer-events-auto group cursor-crosshair transition-[width,height] duration-200`}>
            <svg 
@@ -965,6 +971,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                </svg>
              )}
            </button>
+        </div>
         </div>
       </div>
     </div>

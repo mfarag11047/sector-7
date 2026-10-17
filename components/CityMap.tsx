@@ -17,6 +17,8 @@ import { freezeContainer } from '../perf';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from '../sim/movement';
 import { simClock } from './glide';
+import { ArmyControls, ArmyInfo, MAX_ARMIES, SelectionSummary } from './ArmyPanel';
+import { cameraFocus } from './DroneCamera';
 import { AbilityCommand, abilityEffects, applyUnitEffects, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
 import { Warhead } from '../sim/commands';
 import { FlightEvent, FlightTickResult, LiveFlight, cloneProjectile, drawnShotPosition, ballisticProgress, flightUnitY, isHeavyOrdnance, sampleBallistic, stepProjectiles } from '../sim/projectiles';
@@ -982,6 +984,10 @@ interface CityMapProps {
   onMatchInfo?: (info: MatchInfo) => void;
   // Filled in with a way for the HUD to give orders (research) through the same checks.
   commandRef?: React.MutableRefObject<((command: OrderCommand) => boolean) | null>;
+  // The selection and army panel (components/ArmyPanel.tsx): what is selected and the saved
+  // armies go out through onArmyUpdate; the panel's buttons come in through armyControlsRef.
+  onArmyUpdate?: (selection: SelectionSummary, armies: ArmyInfo[]) => void;
+  armyControlsRef?: React.MutableRefObject<ArmyControls | null>;
 }
 
 export interface MatchInfo {
@@ -990,7 +996,7 @@ export interface MatchInfo {
   domination: Record<'blue' | 'red', number | null>;
 }
 
-const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine, onNotice, onMatchEnd, onMatchInfo, commandRef }) => {
+const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine, onNotice, onMatchEnd, onMatchInfo, commandRef, onArmyUpdate, armyControlsRef }) => {
   const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
   const offset = (gridSize * tileSize) / 2;
   const baseA_Coord = TEAM_BASES.blue;
@@ -1226,7 +1232,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       order: (command: OrderCommand, team: 'blue' | 'red') => dispatchOrderRef.current(command, team),
       ability: (command: AbilityCommand, team: 'blue' | 'red') => aiCallsRef.current.dispatchAbility(command, team),
       spawn: (type: UnitType, team: 'blue' | 'red', at: { x: number; z: number }) => {
-          const unit = createUnit(type, team, `cheat-${type}-${Date.now()}`, at);
+          const unit = createUnit(type, team, `cheat-${type}-${Date.now()}-${++spawnCounterRef.current}`, at);
           unitsRef.current = [...unitsRef.current, unit];
           setUnits(prev => [...prev, unit]);
           return unit.id;
@@ -1882,7 +1888,20 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           dispatchAbility({ type: 'UNIT_ABILITY', unitIds: ids, ability, target: { x, z } });
           clearTargeting();
       } else if (targetingSourceId && targetingAbility && tileOrders[targetingAbility as keyof typeof tileOrders]) {
-          dispatchAbility({ type: tileOrders[targetingAbility as keyof typeof tileOrders], unitId: targetingSourceId, target: { x, z } });
+          // Every selected unit of the same type strikes the same tile together: a synchronised
+          // volley from a group of Ballistas, Titans or Wasps.
+          const type = tileOrders[targetingAbility as keyof typeof tileOrders];
+          const source = unitsRef.current.find(u => u.id === targetingSourceId);
+          const ids = unitsRef.current
+              .filter(u => u.type === source?.type && u.team === playerTeam && (u.id === targetingSourceId || selectedUnitIds.has(u.id)))
+              .map(u => u.id);
+          if (ids.length <= 1) {
+              dispatchAbility({ type, unitId: targetingSourceId, target: { x, z } });
+          } else {
+              const fired = ids.filter(id => dispatchAbility({ type, unitId: id, target: { x, z } }, playerTeam, true)).length;
+              if (fired === 0) onNotice?.(`Can't do that: ${lastAbilityRefusalRef.current}`, 'warn');
+              else onNotice?.(`${fired} of ${ids.length} ${UNIT_STATS[source!.type].label} units fired together`);
+          }
           clearTargeting();
       } else if (targetingSourceId && (targetingAbility === 'TETHER' || targetingAbility === 'BATTERY_TETHER')) {
           // Tethers target a unit, not a tile — keep targeting until a vehicle is clicked or cancelled.
@@ -1922,6 +1941,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // Every unit ability goes through sim/abilities.ts as a command: it is checked for the
   // current team (ownership, unit type, cooldowns, charges, range) and only then applied.
   const spawnCounterRef = useRef(0);
+  // Why the last ability order was refused, for a single notice after a group order.
+  const lastAbilityRefusalRef = useRef('');
   const newId = (prefix: string) => `${prefix}-${Date.now()}-${++spawnCounterRef.current}`;
 
   // Moving, training and building go through sim/orders.ts the same way, for the player and
@@ -1970,7 +1991,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   dispatchOrderRef.current = dispatchOrder;
   if (commandRef) commandRef.current = command => dispatchOrder(command);
 
-  const dispatchAbility = (command: AbilityCommand, team: 'blue' | 'red' = playerTeam): boolean => {
+  const dispatchAbility = (command: AbilityCommand, team: 'blue' | 'red' = playerTeam, quiet = false): boolean => {
       const outcome = abilityEffects(
           { units: unitsRef.current, structures: structuresRef.current, economy: economyRef.current },
           team,
@@ -1982,7 +2003,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           },
       );
       if ('reason' in outcome) {
-          if (team === playerTeam) onNotice?.(`Can't do that: ${outcome.reason}`, 'warn');
+          if (team === playerTeam && !quiet) onNotice?.(`Can't do that: ${outcome.reason}`, 'warn');
+          lastAbilityRefusalRef.current = outcome.reason;
           return false;
       }
       const fx = outcome.effects;
@@ -2010,6 +2032,92 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
   // The computer opponent (sim/ai.ts). It thinks every few seconds and sends its commands
   // through dispatchOrder, dispatchAbility and runDoctrinePower, the same checks as yours.
+  // --- Selection panel and saved armies (components/ArmyPanel.tsx) ---
+  const [armies, setArmies] = useState<{ name: string; unitIds: string[] }[]>([]);
+  const armyNumberRef = useRef(0);
+  const ownSelected = (ids: Iterable<string>) => {
+      const set = new Set(ids);
+      return unitsRef.current.filter(u => set.has(u.id) && u.team === playerTeam && u.health > 0);
+  };
+  const centreOn = (list: readonly UnitData[]) => {
+      if (list.length === 0) return;
+      const x = list.reduce((s, u) => s + u.gridPos.x, 0) / list.length;
+      const z = list.reduce((s, u) => s + u.gridPos.z, 0) / list.length;
+      cameraFocus.target = { x: x * tileSize - offset, z: z * tileSize - offset };
+  };
+  const sameSet = (a: ReadonlySet<string>, b: readonly string[]) => a.size === b.length && b.every(id => a.has(id));
+  if (armyControlsRef) armyControlsRef.current = {
+      // Put one unit of this type first in the selection: its action menu opens there, and aimed
+      // orders from that menu are carried out by every selected unit of the type.
+      focusType: type => {
+          const selected = ownSelected(selectedUnitIds);
+          const lead = selected.find(u => u.type === type);
+          if (!lead) return;
+          setTargetingSourceId(null);
+          setTargetingAbility(null);
+          setSelectedUnitIds(new Set([lead.id, ...selected.filter(u => u.id !== lead.id).map(u => u.id)]));
+          centreOn([lead]);
+      },
+      groupArmy: () => {
+          const ids = ownSelected(selectedUnitIds).map(u => u.id);
+          if (ids.length === 0) return;
+          if (armies.length >= MAX_ARMIES) { onNotice?.(`At most ${MAX_ARMIES} armies; disband one first`, 'warn'); return; }
+          const name = `Army ${++armyNumberRef.current}`;
+          setArmies(prev => [...prev, { name, unitIds: ids }]);
+          onNotice?.(`${name} grouped: ${ids.length} unit${ids.length === 1 ? '' : 's'} (key ${armies.length + 1})`);
+      },
+      // Selects the army; if it is already selected, centres the camera on it.
+      selectArmy: index => {
+          const army = armies[index];
+          if (!army) return;
+          const living = ownSelected(army.unitIds);
+          if (living.length === 0) return;
+          if (sameSet(selectedUnitIds, living.map(u => u.id))) { centreOn(living); return; }
+          setTargetingSourceId(null);
+          setTargetingAbility(null);
+          setSelectedUnitIds(new Set(living.map(u => u.id)));
+      },
+      removeArmy: index => setArmies(prev => prev.filter((_, i) => i !== index)),
+  };
+  // Tell the panel what is selected and how the armies stand. Sent only when something the
+  // panel shows changed, not every tick.
+  const lastArmyReportRef = useRef('');
+  useEffect(() => {
+      if (!onArmyUpdate) return;
+      const selected = ownSelected(selectedUnitIds);
+      const counts = new Map<UnitType, number>();
+      for (const u of selected) counts.set(u.type, (counts.get(u.type) || 0) + 1);
+      const first = selected.find(u => u.id === Array.from(selectedUnitIds)[0]);
+      const selection: SelectionSummary = {
+          types: [...counts].map(([type, count]) => ({ type, count })).sort((a, b) => b.count - a.count || UNIT_STATS[a.type].label.localeCompare(UNIT_STATS[b.type].label)),
+          focused: first?.type ?? null,
+          total: selected.length,
+      };
+      const info: ArmyInfo[] = armies.map(a => {
+          const living = ownSelected(a.unitIds).map(u => u.id);
+          return { name: a.name, alive: living.length, selected: living.length > 0 && sameSet(selectedUnitIds, living) };
+      });
+      const report = JSON.stringify([selection, info]);
+      if (report === lastArmyReportRef.current) return;
+      lastArmyReportRef.current = report;
+      onArmyUpdate(selection, info);
+  });
+  // Armies whose every unit is gone disband themselves.
+  useEffect(() => {
+      if (armies.some(a => ownSelected(a.unitIds).length === 0)) setArmies(prev => prev.filter(a => ownSelected(a.unitIds).length > 0));
+  }, [units, armies]);
+  // Number keys 1-9 select the matching army.
+  useEffect(() => {
+      const onKey = (e: KeyboardEvent) => {
+          const t = e.target as HTMLElement | null;
+          if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+          if (e.ctrlKey || e.metaKey || e.altKey || !/^Digit[1-9]$/.test(e.code)) return;
+          armyControlsRef?.current?.selectArmy(Number(e.code.slice(5)) - 1);
+      };
+      window.addEventListener('keydown', onKey);
+      return () => window.removeEventListener('keydown', onKey);
+  }, [armyControlsRef]);
+
   const aiRef = useRef({ memory: freshAiMemory() });
   const aiCallsRef = useRef({ dispatchOrder, dispatchAbility, canBuildOnTile });
   aiCallsRef.current = { dispatchOrder, dispatchAbility, canBuildOnTile };
