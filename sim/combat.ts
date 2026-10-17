@@ -178,7 +178,7 @@ export function resolveAttacks(
 
   for (const u of units) {
     const base = UNIT_RULES[u.type].weapon;
-    if (!base || base.indirect || u.health <= 0 || u.decoyActive || u.isStunned || isEmpDisabled(u) || inNanoCloud(u.gridPos)) continue;
+    if (!base || base.indirect || base.ciws || u.health <= 0 || u.decoyActive || u.isStunned || isEmpDisabled(u) || inNanoCloud(u.gridPos)) continue;
     // Ability buffs (sim/unitAbilities.ts): range, damage and, for Flak Barrage, air splash.
     const weapon: Weapon = u.buffs?.length ? {
       ...base,

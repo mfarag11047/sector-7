@@ -125,6 +125,11 @@ export interface UnitData {
   // Thunderhead battery (sim/artillery.ts): when it planted, the tile its fire mission is
   // shelling, and where its last shell was aimed (for the gun to point at).
   anchoredAt?: number;
+  // Aegis CIWS (sim/ciws.ts): magazine used (ms of fire), reloading until, last shot, and target.
+  ciwsUsedMs?: number;
+  ciwsReloadUntil?: number;
+  ciwsLastFiredAt?: number;
+  ciwsTargetId?: string | null;
   artilleryTarget?: { x: number; z: number } | null;
   artilleryAim?: { x: number; z: number } | null;
   batteryTetherIds?: string[]; // Vehicles the anchored Battery Mule is feeding

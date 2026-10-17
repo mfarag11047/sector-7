@@ -5,6 +5,7 @@
 
 import { UNIT_STATS } from '../constants';
 import type { UnitData, UnitType } from '../types';
+import { applyCiwsState, ciwsTick } from './ciws';
 import { applyDamage, resolveAttacks } from './combat';
 import { BASE_SPEED, MOVE_TICK_MS } from './movement';
 import { UNIT_RULES } from './units';
@@ -58,10 +59,12 @@ export function simulateBattle(blue: ArmyEntry[], red: ArmyEntry[], maxSeconds =
 
   for (; now < maxSeconds * 1000; now += MOVE_TICK_MS) {
     const attack = resolveAttacks(units, [], now, () => false);
-    if (attack.fired.size > 0) lastHit = now;
-    units = applyDamage(units, attack.unitDamage).map(u => ({
+    // Aegis rotary cannons fire in bursts (sim/ciws.ts).
+    const ciws = ciwsTick(units, [], now, MOVE_TICK_MS);
+    if (attack.fired.size > 0 || ciws.links.length > 0) lastHit = now;
+    units = applyDamage(applyCiwsState(units, ciws.updates), attack.unitDamage, ciws.unitDamage).map(u => ({
       ...u,
-      combatTargetId: attack.aiming.get(u.id) ?? null,
+      combatTargetId: u.type === 'aegis' ? u.ciwsTargetId ?? null : attack.aiming.get(u.id) ?? null,
       lastAttackTime: attack.fired.has(u.id) ? now : u.lastAttackTime,
     })).filter(u => u.health > 0);
 

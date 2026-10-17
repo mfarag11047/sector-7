@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { UnitData } from '../types';
+import { CIWS, ciwsTick } from './ciws';
 import { resolveAttacks } from './combat';
 import { speedMultiplier } from './movement';
 import { createUnit } from './production';
@@ -104,9 +105,10 @@ describe('effects in combat and movement', () => {
 
   it('Radar extends weapon range; speed buffs speed units up', () => {
     const aegis = at(createUnit('aegis', 'blue', 'a', { x: 0, z: 0 }), 0);
-    const wasp = enemy('wasp', UNIT_RULES.aegis.weapon!.range + 1.5, 'w');
-    expect(fire([aegis, wasp], 10_000).fired.has('a')).toBe(false);
-    expect(fire([{ ...aegis, buffs: [{ kind: 'radar', until: 99_999 }] }, wasp], 10_000).fired.has('a')).toBe(true);
+    const wasp = enemy('wasp', CIWS.range + 1.5, 'w');
+    const cannon = (units: UnitData[]) => ciwsTick(units, [], 10_000, 100).links.some(l => l.aegisId === 'a');
+    expect(cannon([aegis, wasp])).toBe(false);
+    expect(cannon([{ ...aegis, buffs: [{ kind: 'radar', until: 99_999 }] }, wasp])).toBe(true);
     const rb = { ...createUnit('razorback', 'blue', 'r', { x: 0, z: 0 }), path: ['1,0'] };
     expect(speedMultiplier({ ...rb, buffs: [{ kind: 'nitro', until: 9 }] }, () => 'street')).toBeCloseTo(speedMultiplier(rb, () => 'street') * 1.8);
   });

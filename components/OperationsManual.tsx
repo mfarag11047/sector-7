@@ -9,6 +9,7 @@ import { ABILITY_CONFIG, BUILDING_VALUES, DOCTRINE_CONFIG, STRUCTURE_INFO, UNIT_
 import type { DoctrineType, StructureType, UnitType } from '../types';
 import { ARTILLERY } from '../sim/artillery';
 import { RADAR } from '../sim/radar';
+import { CIWS, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { HQ_INCOME } from '../sim/economy';
 import { abilitiesFor } from '../sim/unitAbilities';
 import {
@@ -39,7 +40,7 @@ const ROLE_INFO: Record<UnitRole, string> = {
   anti_armor: 'Infantry with rockets. Slow and fragile, but they crack vehicles and gunships.',
   raider: 'Fast, light vehicles. Hunt infantry, raid undefended nodes, run before armour arrives.',
   armor: 'Heavy tanks. Slow and expensive; they break infantry blobs and buildings and soak fire.',
-  anti_air: 'Flak vehicles that only shoot aircraft, and long-range radar that spots aircraft and missiles far away. Escort your army; helpless against ground units.',
+  anti_air: 'Air defence: long-range radar and an automatic rotary cannon that shoots down aircraft and incoming missiles. Escort your army; helpless against ground units.',
   gunship: 'Aircraft. Fly straight over the city ignoring roads and terrain, and punish vehicles.',
   scout: 'Unarmed eyes. Spot for your army and for artillery.',
   artillery: 'Long-range and ordnance units. Hit far away, but need protecting up close.',
@@ -86,8 +87,9 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
     ],
   },
   aegis: {
-    use: 'Flak carrier and air-search radar. Park it with your army when the enemy fields Hornets or Wasps. It cannot hit ground targets at all.',
-    actions: [{ name: 'Air-search radar', text: `Always on: a green sweep ${RADAR.range} tiles across. Enemy aircraft and incoming missiles, shells and drop pods inside it show as red dots on the map and minimap, even in fog. A dot tells you something is there, not what it is. An EMP knocks the radar out.` }],
+    use: 'Air-defence carrier: radar plus an automatic rotary cannon. Park it with your army or base to shred Hornets, Wasps and incoming missiles. It cannot hit ground targets at all.',
+    actions: [
+      { name: 'CIWS rotary cannon', text: `Automatic. Fires a stream of rounds at any enemy aircraft or missile, shell or drop pod its radar holds within ${CIWS.range} tiles, missiles first. A magazine lasts ${CIWS.burstMs / 1000}s of fire, then it must stop for a ${CIWS.reloadMs / 1000}s reload; after ${CIWS.topUpMs / 1000}s without firing it tops a part-used magazine back up. Its menu shows the magazine and reload. Missiles take about ${Math.round(ORDNANCE_INTEGRITY.missile / CIWS.dps)}s of fire to bring down, shells a fraction of a second.` },{ name: 'Air-search radar', text: `Always on: a green sweep ${RADAR.range} tiles across. Enemy aircraft and incoming missiles, shells and drop pods inside it show as red dots on the map and minimap, even in fog. A dot tells you something is there, not what it is. An EMP knocks the radar out.` }],
   },
   sun_plate: {
     use: 'Mobile power. Plant it beyond your energy grid so vehicles can keep going.',

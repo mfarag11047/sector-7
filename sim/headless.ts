@@ -10,8 +10,9 @@ import { CITY_CONFIG, STRUCTURE_INFO, TEAM_BASES } from '../constants';
 import type { BuildingData, DoctrineType, RoadType, StructureData, UnitData } from '../types';
 import { abilityEffects, applyUnitEffects } from './abilities';
 import { AiMemory, AI_PROFILES, aiThink, freshAiMemory } from './ai';
-import { ArtilleryShell, fireArtillery, landShells } from './artillery';
+import { ArtilleryShell, fireArtillery, landShells, shellGroundPos } from './artillery';
 import { captureTick } from './capture';
+import { applyCiwsState, ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
 import type { GridPos, Team } from './commands';
 import { applyStructureCombat, resolveAttacks } from './combat';
 import { createEconomy, Economy, payIncome } from './economy';
@@ -52,6 +53,8 @@ export interface HeadlessMatch {
   lastShot: Map<string, number>;
   // Thunderhead shells in the air.
   shells: ArtilleryShell[];
+  // Fire each shell has taken from Aegis cannons.
+  shellHits: Map<string, number>;
   nextId: number;
   // Seeded, so the same options always play out the same match.
   random: () => number;
@@ -85,6 +88,7 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     victory: null,
     lastShot: new Map(),
     shells: [],
+    shellHits: new Map(),
     nextId: 0,
     random: seededRandom(opts.seed ^ 0x5eed),
     gridSize,
@@ -153,6 +157,12 @@ export function stepMatch(m: HeadlessMatch): void {
   // Artillery: new shells go up, and the ones whose flight is over come down.
   const volley = fireArtillery(m.units.map(reloaded), m.structures, now, team => (team === 'neutral' ? 1 : m.economy[team].tier), m.random, () => `shell-${++m.nextId}`);
   volley.fired.forEach((_, id) => { m.lastShot.set(id, now); attacks.fired.set(id, ''); });
+  // Aegis rotary cannons: aircraft, and Thunderhead shells (the only ordnance flown here).
+  const ciws = ciwsTick(m.units, m.shells.map(s => ({ id: s.id, team: s.team, at: shellGroundPos(s, now), kind: 'shell' as const })), now, MOVE_TICK_MS);
+  ciws.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+  ciws.ordnanceDamage.forEach((n, id) => m.shellHits.set(id, (m.shellHits.get(id) || 0) + n));
+  m.shells = m.shells.filter(s => (m.shellHits.get(s.id) || 0) < ORDNANCE_INTEGRITY.shell);
+  m.units = applyCiwsState(m.units, ciws.updates);
   const impact = landShells([...m.shells, ...volley.shells], now, m.units, m.structures);
   m.shells = impact.flying;
   impact.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));

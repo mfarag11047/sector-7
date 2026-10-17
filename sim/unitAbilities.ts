@@ -51,7 +51,7 @@ export const UNIT_ABILITIES: readonly UnitAbilityDef[] = [
     description: 'Disables the thermal limiter: double fire rate for 6s.' },
 
   { id: 'barrage', unit: 'aegis', name: 'Flak Barrage', tier: 2, cooldownMs: 30_000, durationMs: 6_000,
-    description: 'Double fire rate for 6s, and each burst also hits aircraft beside the target.' },
+    description: 'Overdrives the rotary cannon: double rate of fire for 6s.' },
   { id: 'radar', unit: 'aegis', name: 'Sky-Net Radar Sweep', tier: 3, cooldownMs: 40_000, durationMs: 10_000,
     description: 'Phased-array sweep: vision 14 and +2 weapon range for 10s.' },
 

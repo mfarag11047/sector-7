@@ -46,6 +46,12 @@ export interface ArtilleryShell {
 
 const tiles = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(a.x - b.x, a.z - b.z);
 
+// Where a shell is over the ground right now, in fractional tiles.
+export const shellGroundPos = (s: ArtilleryShell, now: number) => {
+  const t = Math.min(1, Math.max(0, (now - s.firedAt) / (s.landsAt - s.firedAt)));
+  return { x: s.from.x + (s.at.x - s.from.x) * t, z: s.from.z + (s.at.z - s.from.z) * t };
+};
+
 export const isArtillery = (u: Pick<UnitData, 'type'>) => u.type === 'howitzer';
 export const artilleryRange = (tier: Tier) => ARTILLERY.range[tier];
 export const inArtilleryReach = (from: GridPos, to: GridPos, tier: Tier) => {

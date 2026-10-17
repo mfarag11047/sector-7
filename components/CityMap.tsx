@@ -24,7 +24,8 @@ import { isRadarActive, onRadar, RADAR, radarAircraft, radarSources } from '../s
 import { Blackout, chargeSources, isInsideEnergyGrid, powerTick } from '../sim/energy';
 import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, guardianRepair, leashStep, slowTick, surveillanceStep } from '../sim/support';
-import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells } from '../sim/artillery';
+import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells, shellGroundPos } from '../sim/artillery';
+import { AirThreat, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, resolveAttacks } from '../sim/combat';
 import { generateCity } from '../sim/mapgen';
 import { MatchConfig, STARTING_CORES, aiTeamOf, incomeMultipliers, startingRoster } from '../sim/match';
@@ -491,6 +492,129 @@ function radarContactsFor(
     return contacts;
 }
 
+// --- Aegis CIWS tracer stream ---
+
+// Where a unit is right now in world units, partway along its current step.
+function unitWorld(u: UnitData, tileSize: number, offset: number, y: number) {
+    let gx = u.gridPos.x, gz = u.gridPos.z;
+    if (u.moveTarget) {
+        const [tx, tz] = u.moveTarget.split(',').map(Number);
+        const t = u.moveProgress ?? 0;
+        gx += (tx - gx) * t; gz += (tz - gz) * t;
+    }
+    return { x: gx * tileSize - offset, y, z: gz * tileSize - offset };
+}
+
+// Where something the cannon can shoot at is: an aircraft, a missile or pod, or a shell.
+function airThreatWorld(id: string, units: readonly UnitData[], flights: Map<string, LiveFlight>, shells: readonly ArtilleryShell[], tileSize: number, offset: number, now: number) {
+    const live = flights.get(id);
+    if (live) {
+        const p = live.shot;
+        const pos = p.trajectory === 'ballistic' && p.startPos && p.targetPos ? sampleBallistic(p, now) : p.position;
+        return { x: pos.x, y: pos.y, z: pos.z };
+    }
+    const shell = shells.find(s => s.id === id);
+    if (shell) {
+        const g = shellGroundPos(shell, now);
+        const t = Math.min(1, Math.max(0, (now - shell.firedAt) / (shell.landsAt - shell.firedAt)));
+        return { x: g.x * tileSize - offset, y: 2.5 + 4 * SHELL_PEAK * t * (1 - t), z: g.z * tileSize - offset };
+    }
+    const u = units.find(x => x.id === id);
+    return u ? unitWorld(u, tileSize, offset, flightUnitY(u)) : null;
+}
+
+// The stream of a rotary cannon: dozens of glowing rounds a second racing from the Aegis' gun
+// to its target with a little spread, drawn as one instanced mesh so a sky full of fire costs a
+// single draw call.
+const CIWS_POOL = 900;
+const CIWS_ROUND_SPEED = 320; // World units a second: slow enough that the stream reads as a hose of fire
+const CiwsTracers: React.FC<{
+    linksRef: React.MutableRefObject<CiwsLink[]>;
+    unitsRef: React.MutableRefObject<UnitData[]>;
+    flightRef: React.MutableRefObject<Map<string, LiveFlight>>;
+    shellsRef: React.MutableRefObject<ArtilleryShell[]>;
+    // Fire from an enemy Aegis you can't see isn't drawn, so it doesn't give the gun away.
+    canSee: (aegis: UnitData) => boolean;
+    tileSize: number;
+    offset: number;
+}> = ({ linksRef, unitsRef, flightRef, shellsRef, canSee, tileSize, offset }) => {
+    const mesh = useRef<THREE.InstancedMesh>(null);
+    const rounds = useRef<{ from: THREE.Vector3; to: THREE.Vector3; born: number; life: number }[]>([]);
+    const owed = useRef(new Map<string, number>());
+    const flashRef = useRef<THREE.Group>(null);
+    const scratch = useMemo(() => ({ m: new THREE.Matrix4(), q: new THREE.Quaternion(), p: new THREE.Vector3(), s: new THREE.Vector3(), dir: new THREE.Vector3(), fwd: new THREE.Vector3(0, 0, 1) }), []);
+    useFrame((state, delta) => {
+        const im = mesh.current;
+        if (!im) return;
+        const now = Date.now();
+        const t = state.clock.elapsedTime;
+        // New rounds for every gun firing this tick.
+        for (const link of linksRef.current) {
+            const gun = unitsRef.current.find(u => u.id === link.aegisId);
+            const target = airThreatWorld(link.targetId, unitsRef.current, flightRef.current, shellsRef.current, tileSize, offset, now);
+            if (!gun || !target || !canSee(gun)) continue;
+            const muzzle = unitWorld(gun, tileSize, offset, 6.5);
+            const n = (owed.current.get(link.aegisId) || 0) + CIWS.roundsPerSecond * Math.min(delta, 0.5);
+            const whole = Math.floor(n);
+            owed.current.set(link.aegisId, n - whole);
+            for (let i = 0; i < whole && rounds.current.length < CIWS_POOL; i++) {
+                const from = new THREE.Vector3(muzzle.x + (Math.random() - 0.5) * 1.2, muzzle.y, muzzle.z + (Math.random() - 0.5) * 1.2);
+                const spread = 5;
+                const to = new THREE.Vector3(target.x + (Math.random() - 0.5) * spread, target.y + (Math.random() - 0.5) * spread, target.z + (Math.random() - 0.5) * spread);
+                const life = Math.max(0.05, from.distanceTo(to) / CIWS_ROUND_SPEED);
+                // Fired at some moment during the frame just gone, so at any frame rate the rounds
+                // are spread along the whole path rather than bunched at the muzzle.
+                rounds.current.push({ from, to, born: t - Math.random() * Math.min(Math.min(delta, 0.25), life), life });
+            }
+        }
+        // Fly them; drop the ones that arrived.
+        rounds.current = rounds.current.filter(r => t - r.born < r.life);
+        const { m, q, p, s, dir, fwd } = scratch;
+        rounds.current.forEach((r, i) => {
+            const k = (t - r.born) / r.life;
+            p.lerpVectors(r.from, r.to, k);
+            dir.subVectors(r.to, r.from).normalize();
+            q.setFromUnitVectors(fwd, dir);
+            s.set(1, 1, 1);
+            m.compose(p, q, s);
+            im.setMatrixAt(i, m);
+        });
+        im.count = rounds.current.length;
+        im.instanceMatrix.needsUpdate = true;
+        // Muzzle flashes: a flickering glow on each gun that is firing.
+        const flashes = flashRef.current;
+        if (flashes) {
+            let n = 0;
+            for (const link of linksRef.current) {
+                const gun = unitsRef.current.find(u => u.id === link.aegisId);
+                if (!gun || !canSee(gun) || n >= flashes.children.length) continue;
+                const w = unitWorld(gun, tileSize, offset, 6.5);
+                const f = flashes.children[n++];
+                f.visible = true;
+                f.position.set(w.x, w.y, w.z);
+                f.scale.setScalar(0.7 + Math.random() * 0.8);
+            }
+            for (; n < flashes.children.length; n++) flashes.children[n].visible = false;
+        }
+    });
+    return (
+        <group>
+            <instancedMesh ref={mesh} args={[undefined, undefined, CIWS_POOL]} frustumCulled={false} raycast={() => null}>
+                <boxGeometry args={[0.7, 0.7, 9]} />
+                <meshBasicMaterial color="#ffd27a" toneMapped={false} transparent opacity={0.95} blending={THREE.AdditiveBlending} depthWrite={false} />
+            </instancedMesh>
+            <group ref={flashRef}>
+                {Array.from({ length: 12 }, (_, i) => (
+                    <mesh key={i} visible={false} raycast={() => null}>
+                        <sphereGeometry args={[2.2, 10, 8]} />
+                        <meshBasicMaterial color="#fff1c2" toneMapped={false} transparent opacity={0.85} blending={THREE.AdditiveBlending} depthWrite={false} />
+                    </mesh>
+                ))}
+            </group>
+        </group>
+    );
+};
+
 // Radar blips on the map. A fixed pool of dots placed every frame, so contacts that come and go
 // never cause a re-render. Pulsing, the same size on screen at any zoom, drawn over buildings.
 const BLIP_POOL = 48;
@@ -902,6 +1026,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // Thunderhead shells in flight. The ref is the authority; the state is for drawing them.
   const [shells, setShells] = useState<ArtilleryShell[]>([]);
   const shellsRef = useRef<ArtilleryShell[]>([]);
+  // Aegis cannon fire this tick (for the tracer stream), and fire each piece of ordnance has taken.
+  const ciwsLinksRef = useRef<CiwsLink[]>([]);
+  const ordnanceHitsRef = useRef(new Map<string, number>());
   
   // Refactored Selection State
   const [selectedUnitIds, setSelectedUnitIds] = useState<Set<string>>(new Set());
@@ -1305,6 +1432,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   }, [units, playerTeam, clouds]);
   const visibleUnitIdsRef = useRef(visibleUnitIds);
   visibleUnitIdsRef.current = visibleUnitIds;
+  const canSeeGun = useCallback((u: UnitData) => u.team === playerTeam || visibleUnitIdsRef.current.has(u.id), [playerTeam]);
 
 
   const breachedTiles = useMemo(() => {
@@ -2395,6 +2523,55 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               Math.random, () => `shell-${now}-${Math.random().toString(36).slice(2, 8)}`,
           );
           volley.fired.forEach((_, id) => { lastShotRef.current.set(id, now); attacks.fired.set(id, ''); });
+
+          // Aegis rotary cannons (sim/ciws.ts): hose down aircraft, and missiles, shells and drop
+          // pods in flight. Ordnance that has taken enough fire is knocked out of the sky.
+          const ordnance: AirThreat[] = [];
+          for (const live of flightRef.current.values()) {
+              const p = live.shot;
+              if (live.impacted) continue;
+              const kind = p.payload === 'titan_drop' ? 'pod' : p.trajectory !== 'ballistic' ? null : p.payload === 'nuke' ? 'nuke' : 'missile';
+              if (!kind) continue;
+              const pos = p.startPos && p.targetPos && p.trajectory === 'ballistic' ? sampleBallistic(p, now) : p.position;
+              ordnance.push({ id: p.id, team: p.team, at: { x: (pos.x + offset) / tileSize, z: (pos.z + offset) / tileSize }, kind });
+          }
+          for (const s of shellsRef.current) ordnance.push({ id: s.id, team: s.team, at: shellGroundPos(s, now), kind: 'shell' });
+          const ciws = ciwsTick(currentUnitsRef, ordnance, now, TICK_RATE);
+          ciwsLinksRef.current = ciws.links;
+          ciws.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+          if (ciws.ordnanceDamage.size > 0) {
+              const downed: AirThreat[] = [];
+              ciws.ordnanceDamage.forEach((n, id) => {
+                  const taken = (ordnanceHitsRef.current.get(id) || 0) + n;
+                  ordnanceHitsRef.current.set(id, taken);
+                  const o = ordnance.find(x => x.id === id)!;
+                  if (taken >= ORDNANCE_INTEGRITY[o.kind]) downed.push(o);
+              });
+              if (downed.length > 0) {
+                  const gone = new Set(downed.map(o => o.id));
+                  for (const id of gone) {
+                      const live = flightRef.current.get(id);
+                      if (live) live.impacted = true;
+                      ordnanceHitsRef.current.delete(id);
+                  }
+                  setProjectiles(prev => prev.some(p => gone.has(p.id)) ? prev.filter(p => !gone.has(p.id)) : prev);
+                  if (shellsRef.current.some(s => gone.has(s.id))) {
+                      shellsRef.current = shellsRef.current.filter(s => !gone.has(s.id));
+                      setShells(shellsRef.current);
+                  }
+                  // A burst of flame in the air where each one came apart.
+                  setExplosions(prev => [...prev, ...downed.map(o => ({
+                      id: `intercept-${o.id}`,
+                      position: { ...airThreatWorld(o.id, unitsRef.current, flightRef.current, shellsRef.current, tileSize, offset, now) ?? { x: o.at.x * tileSize - offset, y: 40, z: o.at.z * tileSize - offset } },
+                      radius: o.kind === 'shell' ? 2 : 4, duration: 600, createdAt: now,
+                  }))]);
+                  const missiles = downed.filter(o => o.kind !== 'shell');
+                  if (missiles.length > 0) {
+                      const ours = missiles.some(o => o.team === playerTeam);
+                      onNoticeRef.current?.(ours ? 'Your missile was shot down by enemy air defence' : 'Aegis intercepted an incoming missile', ours ? 'warn' : undefined);
+                  }
+              }
+          }
           if (volley.shells.length > 0 || shellsRef.current.length > 0) {
               const impact = landShells([...shellsRef.current, ...volley.shells], now, currentUnitsRef, structuresRef.current);
               impact.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
@@ -2537,6 +2714,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                           uChanged = true;
                       }
                       if (volley.fired.has(u.id)) newUnit.artilleryAim = volley.fired.get(u.id);
+                      const gun = ciws.updates.get(u.id);
+                      if (gun) { newUnit = { ...newUnit, ...gun }; uChanged = true; }
                       if (attacks.fired.has(u.id)) {
                           newUnit.lastAttackTime = now;
                           // A fired Overcharged Warhead is spent.
@@ -2791,6 +2970,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         {/* Projectiles */}
         {projectiles.map(p => <ProjectileMesh key={p.id} projectile={p} flightRef={flightRef} />)}
         
+        {/* Aegis rotary cannon fire */}
+        <CiwsTracers linksRef={ciwsLinksRef} unitsRef={unitsRef} flightRef={flightRef} shellsRef={shellsRef} canSee={canSeeGun} tileSize={tileSize} offset={offset} />
+
         {/* Aegis radar contacts: dots for enemy aircraft and ordnance nothing can see */}
         {(playerTeam === 'blue' || playerTeam === 'red') && (
             <RadarBlips team={playerTeam} unitsRef={unitsRef} visibleRef={visibleUnitIdsRef} flightRef={flightRef} shellsRef={shellsRef} tileSize={tileSize} offset={offset} />

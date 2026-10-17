@@ -216,6 +216,17 @@ minimap alert: a warning triangle at the launch site and, once the missile is pa
 single blip at the midpoint of its course, but never its live position.
 Your Aegis draw their coverage as a green circle with a sweeping beam.
 
+## Aegis CIWS
+
+The Aegis' gun is an automatic rotary cannon (`sim/ciws.ts`). While its radar works, it fires on
+its own at any enemy aircraft, or missile, Thunderhead shell or drop pod in flight, within 10
+tiles, incoming ordnance first: 60 damage a second (doubled by Flak Barrage; Sky-Net Radar Sweep
+adds 2 tiles). A magazine holds 5 s of fire; empty, the gun stops for a 6 s reload, and after 4 s
+without firing a part-used magazine is topped up. Ordnance has integrity rather than health:
+missiles take 120 (2 s of fire), nukes 240, drop pods 200, shells 30. A downed missile bursts in
+the air and does nothing. The fire is drawn as a dense stream of glowing rounds; an enemy Aegis
+you can't see doesn't show its stream.
+
 ## EMP
 
 Anything that runs on a battery (vehicles and aircraft, not infantry) caught in an EMP shuts down:

@@ -12,6 +12,7 @@ import { currentTilePosition, parseTile } from '../sim/movement';
 import { AegisModel, HornetModel, LancerLauncher, RazorbackModel, ThunderheadModel, TrooperKit } from './unitModels';
 import { ARTILLERY, artilleryRange } from '../sim/artillery';
 import { RADAR } from '../sim/radar';
+import { CIWS } from '../sim/ciws';
 import { follow, predictPosition, simClock, walkAlong } from './glide';
 
 // Helper component for spinning rotors
@@ -77,6 +78,28 @@ const RadarSweep: React.FC<{ radius: number; y: number; strong: boolean }> = ({ 
         ))}
       </group>
     </group>
+  );
+};
+
+// The Aegis cannon's magazine in its menu: firing, ready, or reloading with a countdown.
+const CiwsStatus: React.FC<{ usedMs: number; reloadUntil: number; firing: boolean }> = ({ usedMs, reloadUntil, firing }) => {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const t = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(t); }, []);
+  const reloading = reloadUntil > now;
+  const left = reloading ? 0 : 1 - Math.min(1, usedMs / CIWS.burstMs);
+  const fill = reloading ? 1 - (reloadUntil - now) / CIWS.reloadMs : left;
+  return (
+    <div className="px-1 mb-1">
+      <div className="flex justify-between text-[9px] font-mono uppercase">
+        <span className="text-slate-400">CIWS</span>
+        <span className={reloading ? 'text-amber-300' : firing ? 'text-orange-300 animate-pulse' : 'text-emerald-300'}>
+          {reloading ? `Reloading ${Math.ceil((reloadUntil - now) / 1000)}s` : firing ? 'Firing' : 'Ready'}
+        </span>
+      </div>
+      <div className="h-1 bg-slate-800 rounded-sm overflow-hidden">
+        <div className="h-1" style={{ width: `${Math.max(0, Math.min(1, fill)) * 100}%`, background: reloading ? '#fbbf24' : '#fb923c' }} />
+      </div>
+    </div>
   );
 };
 
@@ -193,6 +216,10 @@ interface UnitProps {
   abilityReadyAt?: Record<string, number>;
   // Aegis with a working radar on the player's side: draw its sweep (sim/radar.ts).
   showRadar?: boolean;
+  // Aegis rotary cannon (sim/ciws.ts)
+  ciwsUsedMs?: number;
+  ciwsReloadUntil?: number;
+  ciwsTargetId?: string | null;
   // Thunderhead (sim/artillery.ts)
   anchoredAt?: number;
   artilleryTarget?: { x: number; z: number } | null;
@@ -322,7 +349,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, showRadar, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, showRadar, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -687,7 +714,7 @@ const Unit: React.FC<UnitProps> = ({
     );
     if (isRazorback) return <RazorbackModel teamColor={teamColor} />;
     if (isHowitzer) return <ThunderheadModel teamColor={teamColor} deployed={!!isDeployed} aim={aimWorld} />;
-    if (isAegis) return <AegisModel teamColor={teamColor} firing={!!combatTargetId} />;
+    if (isAegis) return <AegisModel teamColor={teamColor} firing={!!ciwsTargetId} />;
     if (isHornet) return <HornetModel teamColor={teamColor} />;
      if (isDefenseDrone) {
         const bodyColor = "#334155"; const glowColor = firingLaserAt ? "#ff0000" : "#ef4444"; const detailColor = "#1e293b";
@@ -1241,6 +1268,8 @@ const Unit: React.FC<UnitProps> = ({
                           </div>
                       )}
                   </div>
+
+                  {isAegis && <CiwsStatus usedMs={ciwsUsedMs ?? 0} reloadUntil={ciwsReloadUntil ?? 0} firing={!!ciwsTargetId} />}
 
                   {/* New-unit abilities: unlocked by the team's researched tier (teamCompute carries it). */}
                   {abilitiesFor(type).map(a => {
