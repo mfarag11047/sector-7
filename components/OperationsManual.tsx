@@ -12,7 +12,7 @@ import { HQ_INCOME } from '../sim/economy';
 import { abilitiesFor } from '../sim/unitAbilities';
 import {
   ArmorClass, COMPUTE_PER_SERVER_NODE, DAMAGE_MULTIPLIER, DamageType, dps, HQ_COMPUTE, POP_BASE, POP_MAX, POP_PER_CORE_NODE,
-  STRUCTURE_RULES, Tier, TIER_RESEARCH_COST, UNIT_RULES, unitsProducedBy,
+  STRUCTURE_RULES, Tier, TIER_RESEARCH_COST, UNIT_RULES, unitsProducedBy, Weapon,
 } from '../sim/units';
 import { DOMINATION_MS, DOMINATION_NODES } from '../sim/victory';
 import { ROLE_GLYPH, ROLE_LABEL, roleGlyphFilled, teamBadgeColor, UnitRole, UNIT_ROLE } from './unitIcons';
@@ -189,6 +189,84 @@ const producerLabel = (type: UnitType) => {
 const trainable = (type: UnitType) => UNIT_RULES[type].producer !== null;
 const speedText = (m: number) => (m >= 1.3 ? 'Fast' : m >= 0.95 ? 'Average' : m >= 0.6 ? 'Slow' : m > 0 ? 'Very slow' : 'Stationary');
 
+// --- Bars ---
+// Every bar of a kind shares one scale across the whole manual, so a long bar means the same on
+// every page: attack bars against the hardest-hitting unit, toughness bars against a fixed cap.
+
+const TRAINABLE = (Object.keys(UNIT_RULES) as UnitType[]).filter(t => UNIT_RULES[t].producer !== null);
+const DAMAGE_TYPES = Object.keys(DAMAGE_MULTIPLIER) as DamageType[];
+const ATTACK_MAX = Math.max(...TRAINABLE.flatMap(t => ARMORS.map(a => dps(UNIT_RULES[t].weapon, a))));
+const UNIT_MAX = {
+  health: Math.max(...TRAINABLE.map(t => UNIT_STATS[t].maxHealth)),
+  speed: Math.max(...TRAINABLE.map(t => UNIT_STATS[t].speedMod)),
+  vision: Math.max(...TRAINABLE.map(t => UNIT_STATS[t].visionRange)),
+  range: Math.max(ARTILLERY.range[3], ...TRAINABLE.map(t => UNIT_RULES[t].weapon?.range ?? 0)),
+};
+// Health it takes to kill it with one kind of weapon: health divided by how hard that kind hits
+// its armour. Infinite when the weapon can't touch it.
+const effectiveHealth = (health: number, armor: ArmorClass, type: DamageType) => {
+  const m = DAMAGE_MULTIPLIER[type][armor];
+  return m === 0 ? Infinity : health / m;
+};
+// Toughness spans 80 to 50,000, so its bars use a square-root scale up to a cap, which keeps a
+// Trooper's bar visible next to a tank's.
+const toughness = (ehp: number, cap: number) => (ehp === Infinity ? 1 : Math.min(1, Math.sqrt(ehp / cap)));
+const UNIT_TOUGHNESS_CAP = 2000;
+const STRUCTURE_TOUGHNESS_CAP = 20000;
+const STRUCTURE_HEALTH_MAX = Math.max(...(Object.keys(STRUCTURE_INFO) as StructureType[]).map(s => STRUCTURE_INFO[s].maxHealth));
+
+const Bar: React.FC<{ label: React.ReactNode; fraction: number; value: string; color: string; hint?: string }> = ({ label, fraction, value, color, hint }) => (
+  <div className="flex items-center gap-2 text-xs" title={hint}>
+    <span className="w-24 shrink-0 text-slate-400 truncate">{label}</span>
+    <div className="flex-1 h-2 bg-slate-800 rounded-sm overflow-hidden">
+      <div className="h-2 rounded-sm" style={{ width: `${Math.max(fraction > 0 ? 3 : 0, Math.min(1, fraction) * 100)}%`, background: color }} />
+    </div>
+    <span className={`w-16 shrink-0 text-right tabular-nums ${fraction > 0 ? 'text-slate-200' : 'text-slate-600'}`}>{value}</span>
+  </div>
+);
+
+// Short names for the bar labels.
+const ARMOR_SHORT: Record<ArmorClass, string> = { infantry: 'Infantry', light: 'Light veh.', heavy: 'Heavy armour', air: 'Aircraft', structure: 'Buildings' };
+const DAMAGE_SHORT: Record<DamageType, string> = { rifle: 'Rifles', ap: 'AP rockets', flak: 'Flak', explosive: 'Explosives' };
+
+const ATTACK_COLOR = '#fb923c';
+const DEFENSE_COLOR = '#38bdf8';
+const STAT_COLOR = '#a78bfa';
+
+// Damage per second against each kind of target.
+const AttackBars: React.FC<{ weapon: Weapon | null }> = ({ weapon }) => (
+  <div className="space-y-1">
+    <div className="text-[10px] uppercase tracking-wider" style={{ color: ATTACK_COLOR }}>Damage per second against</div>
+    {ARMORS.map(a => {
+      const v = dps(weapon, a);
+      return <Bar key={a} label={ARMOR_SHORT[a]} fraction={v / ATTACK_MAX} value={v ? `${v.toFixed(1)}/s` : '—'} color={ATTACK_COLOR} hint="Damage per second" />;
+    })}
+  </div>
+);
+
+// How much of each kind of weapon it takes to destroy it.
+const DefenseBars: React.FC<{ health: number; armor: ArmorClass; cap: number }> = ({ health, armor, cap }) => (
+  <div className="space-y-1">
+    <div className="text-[10px] uppercase tracking-wider" style={{ color: DEFENSE_COLOR }}>Damage to destroy it with</div>
+    {DAMAGE_TYPES.map(d => {
+      const ehp = effectiveHealth(health, armor, d);
+      const m = DAMAGE_MULTIPLIER[d][armor];
+      return (
+        <Bar key={d} label={DAMAGE_SHORT[d]} fraction={toughness(ehp, cap)} color={DEFENSE_COLOR}
+          value={ehp === Infinity ? 'Immune' : `${Math.round(ehp)}`} hint={`Takes ${m}× damage from ${DAMAGE_LABEL[d].toLowerCase()}: ${ehp === Infinity ? 'cannot be hurt by it' : `${Math.round(ehp)} damage to destroy`}`} />
+      );
+    })}
+  </div>
+);
+
+const Legend: React.FC = () => (
+  <p className="text-[11px] text-slate-500 mb-2 flex flex-wrap gap-x-4">
+    <span><span className="inline-block w-2 h-2 mr-1 rounded-sm" style={{ background: ATTACK_COLOR }} />Attack: damage per second</span>
+    <span><span className="inline-block w-2 h-2 mr-1 rounded-sm" style={{ background: DEFENSE_COLOR }} />Toughness: damage it takes to destroy</span>
+    <span>Longer is stronger; bars share one scale across the manual.</span>
+  </p>
+);
+
 // --- Unit detail ---
 
 const UnitDetail: React.FC<{ type: UnitType; color: string; onOpen: (t: UnitType) => void; onBack: () => void }> = ({ type, color, onOpen, onBack }) => {
@@ -200,9 +278,6 @@ const UnitDetail: React.FC<{ type: UnitType; color: string; onOpen: (t: UnitType
   const abilities = abilitiesFor(type);
   const isArtillery = type === 'howitzer';
 
-  // Damage per second against each armour class, scaled to the best of them for the bars.
-  const vs = ARMORS.map(a => ({ armor: a, dps: dps(weapon, a) }));
-  const top = Math.max(1, ...vs.map(v => v.dps));
   // What beats it: trainable units doing the most damage to its armour per core, with a little
   // weight for toughness (the same measure the AI uses to pick counters).
   const counters = useMemo(() => (Object.keys(UNIT_RULES) as UnitType[])
@@ -233,7 +308,30 @@ const UnitDetail: React.FC<{ type: UnitType; color: string; onOpen: (t: UnitType
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <H>Specs</H>
+          <Legend />
+          <H>Attack</H>
+          {weapon ? (
+            <div className="mb-4">
+              <AttackBars weapon={weapon} />
+              <p className="text-[11px] text-slate-400 mt-2">
+                {DAMAGE_LABEL[weapon.type]}: {weapon.damage} damage every {weapon.cooldownMs / 1000}s
+                {weapon.splash ? `, ${weapon.splash}-tile splash` : ''}. Hits {weapon.hitsGround && weapon.hitsAir ? 'ground and air' : weapon.hitsAir ? 'aircraft only' : 'ground only'}.
+                {isArtillery && ' Fires only when anchored.'}
+              </p>
+            </div>
+          ) : <p className="text-xs text-slate-400 mb-4">Unarmed.</p>}
+
+          <H>Toughness</H>
+          <div className="mb-4"><DefenseBars health={stats.maxHealth} armor={rules.armor} cap={UNIT_TOUGHNESS_CAP} /></div>
+
+          <H>Stats</H>
+          <div className="space-y-1 mb-3">
+            <Bar label="Health" fraction={stats.maxHealth / UNIT_MAX.health} value={String(stats.maxHealth)} color={STAT_COLOR} />
+            <Bar label="Speed" fraction={stats.speedMod / UNIT_MAX.speed} value={speedText(stats.speedMod)} color={STAT_COLOR} />
+            <Bar label="Vision" fraction={stats.visionRange / UNIT_MAX.vision} value={`${stats.visionRange} tiles`} color={STAT_COLOR} />
+            <Bar label="Range" fraction={(isArtillery ? ARTILLERY.range[1] : weapon?.range ?? 0) / UNIT_MAX.range}
+              value={weapon ? (isArtillery ? `${ARTILLERY.range[1]}–${ARTILLERY.range[3]}` : `${weapon.range} tiles`) : '—'} color={STAT_COLOR} />
+          </div>
           <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-4">
             {([
               ['Built at', producerLabel(type) ?? '—'],
@@ -241,10 +339,7 @@ const UnitDetail: React.FC<{ type: UnitType; color: string; onOpen: (t: UnitType
               ['Cost', stats.cost ? `${stats.cost} cores` : '—'],
               ['Population', String(rules.pop)],
               ['Build time', rules.buildTimeMs ? `${rules.buildTimeMs / 1000}s` : '—'],
-              ['Health', String(stats.maxHealth)],
               ['Armour', ARMOR_LABEL[rules.armor]],
-              ['Speed', speedText(stats.speedMod)],
-              ['Vision', `${stats.visionRange} tiles`],
               ['Captures', stats.captureMultiplier > 0 ? `Yes (${stats.captureMultiplier}×)` : 'No'],
             ] as [string, string][]).map(([k, v]) => (
               <React.Fragment key={k}>
@@ -253,25 +348,6 @@ const UnitDetail: React.FC<{ type: UnitType; color: string; onOpen: (t: UnitType
             ))}
           </dl>
           {note.source && <Item label="Where it comes from">{note.source}</Item>}
-
-          <H>Weapon</H>
-          {weapon ? (
-            <div className="text-xs text-slate-300 mb-2">
-              {DAMAGE_LABEL[weapon.type]}: {weapon.damage} damage every {weapon.cooldownMs / 1000}s,{' '}
-              {isArtillery ? `range ${ARTILLERY.range[1]}–${ARTILLERY.range[3]} tiles by tier` : `range ${weapon.range} tiles`}
-              {weapon.splash ? `, ${weapon.splash}-tile splash` : ''}. Hits {weapon.hitsGround && weapon.hitsAir ? 'ground and air' : weapon.hitsAir ? 'aircraft only' : 'ground only'}.
-              {isArtillery && ' Fires only when anchored.'}
-              <div className="mt-2 space-y-1">
-                {vs.map(v => (
-                  <div key={v.armor} className="flex items-center gap-2">
-                    <span className="w-24 text-slate-500">{ARMOR_LABEL[v.armor]}</span>
-                    <div className="flex-1 h-1.5 bg-slate-800 rounded"><div className="h-1.5 rounded bg-cyan-400" style={{ width: `${(v.dps / top) * 100}%` }} /></div>
-                    <span className="w-14 text-right text-slate-400">{v.dps ? `${v.dps.toFixed(1)}/s` : 'none'}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : <p className="text-xs text-slate-400 mb-2">Unarmed.</p>}
           {trainable(type) && counters.length > 0 && (
             <Item label="Countered by">
               <span className="flex flex-wrap gap-x-3">{counters.map(t => <UnitLink key={t} type={t} onOpen={onOpen} />)}</span>
@@ -317,13 +393,80 @@ const UnitDetail: React.FC<{ type: UnitType; color: string; onOpen: (t: UnitType
 
 // --- Tabs ---
 
+// Every trainable unit side by side: what it hits hard, and how tough it is.
+const PRODUCER_ORDER: StructureType[] = ['infantry', 'armor', 'air', 'support', 'builder', 'ordnance_fab'];
+const MiniBar: React.FC<{ fraction: number; value: string; color: string; best?: boolean }> = ({ fraction, value, color, best }) => (
+  <div className="min-w-[56px]">
+    <div className={`text-[11px] tabular-nums ${fraction > 0 ? (best ? 'text-white font-bold' : 'text-slate-300') : 'text-slate-600'}`}>{value}</div>
+    <div className="h-1.5 bg-slate-800 rounded-sm overflow-hidden">
+      <div className="h-1.5 rounded-sm" style={{ width: `${fraction > 0 ? Math.max(4, Math.min(1, fraction) * 100) : 0}%`, background: color }} />
+    </div>
+  </div>
+);
+
+const CompareChart: React.FC<{ color: string; onOpen: (t: UnitType) => void }> = ({ color, onOpen }) => (
+  <div className="overflow-x-auto">
+    <Legend />
+    <table className="w-full text-xs border-separate border-spacing-x-2 border-spacing-y-1">
+      <thead>
+        <tr className="text-slate-500 text-[11px]">
+          <th className="text-left font-normal">Unit</th>
+          {ARMORS.map(a => <th key={a} className="text-left font-normal" style={{ color: ATTACK_COLOR }}>vs {ARMOR_SHORT[a]}</th>)}
+          <th className="text-left font-normal" style={{ color: DEFENSE_COLOR }}>Health</th>
+        </tr>
+      </thead>
+      <tbody>
+        {PRODUCER_ORDER.map(producer => {
+          const units = TRAINABLE.filter(t => UNIT_RULES[t].producer === producer).sort((a, b) => UNIT_RULES[a].tier - UNIT_RULES[b].tier);
+          if (units.length === 0) return null;
+          return (
+            <React.Fragment key={producer}>
+              <tr><td colSpan={ARMORS.length + 2} className="pt-2 text-fuchsia-400 font-mono text-[10px] uppercase tracking-widest">{STRUCTURE_INFO[producer].label}</td></tr>
+              {units.map(t => {
+                const values = ARMORS.map(a => dps(UNIT_RULES[t].weapon, a));
+                const best = Math.max(...values);
+                return (
+                  <tr key={t}>
+                    <td className="whitespace-nowrap pr-2">
+                      <span className="inline-flex items-center gap-1.5">
+                        <RoleBadge role={UNIT_ROLE[t]} color={color} size={16} />
+                        <UnitLink type={t} onOpen={onOpen} />
+                        <span className="text-slate-600 text-[10px]">T{UNIT_RULES[t].tier}</span>
+                      </span>
+                    </td>
+                    {values.map((v, i) => (
+                      <td key={ARMORS[i]}><MiniBar fraction={v / ATTACK_MAX} value={v ? v.toFixed(1) : '—'} color={ATTACK_COLOR} best={v > 0 && v === best} /></td>
+                    ))}
+                    <td><MiniBar fraction={UNIT_STATS[t].maxHealth / UNIT_MAX.health} value={String(UNIT_STATS[t].maxHealth)} color={DEFENSE_COLOR} /></td>
+                  </tr>
+                );
+              })}
+            </React.Fragment>
+          );
+        })}
+      </tbody>
+    </table>
+    <p className="text-[11px] text-slate-500 mt-2">Attack numbers are damage per second. Each unit's best target is in bold. Open a unit for how tough it is against each weapon type.</p>
+  </div>
+);
+
 const UnitsTab: React.FC<{ color: string; open: UnitType | null; onOpen: (t: UnitType | null) => void }> = ({ color, open, onOpen }) => {
+  const [view, setView] = useState<'roles' | 'compare'>('roles');
   if (open) return <UnitDetail type={open} color={color} onOpen={onOpen} onBack={() => onOpen(null)} />;
   const byRole = (role: UnitRole) => (Object.keys(UNIT_ROLE) as UnitType[]).filter(t => UNIT_ROLE[t] === role);
   return (
     <div>
+      <div className="flex gap-1 mb-3">
+        {([['roles', 'By role'], ['compare', 'Compare all']] as const).map(([id, label]) => (
+          <button key={id} onClick={() => setView(id)} aria-pressed={view === id}
+            className={`px-2 py-1 font-mono text-[11px] uppercase border ${view === id ? 'border-fuchsia-400 text-fuchsia-300' : 'border-slate-700 text-slate-400 hover:text-cyan-200'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {view === 'compare' ? <CompareChart color={color} onOpen={onOpen} /> : <>
       <p className="text-slate-400 text-xs mb-4">
-        Every unit carries one of these badges in its team colour, above it on the map and on the minimap, so you can read an army at a glance. Click a unit's name for its full brief and upgrade tree.
+        Every unit carries one of these badges in its team colour, above it on the map and on the minimap, so you can read an army at a glance. Click a unit's name for its full brief and upgrade tree, or Compare all to see every unit's strengths side by side.
       </p>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {ROLE_ORDER.map(role => (
@@ -339,6 +482,7 @@ const UnitsTab: React.FC<{ color: string; open: UnitType | null; onOpen: (t: Uni
           </div>
         ))}
       </div>
+      </>}
     </div>
   );
 };
@@ -359,6 +503,7 @@ const STRUCTURE_TEXT: Partial<Record<StructureType, string>> = {
 
 const StructuresTab: React.FC<{ onOpen: (t: UnitType) => void }> = ({ onOpen }) => (
   <div>
+    <Legend />
     <p className="text-slate-400 text-xs mb-4">Double-click your HQ to place structures (inside your energy grid only), and double-click a finished structure to train from it. Walls and the turret come from the Depot and need Masons to build.</p>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
       {STRUCTURE_ORDER.map(s => {
@@ -370,13 +515,18 @@ const StructuresTab: React.FC<{ onOpen: (t: UnitType) => void }> = ({ onOpen }) 
             <div className="flex items-center gap-2 mb-1">
               <span className="w-3 h-3 rounded-sm" style={{ background: info.color }} />
               <span className="text-cyan-200 font-bold text-xs uppercase">{info.label}</span>
-              <span className="ml-auto text-[11px] text-slate-400">{info.cost ? `${info.cost} cores` : ''} · {info.maxHealth} HP</span>
+              <span className="ml-auto text-[11px] text-slate-400">{info.cost ? `${info.cost} cores` : ''}</span>
             </div>
-            <p className="text-slate-400 text-[11px] mb-1">
+            <p className="text-slate-400 text-[11px] mb-2">
               {STRUCTURE_TEXT[s]}
               {STRUCTURE_RULES[s].buildTimeMs ? ` Builds in ${STRUCTURE_RULES[s].buildTimeMs / 1000}s.` : ''}
               {weapon ? ` Armed: ${weapon.damage} ${DAMAGE_LABEL[weapon.type].toLowerCase()} every ${weapon.cooldownMs / 1000}s, range ${weapon.range}.` : ''}
             </p>
+            <div className="space-y-1 mb-2">
+              <Bar label="Health" fraction={info.maxHealth / STRUCTURE_HEALTH_MAX} value={String(info.maxHealth)} color={STAT_COLOR} />
+              <DefenseBars health={info.maxHealth} armor="structure" cap={STRUCTURE_TOUGHNESS_CAP} />
+            </div>
+            {weapon && <div className="mb-2"><AttackBars weapon={weapon} /></div>}
             {trains.length > 0 && (
               <div className="flex flex-wrap gap-x-3 gap-y-1">
                 {trains.map(t => (
