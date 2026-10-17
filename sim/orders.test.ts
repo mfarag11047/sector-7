@@ -85,6 +85,13 @@ describe('research', () => {
     expect(run(more, { type: 'TRAIN_UNIT', structureId: 'barracks', unitType: 'trooper' }).refused).toBeUndefined();
   });
 
+  it('has no population cap in the sandbox', () => {
+    const units = Array.from({ length: POP_BASE * 3 }, (_, i) => createUnit('trooper', 'blue', `t${i}`, { x: 1, z: 1 }));
+    const v = view({ units });
+    expect(run(v, { type: 'TRAIN_UNIT', structureId: 'barracks', unitType: 'trooper' }).refused).toMatch(/population/);
+    expect(run({ ...v, unlimitedPop: true }, { type: 'TRAIN_UNIT', structureId: 'barracks', unitType: 'trooper' }).refused).toBeUndefined();
+  });
+
   it('refuses when broke', () => {
     expect(run(view({ economy: createEconomy(10) }), { type: 'TRAIN_UNIT', structureId: 'barracks', unitType: 'trooper' }).refused).toMatch(/cores/);
   });

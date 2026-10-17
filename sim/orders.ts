@@ -43,6 +43,8 @@ export interface OrdersView {
   economy: Economy;
   // Live EMP blackouts: no building where your grid is down.
   blackouts?: readonly Blackout[];
+  // Sandbox play-testing: no population cap.
+  unlimitedPop?: boolean;
 }
 
 export interface OrdersContext {
@@ -106,7 +108,7 @@ function trainOrder(view: OrdersView, team: Team, structureId: string, unitType:
   const tier = teamTier(view.economy, team);
   if (rules.tier > tier) return reject(`needs Tier ${rules.tier}`);
   if ((s.queue?.length || 0) >= MAX_QUEUE) return reject('queue full');
-  const cap = teamPopCap(view.buildings, team);
+  const cap = view.unlimitedPop ? Infinity : teamPopCap(view.buildings, team);
   if (popUsed(view.units, view.structures, team) + rules.pop > cap) return reject(`population cap reached (${cap}); hold more core nodes`);
   const cost = unitCost(unitType);
   if (!spend(view.economy, team, cost)) return reject('not enough cores');

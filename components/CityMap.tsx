@@ -1093,8 +1093,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const supply = useMemo(() => ({
       tier: teamTier(economy, playerTeam),
       used: popUsed(units, structuresState, playerTeam),
-      cap: teamPopCap(buildings, playerTeam),
-  }), [buildings, units, structuresState, playerTeam, economy]);
+      // No population cap in the sandbox: it is for play-testing.
+      cap: match.mode === 'sandbox' ? Infinity : teamPopCap(buildings, playerTeam),
+  }), [buildings, units, structuresState, playerTeam, economy, match.mode]);
 
   // Cheat State
 
@@ -1975,7 +1976,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
   const dispatchOrder = (command: OrderCommand, team: 'blue' | 'red' = playerTeam, quiet = false): boolean => {
       const outcome = orderEffects(
-          { units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, blackouts: activeBlackouts() },
+          { units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, blackouts: activeBlackouts(), unlimitedPop: matchRef.current.mode === 'sandbox' },
           team,
           command,
           {
@@ -2496,6 +2497,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   useLayoutEffect(() => {
     const blue = teamStats(economy, 'blue', buildingsRef.current, unitsRef.current, structuresRef.current);
     const red = teamStats(economy, 'red', buildingsRef.current, unitsRef.current, structuresRef.current);
+    if (matchRef.current.mode === 'sandbox') { blue.popCap = Infinity; red.popCap = Infinity; }
     // Seconds until each doctrine power is ready again.
     const now = Date.now();
     for (const [team, s] of [['blue', blue], ['red', red]] as const) {

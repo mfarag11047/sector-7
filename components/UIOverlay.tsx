@@ -211,7 +211,7 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
 
         <div className="flex flex-col items-end" title="Population used / cap">
            {isVisible ? (
-                <span className={`font-mono text-sm font-bold ${(stats.pop ?? 0) >= (stats.popCap ?? 1) ? 'text-red-400' : 'text-white'}`}>{stats.pop ?? stats.units}/{stats.popCap ?? '-'}</span>
+                <span className={`font-mono text-sm font-bold ${(stats.pop ?? 0) >= (stats.popCap ?? 1) ? 'text-red-400' : 'text-white'}`}>{stats.pop ?? stats.units}/{stats.popCap === Infinity ? '∞' : stats.popCap ?? '-'}</span>
            ) : (
                 <span className="text-slate-600 font-mono text-sm">--</span>
            )}

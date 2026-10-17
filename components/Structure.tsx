@@ -916,7 +916,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                         <>
                             <div className="flex justify-between text-[10px] text-slate-400 font-mono uppercase mb-1 px-1">
                                 <span>{constructing ? 'Under construction' : `Production · T${tier}`}</span>
-                                <span className={popUsed >= popCap ? 'text-red-400' : ''}>Pop {popUsed}/{popCap}</span>
+                                <span className={popUsed >= popCap ? 'text-red-400' : ''}>Pop {popUsed}/{popCap === Infinity ? '∞' : popCap}</span>
                             </div>
                             {buildableUnits.map(uType => {
                                 const stats = UNIT_STATS[uType];
