@@ -1,0 +1,586 @@
+// The Operations Manual: a tabbed guide for new players, opened with the ? button.
+//
+// Numbers come from the rules themselves (UNIT_RULES, UNIT_STATS, the ability list and the
+// artillery and economy constants), so the manual stays right when the balance changes. Only
+// the prose (what a role is for, what a unit's menu buttons do) is written by hand here.
+
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { ABILITY_CONFIG, BUILDING_VALUES, DOCTRINE_CONFIG, STRUCTURE_INFO, UNIT_STATS } from '../constants';
+import type { DoctrineType, StructureType, UnitType } from '../types';
+import { ARTILLERY } from '../sim/artillery';
+import { HQ_INCOME } from '../sim/economy';
+import { abilitiesFor } from '../sim/unitAbilities';
+import {
+  ArmorClass, COMPUTE_PER_SERVER_NODE, DAMAGE_MULTIPLIER, DamageType, dps, HQ_COMPUTE, POP_BASE, POP_MAX, POP_PER_CORE_NODE,
+  STRUCTURE_RULES, Tier, TIER_RESEARCH_COST, UNIT_RULES, unitsProducedBy,
+} from '../sim/units';
+import { DOMINATION_MS, DOMINATION_NODES } from '../sim/victory';
+import { ROLE_GLYPH, ROLE_LABEL, roleGlyphFilled, teamBadgeColor, UnitRole, UNIT_ROLE } from './unitIcons';
+
+type Tab = 'basics' | 'economy' | 'units' | 'structures' | 'combat' | 'doctrines' | 'interface' | 'winning';
+const TABS: { id: Tab; label: string }[] = [
+  { id: 'basics', label: 'Basics' },
+  { id: 'units', label: 'Units' },
+  { id: 'structures', label: 'Structures' },
+  { id: 'economy', label: 'Economy' },
+  { id: 'combat', label: 'Combat' },
+  { id: 'doctrines', label: 'Doctrines' },
+  { id: 'interface', label: 'Interface' },
+  { id: 'winning', label: 'Winning' },
+];
+
+// --- Hand-written text ---
+
+const ROLE_ORDER: UnitRole[] = ['infantry', 'anti_armor', 'raider', 'armor', 'anti_air', 'gunship', 'scout', 'artillery', 'support', 'engineer', 'swarm', 'sentinel'];
+
+const ROLE_INFO: Record<UnitRole, string> = {
+  infantry: 'Cheap foot soldiers. The only units that capture buildings and core nodes, and rifles are the main answer to aircraft early on.',
+  anti_armor: 'Infantry with rockets. Slow and fragile, but they crack vehicles and gunships.',
+  raider: 'Fast, light vehicles. Hunt infantry, raid undefended nodes, run before armour arrives.',
+  armor: 'Heavy tanks. Slow and expensive; they break infantry blobs and buildings and soak fire.',
+  anti_air: 'Flak vehicles that only shoot aircraft. Escort your army and helpless against ground units.',
+  gunship: 'Aircraft. Fly straight over the city ignoring roads and terrain, and punish vehicles.',
+  scout: 'Unarmed eyes. Spot for your army and for artillery.',
+  artillery: 'Long-range and ordnance units. Hit far away, but need protecting up close.',
+  support: 'Repair, recharge, jam and power your other units. Little or no weapon of their own.',
+  engineer: 'Builders. Masons haul materials to walls and turrets.',
+  swarm: 'Doctrine units that release or are self-destructing drones.',
+  sentinel: 'Neutral guards on the server nodes. They attack everyone who comes close.',
+};
+
+interface UnitNote {
+  // How to use it, in a sentence or two.
+  use: string;
+  // Buttons in its action menu, other than the tiered abilities in sim/unitAbilities.ts.
+  actions?: { name: string; text: string }[];
+  // Where it comes from, for units no structure trains.
+  source?: string;
+}
+
+const UNIT_NOTES: Record<UnitType, UnitNote> = {
+  trooper: { use: 'Your bread-and-butter unit. Send squads to capture core nodes and buildings (which grows your energy grid), and keep some with the army to shoot down aircraft.' },
+  ghost: {
+    use: 'Captures 1.5× faster than a Trooper. Sneaks in to steal nodes and hides from the enemy.',
+    actions: [
+      { name: 'Toggle Dampener', text: `Hides friendly units within ${ABILITY_CONFIG.GHOST_DAMPENER_RADIUS} tiles from the enemy's minimap. Drains the Ghost's battery while on.` },
+      { name: 'Phantom Decoy', text: `Cloaks the Ghost and sends ${ABILITY_CONFIG.PHANTOM_DECOY_COUNT} holographic copies running in different directions for ${ABILITY_CONFIG.DECOY_DURATION / 1000}s. Drains battery while cloaked.` },
+    ],
+  },
+  lancer: { use: 'Rocket team: bring them against tanks, Razorbacks and gunships. Keep them behind Troopers, as rifles shred them.' },
+  razorback: { use: 'Fast raider buggy. Chase down infantry and capture squads, then fall back before Lancers or Titans arrive.' },
+  howitzer: {
+    use: `Mobile rail-gun battery. It cannot fire while moving: stop it, anchor it, wait ${ARTILLERY.setupMs / 1000}s for setup, then it shells enemies your side can see. Keep it behind your army.`,
+    actions: [
+      { name: 'Anchor Down / Pack Up', text: 'Plants the battery (only when stopped). Any move order packs it up and cancels its fire mission.' },
+      { name: 'Fire Mission', text: `Click a tile inside the orange range ring: it shells that spot every ${ARTILLERY.cooldownMs / 1000}s, even into fog, until you Cease Fire or move it. Nothing within ${ARTILLERY.minRange} tiles can be shelled.` },
+      { name: 'Cease Fire', text: 'Cancels the fire mission. It goes back to firing at enemies it can see.' },
+    ],
+  },
+  tank: {
+    use: 'Main battle tank. Leads pushes, levels buildings and breaks infantry clumps.',
+    actions: [
+      { name: 'Main Cannon', text: `Aimed heavy shot for ${ABILITY_CONFIG.TITAN_CANNON_DAMAGE} damage. ${ABILITY_CONFIG.TITAN_CANNON_COOLDOWN / 1000}s reload; costs battery.` },
+      { name: 'Smoke Screen', text: `Hides the tank for ${ABILITY_CONFIG.TITAN_SMOKE_DURATION / 1000}s. Limited charges.` },
+      { name: 'Activate APS', text: `Active protection shoots down incoming missiles and shells for ${ABILITY_CONFIG.TITAN_APS_DURATION / 1000}s. Limited charges.` },
+    ],
+  },
+  aegis: { use: 'Flak carrier. Park it with your army when the enemy fields Hornets or Wasps. It cannot hit ground targets at all.' },
+  sun_plate: {
+    use: 'Mobile power. Plant it beyond your energy grid so vehicles can keep going.',
+    actions: [
+      { name: 'Anchor Down', text: 'Plants the Battery Mule so it can feed batteries.' },
+      { name: 'Tether', text: `Links up to ${ABILITY_CONFIG.BATTERY_MULE_SLOTS} vehicles within ${ABILITY_CONFIG.BATTERY_MULE_RANGE} tiles (yellow ring) and charges them.` },
+    ],
+  },
+  drone: {
+    use: 'Cheap scout. Fly ahead to find the enemy and spot for Thunderheads.',
+    actions: [{ name: 'Surveillance', text: `Loiters over a spot for ${ABILITY_CONFIG.SURVEILLANCE_DURATION / 60000} minutes, revealing a wide area.` }],
+  },
+  wasp: {
+    use: 'Harasser aircraft with homing missile swarms.',
+    actions: [{ name: 'Fire Swarm', text: `Launches ${ABILITY_CONFIG.WASP_MISSILES_PER_VOLLEY} homing missiles at a spot up to ${ABILITY_CONFIG.WASP_SWARM_RANGE} tiles away. ${ABILITY_CONFIG.WASP_MAX_CHARGES} charges.` }],
+  },
+  hornet: { use: 'Gunship. Hunts vehicles. Avoid Aegis and massed Troopers.' },
+  bombard: {
+    use: 'Slow heavy drone that flattens city blocks to open new lanes.',
+    actions: [{ name: 'Bombard', text: `Flies to a spot and levels a ${ABILITY_CONFIG.BOMBARD_RADIUS * 2 + 1}×${ABILITY_CONFIG.BOMBARD_RADIUS * 2 + 1} patch: ${ABILITY_CONFIG.BOMBARD_BUILDING_DAMAGE} damage to buildings, ${ABILITY_CONFIG.BOMBARD_UNIT_DAMAGE} to every unit under it, friend or foe.` }],
+  },
+  guardian: {
+    use: 'Combat medic vehicle. Keep it just behind your front line.',
+    actions: [
+      { name: 'Auto-repair', text: `Repairs up to ${ABILITY_CONFIG.GUARDIAN_REPAIR_SLOTS} damaged allies within ${ABILITY_CONFIG.GUARDIAN_REPAIR_RANGE} tiles, ${ABILITY_CONFIG.GUARDIAN_REPAIR_RATE} HP a second each. Automatic.` },
+      { name: 'Trophy System', text: `Shoots down heavy shells and missiles near it. ${ABILITY_CONFIG.GUARDIAN_TROPHY_COOLDOWN / 1000}s between intercepts. Automatic.` },
+    ],
+  },
+  helios: { use: `Microwave drone that charges the batteries of friendly units within ${ABILITY_CONFIG.HELIOS_RADIUS} tiles, so vehicles last longer off the grid.` },
+  banshee: {
+    use: 'Electronic warfare vehicle.',
+    actions: [
+      { name: 'Toggle Jammer', text: `Jams enemy units within ${ABILITY_CONFIG.BANSHEE_JAMMER_RADIUS} tiles, slowing them.` },
+      { name: 'Tether', text: 'Hardlines a friendly drone to the Banshee\'s battery, keeping it in the air (blue ring is the leash).' },
+    ],
+  },
+  ballista: {
+    use: 'Missile launcher. Strikes anywhere on the map with Eclipse or HE warheads built at the Ordnance Fab.',
+    actions: [
+      { name: 'Take / Load', text: 'Take warheads from your stockpile beside an Ordnance Fab, then load one.' },
+      { name: 'Launch', text: `Fires the loaded missile at any tile. HE burns infantry and light aircraft in a ${ABILITY_CONFIG.HE_RADIUS}-tile cloud; Eclipse leaves a ${ABILITY_CONFIG.ECLIPSE_RADIUS}-tile cloud for ${ABILITY_CONFIG.ECLIPSE_DURATION / 1000}s.` },
+    ],
+  },
+  mason: { use: 'Combat engineer. Place walls and turrets from the Depot and Masons haul materials to build them.' },
+  mule: {
+    use: 'Field Fabricator. Builds missiles at the front and hands them to Ballistas.',
+    actions: [
+      { name: 'Fabricate', text: `Turns material into an Eclipse or HE missile (${ABILITY_CONFIG.FABRICATOR_BUILD_TIME / 1000}s each, ${ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY} material).` },
+      { name: 'Transfer', text: 'Hands a finished missile to a Ballista alongside.' },
+    ],
+  },
+  courier: { use: 'Runs a warhead to a Ballista.', source: 'Dispatched by Transfer Warhead; it is never trained.' },
+  defense_drone: { use: 'Guards a server node and attacks anyone nearby. Kill it to capture the node.', source: 'Placed by the map on every server node.' },
+  titan_dropped: { use: 'A Titan delivered from orbit.', source: 'Heavy Metal doctrine, Tier 2 power: Orbital Drop.' },
+  swarm_host: {
+    use: 'Mobile drone hive.',
+    source: 'Skunkworks doctrine, Tier 3 power.',
+    actions: [{ name: 'Anchor', text: `Anchored, it releases Crawler Drones (up to ${ABILITY_CONFIG.SWARM_HOST_MAX_DRONES}) that hunt enemies nearby.` }],
+  },
+  crawler_drone: { use: `Self-destructing drone: explodes for ${ABILITY_CONFIG.CRAWLER_EXPLOSION_DAMAGE} damage beside enemies.`, source: 'Released by an anchored Swarm Host.' },
+};
+
+const ARMOR_LABEL: Record<ArmorClass, string> = { infantry: 'Infantry', light: 'Light vehicles', heavy: 'Heavy armour', air: 'Aircraft', structure: 'Structures' };
+const DAMAGE_LABEL: Record<DamageType, string> = { rifle: 'Rifle', ap: 'Anti-vehicle (AP)', flak: 'Flak', explosive: 'High explosive' };
+const ARMORS: ArmorClass[] = ['infantry', 'light', 'heavy', 'air', 'structure'];
+
+// --- Small pieces ---
+
+const RoleBadge: React.FC<{ role: UnitRole; color: string; size?: number }> = ({ role, color, size = 28 }) => {
+  const filled = roleGlyphFilled(role);
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" className="shrink-0" aria-label={ROLE_LABEL[role]}>
+      <rect x={1} y={1} width={22} height={22} rx={5} fill={color} stroke="#020617" strokeWidth={1.5} />
+      <g transform="translate(3 3) scale(0.75)">
+        <path d={ROLE_GLYPH[role]} fill={filled ? '#fff' : 'none'} stroke={filled ? 'none' : '#fff'} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+    </svg>
+  );
+};
+
+const H: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <h3 className="text-fuchsia-400 font-mono text-sm uppercase tracking-widest border-l-2 border-fuchsia-500 pl-3 mb-3">{children}</h3>
+);
+const Item: React.FC<{ label: React.ReactNode; children: React.ReactNode }> = ({ label, children }) => (
+  <div className="mb-3">
+    <div className="text-cyan-200 font-bold text-xs uppercase mb-1">{label}</div>
+    <div className="text-slate-300 text-xs leading-relaxed">{children}</div>
+  </div>
+);
+const Key: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <kbd className="px-1.5 py-0.5 rounded border border-slate-600 bg-slate-800 text-cyan-200 font-mono text-[10px]">{children}</kbd>
+);
+const UnitLink: React.FC<{ type: UnitType; onOpen: (t: UnitType) => void }> = ({ type, onOpen }) => (
+  <button onClick={() => onOpen(type)} className="text-cyan-300 hover:text-white underline decoration-dotted underline-offset-2 text-xs">
+    {UNIT_STATS[type].label}
+  </button>
+);
+
+const producerLabel = (type: UnitType) => {
+  const p = UNIT_RULES[type].producer;
+  return p ? STRUCTURE_INFO[p].label : null;
+};
+const trainable = (type: UnitType) => UNIT_RULES[type].producer !== null;
+const speedText = (m: number) => (m >= 1.3 ? 'Fast' : m >= 0.95 ? 'Average' : m >= 0.6 ? 'Slow' : m > 0 ? 'Very slow' : 'Stationary');
+
+// --- Unit detail ---
+
+const UnitDetail: React.FC<{ type: UnitType; color: string; onOpen: (t: UnitType) => void; onBack: () => void }> = ({ type, color, onOpen, onBack }) => {
+  const rules = UNIT_RULES[type];
+  const stats = UNIT_STATS[type];
+  const note = UNIT_NOTES[type];
+  const role = UNIT_ROLE[type];
+  const weapon = rules.weapon;
+  const abilities = abilitiesFor(type);
+  const isArtillery = type === 'howitzer';
+
+  // Damage per second against each armour class, scaled to the best of them for the bars.
+  const vs = ARMORS.map(a => ({ armor: a, dps: dps(weapon, a) }));
+  const top = Math.max(1, ...vs.map(v => v.dps));
+  // What beats it: trainable units doing the most damage to its armour per core, with a little
+  // weight for toughness (the same measure the AI uses to pick counters).
+  const counters = useMemo(() => (Object.keys(UNIT_RULES) as UnitType[])
+    .filter(t => trainable(t) && t !== type && dps(UNIT_RULES[t].weapon, rules.armor) > 0)
+    .map(t => ({ t, score: (dps(UNIT_RULES[t].weapon, rules.armor) * Math.sqrt(UNIT_STATS[t].maxHealth)) / Math.max(1, UNIT_STATS[t].cost) }))
+    .sort((a, b) => b.score - a.score).slice(0, 3).map(c => c.t), [type, rules.armor]);
+
+  const tiers: Tier[] = [1, 2, 3];
+  const stepsAt = (t: Tier): string[] => {
+    const steps: string[] = [];
+    if (trainable(type) && rules.tier === t) steps.push(t === 1 ? `Available from the start at the ${producerLabel(type)}` : `Unlocked: trainable at the ${producerLabel(type)}`);
+    for (const a of abilities.filter(a => a.tier === t)) steps.push(`Ability: ${a.name}`);
+    if (isArtillery) steps.push(`Range ${ARTILLERY.range[t]} tiles`);
+    return steps;
+  };
+
+  return (
+    <div>
+      <button onClick={onBack} className="text-slate-400 hover:text-cyan-300 font-mono text-xs mb-4">← All units</button>
+      <div className="flex items-center gap-3 mb-2">
+        <RoleBadge role={role} color={color} size={40} />
+        <div>
+          <div className="text-cyan-100 font-bold text-lg leading-tight">{stats.label}</div>
+          <div className="text-slate-400 text-xs">{ROLE_LABEL[role]} · {rules.role}</div>
+        </div>
+      </div>
+      <p className="text-slate-300 text-xs leading-relaxed mb-4">{note.use}</p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+          <H>Specs</H>
+          <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-4">
+            {([
+              ['Built at', producerLabel(type) ?? '—'],
+              ['Unlocks', trainable(type) ? `Tier ${rules.tier}` : '—'],
+              ['Cost', stats.cost ? `${stats.cost} cores` : '—'],
+              ['Population', String(rules.pop)],
+              ['Build time', rules.buildTimeMs ? `${rules.buildTimeMs / 1000}s` : '—'],
+              ['Health', String(stats.maxHealth)],
+              ['Armour', ARMOR_LABEL[rules.armor]],
+              ['Speed', speedText(stats.speedMod)],
+              ['Vision', `${stats.visionRange} tiles`],
+              ['Captures', stats.captureMultiplier > 0 ? `Yes (${stats.captureMultiplier}×)` : 'No'],
+            ] as [string, string][]).map(([k, v]) => (
+              <React.Fragment key={k}>
+                <dt className="text-slate-500">{k}</dt><dd className="text-slate-200">{v}</dd>
+              </React.Fragment>
+            ))}
+          </dl>
+          {note.source && <Item label="Where it comes from">{note.source}</Item>}
+
+          <H>Weapon</H>
+          {weapon ? (
+            <div className="text-xs text-slate-300 mb-2">
+              {DAMAGE_LABEL[weapon.type]}: {weapon.damage} damage every {weapon.cooldownMs / 1000}s,{' '}
+              {isArtillery ? `range ${ARTILLERY.range[1]}–${ARTILLERY.range[3]} tiles by tier` : `range ${weapon.range} tiles`}
+              {weapon.splash ? `, ${weapon.splash}-tile splash` : ''}. Hits {weapon.hitsGround && weapon.hitsAir ? 'ground and air' : weapon.hitsAir ? 'aircraft only' : 'ground only'}.
+              {isArtillery && ' Fires only when anchored.'}
+              <div className="mt-2 space-y-1">
+                {vs.map(v => (
+                  <div key={v.armor} className="flex items-center gap-2">
+                    <span className="w-24 text-slate-500">{ARMOR_LABEL[v.armor]}</span>
+                    <div className="flex-1 h-1.5 bg-slate-800 rounded"><div className="h-1.5 rounded bg-cyan-400" style={{ width: `${(v.dps / top) * 100}%` }} /></div>
+                    <span className="w-14 text-right text-slate-400">{v.dps ? `${v.dps.toFixed(1)}/s` : 'none'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : <p className="text-xs text-slate-400 mb-2">Unarmed.</p>}
+          {trainable(type) && counters.length > 0 && (
+            <Item label="Countered by">
+              <span className="flex flex-wrap gap-x-3">{counters.map(t => <UnitLink key={t} type={t} onOpen={onOpen} />)}</span>
+            </Item>
+          )}
+        </div>
+
+        <div>
+          {(note.actions?.length || abilities.length > 0) && <H>Abilities</H>}
+          {note.actions?.map(a => <Item key={a.name} label={a.name}>{a.text}</Item>)}
+          {abilities.map(a => (
+            <Item key={a.id} label={<>{a.name} <span className="text-amber-300 normal-case font-normal">· Tier {a.tier} · {a.cooldownMs / 1000}s cooldown{a.targeted ? ` · aimed, ${a.targeted.range} tiles` : ''}</span></>}>
+              {a.description}
+            </Item>
+          ))}
+
+          <H>Upgrade tree</H>
+          <ol className="relative border-l border-slate-700 ml-2">
+            {tiers.map(t => {
+              const steps = stepsAt(t);
+              const locked = trainable(type) && t < rules.tier;
+              return (
+                <li key={t} className="ml-4 mb-3">
+                  <span className={`absolute -left-[7px] w-3 h-3 rounded-full border ${steps.length ? 'bg-amber-400 border-amber-200' : 'bg-slate-800 border-slate-600'}`} />
+                  <div className="text-xs font-mono text-amber-300">TIER {t}{t > 1 ? ` · research ${TIER_RESEARCH_COST[t as 2 | 3]} compute` : ''}</div>
+                  <div className="text-xs text-slate-300">
+                    {locked ? <span className="text-slate-500">Not yet available</span>
+                      : steps.length ? steps.map(s => <div key={s}>{s}</div>)
+                      : <span className="text-slate-500">No change</span>}
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+          {rules.armor !== 'infantry' && rules.armor !== 'air' && UNIT_STATS[type].unitClass === 'armor' && (
+            <p className="text-[11px] text-slate-400">Doctrine: with Heavy Metal, armour units repair themselves out of combat.</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- Tabs ---
+
+const UnitsTab: React.FC<{ color: string; open: UnitType | null; onOpen: (t: UnitType | null) => void }> = ({ color, open, onOpen }) => {
+  if (open) return <UnitDetail type={open} color={color} onOpen={onOpen} onBack={() => onOpen(null)} />;
+  const byRole = (role: UnitRole) => (Object.keys(UNIT_ROLE) as UnitType[]).filter(t => UNIT_ROLE[t] === role);
+  return (
+    <div>
+      <p className="text-slate-400 text-xs mb-4">
+        Every unit carries one of these badges in its team colour, above it on the map and on the minimap, so you can read an army at a glance. Click a unit's name for its full brief and upgrade tree.
+      </p>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        {ROLE_ORDER.map(role => (
+          <div key={role} className="flex gap-3 p-3 rounded border border-slate-700/60 bg-slate-900/40">
+            <RoleBadge role={role} color={role === 'sentinel' ? '#94a3b8' : color} size={32} />
+            <div className="min-w-0">
+              <div className="text-cyan-200 font-bold text-xs uppercase">{ROLE_LABEL[role]}</div>
+              <p className="text-slate-400 text-[11px] leading-snug mb-1">{ROLE_INFO[role]}</p>
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {byRole(role).map(t => <UnitLink key={t} type={t} onOpen={onOpen} />)}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const STRUCTURE_ORDER: StructureType[] = ['infantry', 'armor', 'air', 'support', 'builder', 'ordnance_fab', 'wall_tier1', 'wall_tier2', 'defense', 'hq'];
+const STRUCTURE_TEXT: Partial<Record<StructureType, string>> = {
+  infantry: 'Trains infantry.',
+  armor: 'Trains vehicles.',
+  air: 'Trains aircraft.',
+  support: 'Trains support units and the Ballista.',
+  builder: 'Trains Masons and unlocks walls and turrets.',
+  ordnance_fab: 'Builds Eclipse and HE warheads for Ballistas, and trains Field Fabricators.',
+  wall_tier1: 'Cheap tank traps that block a lane. One Mason haul.',
+  wall_tier2: 'A heavy wall. Three Mason hauls.',
+  defense: 'Turret that shoots ground and air. Mason-built.',
+  hq: 'Your headquarters. Builds structures, researches tiers and earns income. Lose it and you lose.',
+};
+
+const StructuresTab: React.FC<{ onOpen: (t: UnitType) => void }> = ({ onOpen }) => (
+  <div>
+    <p className="text-slate-400 text-xs mb-4">Double-click your HQ to place structures (inside your energy grid only), and double-click a finished structure to train from it. Walls and the turret come from the Depot and need Masons to build.</p>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {STRUCTURE_ORDER.map(s => {
+        const info = STRUCTURE_INFO[s];
+        const trains = unitsProducedBy(s);
+        const weapon = STRUCTURE_RULES[s].weapon;
+        return (
+          <div key={s} className="p-3 rounded border border-slate-700/60 bg-slate-900/40">
+            <div className="flex items-center gap-2 mb-1">
+              <span className="w-3 h-3 rounded-sm" style={{ background: info.color }} />
+              <span className="text-cyan-200 font-bold text-xs uppercase">{info.label}</span>
+              <span className="ml-auto text-[11px] text-slate-400">{info.cost ? `${info.cost} cores` : ''} · {info.maxHealth} HP</span>
+            </div>
+            <p className="text-slate-400 text-[11px] mb-1">
+              {STRUCTURE_TEXT[s]}
+              {STRUCTURE_RULES[s].buildTimeMs ? ` Builds in ${STRUCTURE_RULES[s].buildTimeMs / 1000}s.` : ''}
+              {weapon ? ` Armed: ${weapon.damage} ${DAMAGE_LABEL[weapon.type].toLowerCase()} every ${weapon.cooldownMs / 1000}s, range ${weapon.range}.` : ''}
+            </p>
+            {trains.length > 0 && (
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {trains.map(t => (
+                  <span key={t} className="text-[11px] text-slate-500"><UnitLink type={t} onOpen={onOpen} /> T{UNIT_RULES[t].tier}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
+
+const BasicsTab: React.FC = () => (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div>
+      <H>Camera</H>
+      <Item label="Pan"><Key>W</Key> <Key>A</Key> <Key>S</Key> <Key>D</Key> or the arrow keys.</Item>
+      <Item label="Rotate and tilt">Hold the right mouse button and drag.</Item>
+      <Item label="Zoom">Mouse wheel.</Item>
+      <H>Orders</H>
+      <Item label="Select">Click a unit, or drag a box over several with the left mouse button. Clicking empty ground with nothing selected clears the selection.</Item>
+      <Item label="Move">With units selected, click the ground. Ground units take the quickest route (main roads are twice as fast, open ground half as fast); aircraft fly straight.</Item>
+      <Item label="Attack-move">Hold <Key>Ctrl</Key> while clicking, or press <Key>F</Key> then click. Units stop to fight anything on the way.</Item>
+      <Item label="Unit actions">A selected unit shows its action menu above it: abilities, anchors, fire missions. Aimed ones take a map click; <Key>Esc</Key> cancels.</Item>
+    </div>
+    <div>
+      <H>Your first minutes</H>
+      <ol className="list-decimal ml-5 space-y-2 text-xs text-slate-300">
+        <li>Send Troopers to the nearest core node to capture it: it pays cores and raises your population cap.</li>
+        <li>Double-click your HQ and build a Barracks and a Factory inside your energy grid.</li>
+        <li>Capture ordinary buildings near your army to stretch the energy grid toward the fight.</li>
+        <li>Take the server node in your half for compute, then Research Tier 2 for better units and abilities.</li>
+        <li>Build a mixed army (check the Units tab for counters) and take the enemy's core nodes or their HQ.</li>
+      </ol>
+    </div>
+  </div>
+);
+
+const EconomyTab: React.FC = () => (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div>
+      <H>Cores (money)</H>
+      <Item label="Income">Your HQ pays {HQ_INCOME} cores a second. Each core node you hold pays {BUILDING_VALUES.core_node.income} more. Only infantry capture, and core nodes are slow to take.</Item>
+      <Item label="Population">Starts at {POP_BASE}, +{POP_PER_CORE_NODE} for each core node held, up to {POP_MAX}. Queued units reserve their population.</Item>
+      <H>Compute and tiers</H>
+      <Item label="Compute">Each server node you hold makes {COMPUTE_PER_SERVER_NODE} compute a second; your HQ adds {HQ_COMPUTE}. Spend it on Research in your team panel or the HQ menu.</Item>
+      <Item label="Tiers">Tier 2 costs {TIER_RESEARCH_COST[2]} compute, Tier 3 {TIER_RESEARCH_COST[3]}. A researched tier is yours for good. Tiers unlock units, unit abilities, doctrine powers and longer artillery range.</Item>
+    </div>
+    <div>
+      <H>Server nodes</H>
+      <Item label="Where">Five on the map: one in your half, one in the enemy's, two on the flanks and one in the centre. Each is guarded by a Sentinel drone that attacks everyone.</Item>
+      <H>Energy grid</H>
+      <Item label="Power">Your HQ powers {ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS} tiles around it, and each captured building (not core nodes) adds {ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS} more. Vehicles and aircraft recharge inside and drain outside; on a flat battery they crawl at 30% speed. You can only build inside it.</Item>
+      <Item label="Stretching it">Battery Mules and Helios drones keep vehicles going beyond the grid.</Item>
+    </div>
+  </div>
+);
+
+const CombatTab: React.FC = () => (
+  <div>
+    <H>Damage types</H>
+    <p className="text-slate-400 text-xs mb-2">How hard each kind of weapon hits each kind of target. Above 1× is effective; below is weak.</p>
+    <div className="overflow-x-auto mb-6">
+      <table className="text-xs w-full">
+        <thead>
+          <tr className="text-slate-500"><th className="text-left font-normal pr-3">Weapon \ Target</th>{ARMORS.map(a => <th key={a} className="font-normal px-2">{ARMOR_LABEL[a]}</th>)}</tr>
+        </thead>
+        <tbody>
+          {(Object.keys(DAMAGE_MULTIPLIER) as DamageType[]).map(d => (
+            <tr key={d} className="border-t border-slate-800">
+              <td className="text-cyan-200 pr-3 py-1">{DAMAGE_LABEL[d]}</td>
+              {ARMORS.map(a => {
+                const m = DAMAGE_MULTIPLIER[d][a];
+                return <td key={a} className={`text-center ${m >= 1.25 ? 'text-emerald-400 font-bold' : m >= 1 ? 'text-emerald-300' : m === 0 ? 'text-slate-600' : 'text-rose-300'}`}>{m}×</td>;
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div>
+        <H>Counters</H>
+        <Item label="Rock, paper, scissors">Razorbacks hunt Troopers; Lancers and Hornets hunt vehicles; Aegis and Troopers shoot down aircraft; Titans break infantry blobs and bases; Thunderheads shell anything that stands still.</Item>
+        <Item label="Targeting">Units fire at the nearest enemy they can hit and stick with it. They only shoot buildings when no unit is in range.</Item>
+      </div>
+      <div>
+        <H>Tactics</H>
+        <Item label="Artillery">Thunderheads only fire when anchored, need vision (or a Fire Mission) and can't hit within {ARTILLERY.minRange} tiles. Shells take a moment to land, so keep moving under fire.</Item>
+        <Item label="Abilities">Many units have abilities that unlock as you research tiers. Open a unit's page in the Units tab to see them.</Item>
+        <Item label="Retreat">Damaged vehicles repair near a Guardian or, with Heavy Metal, on their own out of combat.</Item>
+      </div>
+    </div>
+  </div>
+);
+
+const DoctrinesTab: React.FC = () => (
+  <div>
+    <p className="text-slate-400 text-xs mb-4">Pick one doctrine per match with the ★ button. Its passive is always on; its powers unlock with your tiers and cost cores to use.</p>
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {(Object.keys(DOCTRINE_CONFIG) as DoctrineType[]).map(d => {
+        const c = DOCTRINE_CONFIG[d];
+        return (
+          <div key={d} className="p-3 rounded border border-slate-700/60 bg-slate-900/40">
+            <div className="text-amber-300 font-bold text-xs uppercase mb-2">{c.label}</div>
+            <Item label="Passive">{c.tier1_passive}</Item>
+            <Item label={`Tier 2 · ${c.tier2_name}`}>{c.tier2_desc} {c.tier2_cost} cores, {c.tier2_cooldown / 1000}s cooldown.</Item>
+            <Item label={`Tier 3 · ${c.tier3_name}`}>{c.tier3_desc} {c.tier3_cost} cores, {c.tier3_cooldown / 1000}s cooldown.</Item>
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
+
+const InterfaceTab: React.FC<{ color: string }> = ({ color }) => (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div>
+      <H>Team panel</H>
+      <Item label="⚡ Compute">Compute banked and its rate. The Research button lights up when you can afford the next tier.</Item>
+      <Item label="Cores">Cores banked and income per second.</Item>
+      <Item label="Grid / Cores / Tier / Pop">Buildings captured, core nodes held out of 6, researched tier, and population used of your cap.</Item>
+      <H>Top of the screen</H>
+      <Item label="Clock and domination">The match clock, and a warning when either side holds {DOMINATION_NODES} core nodes, with the time left until it wins.</Item>
+      <Item label="System message">Your current objective, and notices such as finished structures or refused orders.</Item>
+      <Item label="Active Protocols">Your doctrine's powers, with their cost and what unlocks them.</Item>
+    </div>
+    <div>
+      <H>Minimap</H>
+      <Item label="What it shows">Team-coloured role badges for every unit you can see, your HQs as squares, the camera's view, your energy grid outline and warning marks at guarded server nodes.</Item>
+      <H>On the map</H>
+      <Item label={<span className="flex items-center gap-2"><RoleBadge role="infantry" color={color} size={18} /> Role badges</span>}>Above each unit you can see. A unit's badge hides while it is selected.</Item>
+      <Item label="Rings">Team-coloured ring: selected. Coloured ring at a unit's feet: an ability is running (red: knocked out by EMP). Orange ring: a Thunderhead's range. Red reticle: its fire mission. Yellow ring: a Battery Mule's reach. Blue ring: a Banshee's tether leash.</Item>
+      <Item label="Bars">Health, and battery for vehicles and aircraft, over damaged or selected units.</Item>
+      <Item label="Incoming fire">Glowing shells dropping from the sky are enemy artillery: move out from under them.</Item>
+    </div>
+  </div>
+);
+
+const WinningTab: React.FC = () => (
+  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div>
+      <H>Destruction</H>
+      <p className="text-xs text-slate-300 leading-relaxed">Destroy the enemy Command HQ. It has {STRUCTURE_INFO.hq.maxHealth} health and an anti-vehicle gun, so bring Titans, Lancers or artillery.</p>
+    </div>
+    <div>
+      <H>Domination</H>
+      <p className="text-xs text-slate-300 leading-relaxed">Hold {DOMINATION_NODES} of the 6 core nodes for {DOMINATION_MS / 60000} minutes without a break. The timer shows at the top of the screen for both sides; take one node back to stop it.</p>
+    </div>
+  </div>
+);
+
+// --- The manual ---
+
+export const OperationsManual: React.FC<{ team: 'blue' | 'red'; onClose: () => void }> = ({ team, onClose }) => {
+  const [tab, setTab] = useState<Tab>('basics');
+  const [unit, setUnit] = useState<UnitType | null>(null);
+  const color = teamBadgeColor(team);
+  // Unit links on other tabs jump to that unit's page.
+  const openUnit = (t: UnitType | null) => { setUnit(t); if (t) setTab('units'); };
+  // A new page starts at the top.
+  const body = useRef<HTMLDivElement>(null);
+  useEffect(() => { body.current?.scrollTo({ top: 0 }); }, [tab, unit]);
+
+  return (
+    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[100] p-4">
+      <div className="hud-plate hud-corners w-full max-w-4xl backdrop-blur-xl p-4 md:p-6 pointer-events-auto relative overflow-hidden animate-in fade-in zoom-in duration-200" data-testid="operations-manual">
+        <div className="relative flex justify-between items-center mb-4 border-b border-cyan-500/20 pb-3">
+          <h2 className="text-xl md:text-2xl font-bold text-cyan-400 font-mono tracking-widest uppercase flex items-center gap-3">
+            <span className="w-4 h-4 bg-cyan-500 rounded-sm"></span>
+            Operations Manual
+          </h2>
+          <button onClick={onClose} className="text-slate-500 hover:text-cyan-400 transition-colors font-mono text-sm">[ CLOSE ]</button>
+        </div>
+
+        <div role="tablist" className="flex gap-1 overflow-x-auto mb-4 pb-1">
+          {TABS.map(t => (
+            <button
+              key={t.id}
+              role="tab"
+              aria-selected={tab === t.id}
+              onClick={() => { setTab(t.id); if (t.id === 'units') setUnit(null); }}
+              className={`px-3 py-1.5 font-mono text-xs uppercase tracking-wider border whitespace-nowrap transition-colors ${
+                tab === t.id ? 'bg-cyan-400 text-slate-950 border-cyan-200' : 'border-slate-700 text-slate-400 hover:text-cyan-200 hover:border-cyan-700'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        <div ref={body} className="relative max-h-[65vh] overflow-y-auto pr-2">
+          {tab === 'basics' && <BasicsTab />}
+          {tab === 'units' && <UnitsTab color={color} open={unit} onOpen={openUnit} />}
+          {tab === 'structures' && <StructuresTab onOpen={openUnit} />}
+          {tab === 'economy' && <EconomyTab />}
+          {tab === 'combat' && <CombatTab />}
+          {tab === 'doctrines' && <DoctrinesTab />}
+          {tab === 'interface' && <InterfaceTab color={color} />}
+          {tab === 'winning' && <WinningTab />}
+        </div>
+      </div>
+    </div>
+  );
+};

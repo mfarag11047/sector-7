@@ -1,57 +1,15 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { GameStats, TeamStats, MinimapData, DoctrineType, DoctrineState } from '../types';
+import { OperationsManual } from './OperationsManual';
 import { ROLE_GLYPH, roleGlyphFilled, teamBadgeColor, UNIT_ROLE } from './unitIcons';
-import { BUILDING_COLORS, TEAM_COLORS, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG, TEAM_BASES, BUILDING_VALUES } from '../constants';
+import { BUILDING_COLORS, TEAM_COLORS, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG, TEAM_BASES } from '../constants';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
-import { HQ_INCOME } from '../sim/economy';
-import { COMPUTE_PER_SERVER_NODE, HQ_COMPUTE, POP_BASE, POP_MAX, POP_PER_CORE_NODE, TIER_REQUIREMENT, TIER_RESEARCH_COST } from '../sim/units';
+import { TIER_REQUIREMENT, TIER_RESEARCH_COST } from '../sim/units';
 import { DOMINATION_MS, DOMINATION_NODES } from '../sim/victory';
 import type { MatchConfig } from '../sim/match';
 import type { MatchInfo } from './CityMap';
 import type { Notice } from '../App';
-
-interface ManualSection {
-  title: string;
-  items: { label: string; description: string }[];
-}
-
-const MANUAL_DATA: ManualSection[] = [
-  {
-    title: "Winning",
-    items: [
-      { label: "Destruction", description: "Destroy the enemy Command HQ. It has 5000 health and an anti-vehicle gun, so bring Titans or Lancers." },
-      { label: "Domination", description: `Hold ${DOMINATION_NODES} of the 6 core nodes for ${DOMINATION_MS / 60000} minutes without a break. The timer shows at the top of the screen for both sides.` },
-    ]
-  },
-  {
-    title: "Economy",
-    items: [
-      { label: "Core Nodes", description: `Your HQ pays ${HQ_INCOME} cores a second. Each core node you hold pays ${BUILDING_VALUES.core_node.income} more and raises your population cap by ${POP_PER_CORE_NODE} (from ${POP_BASE}, up to ${POP_MAX}). Only infantry capture, and core nodes are slow.` },
-      { label: "Compute & Tiers", description: `Server nodes produce ${COMPUTE_PER_SERVER_NODE} compute a second each (your HQ adds ${HQ_COMPUTE}). Spend it with Research in your team panel or HQ menu: Tier 2 costs ${TIER_RESEARCH_COST[2]}, Tier 3 ${TIER_RESEARCH_COST[3]}. Researched tiers are yours for good; holding more nodes just gets you there faster.` },
-      { label: "Server Nodes", description: "Five, each guarded by a Sentinel that attacks everyone: one in your own half, one in the enemy's, two contested ones on the flanks beside the outer core nodes, and one in the centre." },
-      { label: "Energy Grid", description: `Your HQ powers ${ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS} tiles around it, and every captured building (not core nodes) adds ${ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS} more. Vehicles and aircraft recharge inside it and drain outside; on a flat battery they crawl at 30% speed until they get back. You can only build inside it.` },
-    ]
-  },
-  {
-    title: "Building",
-    items: [
-      { label: "HQ menu", description: "Double-click your HQ. Barracks (infantry), Factory (vehicles), Airpad (aircraft), Comm Link (support), Depot (Masons, walls, turrets), Ordnance Fab (missiles)." },
-      { label: "Training", description: "Double-click a finished structure to train. Up to 5 queue at once. Set a rally point and new units drive there." },
-      { label: "Defences", description: "With a Depot, Masons haul materials to Dragon's Teeth, Bulwark Walls and Sentry Turrets." },
-    ]
-  },
-  {
-    title: "Combat",
-    items: [
-      { label: "Counters", description: "Rifles shred infantry. Anti-vehicle rockets crack armour. Flak swats aircraft. High explosive levels buildings and clumped infantry. Razorbacks hunt Troopers; Lancers and Hornets hunt vehicles; Aegis and Troopers shoot down aircraft; Titans break infantry blobs and bases." },
-      { label: "Thunderhead artillery", description: "Built at the Factory. It cannot fire while moving: stop it, press Anchor Down and give it 3 seconds to set up. Anchored, it shells enemies your side can see, or use Fire Mission to shell any tile inside its orange range ring, seen or not. Range grows with each tier you research (12, 16, 20 tiles). Moving it packs it up." },
-      { label: "Unit abilities", description: "Troopers, Razorbacks, Lancers, Aegis and Hornets each have two abilities in their action menu: one from the start, a stronger one once your side researches the next tier. They act on every selected unit of that type; aimed ones take a map click." },
-      { label: "Role badges", description: "Every unit you can see carries a small badge in its team colour, above it and on the minimap: ✕ infantry, ✕ with an arrowhead anti-armour, wedge light vehicle, track heavy armour, dome anti-air, wings aircraft, eye scout, + support, shell artillery, bracket engineer, hexagon sentinel, dots swarm. A unit's badge hides while it is selected." },
-      { label: "Attack-move", description: "Ctrl-click, or press F then click. Units stop to fight anything on the way. A plain move drives through, shooting on the move." },
-    ]
-  },
-];
 
 const EditableStat: React.FC<{
   value: number;
@@ -742,45 +700,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
         <TeamPanel team="red" stats={stats.red} align="right" isVisible={playerTeam === 'red'} cheats={sandbox} onResearch={playerTeam === 'red' ? onResearch : undefined} />
       </div>
 
-      {/* Manual / Intel Modal */}
-      {isIntelOpen && (
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-[100]">
-          <div className="hud-plate hud-corners w-full max-w-2xl backdrop-blur-xl p-8 pointer-events-auto relative overflow-hidden animate-in fade-in zoom-in duration-200">
-            <div className="relative flex justify-between items-center mb-6 border-b border-cyan-500/20 pb-4">
-              <h2 className="text-2xl font-bold text-cyan-400 font-mono tracking-widest uppercase flex items-center gap-3">
-                <span className="w-4 h-4 bg-cyan-500 rounded-sm"></span>
-                Operations Manual
-              </h2>
-              <button 
-                onClick={() => setIsIntelOpen(false)}
-                className="text-slate-500 hover:text-cyan-400 transition-colors"
-              >
-                [ CLOSE ]
-              </button>
-            </div>
-
-            <div className="relative grid grid-cols-1 md:grid-cols-2 gap-8 max-h-[60vh] overflow-y-auto pr-4">
-              {MANUAL_DATA.map((section, idx) => (
-                <div key={idx} className="space-y-4">
-                  <h3 className="text-fuchsia-400 font-mono text-sm uppercase tracking-widest border-l-2 border-fuchsia-500 pl-3">
-                    {section.title}
-                  </h3>
-                  <div className="space-y-3">
-                    {section.items.map((item, i) => (
-                      <div key={i} className="group">
-                        <div className="text-cyan-200 font-bold text-xs uppercase mb-1">{item.label}</div>
-                        <p className="text-slate-400 text-xs leading-relaxed group-hover:text-slate-200 transition-colors">
-                          {item.description}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Operations Manual */}
+      {isIntelOpen && <OperationsManual team={playerTeam} onClose={() => setIsIntelOpen(false)} />}
 
       {/* Doctrine Selection Modal */}
       {isDoctrineOpen && (
