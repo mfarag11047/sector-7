@@ -1,7 +1,8 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { GameStats, TeamStats, MinimapData, DoctrineType, DoctrineState } from '../types';
-import { BUILDING_COLORS, TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG, TEAM_BASES, BUILDING_VALUES } from '../constants';
+import { ROLE_GLYPH, roleGlyphFilled, teamBadgeColor, UNIT_ROLE } from './unitIcons';
+import { BUILDING_COLORS, TEAM_COLORS, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG, TEAM_BASES, BUILDING_VALUES } from '../constants';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 import { HQ_INCOME } from '../sim/economy';
 import { COMPUTE_PER_SERVER_NODE, HQ_COMPUTE, POP_BASE, POP_MAX, POP_PER_CORE_NODE, TIER_REQUIREMENT, TIER_RESEARCH_COST } from '../sim/units';
@@ -45,6 +46,7 @@ const MANUAL_DATA: ManualSection[] = [
     items: [
       { label: "Counters", description: "Rifles shred infantry. Anti-vehicle rockets crack armour. Flak swats aircraft. High explosive levels buildings and clumped infantry. Razorbacks hunt Troopers; Lancers and Hornets hunt vehicles; Aegis and Troopers shoot down aircraft; Titans break infantry blobs and bases." },
       { label: "Unit abilities", description: "Troopers, Razorbacks, Lancers, Aegis and Hornets each have two abilities in their action menu: one from the start, a stronger one once your side researches the next tier. They act on every selected unit of that type; aimed ones take a map click." },
+      { label: "Role badges", description: "Every unit you can see carries a small badge in its team colour, above it and on the minimap: ✕ infantry, ✕ with an arrowhead anti-armour, wedge light vehicle, track heavy armour, dome anti-air, wings aircraft, eye scout, + support, shell artillery, bracket engineer, hexagon sentinel, dots swarm. A unit's badge hides while it is selected." },
       { label: "Attack-move", description: "Ctrl-click, or press F then click. Units stop to fight anything on the way. A plain move drives through, shooting on the move." },
     ]
   },
@@ -907,22 +909,17 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
               )}
 
               {/* Units Layer - Uses visibleUnits (Filtered by Fog of War) */}
-              {visibleUnits.map((u) => (
-                  <text 
-                      key={u.id}
-                      x={u.gridPos.x + 0.5}
-                      y={u.gridPos.z + 0.9}
-                      textAnchor="middle"
-                      fill={u.team === 'blue' ? '#bfdbfe' : (u.team === 'red' ? '#fecaca' : '#d8b4fe')}
-                      fontSize="1"
-                      fontWeight="bold"
-                      style={{ 
-                          textShadow: `0 0 0.1px ${u.team === 'blue' ? TEAM_COLORS.blue : TEAM_COLORS.red}`
-                      }}
-                  >
-                      {UNIT_CLASSES[u.unitClass].icon}
-                  </text>
-              ))}
+              {visibleUnits.map((u) => {
+                  const role = UNIT_ROLE[u.type] ?? 'infantry';
+                  const filled = roleGlyphFilled(role);
+                  // A 1.6-tile team badge centred on the unit, with its role pictogram in white.
+                  return (
+                      <g key={u.id} transform={`translate(${u.gridPos.x - 0.3} ${u.gridPos.z - 0.3}) scale(${1.6 / 24})`}>
+                          <rect x={0} y={0} width={24} height={24} rx={5} fill={teamBadgeColor(u.team)} stroke="#020617" strokeWidth={2} />
+                          <path d={ROLE_GLYPH[role]} fill={filled ? '#fff' : 'none'} stroke={filled ? 'none' : '#fff'} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+                      </g>
+                  );
+              })}
 
               {/* Viewfinder Overlay */}
               <MinimapViewfinder 

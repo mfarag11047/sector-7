@@ -105,6 +105,28 @@ nothing reaches Tier 2 in about 8 minutes.
 Rough timings: holding just your own node, Tier 2 takes about 2 minutes of holding it, and Tier 3
 another 6. Holding three nodes gets you from Tier 2 to Tier 3 in about 2 minutes.
 
+### Role badges
+
+Every visible unit shows a role badge in its team colour, so an army's make-up reads at a
+glance. It floats above the unit at a fixed screen size and draws over buildings; the minimap
+uses the same badge. A unit's badge hides while that unit is selected. Roles come from
+`components/unitIcons.ts`:
+
+| Badge | Role | Units |
+|---|---|---|
+| ✕ | Infantry | Trooper, Ghost |
+| ✕ with an arrowhead | Anti-armour | Lancer |
+| Wedge | Light vehicle | Razorback, Courier |
+| Track | Heavy armour | Tank, Titan |
+| Dome | Anti-air | Aegis |
+| Wings | Aircraft | Wasp, Hornet |
+| Eye | Scout | Drone |
+| + | Support | Guardian, Helios, Banshee, Sun Plate |
+| Shell | Artillery / ordnance | Ballista, Bombard, Mule |
+| Bracket | Engineer | Mason |
+| Hexagon | Sentinel | Defense drone |
+| Dots | Swarm | Swarm Host, Crawler |
+
 ## Combat model
 
 Every unit has an **armor class** and a **weapon**. The weapon has damage, a cooldown, a range in

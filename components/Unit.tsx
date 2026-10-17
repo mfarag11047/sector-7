@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, UNIT_STATS } from '../constants';
 import { UnitType, UnitClass, UnitData } from '../types';
 import { abilitiesFor } from '../sim/unitAbilities';
+import { roleBadgeTexture, UNIT_ROLE } from './unitIcons';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
 import { AegisModel, HornetModel, LancerLauncher, RazorbackModel, TrooperKit } from './unitModels';
@@ -875,6 +876,14 @@ const Unit: React.FC<UnitProps> = ({
           <ringGeometry args={[tileSize * 0.5, tileSize * 0.55, 32]} />
           <meshBasicMaterial color={teamColor} transparent opacity={0.8} />
         </mesh>
+      )}
+
+      {/* Role badge: a team-coloured pictogram floating above the unit, the same size on screen at
+          any zoom and drawn over the city, so an army reads at a glance. Hidden while selected. */}
+      {!isSelected && !actionMenuOpen && (
+        <sprite position={[0, isAir ? 10 : 9, 0]} scale={[0.04, 0.04, 1]} renderOrder={20} raycast={() => null}>
+          <spriteMaterial map={roleBadgeTexture(UNIT_ROLE[type] ?? 'infantry', team)} sizeAttenuation={false} depthTest={false} depthWrite={false} transparent toneMapped={false} />
+        </sprite>
       )}
 
       {/* An ability is running: a coloured ring at the unit's feet (an EMP shows as a red ring). */}
