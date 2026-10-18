@@ -339,7 +339,7 @@ Infect: a virus bomb that falls for 1.2 s and goes off in a 1.5-tile blast.
 - An infected unit burns 2.5% of its maximum health a second until it dies (30 s from 75%).
   Nothing cures it.
 - The virus spreads within the infected unit's own side: a unit that stays within 2 tiles of an
-  infected friend for 2.5 s catches it. Leaving range before that resets the exposure. It never
+  infected friend for 6 s catches it. Leaving range before that resets the exposure. It never
   jumps to the other side or to the neutral Sentinels.
 - Infected units crawl with Blackwall glitch (red, magenta and blue scanlines, a jittering split
   cage and a red ring on the ground); a unit catching it shows a magenta ring filling up.

@@ -3,7 +3,7 @@
 // A virus bomb falls on the target. Every enemy unit caught in its small blast loses a quarter of
 // its maximum health at once and is infected with the Black Wall. An infected unit slowly burns
 // down until it dies; nothing cures it. The virus spreads through the infected unit's own side:
-// a friendly unit that stays within two tiles of an infected one for 2.5 s catches it too.
+// a friendly unit that stays within two tiles of an infected one for 6 s catches it too.
 // Stepping out of range resets the exposure.
 //
 // Pure: reads the units it is given and reports updates. CityMap drops the bomb and applies them.
@@ -20,7 +20,7 @@ export const BLACKWALL = {
   burnPerSecond: 0.025,
   // How close (tiles) a unit has to stay to an infected friend to catch it, and for how long.
   spreadRange: 2,
-  spreadMs: 2500,
+  spreadMs: 6000,
   // How long the bomb takes to fall from the sky.
   fallMs: 1200,
 };
