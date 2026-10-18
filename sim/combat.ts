@@ -5,6 +5,7 @@
 // so the same code can run on a server. Weapons, armor and damage types are in sim/units.ts.
 
 import { ABILITY_CONFIG } from '../constants';
+import { dropDamage } from './bombard';
 import type { BuildingData, CloudData, StructureType, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { isHidden } from './cloak';
@@ -232,11 +233,6 @@ export function applyStructureCombat<S extends { id: string; type: StructureType
   return changed ? next : structures;
 }
 
-// Bombardment Drones strike once they hover over their target square.
-export const isBombardStrike = (u: UnitData) =>
-  u.type === 'bombard' && u.health > 0 && !!u.bombardmentTarget && u.path.length === 0 &&
-  u.gridPos.x === u.bombardmentTarget.x && u.gridPos.z === u.bombardmentTarget.z;
-
 // Square blast, BOMBARD_RADIUS tiles each way (2 covers a 5x5 patch).
 const inBombardBlast = (x: number, z: number, origin: GridPos) =>
   Math.max(Math.abs(x - origin.x), Math.abs(z - origin.z)) <= ABILITY_CONFIG.BOMBARD_RADIUS;
@@ -249,7 +245,8 @@ export function bombardBuildings(buildings: readonly BuildingData[], strikes: re
     const hits = strikes.filter(origin => inBombardBlast(b.gridX, b.gridZ, origin)).length;
     if (hits === 0) return b;
     changed = true;
-    const health = (b.health ?? b.maxHealth) - hits * ABILITY_CONFIG.BOMBARD_BUILDING_DAMAGE;
+    // Each drop takes a fixed share of the building's health (sim/bombard.ts).
+    const health = (b.health ?? b.maxHealth) - hits * dropDamage(b);
     if (health <= 0) return { ...b, health: 0, destroyed: true, owner: null, capturingTeam: null, captureProgress: 0 };
     return { ...b, health };
   });

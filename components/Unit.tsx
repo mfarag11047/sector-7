@@ -12,6 +12,7 @@ import { currentTilePosition, parseTile } from '../sim/movement';
 import { AegisModel, CloakGeneratorModel, HornetModel, InfiltratorModel, LancerLauncher, RazorbackModel, ThunderheadModel, TrooperKit } from './unitModels';
 import { ARTILLERY, artilleryRange } from '../sim/artillery';
 import { CIWS } from '../sim/ciws';
+import { BOMBARD } from '../sim/bombard';
 import { CLOAK_FIELD } from '../sim/cloak';
 import { follow, predictPosition, simClock, walkAlong } from './glide';
 
@@ -209,6 +210,9 @@ interface UnitProps {
   courierTargetId?: string;
   courierPayload?: 'emp' | 'he';
   bombardmentTarget?: { x: number; z: number } | null;
+  bombardMunitions?: number;
+  bombardReturning?: boolean;
+  bombardRearmStartedAt?: number;
   jammerActive?: boolean;
   tetherTargetId?: string | null;
   isJammed?: boolean;
@@ -356,7 +360,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -1413,8 +1417,31 @@ const Unit: React.FC<UnitProps> = ({
                   {isBombard && (
                       <>
                         <div className="text-[9px] text-slate-400 uppercase font-mono mb-1">Bombardment</div>
-                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('BOMBARD'); }} className={`text-[10px] ${bombardmentTarget ? 'bg-orange-900 text-orange-200' : 'bg-slate-800 text-orange-300'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>Bombard</button>
-                        <div className="text-[9px] text-slate-500 px-1">{bombardmentTarget ? 'On approach' : '2-square cluster strike'}</div>
+                        {(() => {
+                          const ammo = bombardMunitions ?? BOMBARD.magazine;
+                          const status = bombardmentTarget
+                            ? (path.length === 0 && gridPos.x === bombardmentTarget.x && gridPos.z === bombardmentTarget.z ? 'Bombarding' : 'On approach')
+                            : bombardReturning ? 'Returning to rearm'
+                            : bombardRearmStartedAt !== undefined ? 'Rearming at base'
+                            : ammo <= 0 ? 'Empty: send it to a base' : 'Ready';
+                          return (
+                            <>
+                              <div className="flex justify-between items-center px-1 mb-1">
+                                <span className="text-[9px] text-slate-400">Munitions</span>
+                                <span className="flex gap-0.5">
+                                  {Array.from({ length: BOMBARD.magazine }, (_, i) => (
+                                    <span key={i} style={{ width: 6, height: 10, background: i < ammo ? '#fb923c' : '#334155' }} className="inline-block rounded-sm" />
+                                  ))}
+                                </span>
+                              </div>
+                              <button onClick={(e) => { e.stopPropagation(); handleMenuAction('BOMBARD'); }} disabled={ammo <= 0} className={`text-[10px] ${ammo <= 0 ? 'bg-slate-900 text-slate-500' : bombardmentTarget ? 'bg-orange-900 text-orange-200 hover:bg-slate-700' : 'bg-slate-800 text-orange-300 hover:bg-slate-700'} px-2 py-1 rounded text-left`}>{isTargetingMode ? 'Pick Target' : 'Bombard'}</button>
+                              {bombardmentTarget && (
+                                <button onClick={(e) => { e.stopPropagation(); handleMenuAction('CEASE_BOMBARD'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left">Cease Bombard</button>
+                              )}
+                              <div className="text-[9px] text-slate-500 px-1">{status}</div>
+                            </>
+                          );
+                        })()}
                       </>
                   )}
                   {isMule && (() => {

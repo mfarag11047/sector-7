@@ -203,7 +203,7 @@ listed as damage / cooldown / range.
 | **Infiltrator Drone** | 60 | 1 | T1 | 60 | Air | None | Scout, surveillance |
 | **Wasp** | 240 | 2 | T2 | 160 | Air | Rifle 6 / 0.6 s / 3, hits air | Harasser, swarm volley |
 | **Hornet Gunship** (new) | 320 | 3 | T2 | 320 | Air | AP 32 / 1.6 s / 4; T3 rocket AP 60 / 6 s | Anti-vehicle air |
-| **Bombardment Drone** | 480 | 4 | T3 | 260 | Air | None | Levels city blocks |
+| **Bombardment Drone** | 480 | 4 | T3 | 260 | Air | None | Levels city blocks; 5 drops, rearms at base |
 
 ### Comm Link (support)
 
@@ -305,6 +305,25 @@ replaced the old manually aimed Main Cannon:
 double against heavy armour). Once its side has Tier 3 it also fires an anti-vehicle rocket on
 its own every 6 s at whatever its gun is shooting (AP 60, so 120 to heavy armour), drawn as an
 orange streak. The Hellfire Salvo (above) is its aimed Tier 3 area attack.
+
+## Bombardment Drone strike cycle
+
+`sim/bombard.ts`. Ordered onto a tile, the drone flies there and keeps dropping a cluster strike on
+the 5x5 patch below it every 4 s until told to Cease Bombard or its 5 munitions are spent. Each
+drop does 35 damage to every unit under it, friend or foe. Empty, it flies itself to the nearest
+friendly command base and rearms there in 6 s; a part-used drone parked by a base tops up the
+same way. Its menu shows the munitions left and what it is doing.
+
+Buildings take a set number of drops, rising toward the centre so lanes get harder to open the
+deeper the fight goes:
+
+| Building | Where | Drops |
+|---|---|---|
+| Residential (blue) | Outskirts | 2 |
+| Industrial (orange) | Outskirts | 3 |
+| High-tech (green) | Ring round the centre | 4 |
+| Commercial (purple) | Downtown | 5 |
+| Server node / core node | Objectives | 2 / 4 |
 
 ## Infiltrator Drone ground-search radar
 

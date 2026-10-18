@@ -162,6 +162,12 @@ export interface UnitData {
   courierTargetId?: string;
   courierPayload?: 'emp' | 'he';
   bombardmentTarget?: { x: number; z: number } | null;
+  // Bombardment Drone munitions (sim/bombard.ts): drops left (undefined = a full load), when it
+  // last dropped, flying home empty, and when it started rearming at a base.
+  bombardMunitions?: number;
+  bombardLastStrikeAt?: number;
+  bombardReturning?: boolean;
+  bombardRearmStartedAt?: number;
   firingLaserAt?: string | null;
   lastAttackTime?: number;
   // What this unit's weapon is aimed at this tick (sim/combat.ts resolveAttacks).

@@ -192,7 +192,6 @@ export const ABILITY_CONFIG = {
 
   // Bombardment Drone. Radius is in map squares, Chebyshev, so 2 covers a 5x5 patch.
   BOMBARD_RADIUS: 2,
-  BOMBARD_BUILDING_DAMAGE: 240,
   BOMBARD_UNIT_DAMAGE: 35,
   BOMBARD_BATTERY: 2000,
   // Ballista / Warhead Logic

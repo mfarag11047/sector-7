@@ -35,7 +35,8 @@ import { fireHornetRockets, landSalvo, MiniRocket } from '../sim/hornet';
 import { BASE_SITE, BaseSite, baseSites, clearedBlocks, commandPosts, rubbleCleared } from '../sim/bases';
 import { EmpRocket, EMP_ROCKET, empRocketImpact, empRocketTick, isEmpTarget, mergeUnitUpdates, topAttackHeight } from '../sim/empRocket';
 import { AirThreat, applyCiwsState, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY } from '../sim/ciws';
-import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, resolveAttacks } from '../sim/combat';
+import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, resolveAttacks } from '../sim/combat';
+import { bombardTick } from '../sim/bombard';
 import { generateCity } from '../sim/mapgen';
 import { MatchConfig, STARTING_CORES, aiTeamOf, incomeMultipliers, sandboxStructures, startingRoster } from '../sim/match';
 import { AI_PROFILES, aiThink, freshAiMemory } from '../sim/ai';
@@ -1256,6 +1257,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // Tank rail gun shots in the air for a moment, and when each gun last fired (ahead of state).
   const [railBeams, setRailBeams] = useState<RailBeamData[]>([]);
   const railShotRef = useRef(new Map<string, number>());
+  // When each Bombardment Drone last dropped, ahead of state (sim/bombard.ts).
+  const bombardStrikeRef = useRef(new Map<string, number>());
   // Hornet Tier 3 rockets: when each fired (ahead of state), and Hellfire Salvo rockets in flight.
   const hornetShotRef = useRef(new Map<string, number>());
   const [miniRockets, setMiniRockets] = useState<MiniRocket[]>([]);
@@ -1349,7 +1352,6 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const trophyReadyRef = useRef(new Map<string, number>());
   const detonatedCrawlersRef = useRef(new Set<string>());
   const lastShotRef = useRef(new Map<string, number>());
-  const struckBombardTargetsRef = useRef(new WeakSet<object>());
   const flightIds = new Set(projectiles.map(p => p.id));
   for (const id of flightRef.current.keys()) {
       if (!flightIds.has(id)) flightRef.current.delete(id);
@@ -2546,6 +2548,13 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           onNotice?.('Fire mission: click a tile inside the orange ring');
           return;
       }
+      if (action === 'CEASE_BOMBARD') {
+          // Every selected Bombardment Drone, plus the one whose menu was clicked.
+          unitsRef.current
+              .filter(u => u.type === 'bombard' && u.bombardmentTarget && (u.id === unitId || selectedUnitIds.has(u.id)))
+              .forEach(u => dispatchAbility({ type: 'BOMBARD', unitId: u.id }));
+          return;
+      }
       if (action === 'CEASE_FIRE') {
           const ids = unitsRef.current.filter(u => u.type === 'howitzer' && (u.id === unitId || selectedUnitIds.has(u.id))).map(u => u.id);
           dispatchAbility({ type: 'ARTILLERY_FIRE', unitIds: ids });
@@ -2905,14 +2914,16 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               });
           }
 
-          // Bombardment Drones over their target square. Each order strikes once, even if
-          // the ref has not caught up with the tick that cleared it.
-          const strikes = currentUnitsRef
-              .filter(u => isBombardStrike(u) && !struckBombardTargetsRef.current.has(u.bombardmentTarget!))
-              .map(u => {
-                  struckBombardTargetsRef.current.add(u.bombardmentTarget!);
-                  return { droneId: u.id, at: { ...u.gridPos } };
-              });
+          // Bombardment Drones over their target keep dropping until stopped or empty, then fly
+          // home to rearm (sim/bombard.ts).
+          const bombard = bombardTick(
+              currentUnitsRef, now,
+              team => (team === 'blue' || team === 'red') ? teamBasesRef.current[team] : [],
+              aiHelpersRef.current.findAirPath,
+              id => bombardStrikeRef.current.get(id),
+          );
+          const strikes = bombard.strikes;
+          strikes.forEach(s => bombardStrikeRef.current.set(s.droneId, now));
           if (strikes.length > 0) {
               setBuildings(prev => bombardBuildings(prev, strikes.map(s => s.at)));
               const radius = ABILITY_CONFIG.BOMBARD_RADIUS;
@@ -3203,8 +3214,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                           newUnit.health = u.health - bombardHit;
                           uChanged = true;
                       }
-                      if (strikes.some(strike => strike.droneId === u.id)) {
-                          newUnit.bombardmentTarget = null;
+                      const bombardUpdate = bombard.updates.get(u.id);
+                      if (bombardUpdate) {
+                          newUnit = bombardUpdate(newUnit);
                           uChanged = true;
                       }
 
@@ -3531,6 +3543,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         {shells.map(s => <ShellMesh key={s.id} shell={s} tileSize={tileSize} offset={offset} enemy={s.team !== playerTeam} />)}
         {units.filter(u => u.type === 'howitzer' && u.artilleryTarget && u.team === playerTeam && selectedUnitIds.has(u.id))
             .map(u => <FireMissionMarker key={`fm-${u.id}`} at={u.artilleryTarget!} tileSize={tileSize} offset={offset} />)}
+        {/* Where selected Bombardment Drones are dropping. */}
+        {units.filter(u => u.type === 'bombard' && u.bombardmentTarget && u.team === playerTeam && selectedUnitIds.has(u.id))
+            .map(u => <FireMissionMarker key={`bm-${u.id}`} at={u.bombardmentTarget!} tileSize={tileSize} offset={offset} />)}
 
         {/* Explosions */}
         {explosions.map(e => <ExplosionMesh key={e.id} explosion={e} />)}

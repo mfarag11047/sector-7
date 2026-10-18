@@ -12,6 +12,7 @@ import { BASE_REPAIR } from '../sim/support';
 import { RADAR, SEARCH_RADAR } from '../sim/radar';
 import { RAILGUN, railDamage } from '../sim/railgun';
 import { HORNET } from '../sim/hornet';
+import { BOMBARD, DROPS_TO_DESTROY } from '../sim/bombard';
 import { CLOAK_FIELD } from '../sim/cloak';
 import { BASE_SITE } from '../sim/bases';
 import { CIWS, ORDNANCE_INTEGRITY } from '../sim/ciws';
@@ -114,7 +115,10 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
   hornet: { use: `Gunship. Hunts vehicles with armour-piercing rounds; at Tier 3 it also fires an anti-vehicle rocket every ${HORNET.rocket.cooldownMs / 1000}s at its target (${HORNET.rocket.damage} AP) and gains the Hellfire Salvo, a rocket barrage over an area. Avoid Aegis and massed Troopers.` },
   bombard: {
     use: 'Slow heavy drone that flattens city blocks to open new lanes.',
-    actions: [{ name: 'Bombard', text: `Flies to a spot and levels a ${ABILITY_CONFIG.BOMBARD_RADIUS * 2 + 1}×${ABILITY_CONFIG.BOMBARD_RADIUS * 2 + 1} patch: ${ABILITY_CONFIG.BOMBARD_BUILDING_DAMAGE} damage to buildings, ${ABILITY_CONFIG.BOMBARD_UNIT_DAMAGE} to every unit under it, friend or foe.` }],
+    actions: [
+      { name: 'Bombard', text: `Flies to a spot and keeps dropping cluster strikes on the ${ABILITY_CONFIG.BOMBARD_RADIUS * 2 + 1}×${ABILITY_CONFIG.BOMBARD_RADIUS * 2 + 1} patch below, one every ${BOMBARD.intervalMs / 1000}s, until you Cease Bombard or its ${BOMBARD.magazine} munitions run out. Each drop does ${ABILITY_CONFIG.BOMBARD_UNIT_DAMAGE} damage to every unit under it, friend or foe. Buildings take more drops toward the centre: residential ${DROPS_TO_DESTROY.residential}, industrial ${DROPS_TO_DESTROY.industrial}, high-tech ${DROPS_TO_DESTROY.hightech}, commercial ${DROPS_TO_DESTROY.commercial}.` },
+      { name: 'Rearm', text: `Empty, it flies home to the nearest command base on its own and reloads there in ${BOMBARD.rearmMs / 1000}s. A part-used drone parked by a base tops up the same way.` },
+    ],
   },
   guardian: {
     use: 'Combat medic vehicle. Keep it just behind your front line.',

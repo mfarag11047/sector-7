@@ -193,7 +193,7 @@ function moveOrder(view: OrdersView, team: Team, unitIds: readonly string[], tar
     if (u.type === 'bombard') {
       const there = u.gridPos.x === target.x && u.gridPos.z === target.z;
       const path = there ? [] : ctx.findAirPath(u.gridPos, target);
-      if (there || path.length > 0) unitUpdates.set(u.id, x => ({ ...x, path, bombardmentTarget: null, attackMove }));
+      if (there || path.length > 0) unitUpdates.set(u.id, x => ({ ...x, path, bombardmentTarget: null, bombardReturning: false, attackMove }));
       continue;
     }
     let dest = findFreeTile(target.x, target.z);

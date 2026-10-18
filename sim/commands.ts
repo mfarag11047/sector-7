@@ -67,7 +67,8 @@ export interface ArtilleryFireCommand { type: 'ARTILLERY_FIRE'; unitIds: string[
 export interface SurveillanceCommand { type: 'SURVEILLANCE'; unitId: string; target: GridPos } // Infiltrator Drone
 export interface FireBallistaCommand { type: 'FIRE_BALLISTA'; unitId: string; target: GridPos } // Ballista, fires the armed warhead
 export interface FireSwarmCommand { type: 'FIRE_SWARM'; unitId: string; target: GridPos } // Wasp
-export interface BombardCommand { type: 'BOMBARD'; unitId: string; target: GridPos } // Bombardment Drone
+// Bombardment Drone: strike `target` until told to stop or out of munitions; no target stops it.
+export interface BombardCommand { type: 'BOMBARD'; unitId: string; target?: GridPos }
 
 // --- Links between units ---
 
@@ -196,7 +197,7 @@ const CHECKS: Record<CommandType, (c: Fields) => boolean> = {
   SURVEILLANCE: unitAt,
   FIRE_BALLISTA: unitAt,
   FIRE_SWARM: unitAt,
-  BOMBARD: unitAt,
+  BOMBARD: c => isId(c.unitId) && (c.target === undefined || isTile(c.target)),
   HARDLINE_TETHER: unitLink,
   DISCONNECT_TETHER: unit,
   BATTERY_LINK: unitLink,

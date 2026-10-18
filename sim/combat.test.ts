@@ -3,7 +3,7 @@ import { ABILITY_CONFIG } from '../constants';
 import type { BuildingData, CloudData, UnitData } from '../types';
 import {
   applyDamage, blastDamage, bombardBuildings, bombardUnitDamage, CombatStructure, crawlerDetonations, heCloudDamage,
-  isBombardStrike, resolveAttacks,
+  resolveAttacks,
 } from './combat';
 import { DAMAGE_MULTIPLIER, UNIT_RULES } from './units';
 
@@ -122,15 +122,8 @@ describe('resolveAttacks', () => {
 });
 
 describe('Bombardment Drone strikes', () => {
-  it('strike only when hovering over the target with no path left', () => {
-    const drone = unit('d', { type: 'bombard', unitClass: 'air', gridPos: { x: 4, z: 4 }, bombardmentTarget: { x: 4, z: 4 } });
-    expect(isBombardStrike(drone)).toBe(true);
-    expect(isBombardStrike({ ...drone, path: ['5,4'] })).toBe(false);
-    expect(isBombardStrike({ ...drone, bombardmentTarget: null })).toBe(false);
-  });
-
   it('damage buildings in the square and destroy them at zero', () => {
-    const inside = building({ id: 'in', gridX: 6, gridZ: 6, health: ABILITY_CONFIG.BOMBARD_BUILDING_DAMAGE });
+    const inside = building({ id: 'in', gridX: 6, gridZ: 6, health: 1 });
     const outside = building({ id: 'out', gridX: 8, gridZ: 4 });
     const [hit, missed] = bombardBuildings([inside, outside], [{ x: 4, z: 4 }]);
     expect(hit).toMatchObject({ destroyed: true, health: 0, owner: null });

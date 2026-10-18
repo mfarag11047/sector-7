@@ -9,6 +9,7 @@
 // The rules were moved out of CityMap.tsx's click handlers. Changes are marked "Change:".
 
 import { ABILITY_CONFIG, CITY_CONFIG } from '../constants';
+import { munitionsOf } from './bombard';
 import type { DecoyData, Projectile, StructureData, UnitData, UnitType } from '../types';
 import type { GridPos, PlayerCommand, Team, Warhead } from './commands';
 import { Economy, spend, takeWarhead, warheadCost } from './economy';
@@ -254,11 +255,16 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
     case 'BOMBARD': {
       const u = ownUnit(view, team, command.unitId, ['bombard']);
       if (typeof u === 'string') return reject(u);
+      if (!command.target) {
+        if (!u.bombardmentTarget) return reject('not bombarding');
+        return effects({ updates: new Map([[u.id, b => ({ ...b, bombardmentTarget: null, path: [] })]]) });
+      }
+      if (munitionsOf(u) <= 0) return reject('out of munitions: return to base to rearm');
       const there = u.gridPos.x === command.target.x && u.gridPos.z === command.target.z;
       const path = there ? [] : ctx.findAirPath(u.gridPos, command.target);
       if (!there && path.length === 0) return reject('no route there');
       const target = { ...command.target };
-      return effects({ updates: new Map([[u.id, b => ({ ...b, path, bombardmentTarget: target })]]) });
+      return effects({ updates: new Map([[u.id, b => ({ ...b, path, bombardmentTarget: target, bombardReturning: false, bombardRearmStartedAt: undefined })]]) });
     }
 
     // --- Links between units ---
