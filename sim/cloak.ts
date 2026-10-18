@@ -3,7 +3,9 @@
 // Dropped from orbit like a Titan, the generator sits where it lands and projects a small field.
 // Every friendly unit inside it is cloaked: the enemy can't see it or aim at it, though blasts
 // and shelling across an area still hurt. Firing, or being hit, breaks a unit's cloak; it
-// slips back under once it has been quiet for a few seconds.
+// slips back under once it has been quiet for a few seconds. The generator itself is hidden
+// while its field is up. An Aegis' radar still picks up everything in the field as blips
+// (sim/radar.ts): it shows something is there, not what.
 //
 // The field runs off the generator's battery. Inside your energy grid that is topped up as fast
 // as it drains, so it holds indefinitely; out in the field it lasts a minute or so, and a
@@ -38,13 +40,14 @@ export const revealedByCombat = (u: UnitData, now: number) =>
 export const isHidden = (u: Pick<UnitData, 'decoyActive' | 'fieldCloaked'>) => !!u.decoyActive || !!u.fieldCloaked;
 
 // Who is cloaked by a field right now: friendly units inside a working generator's field that
-// haven't given themselves away. The generator itself is not.
+// haven't given themselves away, the generator among them.
 export function fieldCloakedIds(units: readonly UnitData[], now: number): Set<string> {
   const fields = units.filter(isCloakFieldUp);
   const cloaked = new Set<string>();
   if (fields.length === 0) return cloaked;
   for (const u of units) {
-    if (u.health <= 0 || isCloakGenerator(u) || revealedByCombat(u, now)) continue;
+    // The generator hides inside its own field too.
+    if (u.health <= 0 || revealedByCombat(u, now)) continue;
     if (fields.some(g => g.team === u.team && Math.hypot(g.gridPos.x - u.gridPos.x, g.gridPos.z - u.gridPos.z) <= CLOAK_FIELD.radius)) cloaked.add(u.id);
   }
   return cloaked;

@@ -226,7 +226,8 @@ exception to no free healing.
 
 Every working Aegis (not EMP-disabled or stunned) carries an air-search radar, always on, reaching
 16 tiles (`sim/radar.ts`). It picks up enemy aircraft and large ordnance in flight (ballistic
-missiles, Thunderhead shells, drop pods; not small arms or swarm darts). A contact that nothing
+missiles, Thunderhead shells, drop pods; not small arms or swarm darts), and any unit hidden by a
+Cloaking Field, ground or air. A contact that nothing
 of yours can see shows only as a pulsing red dot, on the map and the minimap: radar says
 something is there, not what it is. Without radar, an enemy missile launch still raises a
 minimap alert: a warning triangle at the launch site and, once the missile is past halfway, a
@@ -274,8 +275,11 @@ Generator on a chosen tile, in a drop pod like the Orbital Drop Titan. Rules: `s
   it recharges faster than it drains and holds indefinitely; a Battery Mule or Helios can keep a
   forward one going. A flat battery or an EMP drops the field until it recovers.
 - One generator per side: a new drop destroys the old one as it lands.
-- The generator shows a violet ring and dome at the field's edge; cloaked friendlies are drawn
-  translucent violet for their owner.
+- The generator is hidden by its own field while it is up (it shows itself for 6 s if hit, and
+  whenever the field is down). Its owner sees a violet ring and dome at the field's edge, and
+  cloaked friendlies, the generator included, drawn translucent violet.
+- Radar beats the field: an enemy Aegis picks up every cloaked unit within its 16-tile radar,
+  ground or air, as a red blip on the map and minimap. It shows something is there, not what.
 
 ## Thunderhead mobile artillery
 

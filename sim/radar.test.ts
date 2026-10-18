@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { UnitData } from '../types';
 import { createUnit } from './production';
-import { isRadarActive, onRadar, RADAR, radarAircraft, radarSources } from './radar';
+import { isRadarActive, onRadar, RADAR, radarUnits, radarSources } from './radar';
 
 const at = (u: UnitData, x: number, z = 0): UnitData => ({ ...u, gridPos: { x, z } });
 const unit = (type: UnitData['type'], team: 'blue' | 'red', id: string, x: number) => at(createUnit(type, team, id, { x: 0, z: 0 }), x);
@@ -24,7 +24,10 @@ describe('Aegis radar', () => {
       unit('aegis', 'blue', 'a', 0), unit('hornet', 'red', 'far-air', 12), unit('wasp', 'red', 'seen-air', 4),
       unit('tank', 'red', 'ground', 10), unit('hornet', 'blue', 'friend', 8), unit('drone', 'red', 'out', 30),
     ];
-    const held = radarAircraft(units, 'blue', radarSources(units, 'blue'), u => u.id === 'seen-air');
+    const held = radarUnits(units, 'blue', radarSources(units, 'blue'), u => u.id === 'seen-air');
     expect(held.map(u => u.id)).toEqual(['far-air']);
+    // A cloaked ground unit does show (sim/cloak.ts).
+    const cloaked = units.map(u => u.id === 'ground' ? { ...u, fieldCloaked: true } : u);
+    expect(radarUnits(cloaked, 'blue', radarSources(cloaked, 'blue'), u => u.id === 'seen-air').map(u => u.id)).toEqual(['far-air', 'ground']);
   });
 });

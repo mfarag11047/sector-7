@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { UnitData } from '../types';
 import { applyFieldCloak, CLOAK_FIELD, fieldCloakedIds, generatorsReplacedBy, isCloakFieldUp, isHidden } from './cloak';
 import { resolveAttacks } from './combat';
+import { RADAR, radarSources, radarUnits } from './radar';
 import { batteryDrain } from './energy';
 import { createUnit } from './production';
 import { addBuff } from './unitAbilities';
@@ -10,9 +11,26 @@ const unit = (type: UnitData['type'], team: 'blue' | 'red', id: string, x: numbe
 const NOW = 100_000;
 
 describe('Cloaking Field', () => {
-  it('cloaks friendly units inside the field, not the generator, enemies or anyone outside', () => {
+  it('cloaks the generator and friendly units inside the field, not enemies or anyone outside', () => {
     const units = [unit('cloak_generator', 'blue', 'g', 0), unit('tank', 'blue', 'in', 2), unit('tank', 'blue', 'out', CLOAK_FIELD.radius + 1), unit('tank', 'red', 'foe', 1)];
-    expect([...fieldCloakedIds(units, NOW)]).toEqual(['in']);
+    expect([...fieldCloakedIds(units, NOW)]).toEqual(['g', 'in']);
+  });
+
+  it('the generator shows itself when its field is down or it is hit', () => {
+    const gen = unit('cloak_generator', 'blue', 'g', 0);
+    expect(fieldCloakedIds([{ ...gen, battery: 0 }], NOW).size).toBe(0);
+    expect(fieldCloakedIds([{ ...gen, lastDamageTime: NOW - 100 }], NOW).size).toBe(0);
+  });
+
+  it('an Aegis radar still picks up field-cloaked units as contacts, ground or air', () => {
+    const units = [
+      unit('aegis', 'red', 'radar', 0),
+      { ...unit('cloak_generator', 'blue', 'g', 10), fieldCloaked: true },
+      { ...unit('tank', 'blue', 'hidden-tank', 11), fieldCloaked: true },
+      unit('tank', 'blue', 'plain-tank', 12),
+      { ...unit('tank', 'blue', 'too-far', RADAR.range + 2), fieldCloaked: true },
+    ];
+    expect(radarUnits(units, 'red', radarSources(units, 'red'), () => false).map(u => u.id)).toEqual(['g', 'hidden-tank']);
   });
 
   it('drops with a flat battery, an EMP or a dead generator', () => {
@@ -28,8 +46,8 @@ describe('Cloaking Field', () => {
     const gen = unit('cloak_generator', 'blue', 'g', 0);
     const shooter = { ...unit('tank', 'blue', 's', 1), lastAttackTime: NOW - 1000 };
     const hit = { ...unit('tank', 'blue', 'h', 1, 1), lastDamageTime: NOW - 1000 };
-    expect(fieldCloakedIds([gen, shooter, hit], NOW).size).toBe(0);
-    expect(fieldCloakedIds([gen, shooter, hit], NOW - 1000 + CLOAK_FIELD.revealMs).size).toBe(2);
+    expect([...fieldCloakedIds([gen, shooter, hit], NOW)]).toEqual(['g']);
+    expect([...fieldCloakedIds([gen, shooter, hit], NOW - 1000 + CLOAK_FIELD.revealMs)]).toEqual(['g', 's', 'h']);
   });
 
   it('cloaked units are never picked as a target', () => {
@@ -57,9 +75,10 @@ describe('Cloaking Field', () => {
   });
 
   it('keeps unchanged units as the same objects', () => {
-    const units = [unit('cloak_generator', 'blue', 'g', 0), unit('tank', 'blue', 't', 1)];
+    const units = [unit('cloak_generator', 'blue', 'g', 0), unit('tank', 'blue', 't', 1), unit('tank', 'blue', 'far', 9)];
     const once = applyFieldCloak(units, fieldCloakedIds(units, NOW));
-    expect(once[1].fieldCloaked).toBe(true);
+    expect(once.map(u => !!u.fieldCloaked)).toEqual([true, true, false]);
+    expect(once[2]).toBe(units[2]);
     expect(applyFieldCloak(once, fieldCloakedIds(once, NOW))).toBe(once);
   });
 });

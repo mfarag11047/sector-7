@@ -22,7 +22,7 @@ import { cameraFocus } from './DroneCamera';
 import { AbilityCommand, abilityEffects, applyUnitEffects, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
 import { Warhead } from '../sim/commands';
 import { FlightEvent, FlightTickResult, LiveFlight, cloneProjectile, drawnShotPosition, ballisticProgress, flightUnitY, isHeavyOrdnance, sampleBallistic, stepProjectiles } from '../sim/projectiles';
-import { isRadarActive, onRadar, RADAR, radarAircraft, radarSources } from '../sim/radar';
+import { isRadarActive, onRadar, RADAR, radarSources, radarUnits } from '../sim/radar';
 import { Blackout, chargeSources, isInsideEnergyGrid, powerTick } from '../sim/energy';
 import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, leashStep, repairTick, slowTick, surveillanceStep } from '../sim/support';
@@ -531,8 +531,8 @@ const radarBlipTexture = () => {
 // Large ordnance radar can track: missiles, drop pods, heavy shells. Not small arms or swarm darts.
 const isRadarOrdnance = (p: Projectile) => p.trajectory === 'ballistic' || p.payload === 'titan_drop' || p.payload === 'cloak_drop' || isHeavyOrdnance(p);
 
-// Where enemy things on radar are right now, in world units: hidden aircraft, and ordnance in
-// flight. Shared by the map blips and the minimap.
+// Where enemy things on radar are right now, in world units: hidden aircraft, field-cloaked units
+// and ordnance in flight. Shared by the map blips and the minimap.
 type RadarContact = { id: string; x: number; y: number; z: number; ordnance: boolean };
 function radarContactsFor(
     team: 'blue' | 'red', units: readonly UnitData[], visible: ReadonlySet<string>,
@@ -542,7 +542,7 @@ function radarContactsFor(
     if (sources.length === 0) return [];
     const toGrid = (w: number) => (w + offset) / tileSize;
     const contacts: RadarContact[] = [];
-    for (const u of radarAircraft(units, team, sources, a => visible.has(a.id))) {
+    for (const u of radarUnits(units, team, sources, a => visible.has(a.id))) {
         // Partway along its current step, so the dot glides rather than hops tile to tile.
         let gx = u.gridPos.x, gz = u.gridPos.z;
         if (u.moveTarget) {
