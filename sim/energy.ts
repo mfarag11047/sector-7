@@ -99,8 +99,8 @@ export function chargeSources(units: readonly UnitData[]): ChargeSources {
 export function batteryDrain(u: UnitData, isMoving: boolean, onGrid: boolean): number {
   let drain = (u.unitClass === 'infantry' || onGrid) ? 0 : (isMoving ? ABILITY_CONFIG.BATTERY_DRAIN_MOVE : ABILITY_CONFIG.BATTERY_DRAIN_IDLE);
   if (u.type === 'banshee' && u.jammerActive) drain += ABILITY_CONFIG.DRAIN_STATIC_JAMMER;
-  // The Cloaking Field runs off the generator's battery, on the grid or off it.
-  if (u.type === 'cloak_generator') drain += CLOAK_FIELD.drainPerTick;
+  // The Cloaking Field runs off the generator's battery, on the grid or off it, while switched on.
+  if (u.type === 'cloak_generator' && !u.cloakFieldOff) drain += CLOAK_FIELD.drainPerTick;
   if (u.type === 'ghost' && u.isDampenerActive) drain += ABILITY_CONFIG.GHOST_SPEED_PENALTY + ABILITY_CONFIG.DRAIN_STATIC_DOME;
   if (u.type === 'ghost' && u.decoyActive) {
     drain += ABILITY_CONFIG.PHANTOM_DECOY_DRAIN * (isMoving ? 1 : ABILITY_CONFIG.PHANTOM_DECOY_STILL_FACTOR);

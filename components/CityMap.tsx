@@ -2312,10 +2312,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   };
 
   // Toggles act on the whole selection, plus the unit whose menu was clicked.
-  const TOGGLE_COMMANDS: Record<string, 'TOGGLE_JAMMER' | 'TOGGLE_DAMPENER' | 'TOGGLE_ANCHOR' | 'SMOKE_SCREEN' | 'ACTIVATE_APS'> = {
+  const TOGGLE_COMMANDS: Record<string, 'TOGGLE_JAMMER' | 'TOGGLE_DAMPENER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD' | 'SMOKE_SCREEN' | 'ACTIVATE_APS'> = {
       'TOGGLE_JAMMER': 'TOGGLE_JAMMER',
       'TOGGLE DAMPENER': 'TOGGLE_DAMPENER',
       'TOGGLE_ANCHOR': 'TOGGLE_ANCHOR',
+      'TOGGLE_CLOAK_FIELD': 'TOGGLE_CLOAK_FIELD',
       'SMOKE SCREEN': 'SMOKE_SCREEN',
       'ACTIVATE APS': 'ACTIVATE_APS',
   };

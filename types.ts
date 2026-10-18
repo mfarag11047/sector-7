@@ -110,6 +110,8 @@ export interface UnitData {
   lastDamageTime?: number;
   // Inside a friendly Cloaking Field and hidden from the enemy (sim/cloak.ts).
   fieldCloaked?: boolean;
+  // A Cloaking Field Generator its owner has switched off.
+  cloakFieldOff?: boolean;
   
   // New Decoy Fields
   decoyActive?: boolean;

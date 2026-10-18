@@ -291,6 +291,9 @@ Generator on a chosen tile, in a drop pod like the Orbital Drop Titan. Rules: `s
   it recharges faster than it drains and holds indefinitely; a Battery Mule or Helios can keep a
   forward one going. A flat battery or an EMP drops the field until it recovers.
 - One generator per side: a new drop destroys the old one as it lands.
+- Its owner can switch the field off and on again from the generator's menu
+  (`TOGGLE_CLOAK_FIELD`). Switched off it spends no battery, and it and everything near it can
+  be seen.
 - The generator is hidden by its own field while it is up (it shows itself for 6 s if hit, and
   whenever the field is down). Its owner sees a violet ring and dome at the field's edge, and
   cloaked friendlies, the generator included, drawn translucent violet.

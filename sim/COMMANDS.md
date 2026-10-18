@@ -28,6 +28,7 @@ Swarm Host spawns and grid charging. They become simulation rules in step 2.
 | `TOGGLE_DAMPENER` | Ghost | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `TOGGLE_JAMMER` | Banshee | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `TOGGLE_ANCHOR` | Battery Mule, Swarm Host, Thunderhead (stationary only) | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `TOGGLE_CLOAK_FIELD` | Cloaking Field Generator | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `SMOKE_SCREEN` | Titan | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `ACTIVATE_APS` | Titan | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `PHANTOM_DECOY` | Ghost | unit id | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |

@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { UnitData } from '../types';
 import { applyFieldCloak, CLOAK_FIELD, fieldCloakedIds, generatorsReplacedBy, isCloakFieldUp, isHidden } from './cloak';
+import { AbilityContext, abilityEffects, applyUnitEffects } from './abilities';
 import { resolveAttacks } from './combat';
+import { createEconomy } from './economy';
 import { RADAR, radarSources, radarUnits } from './radar';
 import { batteryDrain } from './energy';
 import { createUnit } from './production';
@@ -9,6 +11,10 @@ import { addBuff } from './unitAbilities';
 
 const unit = (type: UnitData['type'], team: 'blue' | 'red', id: string, x: number, z = 0) => createUnit(type, team, id, { x, z });
 const NOW = 100_000;
+const CTX: AbilityContext = {
+  now: NOW, offset: 0, tileSize: 14, isWalkable: () => true, findPath: () => [], findAirPath: () => [],
+  findAdjacentSpawn: c => c, createCrawler: (h, at, s) => createUnit('crawler_drone', h.team, `c-${s}`, at), random: () => 0.5, newId: p => p,
+};
 
 describe('Cloaking Field', () => {
   it('cloaks the generator and friendly units inside the field, not enemies or anyone outside', () => {
@@ -80,5 +86,22 @@ describe('Cloaking Field', () => {
     expect(once.map(u => !!u.fieldCloaked)).toEqual([true, true, false]);
     expect(once[2]).toBe(units[2]);
     expect(applyFieldCloak(once, fieldCloakedIds(once, NOW))).toBe(once);
+  });
+
+  it('its owner can switch the field off and on, and it spends no battery while off', () => {
+    const gen = unit('cloak_generator', 'blue', 'g', 0);
+    const units = [gen, unit('tank', 'blue', 't', 1)];
+    const off = abilityEffects({ units, structures: [], economy: createEconomy(0) }, 'blue', { type: 'TOGGLE_CLOAK_FIELD', unitIds: ['g'] }, CTX);
+    if ('reason' in off) throw new Error(off.reason);
+    const switchedOff = applyUnitEffects(units, off.effects);
+    expect(switchedOff[0].cloakFieldOff).toBe(true);
+    expect(isCloakFieldUp(switchedOff[0])).toBe(false);
+    expect(fieldCloakedIds(switchedOff, NOW).size).toBe(0);
+    expect(batteryDrain(switchedOff[0], false, true)).toBe(0);
+    const on = abilityEffects({ units: switchedOff, structures: [], economy: createEconomy(0) }, 'blue', { type: 'TOGGLE_CLOAK_FIELD', unitIds: ['g'] }, CTX);
+    if ('reason' in on) throw new Error(on.reason);
+    expect([...fieldCloakedIds(applyUnitEffects(switchedOff, on.effects), NOW)]).toEqual(['g', 't']);
+    // Not the other side's generator.
+    expect('reason' in abilityEffects({ units, structures: [], economy: createEconomy(0) }, 'red', { type: 'TOGGLE_CLOAK_FIELD', unitIds: ['g'] }, CTX)).toBe(true);
   });
 });

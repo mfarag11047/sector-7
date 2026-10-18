@@ -43,6 +43,7 @@ export interface BuildWarheadCommand { type: 'BUILD_WARHEAD'; structureId: strin
 export interface ToggleDampenerCommand { type: 'TOGGLE_DAMPENER'; unitIds: string[] } // Ghost
 export interface ToggleJammerCommand { type: 'TOGGLE_JAMMER'; unitIds: string[] } // Banshee
 export interface ToggleAnchorCommand { type: 'TOGGLE_ANCHOR'; unitIds: string[] } // Battery Mule, Swarm Host
+export interface ToggleCloakFieldCommand { type: 'TOGGLE_CLOAK_FIELD'; unitIds: string[] } // Cloaking Field Generator
 export interface SmokeScreenCommand { type: 'SMOKE_SCREEN'; unitIds: string[] } // Titan
 export interface ActivateApsCommand { type: 'ACTIVATE_APS'; unitIds: string[] } // Titan
 
@@ -96,6 +97,7 @@ export type PlayerCommand =
   | ToggleDampenerCommand
   | ToggleJammerCommand
   | ToggleAnchorCommand
+  | ToggleCloakFieldCommand
   | SmokeScreenCommand
   | ActivateApsCommand
   | PhantomDecoyCommand
@@ -179,6 +181,7 @@ const CHECKS: Record<CommandType, (c: Fields) => boolean> = {
   TOGGLE_DAMPENER: unitList,
   TOGGLE_JAMMER: unitList,
   TOGGLE_ANCHOR: unitList,
+  TOGGLE_CLOAK_FIELD: unitList,
   SMOKE_SCREEN: unitList,
   ACTIVATE_APS: unitList,
   PHANTOM_DECOY: unit,

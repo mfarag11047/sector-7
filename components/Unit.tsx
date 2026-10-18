@@ -152,6 +152,7 @@ interface UnitProps {
   isDecoy?: boolean;
   decoyActive?: boolean;
   fieldCloaked?: boolean;
+  cloakFieldOff?: boolean;
   health: number;
   maxHealth: number;
   battery: number;
@@ -355,7 +356,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -411,7 +412,7 @@ const Unit: React.FC<UnitProps> = ({
   const isRazorback = type === 'razorback';
   const isHowitzer = type === 'howitzer';
   const isCloakGen = type === 'cloak_generator';
-  const fieldUp = isCloakGen && health > 0 && battery > 0 && !buffs?.some(b => b.kind === 'emp');
+  const fieldUp = isCloakGen && !cloakFieldOff && health > 0 && battery > 0 && !buffs?.some(b => b.kind === 'emp');
   const isAegis = type === 'aegis';
   const isHornet = type === 'hornet';
   const isAir = isWasp || isDrone || isHelios || isBombard || isHornet;
@@ -1362,6 +1363,16 @@ const Unit: React.FC<UnitProps> = ({
                         <button onClick={(e) => { e.stopPropagation(); handleMenuAction('SMOKE SCREEN'); }} disabled={charges?.smoke === 0} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left flex justify-between"><span>Smoke</span><span>{charges?.smoke}</span></button>
                         <button onClick={(e) => { e.stopPropagation(); handleMenuAction('ACTIVATE APS'); }} disabled={charges?.aps === 0} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left flex justify-between"><span>APS</span><span>{charges?.aps}</span></button>
                       </>
+                  )}
+                  {isCloakGen && (
+                      <button
+                          onClick={(e) => { e.stopPropagation(); handleMenuAction('TOGGLE_CLOAK_FIELD'); }}
+                          title="Switch the Cloaking Field off (saves battery; everything in it can be seen) or back on."
+                          className={`text-[10px] ${cloakFieldOff ? 'bg-slate-800 text-white' : 'bg-fuchsia-900 text-fuchsia-200'} hover:bg-slate-700 px-2 py-1 rounded text-left flex justify-between gap-2`}
+                      >
+                          <span>Cloaking Field</span>
+                          <span className="font-mono">{cloakFieldOff ? 'OFF' : fieldUp ? 'ON' : 'NO POWER'}</span>
+                      </button>
                   )}
                   {isGhost && (
                       <>

@@ -10,7 +10,8 @@
 // The field runs off the generator's battery. Inside your energy grid that is topped up as fast
 // as it drains, so it holds indefinitely; out in the field it lasts a minute or so, and a
 // Battery Mule or Helios can keep it going. An EMP shuts it down. A side has one generator at a
-// time: dropping a new one destroys the old.
+// time: dropping a new one destroys the old. Its owner can switch the field off and on again;
+// while off it spends no battery, and it and everything in the field can be seen.
 //
 // Pure: CityMap and the headless runner apply the result.
 
@@ -28,9 +29,9 @@ export const CLOAK_FIELD = {
 
 export const isCloakGenerator = (u: Pick<UnitData, 'type'>) => u.type === 'cloak_generator';
 
-// Projecting: alive, charged and not knocked out.
+// Projecting: switched on, alive, charged and not knocked out.
 export const isCloakFieldUp = (g: UnitData) =>
-  isCloakGenerator(g) && g.health > 0 && g.battery > 0 && !g.isStunned && !isEmpDisabled(g);
+  isCloakGenerator(g) && !g.cloakFieldOff && g.health > 0 && g.battery > 0 && !g.isStunned && !isEmpDisabled(g);
 
 // Fired or was hit recently.
 export const revealedByCombat = (u: UnitData, now: number) =>

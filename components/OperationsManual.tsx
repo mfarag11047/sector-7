@@ -153,6 +153,7 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
   },
   cloak_generator: {
     use: `Projects a ${CLOAK_FIELD.radius}-tile Cloaking Field: friendly units inside, and the generator itself, are hidden from the enemy and can't be targeted, though blasts and shelling still hurt. An enemy Aegis' radar still shows them as red blips. A unit that fires or is hit shows itself for ${CLOAK_FIELD.revealMs / 1000}s. Runs on its battery: indefinitely inside your grid, about a minute outside it; a Battery Mule or Helios keeps it going. An EMP shuts it down.`,
+    actions: [{ name: 'Cloaking Field', text: 'Switches the field off (saving battery; the generator and everything near it can be seen) or back on.' }],
     source: 'Shadow Ops doctrine, Tier 3 power: Cloaking Field. Air-dropped; one per side, a new drop destroys the old one.',
   },
   crawler_drone: { use: `Self-destructing drone: explodes for ${ABILITY_CONFIG.CRAWLER_EXPLOSION_DAMAGE} damage beside enemies.`, source: 'Released by an anchored Swarm Host.' },

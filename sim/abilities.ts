@@ -18,13 +18,13 @@ import type { EmpRocket } from './empRocket';
 import { unitAbilityEffects } from './unitAbilities';
 
 export type AbilityCommand = Extract<PlayerCommand, { type:
-  | 'TOGGLE_DAMPENER' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'SMOKE_SCREEN' | 'ACTIVATE_APS' | 'PHANTOM_DECOY'
+  | 'TOGGLE_DAMPENER' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD' | 'SMOKE_SCREEN' | 'ACTIVATE_APS' | 'PHANTOM_DECOY'
   | 'LOAD_AMMO' | 'TAKE_WARHEAD' | 'FABRICATE' | 'RESUPPLY_MATERIAL' | 'TRANSFER_WARHEAD'
   | 'CANNON_FIRE' | 'ARTILLERY_FIRE' | 'SURVEILLANCE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD'
   | 'HARDLINE_TETHER' | 'DISCONNECT_TETHER' | 'BATTERY_LINK' | 'DISCONNECT_BATTERY' | 'UNIT_ABILITY' }>;
 
 const ABILITY_TYPES: ReadonlySet<string> = new Set<AbilityCommand['type']>([
-  'TOGGLE_DAMPENER', 'TOGGLE_JAMMER', 'TOGGLE_ANCHOR', 'SMOKE_SCREEN', 'ACTIVATE_APS', 'PHANTOM_DECOY',
+  'TOGGLE_DAMPENER', 'TOGGLE_JAMMER', 'TOGGLE_ANCHOR', 'TOGGLE_CLOAK_FIELD', 'SMOKE_SCREEN', 'ACTIVATE_APS', 'PHANTOM_DECOY',
   'LOAD_AMMO', 'TAKE_WARHEAD', 'FABRICATE', 'RESUPPLY_MATERIAL', 'TRANSFER_WARHEAD',
   'CANNON_FIRE', 'ARTILLERY_FIRE', 'SURVEILLANCE', 'FIRE_BALLISTA', 'FIRE_SWARM', 'BOMBARD',
   'HARDLINE_TETHER', 'DISCONNECT_TETHER', 'BATTERY_LINK', 'DISCONNECT_BATTERY', 'UNIT_ABILITY',
@@ -103,6 +103,9 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
       return toggleEach(view, team, command.unitIds, ['ghost'], u => ({ ...u, isDampenerActive: !u.isDampenerActive }));
     case 'TOGGLE_JAMMER':
       return toggleEach(view, team, command.unitIds, ['banshee'], u => ({ ...u, jammerActive: !u.jammerActive }));
+    case 'TOGGLE_CLOAK_FIELD':
+      // Switching the field off saves the generator's battery (sim/cloak.ts).
+      return toggleEach(view, team, command.unitIds, ['cloak_generator'], u => ({ ...u, cloakFieldOff: !u.cloakFieldOff }));
     case 'TOGGLE_ANCHOR':
       return toggleAnchor(view, team, command.unitIds, ctx);
     case 'SMOKE_SCREEN':
