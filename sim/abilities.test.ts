@@ -40,8 +40,8 @@ describe('who may give an order', () => {
     expect(run(view([titan()]), { type: 'SMOKE_SCREEN', unitIds: ['t'] }, 'red').refused).toBeTruthy();
   });
 
-  it('refuses the wrong unit type, which the old handlers allowed for the cannon', () => {
-    expect(run(view([unit('g')]), { type: 'CANNON_FIRE', unitId: 'g', target: { x: 9, z: 5 } }).refused).toMatch(/cannot/);
+  it('refuses the wrong unit type', () => {
+    expect(run(view([unit('g')]), { type: 'SMOKE_SCREEN', unitIds: ['g'] }).refused).toBeTruthy();
   });
 
   it('refuses dead units', () => {
@@ -70,18 +70,6 @@ describe('Titan countermeasures', () => {
   });
 });
 
-describe('Titan cannon', () => {
-  it('fires a shell, pays battery and starts reloading', () => {
-    const r = run(view([titan()]), { type: 'CANNON_FIRE', unitId: 't', target: { x: 9, z: 5 } });
-    expect(r.fx!.spawnProjectiles).toHaveLength(1);
-    expect(r.fx!.spawnProjectiles[0].velocity.x).toBeCloseTo(ABILITY_CONFIG.TITAN_CANNON_SPEED);
-    expect(after(r, 't')).toMatchObject({ battery: 100 - ABILITY_CONFIG.TITAN_CANNON_COST, cooldowns: { mainCannon: ABILITY_CONFIG.TITAN_CANNON_COOLDOWN } });
-  });
-
-  it('cannot fire again while reloading', () => {
-    expect(run(view([titan({ cooldowns: { mainCannon: 500 } })]), { type: 'CANNON_FIRE', unitId: 't', target: { x: 9, z: 5 } }).refused).toMatch(/reloading/);
-  });
-});
 
 describe('Ballista and Field Fabricator', () => {
   const ballista = (patch: Partial<UnitData> = {}) => unit('b', { type: 'ballista', unitClass: 'support', missileInventory: { emp: 1, he: 1 }, ammoState: 'empty', ...patch });

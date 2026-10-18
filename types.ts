@@ -108,6 +108,8 @@ export interface UnitData {
   isStealthed?: boolean;
   activeBuffs?: ('speed' | 'damage' | 'regen')[];
   lastDamageTime?: number;
+  // Tank rail gun (sim/railgun.ts): when it last fired.
+  railgunFiredAt?: number;
   // Inside a friendly Cloaking Field and hidden from the enemy (sim/cloak.ts).
   fieldCloaked?: boolean;
   // A Cloaking Field Generator its owner has switched off.

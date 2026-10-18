@@ -10,6 +10,7 @@ import type { DoctrineType, StructureType, UnitType } from '../types';
 import { ARTILLERY } from '../sim/artillery';
 import { BASE_REPAIR } from '../sim/support';
 import { RADAR, SEARCH_RADAR } from '../sim/radar';
+import { RAILGUN } from '../sim/railgun';
 import { CLOAK_FIELD } from '../sim/cloak';
 import { CIWS, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { HQ_INCOME } from '../sim/economy';
@@ -83,7 +84,7 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
   tank: {
     use: 'Main battle tank. Leads pushes, levels buildings and breaks infantry clumps.',
     actions: [
-      { name: 'Main Cannon', text: `Aimed heavy shot for ${ABILITY_CONFIG.TITAN_CANNON_DAMAGE} damage. ${ABILITY_CONFIG.TITAN_CANNON_COOLDOWN / 1000}s reload; costs battery.` },
+      { name: 'Rail Gun (automatic)', text: `Fires on its own at enemy vehicles and buildings up to ${RAILGUN.range} tiles away that any of your units or buildings can see: ${RAILGUN.damage} anti-armour damage, ${RAILGUN.cooldownMs / 1000}s recharge, ${RAILGUN.batteryCost} battery a shot. Infantry are left to its short-range gun.` },
       { name: 'Smoke Screen', text: `Hides the tank for ${ABILITY_CONFIG.TITAN_SMOKE_DURATION / 1000}s. Limited charges.` },
       { name: 'Activate APS', text: `Active protection shoots down incoming missiles and shells for ${ABILITY_CONFIG.TITAN_APS_DURATION / 1000}s. Limited charges.` },
     ],

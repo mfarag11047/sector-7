@@ -176,7 +176,7 @@ listed as damage / cooldown / range.
 | **Razorback** (new) | 200 | 2 | T1 | 300 | Light | Rifle 10 / 0.5 s / 3, hits air | Fast raider, anti-infantry |
 | **Thunderhead** (new) | 320 | 3 | T1 | 240 | Light | Explosive 70 / 5 s / 12–20, splash 1.6, ground only | Mobile artillery; fires only when anchored |
 | **Battery Mule** | 250 | 2 | T1 | 500 | Heavy | None | Mobile power for vehicles |
-| **Titan MBT** | 420 | 3 | T2 | 700 | Heavy | Explosive 60 / 2.2 s / 4, splash 1 | Main battle tank, cannon, smoke, APS |
+| **Titan MBT** | 420 | 3 | T2 | 700 | Heavy | Explosive 60 / 2.2 s / 4, splash 1; rail gun AP 120 / 5 s / 14 | Main battle tank, automatic rail gun, smoke, APS |
 | **Aegis** (new) | 240 | 2 | T2 | 300 | Light | Flak 30 / 1.2 s / 5, air only | Anti-air escort |
 
 ### Airpad (aircraft)
@@ -259,6 +259,21 @@ energy discharge rather than a fireball, and disabled machines crackle with blue
   nothing can be built there. The blackout shows as a crackling blue disc. Rules: `Blackout` and
   `isInsideEnergyGrid` in `sim/energy.ts`, `empVictims` in `sim/unitAbilities.ts`.
 - **Lancer EMP Tandem Rocket** (Tier 3 ability): 2-tile blast, 4 s shutdown, and each victim loses half a full battery. Range 14 in both fire modes: lock on to an enemy vehicle or aircraft in sight (the rocket tracks it to impact), or fire at a location. A Javelin-style top-attack missile: it climbs steeply, cruises high and dives onto the target from above. It covers 9 tiles/s over the ground and burns out after 6 s.
+
+## Tank rail gun
+
+The main battle tank (and the orbital-drop Titan) has two guns, both automatic. Its short-range
+gun is the explosive one in the unit table. Its main gun is a rail gun (`sim/railgun.ts`), which
+replaced the old manually aimed Main Cannon:
+
+- It fires on its own at enemy ground vehicles and buildings up to 14 tiles away that the side
+  can see, through the tank's own eyes or any friendly unit's or building's. Heavy armour first,
+  then light, nearest first; buildings only when no vehicle is in reach.
+- It does not shoot infantry or aircraft: infantry are the short-range gun's job, and leaving
+  them alone is what lets Lancers close on tanks.
+- 120 anti-armour damage, an instant hit, every 5 s, 15 battery a shot. Stunned, EMP-disabled,
+  out-of-battery or nano-clouded tanks hold fire, and it can't target cloaked units.
+- Drawn as a white-hot core in a cyan glow from muzzle to target, with a flash where it strikes.
 
 ## Infiltrator Drone ground-search radar
 

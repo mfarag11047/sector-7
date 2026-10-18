@@ -27,6 +27,7 @@ import { Blackout, chargeSources, isInsideEnergyGrid, powerTick } from '../sim/e
 import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, leashStep, repairTick, slowTick, surveillanceStep } from '../sim/support';
 import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells, shellGroundPos } from '../sim/artillery';
+import { afterRailShot, fireRailguns, RailShot } from '../sim/railgun';
 import { EmpRocket, EMP_ROCKET, empRocketImpact, empRocketTick, isEmpTarget, mergeUnitUpdates, topAttackHeight } from '../sim/empRocket';
 import { AirThreat, applyCiwsState, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, resolveAttacks } from '../sim/combat';
@@ -466,6 +467,41 @@ const EmpRocketMesh: React.FC<{ id: string; rocketsRef: React.MutableRefObject<E
                 <meshBasicMaterial color={EMP_BLUE} transparent opacity={0.45} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
             </instancedMesh>
         </>
+    );
+};
+
+// Tank rail gun shots (sim/railgun.ts): an instant hypervelocity slug, drawn as a white-hot
+// core inside a cyan glow from muzzle to target with a flash where it strikes, fading fast.
+type RailBeamData = RailShot & { id: string; createdAt: number };
+const RAIL_BEAM_MS = 450;
+const RailBeam: React.FC<{ beam: RailBeamData; tileSize: number; offset: number }> = ({ beam, tileSize, offset }) => {
+    const glowRef = useRef<any>(null);
+    const coreRef = useRef<any>(null);
+    const flashRef = useRef<THREE.Mesh>(null);
+    const points = useMemo(() => [
+        [(beam.from.x * tileSize) - offset, 3.4, (beam.from.z * tileSize) - offset],
+        [(beam.to.x * tileSize) - offset, beam.structure ? 4 : 2, (beam.to.z * tileSize) - offset],
+    ] as [number, number, number][], [beam, tileSize, offset]);
+    useFrame(() => {
+        const t = Math.min(1, (Date.now() - beam.createdAt) / RAIL_BEAM_MS);
+        const fade = (1 - t) * (1 - t);
+        if (glowRef.current?.material) glowRef.current.material.opacity = 0.7 * fade;
+        if (coreRef.current?.material) coreRef.current.material.opacity = fade;
+        const flash = flashRef.current;
+        if (flash) {
+            flash.scale.setScalar(0.6 + t * 2.4);
+            (flash.material as THREE.MeshBasicMaterial).opacity = 0.9 * fade;
+        }
+    });
+    return (
+        <group>
+            <Line ref={glowRef} points={points} color="#22d3ee" lineWidth={7} transparent opacity={0.7} toneMapped={false} />
+            <Line ref={coreRef} points={points} color="#f0fdff" lineWidth={2} transparent opacity={1} toneMapped={false} />
+            <mesh ref={flashRef} position={points[1]} raycast={() => null}>
+                <sphereGeometry args={[1, 12, 10]} />
+                <meshBasicMaterial color="#a5f3fc" transparent opacity={0.9} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+            </mesh>
+        </group>
     );
 };
 
@@ -1112,6 +1148,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const [explosions, setExplosions] = useState<Explosion[]>([]);
   // Brief weapon tracers from sim/combat.ts shots, cleared after TRACER_MS.
   const [tracers, setTracers] = useState<TracerData[]>([]);
+  // Tank rail gun shots in the air for a moment, and when each gun last fired (ahead of state).
+  const [railBeams, setRailBeams] = useState<RailBeamData[]>([]);
+  const railShotRef = useRef(new Map<string, number>());
   // Thunderhead shells in flight. The ref is the authority; the state is for drawing them.
   const [shells, setShells] = useState<ArtilleryShell[]>([]);
   const shellsRef = useRef<ArtilleryShell[]>([]);
@@ -1129,7 +1168,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   
   const [targetingSourceId, setTargetingSourceId] = useState<string | null>(null);
   // 'UNIT:<ability id>' while aiming a new unit's ability (sim/unitAbilities.ts).
-  const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'BATTERY_TETHER' | 'CANNON' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'SWARM' | 'BOMBARD' | 'ARTILLERY' | `UNIT:${string}` | null>(null);
+  const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'BATTERY_TETHER' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'SWARM' | 'BOMBARD' | 'ARTILLERY' | `UNIT:${string}` | null>(null);
 
   const [baseMenuOpen, setBaseMenuOpen] = useState<'blue' | 'red' | null>(null);
   const [placementMode, setPlacementMode] = useState<{type: StructureType, cost: number} | null>(null);
@@ -1935,9 +1974,6 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (targetingSourceId && targetingAbility === 'BATTERY_TETHER') {
           dispatchAbility({ type: 'BATTERY_LINK', unitId: targetingSourceId, targetUnitId: id });
           return;
-      } else if (targetingSourceId && targetingAbility === 'CANNON') {
-          const targetUnit = units.find(u => u.id === id);
-          if(targetUnit) handleTileClick(targetUnit.gridPos.x, targetUnit.gridPos.z);
       } else {
           // Standard Single Selection - replaces existing group selection
           setSelectedUnitIds(new Set([id]));
@@ -2008,8 +2044,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           return;
       }
 
-      const tileOrders: Record<string, 'SURVEILLANCE' | 'CANNON_FIRE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD'> = {
-          SURVEILLANCE: 'SURVEILLANCE', CANNON: 'CANNON_FIRE', MISSILE: 'FIRE_BALLISTA', SWARM: 'FIRE_SWARM', BOMBARD: 'BOMBARD',
+      const tileOrders: Record<string, 'SURVEILLANCE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD'> = {
+          SURVEILLANCE: 'SURVEILLANCE', MISSILE: 'FIRE_BALLISTA', SWARM: 'FIRE_SWARM', BOMBARD: 'BOMBARD',
       };
       if (targetingSourceId && targetingAbility === 'ARTILLERY') {
           // Every selected Thunderhead joins the fire mission; ones out of reach are refused.
@@ -2321,8 +2357,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       'ACTIVATE APS': 'ACTIVATE_APS',
   };
   // Abilities that need a target pick it on the next map or unit click.
-  const TARGETED_ABILITIES: Record<string, 'CANNON' | 'SURVEILLANCE' | 'MISSILE' | 'SWARM' | 'BOMBARD'> = {
-      'CANNON ATTACK': 'CANNON',
+  const TARGETED_ABILITIES: Record<string, 'SURVEILLANCE' | 'MISSILE' | 'SWARM' | 'BOMBARD'> = {
       'LOITERING SURVEILLANCE': 'SURVEILLANCE',
       'FIRE_BALLISTA': 'MISSILE',
       'FIRE_SWARM': 'SWARM',
@@ -2660,6 +2695,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         }));
         setExplosions(prev => prev.filter(e => now - e.createdAt < e.duration));
         setTracers(prev => prev.length === 0 ? prev : prev.filter(t => now - t.createdAt < TRACER_MS));
+        setRailBeams(prev => prev.length === 0 ? prev : prev.filter(b => now - b.createdAt < RAIL_BEAM_MS));
 
     }, 500); 
     return () => clearInterval(timer);
@@ -2790,6 +2826,18 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               Math.random, () => `shell-${now}-${Math.random().toString(36).slice(2, 8)}`,
           );
           volley.fired.forEach((_, id) => { lastShotRef.current.set(id, now); attacks.fired.set(id, ''); });
+
+          // Tank rail guns (sim/railgun.ts): long-range shots at anything the side can see.
+          const railReady = (u: UnitData) => {
+              const t = railShotRef.current.get(u.id);
+              return t && t > (u.railgunFiredAt ?? -Infinity) ? { ...u, railgunFiredAt: t } : u;
+          };
+          const rail = fireRailguns(currentUnitsRef.map(railReady), structuresRef.current, now, pos => isPointInCloud(pos, nanoClouds, 'nano'));
+          const railFired = new Set(rail.shots.map(s => s.attackerId));
+          railFired.forEach(id => railShotRef.current.set(id, now));
+          rail.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+          rail.structureDamage.forEach((n, id) => attacks.structureDamage.set(id, (attacks.structureDamage.get(id) || 0) + n));
+          if (rail.shots.length > 0) setRailBeams(prev => [...prev, ...rail.shots.map((s, i) => ({ ...s, id: `rail-${now}-${i}`, createdAt: now }))]);
 
           // Aegis rotary cannons (sim/ciws.ts): hose down aircraft, and missiles, shells and drop
           // pods in flight. Ordnance that has taken enough fire is knocked out of the sky.
@@ -3009,6 +3057,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                           uChanged = true;
                       }
                       if (volley.fired.has(u.id)) newUnit.artilleryAim = volley.fired.get(u.id);
+                      if (railFired.has(u.id)) { newUnit = afterRailShot(newUnit, now); uChanged = true; }
                       const gun = ciws.updates.get(u.id);
                       if (gun) { newUnit = { ...newUnit, ...gun }; uChanged = true; }
                       if (attacks.fired.has(u.id)) {
@@ -3294,6 +3343,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         {/* Weapon tracers, only where the player can see one end of the shot */}
         {tracers.filter(t => visibleUnitIds.has(t.attackerId) || visibleUnitIds.has(t.targetId) || structuresState.some(st => st.id === t.attackerId || st.id === t.targetId))
             .map(t => <TracerMesh key={t.id} tracer={t} tileSize={tileSize} offset={offset} />)}
+        {railBeams.filter(b => b.team === playerTeam || visibleUnitIds.has(b.attackerId) || visibleUnitIds.has(b.targetId)).map(b => <RailBeam key={b.id} beam={b} tileSize={tileSize} offset={offset} />)}
         
         {/* Cloud Effects */}
         {clouds.map(c => <CloudMesh key={c.id} cloud={c} tileSize={CITY_CONFIG.tileSize} offset={offset} playerTeam={playerTeam} />)}
@@ -3457,14 +3507,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                         <mesh>
                             <boxGeometry args={[tileSize, 1, tileSize]} />
                             <meshBasicMaterial 
-                                color={targetingAbility === 'BATTERY_TETHER' ? '#facc15' : (targetingAbility === 'DECOY' ? '#c084fc' : (targetingAbility === 'CANNON' ? "#ef4444" : (targetingAbility === 'TETHER' ? "#38bdf8" : "#10b981")))} 
+                                color={targetingAbility === 'BATTERY_TETHER' ? '#facc15' : (targetingAbility === 'DECOY' ? '#c084fc' : (targetingAbility === 'TETHER' ? "#38bdf8" : "#10b981"))} 
                                 wireframe 
                             />
                         </mesh>
                         <mesh rotation={[-Math.PI/2, 0, Math.PI/4]} position={[0, 0.05, 0]}>
                             <ringGeometry args={[tileSize * 0.3, tileSize * 0.35, 4]} />
                             <meshBasicMaterial 
-                                color={targetingAbility === 'BATTERY_TETHER' ? '#facc15' : (targetingAbility === 'DECOY' ? '#c084fc' : (targetingAbility === 'CANNON' ? "#ef4444" : (targetingAbility === 'TETHER' ? "#38bdf8" : "#10b981")))} 
+                                color={targetingAbility === 'BATTERY_TETHER' ? '#facc15' : (targetingAbility === 'DECOY' ? '#c084fc' : (targetingAbility === 'TETHER' ? "#38bdf8" : "#10b981"))} 
                                 side={THREE.DoubleSide} 
                             />
                         </mesh>

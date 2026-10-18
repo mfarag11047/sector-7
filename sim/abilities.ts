@@ -20,13 +20,13 @@ import { unitAbilityEffects } from './unitAbilities';
 export type AbilityCommand = Extract<PlayerCommand, { type:
   | 'TOGGLE_DAMPENER' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD' | 'SMOKE_SCREEN' | 'ACTIVATE_APS' | 'PHANTOM_DECOY'
   | 'LOAD_AMMO' | 'TAKE_WARHEAD' | 'FABRICATE' | 'RESUPPLY_MATERIAL' | 'TRANSFER_WARHEAD'
-  | 'CANNON_FIRE' | 'ARTILLERY_FIRE' | 'SURVEILLANCE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD'
+  | 'ARTILLERY_FIRE' | 'SURVEILLANCE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD'
   | 'HARDLINE_TETHER' | 'DISCONNECT_TETHER' | 'BATTERY_LINK' | 'DISCONNECT_BATTERY' | 'UNIT_ABILITY' }>;
 
 const ABILITY_TYPES: ReadonlySet<string> = new Set<AbilityCommand['type']>([
   'TOGGLE_DAMPENER', 'TOGGLE_JAMMER', 'TOGGLE_ANCHOR', 'TOGGLE_CLOAK_FIELD', 'SMOKE_SCREEN', 'ACTIVATE_APS', 'PHANTOM_DECOY',
   'LOAD_AMMO', 'TAKE_WARHEAD', 'FABRICATE', 'RESUPPLY_MATERIAL', 'TRANSFER_WARHEAD',
-  'CANNON_FIRE', 'ARTILLERY_FIRE', 'SURVEILLANCE', 'FIRE_BALLISTA', 'FIRE_SWARM', 'BOMBARD',
+  'ARTILLERY_FIRE', 'SURVEILLANCE', 'FIRE_BALLISTA', 'FIRE_SWARM', 'BOMBARD',
   'HARDLINE_TETHER', 'DISCONNECT_TETHER', 'BATTERY_LINK', 'DISCONNECT_BATTERY', 'UNIT_ABILITY',
 ]);
 export const isAbilityCommand = (c: PlayerCommand): c is AbilityCommand => ABILITY_TYPES.has(c.type);
@@ -187,33 +187,6 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
     // --- Aimed at a tile ---
     case 'ARTILLERY_FIRE':
       return artilleryFire(view, team, command.unitIds, command.target);
-    case 'CANNON_FIRE': {
-      // Change: any unit could fire this, and the cooldown was set but never checked.
-      const u = ownUnit(view, team, command.unitId, TANKS);
-      if (typeof u === 'string') return reject(u);
-      if ((u.cooldowns.mainCannon || 0) > 0) return reject('main cannon reloading');
-      const start = world(u.gridPos, 1.5, ctx);
-      const target = world(command.target, 1.0, ctx);
-      const dx = target.x - start.x;
-      const dz = target.z - start.z;
-      const dist = Math.hypot(dx, dz);
-      if (dist === 0) return reject('cannot fire at own tile');
-      const speed = ABILITY_CONFIG.TITAN_CANNON_SPEED;
-      return effects({
-        updates: new Map([[u.id, t => ({
-          ...t,
-          battery: Math.max(0, t.battery - ABILITY_CONFIG.TITAN_CANNON_COST),
-          cooldowns: { ...t.cooldowns, mainCannon: ABILITY_CONFIG.TITAN_CANNON_COOLDOWN },
-        })]]),
-        spawnProjectiles: [{
-          id: ctx.newId('proj'), ownerId: u.id, team: u.team, position: start,
-          velocity: { x: (dx / dist) * speed, y: 0, z: (dz / dist) * speed },
-          damage: ABILITY_CONFIG.TITAN_CANNON_DAMAGE, radius: 0.5,
-          maxDistance: ABILITY_CONFIG.TITAN_CANNON_PROJECTILE_RANGE * CITY_CONFIG.tileSize, distanceTraveled: 0,
-          targetPos: target, trajectory: 'direct',
-        }],
-      });
-    }
     case 'SURVEILLANCE': {
       const u = ownUnit(view, team, command.unitId, ['drone']);
       if (typeof u === 'string') return reject(u);

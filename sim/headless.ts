@@ -10,6 +10,7 @@ import { CITY_CONFIG, STRUCTURE_INFO, TEAM_BASES } from '../constants';
 import type { BuildingData, DoctrineType, RoadType, StructureData, UnitData } from '../types';
 import { abilityEffects, applyUnitEffects } from './abilities';
 import { AiMemory, AI_PROFILES, aiThink, freshAiMemory } from './ai';
+import { afterRailShot, fireRailguns } from './railgun';
 import { EmpRocket, empRocketImpact, empRocketTick, mergeUnitUpdates } from './empRocket';
 import { ArtilleryShell, fireArtillery, landShells, shellGroundPos } from './artillery';
 import { captureTick } from './capture';
@@ -161,6 +162,12 @@ export function stepMatch(m: HeadlessMatch): void {
   // Artillery: new shells go up, and the ones whose flight is over come down.
   const volley = fireArtillery(m.units.map(reloaded), m.structures, now, team => (team === 'neutral' ? 1 : m.economy[team].tier), m.random, () => `shell-${++m.nextId}`);
   volley.fired.forEach((_, id) => { m.lastShot.set(id, now); attacks.fired.set(id, ''); });
+  // Tank rail guns: long-range shots at what the side can see.
+  const rail = fireRailguns(m.units, m.structures, now);
+  const railFired = new Set(rail.shots.map(s => s.attackerId));
+  if (railFired.size > 0) m.units = m.units.map(u => railFired.has(u.id) ? afterRailShot(u, now) : u);
+  rail.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+  if (rail.structureDamage.size > 0) m.structures = applyStructureCombat(m.structures, { structureDamage: rail.structureDamage, fired: new Map(), aiming: new Map() }, now);
   // Aegis rotary cannons: aircraft, and Thunderhead shells (the only ordnance flown here).
   const ciws = ciwsTick(m.units, m.shells.map(s => ({ id: s.id, team: s.team, at: shellGroundPos(s, now), kind: 'shell' as const })), now, MOVE_TICK_MS, m.structures);
   m.structures = applyCiwsState(m.structures, ciws.structureUpdates);

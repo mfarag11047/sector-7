@@ -35,7 +35,7 @@ export const isCloakFieldUp = (g: UnitData) =>
 
 // Fired or was hit recently.
 export const revealedByCombat = (u: UnitData, now: number) =>
-  now - Math.max(u.lastAttackTime ?? -Infinity, u.lastDamageTime ?? -Infinity, u.ciwsLastFiredAt || -Infinity) < CLOAK_FIELD.revealMs;
+  now - Math.max(u.lastAttackTime ?? -Infinity, u.lastDamageTime ?? -Infinity, u.ciwsLastFiredAt || -Infinity, u.railgunFiredAt ?? -Infinity) < CLOAK_FIELD.revealMs;
 
 // Units the enemy can neither see nor target: a Ghost under Phantom Decoy, or anything in a field.
 export const isHidden = (u: Pick<UnitData, 'decoyActive' | 'fieldCloaked'>) => !!u.decoyActive || !!u.fieldCloaked;

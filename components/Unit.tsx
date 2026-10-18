@@ -1359,7 +1359,6 @@ const Unit: React.FC<UnitProps> = ({
                   {/* Actions based on unit type */}
                   {isTank && (
                       <>
-                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('CANNON ATTACK'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left">Main Cannon</button>
                         <button onClick={(e) => { e.stopPropagation(); handleMenuAction('SMOKE SCREEN'); }} disabled={charges?.smoke === 0} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left flex justify-between"><span>Smoke</span><span>{charges?.smoke}</span></button>
                         <button onClick={(e) => { e.stopPropagation(); handleMenuAction('ACTIVATE APS'); }} disabled={charges?.aps === 0} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left flex justify-between"><span>APS</span><span>{charges?.aps}</span></button>
                       </>

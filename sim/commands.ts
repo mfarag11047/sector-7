@@ -62,7 +62,6 @@ export interface TransferWarheadCommand { type: 'TRANSFER_WARHEAD'; unitId: stri
 
 // Thunderhead batteries shell a tile until told otherwise; no target ceases fire.
 export interface ArtilleryFireCommand { type: 'ARTILLERY_FIRE'; unitIds: string[]; target?: GridPos }
-export interface CannonFireCommand { type: 'CANNON_FIRE'; unitId: string; target: GridPos } // Titan
 export interface SurveillanceCommand { type: 'SURVEILLANCE'; unitId: string; target: GridPos } // Infiltrator Drone
 export interface FireBallistaCommand { type: 'FIRE_BALLISTA'; unitId: string; target: GridPos } // Ballista, fires the armed warhead
 export interface FireSwarmCommand { type: 'FIRE_SWARM'; unitId: string; target: GridPos } // Wasp
@@ -106,7 +105,6 @@ export type PlayerCommand =
   | FabricateCommand
   | ResupplyMaterialCommand
   | TransferWarheadCommand
-  | CannonFireCommand
   | ArtilleryFireCommand
   | SurveillanceCommand
   | FireBallistaCommand
@@ -190,7 +188,6 @@ const CHECKS: Record<CommandType, (c: Fields) => boolean> = {
   FABRICATE: unitWarhead,
   RESUPPLY_MATERIAL: unit,
   TRANSFER_WARHEAD: unitWarhead,
-  CANNON_FIRE: unitAt,
   ARTILLERY_FIRE: c => isIdList(c.unitIds) && (c.target === undefined || isTile(c.target)),
   SURVEILLANCE: unitAt,
   FIRE_BALLISTA: unitAt,

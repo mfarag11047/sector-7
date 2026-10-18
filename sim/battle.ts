@@ -8,6 +8,7 @@ import type { UnitData, UnitType } from '../types';
 import { applyCiwsState, ciwsTick } from './ciws';
 import { applyDamage, resolveAttacks } from './combat';
 import { BASE_SPEED, MOVE_TICK_MS } from './movement';
+import { afterRailShot, fireRailguns } from './railgun';
 import { UNIT_RULES } from './units';
 
 export interface ArmyEntry { type: UnitType; count: number }
@@ -61,8 +62,11 @@ export function simulateBattle(blue: ArmyEntry[], red: ArmyEntry[], maxSeconds =
     const attack = resolveAttacks(units, [], now, () => false);
     // Aegis rotary cannons fire in bursts (sim/ciws.ts).
     const ciws = ciwsTick(units, [], now, MOVE_TICK_MS);
-    if (attack.fired.size > 0 || ciws.links.length > 0) lastHit = now;
-    units = applyDamage(applyCiwsState(units, ciws.updates), attack.unitDamage, ciws.unitDamage).map(u => ({
+    // Tank rail guns (sim/railgun.ts), at whatever the side can see.
+    const rail = fireRailguns(units, [], now);
+    const railFired = new Set(rail.shots.map(s => s.attackerId));
+    if (attack.fired.size > 0 || ciws.links.length > 0 || railFired.size > 0) lastHit = now;
+    units = applyDamage(applyCiwsState(units, ciws.updates).map(u => railFired.has(u.id) ? afterRailShot(u, now) : u), attack.unitDamage, ciws.unitDamage, rail.unitDamage).map(u => ({
       ...u,
       combatTargetId: u.type === 'aegis' ? u.ciwsTargetId ?? null : attack.aiming.get(u.id) ?? null,
       lastAttackTime: attack.fired.has(u.id) ? now : u.lastAttackTime,

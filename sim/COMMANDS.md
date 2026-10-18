@@ -38,7 +38,6 @@ Swarm Host spawns and grid charging. They become simulation rules in step 2.
 | `RESUPPLY_MATERIAL` | Field Fabricator beside an Ordnance Fab | unit id | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `TRANSFER_WARHEAD` | Field Fabricator → nearest Ballista | unit id, warhead | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `ARTILLERY_FIRE` | Anchored Thunderheads | unit ids, target tile (none to cease fire) | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
-| `CANNON_FIRE` | Titan | unit id, target tile | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `SURVEILLANCE` | Infiltrator Drone | unit id, target tile | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `FIRE_BALLISTA` | Ballista (armed) | unit id, target tile | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `FIRE_SWARM` | Wasp | unit id, target tile | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
@@ -82,8 +81,8 @@ Fixed:
 
 Still open:
 - **Doctrine powers don't check the tier cooldowns in `DOCTRINE_CONFIG`.**
-- **No range limits on aimed abilities.** The Titan cannon, Ballista, Wasp swarm and
-  Bombardment Drone can target any tile. `TITAN_CANNON_RANGE` and `WASP_SWARM_RANGE` exist
-  in `constants.ts` but nothing uses them. Whether they should is a design decision.
+- **No range limits on aimed abilities.** The Ballista, Wasp swarm and
+  Bombardment Drone can target any tile. `WASP_SWARM_RANGE` exists
+  in `constants.ts` but nothing uses it. Whether they should is a design decision.
 - **Ghost hacking (`hackType` recall/drain) has state fields but no command triggers it.**
   It needs a command added here once it is designed.
