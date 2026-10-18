@@ -47,8 +47,11 @@ const SlowRender: React.FC = () => {
   return null;
 };
 
-// ?autostart=1 skips the setup screen with default settings (for automated tests).
-const AUTOSTART = typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('autostart');
+// ?autostart=1 skips the setup screen with default settings (for automated tests);
+// &doctrine=shadow_ops picks the player's doctrine.
+const PARAMS = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+const AUTOSTART = !!PARAMS?.has('autostart');
+const AUTOSTART_DOCTRINE = (['heavy_metal', 'shadow_ops', 'skunkworks'] as DoctrineType[]).find(d => d === PARAMS?.get('doctrine')) ?? 'heavy_metal';
 
 export interface Notice { id: number; text: string; tone: 'info' | 'warn'; at: number }
 
@@ -57,7 +60,7 @@ const NO_DOCTRINE: DoctrineState = { selected: null, unlockedTiers: 0, cooldowns
 function App() {
   // The setup screen fills this in. Each new match bumps `round`, which remounts the map.
   const [match, setMatch] = useState<MatchConfig | null>(() => AUTOSTART
-      ? { mode: 'ai', seed: Math.floor(Math.random() * 1e6), playerTeam: 'blue', difficulty: 'normal', playerDoctrine: 'heavy_metal', aiDoctrine: 'skunkworks' }
+      ? { mode: 'ai', seed: Math.floor(Math.random() * 1e6), playerTeam: 'blue', difficulty: 'normal', playerDoctrine: AUTOSTART_DOCTRINE, aiDoctrine: 'skunkworks' }
       : null);
   const [round, setRound] = useState(0);
   const [result, setResult] = useState<{ victory: Victory, summary: MatchSummary } | null>(null);
@@ -176,12 +179,12 @@ function App() {
     // heavy_metal_tier2: Drop (Targeted)
     // heavy_metal_tier3: Nuke (Targeted)
     // shadow_ops_tier2: Decoy (Targeted)
-    // shadow_ops_tier3: Global EMP (Global)
+    // shadow_ops_tier3: Cloaking Field (Targeted)
     // skunkworks_tier2: Nano-Cloud (Targeted)
     // skunkworks_tier3: Swarm Host (Targeted)
 
     const fullType = type.toUpperCase();
-    const needsTarget = fullType !== 'SHADOW_OPS_TIER3';
+    const needsTarget = true;
 
     if (needsTarget) {
         setInteractionMode('target');

@@ -258,7 +258,24 @@ energy discharge rather than a fireball, and disabled machines crackle with blue
   nothing can be built there. The blackout shows as a crackling blue disc. Rules: `Blackout` and
   `isInsideEnergyGrid` in `sim/energy.ts`, `empVictims` in `sim/unitAbilities.ts`.
 - **Lancer EMP Tandem Rocket** (Tier 3 ability): 2-tile blast, 4 s shutdown, and each victim loses half a full battery. Range 14 in both fire modes: lock on to an enemy vehicle or aircraft in sight (the rocket tracks it to impact), or fire at a location. A Javelin-style top-attack missile: it climbs steeply, cruises high and dives onto the target from above. It covers 9 tiles/s over the ground and burns out after 6 s.
-- **Shadow Ops Global EMP** (Tier 3 doctrine power): stuns every enemy unit for 10 s.
+
+## Shadow Ops Cloaking Field
+
+The Shadow Ops Tier 3 doctrine power (1000 cores, 240 s cooldown) air-drops a Cloaking Field
+Generator on a chosen tile, in a drop pod like the Orbital Drop Titan. Rules: `sim/cloak.ts`.
+
+- It can't move. While it has battery it projects a 3-tile field; every friendly unit inside
+  (not the generator itself) is cloaked: hidden from the enemy's view and minimap, and no weapon,
+  turret, CIWS, artillery battery or homing missile will pick it as a target. Area damage (shell
+  splash, missile and nuke blasts) still hurts it.
+- A cloaked unit that fires (including an aimed ability or CIWS burst), or is hit, shows itself
+  for 6 s, then slips back under if it is still inside the field.
+- The field drains 0.13 battery per tick (about 75 s on a full charge). Inside your energy grid
+  it recharges faster than it drains and holds indefinitely; a Battery Mule or Helios can keep a
+  forward one going. A flat battery or an EMP drops the field until it recovers.
+- One generator per side: a new drop destroys the old one as it lands.
+- The generator shows a violet ring and dome at the field's edge; cloaked friendlies are drawn
+  translucent violet for their owner.
 
 ## Thunderhead mobile artillery
 

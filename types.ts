@@ -79,7 +79,7 @@ export interface BuildingBlock {
   owner: 'blue' | 'red' | null;
 }
 
-export type UnitType = 'drone' | 'tank' | 'ghost' | 'guardian' | 'mule' | 'wasp' | 'mason' | 'helios' | 'sun_plate' | 'ballista' | 'courier' | 'banshee' | 'defense_drone' | 'titan_dropped' | 'swarm_host' | 'crawler_drone' | 'bombard' | 'trooper' | 'lancer' | 'razorback' | 'aegis' | 'hornet' | 'howitzer';
+export type UnitType = 'drone' | 'tank' | 'ghost' | 'guardian' | 'mule' | 'wasp' | 'mason' | 'helios' | 'sun_plate' | 'ballista' | 'courier' | 'banshee' | 'defense_drone' | 'titan_dropped' | 'swarm_host' | 'crawler_drone' | 'bombard' | 'trooper' | 'lancer' | 'razorback' | 'aegis' | 'hornet' | 'howitzer' | 'cloak_generator';
 export type UnitClass = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'defense';
 
 export interface UnitData {
@@ -108,6 +108,8 @@ export interface UnitData {
   isStealthed?: boolean;
   activeBuffs?: ('speed' | 'damage' | 'regen')[];
   lastDamageTime?: number;
+  // Inside a friendly Cloaking Field and hidden from the enemy (sim/cloak.ts).
+  fieldCloaked?: boolean;
   
   // New Decoy Fields
   decoyActive?: boolean;
@@ -340,7 +342,7 @@ export interface Projectile {
     distanceTraveled: number;
     targetPos?: { x: number, y: number, z: number }; // For guided/ballistic
     trajectory: 'direct' | 'ballistic' | 'swarm';
-    payload?: 'emp' | 'he' | 'nuke' | 'nano_canister' | 'nano_cloud_master' | 'titan_drop' | null; // For warheads
+    payload?: 'emp' | 'he' | 'nuke' | 'nano_canister' | 'nano_cloud_master' | 'titan_drop' | 'cloak_drop' | null; // For warheads
     startPos?: { x: number, y: number, z: number };
     startTime?: number;
     lockedTargetId?: string | null; // For swarm homing

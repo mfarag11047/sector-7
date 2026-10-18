@@ -38,6 +38,7 @@ import { advanceProduction, applyProduction, createUnit } from '../sim/productio
 import { isAirType } from '../sim/units';
 import { airPath, fastestPath } from '../sim/pathfinding';
 import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
+import { applyFieldCloak, CLOAK_FIELD, fieldCloakedIds, generatorsReplacedBy, isCloakFieldUp, isHidden } from '../sim/cloak';
 import { Victory, checkVictory, dominationRemaining, freshDominationClock } from '../sim/victory';
 import type { MatchSummary } from './MatchScreens';
 import { Economy, createEconomy, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
@@ -328,7 +329,8 @@ const ProjectileMesh: React.FC<{ projectile: Projectile; flightRef: React.Mutabl
         group.quaternion.slerp(orient.current.quaternion, 1 - Math.exp(-Math.min(delta, 0.05) * turn));
     });
 
-    if (projectile.payload === 'titan_drop') {
+    if (projectile.payload === 'titan_drop' || projectile.payload === 'cloak_drop') {
+        const cloak = projectile.payload === 'cloak_drop';
         return (
             <group ref={meshRef}>
                 <mesh rotation={[Math.PI, 0, 0]}>
@@ -337,7 +339,7 @@ const ProjectileMesh: React.FC<{ projectile: Projectile; flightRef: React.Mutabl
                 </mesh>
                 <mesh position={[0, 1.5, 0]}>
                     <coneGeometry args={[0.5, 2, 8, 1, true]} />
-                    <meshBasicMaterial color="#f97316" transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} />
+                    <meshBasicMaterial color={cloak ? "#c084fc" : "#f97316"} transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} />
                 </mesh>
             </group>
         );
@@ -527,7 +529,7 @@ const radarBlipTexture = () => {
 };
 
 // Large ordnance radar can track: missiles, drop pods, heavy shells. Not small arms or swarm darts.
-const isRadarOrdnance = (p: Projectile) => p.trajectory === 'ballistic' || p.payload === 'titan_drop' || isHeavyOrdnance(p);
+const isRadarOrdnance = (p: Projectile) => p.trajectory === 'ballistic' || p.payload === 'titan_drop' || p.payload === 'cloak_drop' || isHeavyOrdnance(p);
 
 // Where enemy things on radar are right now, in world units: hidden aircraft, and ordnance in
 // flight. Shared by the map blips and the minimap.
@@ -1259,6 +1261,20 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       ? `EMP hit: enemy grid down and ${victims.size} machine${victims.size === 1 ? '' : 's'} disabled for ${duration / 1000}s`
                       : `Enemy EMP: your grid is down in the blast for ${duration / 1000}s`, event.team === playerTeam ? undefined : 'warn');
               }
+          } else if (event.kind === 'cloak') {
+              // One generator per side: the old one blows as the new one lands.
+              const team = event.team;
+              const at = { x: Math.round((event.position.x + offset) / tileSize), z: Math.round((event.position.z + offset) / tileSize) };
+              const old = new Set(generatorsReplacedBy(unitsRef.current, team));
+              const gen = createUnit('cloak_generator', team, `cloakgen-${team}-${now}-${spawnCounterRef.current++}`, at);
+              const land = (list: UnitData[]) => [...list.filter(u => !old.has(u.id)), gen];
+              const gone = unitsRef.current.filter(u => old.has(u.id));
+              unitsRef.current = land(unitsRef.current);
+              setUnits(land);
+              if (gone.length > 0) {
+                  explosions.push(...gone.map(u => ({ id: `cloakgen-exp-${u.id}`, position: { x: u.gridPos.x * tileSize - offset, y: 1.5, z: u.gridPos.z * tileSize - offset }, radius: 3, duration: 600, createdAt: now })));
+                  if (team === playerTeam) onNoticeRef.current?.('New Cloaking Field up: the old generator was destroyed');
+              }
           } else if (event.kind === 'titan') {
               const targetPos = event.position;
               const team = event.team;
@@ -1322,6 +1338,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           return unit.id;
       },
       select: (ids: string[]) => setSelectedUnitIds(new Set(ids)),
+      // A doctrine power, e.g. power('SHADOW_OPS_TIER3', { x, z }, 'blue'), with the usual checks.
+      power: (type: string, target: { x: number; z: number }, team: 'blue' | 'red') => runDoctrinePowerRef.current({ type, target, team }),
+      resetPowerCooldowns: () => { doctrineReadyAtRef.current = { blue: { tier2: 0, tier3: 0 }, red: { tier2: 0, tier3: 0 } }; },
       // Glide the camera over a tile.
       focus: (at: { x: number; z: number }) => { cameraFocus.target = { x: at.x * tileSize - offset, z: at.z * tileSize - offset }; },
       // A finished structure, for testing turrets and the like.
@@ -1504,8 +1523,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
     const friendlies = units.filter(f => f.team === playerTeam);
     units.forEach(u => {
         if (u.team === playerTeam) { visible.add(u.id); return; }
-        // Phantom Decoy cloaks the real Ghost from the other team entirely.
-        if (u.decoyActive) return;
+        // Phantom Decoy cloaks the real Ghost from the other team entirely, and a Cloaking
+        // Field anything inside it (sim/cloak.ts).
+        if (isHidden(u)) return;
         if (u.type === 'defense_drone' && teamKey && knownGuardsRef.current[teamKey].has(u.id)) {
             visible.add(u.id);
             return;
@@ -1786,22 +1806,26 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               setDecoys(prev => [...prev, ...newDecoys]);
           }
           else if (type === 'SHADOW_OPS_TIER3') {
-              // Global/Area Stun
-              setUnits(prev => prev.map(u => {
-                  if (u.team !== team && u.team !== 'neutral') {
-                      return { ...u, isStunned: true, stunDuration: 10000 }; // 10s Stun
-                  }
-                  return u;
-              }));
-              // A blue discharge over every stunned unit the player can see (never revealing hidden ones).
-              const now = Date.now();
-              const hit = unitsRef.current.filter(u => u.team !== team && u.team !== 'neutral' && u.health > 0 &&
-                  (u.team === playerTeam || visibleUnitIdsRef.current.has(u.id))).slice(0, 40);
-              setExplosions(prev => [...prev, ...hit.map((u, i) => ({
-                  id: `gemp-${now}-${i}`,
-                  position: { x: (u.gridPos.x * tileSize) - offset, y: 1.5, z: (u.gridPos.z * tileSize) - offset },
-                  radius: tileSize * 1.3, duration: 900 + (i % 5) * 120, createdAt: now + (i % 7) * 60, style: 'emp' as const,
-              }))]);
+              // Cloaking Field: a generator comes down in a drop pod (sim/cloak.ts). It lands
+              // through the 'cloak' flight event below, which also retires the side's old one.
+              const dropPos = { x: (target.x * tileSize) - offset, y: 100, z: (target.z * tileSize) - offset };
+              const impactPos = { x: (target.x * tileSize) - offset, y: 0.5, z: (target.z * tileSize) - offset };
+              setProjectiles(prev => [...prev, {
+                  id: `cloak-drop-${Date.now()}`,
+                  ownerId: 'orbital',
+                  team,
+                  position: dropPos,
+                  velocity: { x: 0, y: -65.6, z: 0 },
+                  damage: 0,
+                  radius: 2,
+                  maxDistance: 200,
+                  distanceTraveled: 0,
+                  targetPos: impactPos,
+                  trajectory: 'direct',
+                  payload: 'cloak_drop',
+                  startPos: dropPos,
+                  startTime: Date.now()
+              }]);
           }
           else if (type === 'SKUNKWORKS_TIER2') {
               // Nano Cloud Projectile Volley
@@ -2771,7 +2795,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           for (const live of flightRef.current.values()) {
               const p = live.shot;
               if (live.impacted) continue;
-              const kind = p.payload === 'titan_drop' ? 'pod' : p.trajectory !== 'ballistic' ? null : p.payload === 'nuke' ? 'nuke' : 'missile';
+              const kind = p.payload === 'titan_drop' || p.payload === 'cloak_drop' ? 'pod' : p.trajectory !== 'ballistic' ? null : p.payload === 'nuke' ? 'nuke' : 'missile';
               if (!kind) continue;
               const pos = p.startPos && p.targetPos && p.trajectory === 'ballistic' ? sampleBallistic(p, now) : p.position;
               ordnance.push({ id: p.id, team: p.team, at: { x: (pos.x + offset) / tileSize, z: (pos.z + offset) / tileSize }, kind });
@@ -3063,7 +3087,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       });
                   }
                   
-                  const finalUnits = nextUnits.filter(u => u.health > 0);
+                  // Cloaking Fields (sim/cloak.ts): who is hidden after this tick's fire.
+                  const living = nextUnits.filter(u => u.health > 0);
+                  const finalUnits = applyFieldCloak(living, fieldCloakedIds(living, now));
 
                   // Identity check. Every changed unit is a new object, so there is no need to
                   // serialise the whole army to text twice a tick to find out.

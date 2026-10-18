@@ -10,6 +10,7 @@ import type { DoctrineType, StructureType, UnitType } from '../types';
 import { ARTILLERY } from '../sim/artillery';
 import { BASE_REPAIR } from '../sim/support';
 import { RADAR } from '../sim/radar';
+import { CLOAK_FIELD } from '../sim/cloak';
 import { CIWS, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { HQ_INCOME } from '../sim/economy';
 import { abilitiesFor } from '../sim/unitAbilities';
@@ -149,6 +150,10 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
     use: 'Mobile drone hive.',
     source: 'Skunkworks doctrine, Tier 3 power.',
     actions: [{ name: 'Anchor', text: `Anchored, it releases Crawler Drones (up to ${ABILITY_CONFIG.SWARM_HOST_MAX_DRONES}) that hunt enemies nearby.` }],
+  },
+  cloak_generator: {
+    use: `Projects a ${CLOAK_FIELD.radius}-tile Cloaking Field: friendly units inside are hidden from the enemy and can't be targeted, though blasts and shelling still hurt. A unit that fires or is hit shows itself for ${CLOAK_FIELD.revealMs / 1000}s. Runs on its battery: indefinitely inside your grid, about a minute outside it; a Battery Mule or Helios keeps it going. An EMP shuts it down.`,
+    source: 'Shadow Ops doctrine, Tier 3 power: Cloaking Field. Air-dropped; one per side, a new drop destroys the old one.',
   },
   crawler_drone: { use: `Self-destructing drone: explodes for ${ABILITY_CONFIG.CRAWLER_EXPLOSION_DAMAGE} damage beside enemies.`, source: 'Released by an anchored Swarm Host.' },
 };

@@ -154,14 +154,15 @@ export function unitAbilityEffects(
     if (def.id !== 'emp_rocket') return { ok: false, reason: `${def.name} can't lock on` };
     locked = units.find(u => u.id === command.targetUnitId);
     if (!locked || locked.team === team || locked.health <= 0 || UNIT_RULES[locked.type].armor === 'infantry') return { ok: false, reason: 'lock on to an enemy vehicle or aircraft' };
-    if (!canSee(locked)) return { ok: false, reason: 'no line of sight to lock on' };
+    if (!canSee(locked) || locked.decoyActive || locked.fieldCloaked) return { ok: false, reason: 'no line of sight to lock on' };
   }
   // Aimed: every selected caster in range fires once at the same tile.
   const target = locked ? locked.gridPos : command.target;
   if (!target) return { ok: false, reason: 'pick a target' };
   const inRange = casters.filter(c => Math.hypot(c.gridPos.x - target.x, c.gridPos.z - target.z) <= def.targeted!.range);
   if (inRange.length === 0) return { ok: false, reason: `out of range (${def.targeted.range} tiles)` };
-  for (const c of inRange) updates.set(c.id, ready);
+  // Firing an aimed strike gives the caster away (a Cloaking Field drops, sim/cloak.ts).
+  for (const c of inRange) updates.set(c.id, u => ({ ...ready(u), lastAttackTime: now }));
 
   // The EMP rocket flies (sim/empRocket.ts); its pulse goes off where it lands.
   if (def.id === 'emp_rocket') {

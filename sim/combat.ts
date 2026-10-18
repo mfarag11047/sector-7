@@ -7,6 +7,7 @@
 import { ABILITY_CONFIG } from '../constants';
 import type { BuildingData, CloudData, StructureType, UnitData } from '../types';
 import type { GridPos } from './commands';
+import { isHidden } from './cloak';
 import { damageMultiplier, damageTakenMultiplier, fireRateMultiplier, hasBuff, isEmpDisabled, rangeBonus } from './unitAbilities';
 import { ArmorClass, canHit, DamageType, shotDamage, STRUCTURE_RULES, UNIT_RULES, Weapon } from './units';
 
@@ -121,7 +122,7 @@ export function resolveAttacks(
 ): AttackResult {
   const result: AttackResult = { unitDamage: new Map(), structureDamage: new Map(), fired: new Map(), aiming: new Map(), shots: [] };
 
-  const unitTargets = units.filter(u => u.health > 0 && !u.decoyActive && !inNanoCloud(u.gridPos));
+  const unitTargets = units.filter(u => u.health > 0 && !isHidden(u) && !inNanoCloud(u.gridPos));
   const structureTargets = structures.filter(s => s.health > 0);
 
   const pick = (team: UnitData['team'], at: GridPos, weapon: Weapon, current: string | null | undefined): Target | null => {

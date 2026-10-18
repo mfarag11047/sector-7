@@ -10,6 +10,7 @@
 import { ABILITY_CONFIG, CITY_CONFIG, STRUCTURE_INFO } from '../constants';
 import type { BuildingData, CloudData, DecoyData, Explosion, Projectile, StructureData, UnitData } from '../types';
 import { isAirType } from './units';
+import { isHidden } from './cloak';
 
 // How far along its arc a ballistic missile is, 0 at launch to 1 at impact.
 export const ballisticProgress = (p: Projectile, nowMs: number) => {
@@ -44,7 +45,8 @@ export type FlightEvent =
     | { kind: 'damage'; position: { x: number; y: number; z: number }; radius: number; damage: number; team: UnitData['team'] }
     | { kind: 'decoy'; id: string }
     | { kind: 'cloud'; cloudType: 'nano' | 'emp'; position: { x: number; y: number; z: number }; team: CloudData['team'] }
-    | { kind: 'titan'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' };
+    | { kind: 'titan'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' }
+    | { kind: 'cloak'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' };
 
 export const cloneProjectile = (p: Projectile): Projectile => ({
     ...p,
@@ -125,7 +127,7 @@ export const advanceFlight = (
         let hasUnitTarget = false;
 
         if (p.lockedTargetId) {
-            const lockedUnit = units.find(u => u.id === p.lockedTargetId && u.health > 0 && !u.decoyActive);
+            const lockedUnit = units.find(u => u.id === p.lockedTargetId && u.health > 0 && !isHidden(u));
             const lockedDecoy = decoys.find(d => d.id === p.lockedTargetId);
             if (lockedUnit) {
                 targetLocation = {
@@ -146,7 +148,7 @@ export const advanceFlight = (
             let closestDist = 6 * CITY_CONFIG.tileSize;
             let bestCandidateId: string | null = null;
             for (const u of units) {
-                if (u.team === p.team || u.team === 'neutral' || u.health <= 0 || u.decoyActive) continue;
+                if (u.team === p.team || u.team === 'neutral' || u.health <= 0 || isHidden(u)) continue;
                 const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
                 const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
                 const dist = Math.hypot(p.position.x - uX, p.position.z - uZ);
@@ -243,7 +245,7 @@ export const advanceFlight = (
 
             if (p.position.y <= 0.5) { hit = true; break; }
 
-            if (p.payload === 'titan_drop') {
+            if (p.payload === 'titan_drop' || p.payload === 'cloak_drop') {
                 if (p.position.y <= 0.5) { hit = true; break; }
             } else {
                 if (p.distanceTraveled >= p.maxDistance) { hit = true; break; }
@@ -279,6 +281,8 @@ export const advanceFlight = (
     ];
     if (p.payload === 'titan_drop' && p.targetPos) {
         events.push({ kind: 'titan', position: p.targetPos, team: p.team as 'blue' | 'red' });
+    } else if (p.payload === 'cloak_drop' && p.targetPos) {
+        events.push({ kind: 'cloak', position: p.targetPos, team: p.team as 'blue' | 'red' });
     } else if (p.payload === 'nano_cloud_master') {
         events.push({ kind: 'cloud', cloudType: 'nano', position: { ...p.position }, team: p.team });
         events.push({ kind: 'damage', position: { ...p.position }, damage: p.damage, radius: 3, team: p.team });

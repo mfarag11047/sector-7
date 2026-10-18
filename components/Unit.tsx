@@ -9,10 +9,11 @@ import { abilitiesFor } from '../sim/unitAbilities';
 import { roleBadgeTexture, UNIT_ROLE } from './unitIcons';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
-import { AegisModel, HornetModel, LancerLauncher, RazorbackModel, ThunderheadModel, TrooperKit } from './unitModels';
+import { AegisModel, CloakGeneratorModel, HornetModel, LancerLauncher, RazorbackModel, ThunderheadModel, TrooperKit } from './unitModels';
 import { ARTILLERY, artilleryRange } from '../sim/artillery';
 import { RADAR } from '../sim/radar';
 import { CIWS } from '../sim/ciws';
+import { CLOAK_FIELD } from '../sim/cloak';
 import { follow, predictPosition, simClock, walkAlong } from './glide';
 
 // Helper component for spinning rotors
@@ -151,6 +152,7 @@ interface UnitProps {
   onAction: (id: string, action: string) => void;
   isDecoy?: boolean;
   decoyActive?: boolean;
+  fieldCloaked?: boolean;
   health: number;
   maxHealth: number;
   battery: number;
@@ -353,7 +355,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, showRadar, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, showRadar, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -408,6 +410,8 @@ const Unit: React.FC<UnitProps> = ({
   const isLancer = type === 'lancer';
   const isRazorback = type === 'razorback';
   const isHowitzer = type === 'howitzer';
+  const isCloakGen = type === 'cloak_generator';
+  const fieldUp = isCloakGen && health > 0 && battery > 0 && !buffs?.some(b => b.kind === 'emp');
   const isAegis = type === 'aegis';
   const isHornet = type === 'hornet';
   const isAir = isWasp || isDrone || isHelios || isBombard || isHornet;
@@ -422,7 +426,7 @@ const Unit: React.FC<UnitProps> = ({
 
   // Floating height difference
   // Raised ground units to 1.2 to clear the Base platform (height 1.0)
-  const hoverHeight = isBombard ? 42 : isDefenseDrone ? 12.0 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler || isTrooper || isLancer || isRazorback || isAegis || isHowitzer) ? 1.2 : (isAir ? 75.0 : 2.0);
+  const hoverHeight = isBombard ? 42 : isDefenseDrone ? 12.0 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler || isTrooper || isLancer || isRazorback || isAegis || isHowitzer || isCloakGen) ? 1.2 : (isAir ? 75.0 : 2.0);
   
   // Logical World Position
   const logicalWorldPos = useMemo(() => new THREE.Vector3(
@@ -455,7 +459,9 @@ const Unit: React.FC<UnitProps> = ({
   // when the cloak ends so the Ghost's materials come back solid.
   useLayoutEffect(() => {
     const root = bodyRef.current;
-    if (!root || !decoyActive) return;
+    if (!root || (!decoyActive && !fieldCloaked)) return;
+    // Phantom Decoy tints cyan; a Cloaking Field (sim/cloak.ts) violet.
+    const [tint, glow] = decoyActive ? ['#7dd3fc', '#38bdf8'] : ['#d8b4fe', '#a855f7'];
     root.traverse(obj => {
       const mesh = obj as THREE.Mesh;
       if (!mesh.isMesh || !mesh.material) return;
@@ -466,9 +472,9 @@ const Unit: React.FC<UnitProps> = ({
         tinted.transparent = true;
         tinted.opacity = 0.32;
         tinted.depthWrite = false;
-        if (tinted.color) tinted.color.set('#7dd3fc');
+        if (tinted.color) tinted.color.set(tint);
         if (tinted.emissive) {
-          tinted.emissive.set('#38bdf8');
+          tinted.emissive.set(glow);
           tinted.emissiveIntensity = 0.85;
         }
       }
@@ -480,7 +486,7 @@ const Unit: React.FC<UnitProps> = ({
     let isVisible = true;
     if (meshRef.current) {
         // Units with a wide ring on the ground stay drawn while any of the ring is on screen.
-        const cullRadius = showRadar ? RADAR.range * tileSize : (isHowitzer && isDeployed ? artilleryRange(howitzerTier) * tileSize : 15);
+        const cullRadius = showRadar ? RADAR.range * tileSize : (isHowitzer && isDeployed ? artilleryRange(howitzerTier) * tileSize : isCloakGen ? CLOAK_FIELD.radius * tileSize : 15);
         isVisible = isObjectInFrustum(meshRef.current, cullRadius);
         if (meshRef.current.visible !== isVisible) {
             meshRef.current.visible = isVisible;
@@ -717,6 +723,7 @@ const Unit: React.FC<UnitProps> = ({
         </group>
     );
     if (isRazorback) return <RazorbackModel teamColor={teamColor} />;
+    if (isCloakGen) return <CloakGeneratorModel teamColor={teamColor} active={fieldUp} />;
     if (isHowitzer) return <ThunderheadModel teamColor={teamColor} deployed={!!isDeployed} aim={aimWorld} />;
     if (isAegis) return <AegisModel teamColor={teamColor} firing={!!ciwsTargetId} />;
     if (isHornet) return <HornetModel teamColor={teamColor} />;
@@ -1017,7 +1024,7 @@ const Unit: React.FC<UnitProps> = ({
           <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      <group ref={bodyRef} key={decoyActive ? 'cloaked' : 'solid'}>
+      <group ref={bodyRef} key={decoyActive ? 'cloaked' : fieldCloaked ? 'field' : 'solid'}>
         {renderModel()}
       </group>
 
@@ -1026,6 +1033,20 @@ const Unit: React.FC<UnitProps> = ({
           <mesh position={[0, 0.8, 0]} userData={{ cloakShell: true }} raycast={() => null}>
             <capsuleGeometry args={[0.7, 1.2, 4, 10]} />
             <meshBasicMaterial color="#7dd3fc" transparent opacity={0.45} depthWrite={false} blending={THREE.AdditiveBlending} />
+          </mesh>
+        </group>
+      )}
+
+      {/* Cloaking Field: the edge of the field and a faint dome while it is up. */}
+      {isCloakGen && fieldUp && (
+        <group position={[0, -hoverHeight + 0.3, 0]}>
+          <mesh rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+            <ringGeometry args={[CLOAK_FIELD.radius * tileSize - 0.5, CLOAK_FIELD.radius * tileSize, 64]} />
+            <meshBasicMaterial color="#c084fc" transparent opacity={0.55} side={THREE.DoubleSide} depthWrite={false} toneMapped={false} />
+          </mesh>
+          <mesh raycast={() => null}>
+            <sphereGeometry args={[CLOAK_FIELD.radius * tileSize, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
+            <meshBasicMaterial color="#a855f7" transparent opacity={0.06} side={THREE.DoubleSide} depthWrite={false} />
           </mesh>
         </group>
       )}

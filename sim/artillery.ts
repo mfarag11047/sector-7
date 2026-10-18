@@ -11,6 +11,7 @@
 
 import type { StructureData, UnitData } from '../types';
 import type { GridPos } from './commands';
+import { isHidden } from './cloak';
 import { damageTakenMultiplier, isEmpDisabled, visionOf } from './unitAbilities';
 import { ArmorClass, DAMAGE_MULTIPLIER, Tier, UNIT_RULES } from './units';
 
@@ -90,7 +91,7 @@ export function fireArtillery(
     if (!aim) {
       let best = Infinity;
       for (const t of units) {
-        if (t.team === u.team || t.health <= 0 || t.decoyActive || UNIT_RULES[t.type].armor === 'air') continue;
+        if (t.team === u.team || t.health <= 0 || isHidden(t) || UNIT_RULES[t.type].armor === 'air') continue;
         const d = tiles(u.gridPos, t.gridPos);
         if (d < best && inArtilleryReach(u.gridPos, t.gridPos, tier) && spottedBy(u.team, t.gridPos, units, structures)) { best = d; aim = t.gridPos; }
       }

@@ -61,6 +61,7 @@ export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: st
   // Never trained: spawned by the map, abilities or doctrines
   defense_drone: { unitClass: 'defense', cost: 0, captureMultiplier: 0, label: 'Sentinel Drone', visionRange: 4, speedMod: 0, maxHealth: 300 },
   titan_dropped: { unitClass: 'armor', cost: 0, captureMultiplier: 0, label: 'Titan (Orbital Drop)', visionRange: 5, speedMod: 0.7, maxHealth: 700 },
+  cloak_generator: { unitClass: 'support', cost: 0, captureMultiplier: 0, label: 'Cloaking Field Generator', visionRange: 3, speedMod: 0, maxHealth: 350 },
   swarm_host: { unitClass: 'ordnance', cost: 0, captureMultiplier: 0, label: 'Swarm Host', visionRange: 4, speedMod: 0.8, maxHealth: 300 },
   crawler_drone: { unitClass: 'ordnance', cost: 0, captureMultiplier: 0, label: 'Crawler Drone', visionRange: 3, speedMod: 1.2, maxHealth: 40 },
 };
@@ -341,8 +342,8 @@ export const DOCTRINE_CONFIG: Record<DoctrineType, {
     tier2_desc: "Spawns holographic units to distract enemy fire.",
     tier3_cost: 1000,
     tier3_cooldown: 240000,
-    tier3_name: "Global EMP",
-    tier3_desc: "Stuns all enemy units on the map for 10 seconds.",
+    tier3_name: "Cloaking Field",
+    tier3_desc: "Air-drops a Cloaking Field Generator. Friendly units within 3 tiles are hidden from the enemy until they fire or are hit. Runs on battery (indefinitely inside your grid); one per side, a new drop destroys the old.",
   },
   skunkworks: {
     label: "Skunkworks",

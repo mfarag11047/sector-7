@@ -11,6 +11,7 @@
 
 import type { StructureData, UnitData } from '../types';
 import type { GridPos } from './commands';
+import { isHidden } from './cloak';
 import { isRadarActive } from './radar';
 import { damageTakenMultiplier, fireRateMultiplier, rangeBonus } from './unitAbilities';
 import { DAMAGE_MULTIPLIER, UNIT_RULES } from './units';
@@ -121,7 +122,7 @@ export function ciwsTick(
     }
     const pickUnit = (air: boolean, range: number) => {
       for (const t of units) {
-        if (t.team === gun.team || t.health <= 0 || t.decoyActive || (UNIT_RULES[t.type].armor === 'air') !== air) continue;
+        if (t.team === gun.team || t.health <= 0 || isHidden(t) || (UNIT_RULES[t.type].armor === 'air') !== air) continue;
         const d = tiles(gun.at, t.gridPos);
         // Stick with the current target rather than flicking between equals.
         const score = t.id === state.ciwsTargetId ? d - 1 : d;

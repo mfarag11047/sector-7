@@ -623,7 +623,8 @@ function doctrineMove(
       if (t === 3 && cluster && cluster.value >= 900 && !army.some(u => dist(u.gridPos, cluster.at) <= 5)) return { kind: 'doctrine', tier: 3, target: cluster.at };
     } else if (doctrine === 'shadow_ops') {
       if (t === 2 && mode === 'attack') return { kind: 'doctrine', tier: 2, target: objective };
-      if (t === 3 && engaged >= 900) return { kind: 'doctrine', tier: 3, target: front };
+      // Cloaking Field over the army as it moves in, before the shooting gives it away.
+      if (t === 3 && army.length >= 4 && (mode === 'attack' || mode === 'defend')) return { kind: 'doctrine', tier: 3, target: front };
     } else if (doctrine === 'skunkworks') {
       // Nano clouds stop all fire inside them: cover a retreat.
       if (t === 2 && mode === 'retreat' && army.length >= 4) return { kind: 'doctrine', tier: 2, target: front };
