@@ -320,7 +320,8 @@ Infect: a virus bomb that falls for 1.2 s and goes off in a 1.5-tile blast.
 - Infected units crawl with Blackwall glitch (red, magenta and blue scanlines, a jittering split
   cage and a red ring on the ground); a unit catching it shows a magenta ring filling up.
 
-The Swarm Host it used to deploy is no longer fielded by any doctrine.
+The Swarm Host is no longer part of any doctrine; the unit itself (anchoring, Crawler Drones) is
+unchanged.
 
 ## Bombardment Drone strike cycle
 
