@@ -326,6 +326,9 @@ export interface MinimapData {
     // it has passed halfway, one blip at the midpoint of its course.
     missileWarnings?: { id: string; launchX: number; launchZ: number; midX?: number; midZ?: number }[];
     radars?: { x: number; z: number; range: number }[];
+    // Fighting involving the player: from the attacker to its target, in tiles. `hostile` is an
+    // enemy shooting at one of the player's units or structures.
+    engagements?: { id: string; fromX: number; fromZ: number; toX: number; toZ: number; hostile: boolean }[];
 }
 
 export interface DecoyData {

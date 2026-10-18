@@ -841,6 +841,33 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                   <circle key={`radar-${i}`} cx={r.x + 0.5} cy={r.z + 0.5} r={r.range} fill="rgba(34,197,94,0.06)" stroke="#22c55e" strokeOpacity={0.5} strokeWidth={0.25} />
               ))}
 
+              {/* Engagements: a green arrow from each of your units to what it is shooting, a red
+                  one from each enemy to the unit of yours it is shooting at. Drawn under the unit
+                  badges, starting and stopping just short of them. Red on top. */}
+              {[...(minimapData.engagements || [])].sort((a, b) => Number(a.hostile) - Number(b.hostile)).map(e => {
+                  const x1 = e.fromX + 0.5, z1 = e.fromZ + 0.5, x2 = e.toX + 0.5, z2 = e.toZ + 0.5;
+                  const len = Math.hypot(x2 - x1, z2 - z1);
+                  if (len < 0.5) return null;
+                  const ux = (x2 - x1) / len, uz = (z2 - z1) / len;
+                  // The arrowhead's tip stops at the edge of the target's badge; the shaft runs
+                  // from the attacker's badge to the head.
+                  const head = 2.4, half = 1.5;
+                  const tip = Math.max(head, len - 0.6);
+                  const tx = x1 + ux * tip, tz = z1 + uz * tip;
+                  const bx = tx - ux * head, bz = tz - uz * head;
+                  const color = e.hostile ? '#ef4444' : '#22c55e';
+                  return (
+                      <g key={`eng-${e.hostile ? 'h' : 'f'}-${e.id}`}>
+                          <line x1={x1} y1={z1} x2={bx} y2={bz} stroke="#020617" strokeWidth={5} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                          <line x1={x1} y1={z1} x2={bx} y2={bz} stroke={color} strokeWidth={2.5} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+                          <polygon
+                              points={`${tx},${tz} ${bx - uz * half},${bz + ux * half} ${bx + uz * half},${bz - ux * half}`}
+                              fill={color} stroke="#020617" strokeWidth={1} strokeLinejoin="round" vectorEffect="non-scaling-stroke"
+                          />
+                      </g>
+                  );
+              })}
+
               {/* Units Layer - Uses visibleUnits (Filtered by Fog of War) */}
               {visibleUnits.map((u) => {
                   const role = UNIT_ROLE[u.type] ?? 'infantry';

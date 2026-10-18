@@ -37,16 +37,17 @@ import { BLACKWALL, blackwallImpact, blackwallTick } from '../sim/blackwall';
 import { FORCE_FIELD, ForceField, absorbingField, activeFields, addShieldHit, generatorsOf, impactAbsorbed, shieldTick, shockDamage, shockedBy, shotBlocked, shotBlockedBy } from '../sim/forcefield';
 import { BlackwallBomb, BlackwallBurst } from './BlackwallFx';
 import { ForceFieldDome, ShieldImpact } from './ForceFieldFx';
+import { ShotFx, ShotFxData, ShotKind, shotFxLifeMs } from './ShotFx';
 import { EmpRocket, EMP_ROCKET, empRocketImpact, empRocketTick, isEmpTarget, mergeUnitUpdates, topAttackHeight } from '../sim/empRocket';
 import { AirThreat, applyCiwsState, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY } from '../sim/ciws';
-import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, resolveAttacks } from '../sim/combat';
+import { Blast, CombatStructure, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, resolveAttacks } from '../sim/combat';
 import { bombardTick } from '../sim/bombard';
 import { generateCity } from '../sim/mapgen';
 import { MatchConfig, STARTING_CORES, aiTeamOf, incomeMultipliers, sandboxStructures, startingRoster } from '../sim/match';
 import { AI_PROFILES, aiThink, freshAiMemory } from '../sim/ai';
 import { OrderCommand, applyOrderToStructures, applyOrderToUnits, orderEffects, popUsed, coreNodesHeld, serverNodesHeld, teamPopCap, teamTier } from '../sim/orders';
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
-import { isAirType } from '../sim/units';
+import { UNIT_RULES, isAirType } from '../sim/units';
 import { airPath, fastestPath } from '../sim/pathfinding';
 import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
 import { applyFieldCloak, CLOAK_FIELD, fieldCloakedIds, generatorsReplacedBy, isCloakFieldUp, isHidden } from '../sim/cloak';
@@ -552,17 +553,14 @@ const MiniRocketMesh: React.FC<{ rocket: MiniRocket; fromY: number; tileSize: nu
     );
 };
 
-// Weapon tracers: a brief line from shooter to target, colored by damage type.
-type TracerData = Shot & { id: string; createdAt: number };
-const TRACER_MS = 180;
-const TRACER_COLORS: Record<Shot['type'], string> = { rifle: '#fde047', ap: '#fb923c', flak: '#67e8f9', explosive: '#f87171' };
-const TracerMesh: React.FC<{ tracer: TracerData; tileSize: number; offset: number }> = ({ tracer, tileSize, offset }) => {
-    const points = useMemo(() => [
-        [(tracer.from.x * tileSize) - offset, tracer.fromAir ? 74 : 2.2, (tracer.from.z * tileSize) - offset],
-        [(tracer.to.x * tileSize) - offset, tracer.toAir ? 75 : 1.4, (tracer.to.z * tileSize) - offset],
-    ] as [number, number, number][], [tracer, tileSize, offset]);
-    return <Line points={points} color={TRACER_COLORS[tracer.type]} lineWidth={tracer.type === 'rifle' ? 1.5 : 3} transparent opacity={0.85} />;
-};
+// How long after its last shot (or last aiming at a target) an attacker still shows as engaging
+// on the minimap. Longer than the slowest reload (the rail gun's 5 s), so arrows hold steady.
+const ENGAGEMENT_MS = 6000;
+
+// Weapons fire as seen in the 3D view (components/ShotFx.tsx): a muzzle flash for every shot,
+// and for heavier weapons the projectile flying to the target. Who shot whom is kept for the
+// minimap's engagement arrows.
+type TracerData = ShotFxData & { attackerId: string; targetId: string };
 
 // Thunderhead shells (sim/artillery.ts): a glowing round on a high arc from the gun to where it
 // lands. Enemy shells show only on the way down, so they warn of a barrage without giving the
@@ -1196,7 +1194,7 @@ interface CityMapProps {
   match: MatchConfig;
   onStatsUpdate: (stats: GameStats) => void;
   onMapInit?: (data: { roadTiles: RoadTileData[], gridSize: number }) => void;
-  onMinimapUpdate?: (data: { units: UnitData[], buildings: BuildingData[], structures: StructureData[], selectedUnitIds?: string[], missiles?: MinimapMissile[], radarContacts?: MinimapData['radarContacts'], radars?: MinimapData['radars'], missileWarnings?: MinimapData['missileWarnings'] }) => void;
+  onMinimapUpdate?: (data: { units: UnitData[], buildings: BuildingData[], structures: StructureData[], selectedUnitIds?: string[], missiles?: MinimapMissile[], radarContacts?: MinimapData['radarContacts'], radars?: MinimapData['radars'], missileWarnings?: MinimapData['missileWarnings'], engagements?: MinimapData['engagements'] }) => void;
   playerTeam?: 'blue' | 'red';
   interactionMode?: 'select' | 'target';
   onMapTarget?: (location: {x: number, z: number}) => void;
@@ -1264,6 +1262,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // Tank rail gun shots in the air for a moment, and when each gun last fired (ahead of state).
   const [railBeams, setRailBeams] = useState<RailBeamData[]>([]);
   const railShotRef = useRef(new Map<string, number>());
+  // Who last shot at whom, and when: the minimap draws an arrow for each fresh one.
+  const engagementsRef = useRef(new Map<string, { targetId: string; at: number }>());
   // When each Bombardment Drone last dropped, ahead of state (sim/bombard.ts).
   const bombardStrikeRef = useRef(new Map<string, number>());
   // Hornet Tier 3 rockets: when each fired (ahead of state), and Hellfire Salvo rockets in flight.
@@ -1603,7 +1603,27 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 });
             }
 
+            // Engagements involving the player: green arrows from their units to what they are
+            // shooting, red ones from enemies to the player's units under fire.
+            const engagements: NonNullable<MinimapData['engagements']> = [];
+            const posOf = (id: string) => {
+                const u = unitsRef.current.find(x => x.id === id && x.health > 0);
+                if (u) return { team: u.team, x: u.gridPos.x, z: u.gridPos.z };
+                const s = structuresRef.current.find(x => x.id === id && x.health > 0);
+                return s ? { team: s.team as UnitData['team'], x: s.gridPos.x, z: s.gridPos.z } : null;
+            };
+            const nowMs = Date.now();
+            engagementsRef.current.forEach((e, attackerId) => {
+                if (nowMs - e.at > ENGAGEMENT_MS) { engagementsRef.current.delete(attackerId); return; }
+                const a = posOf(attackerId);
+                const t = posOf(e.targetId);
+                if (!a || !t || a.team === t.team) return;
+                if (a.team === playerTeam) engagements.push({ id: attackerId, fromX: a.x, fromZ: a.z, toX: t.x, toZ: t.z, hostile: false });
+                else if (t.team === playerTeam) engagements.push({ id: attackerId, fromX: a.x, fromZ: a.z, toX: t.x, toZ: t.z, hostile: true });
+            });
+
             onMinimapUpdate({ 
+                engagements,
                 units: [...realUnits, ...fakeUnits], 
                 buildings: buildingsRef.current,
                 structures: structuresRef.current,
@@ -2873,7 +2893,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             return now - d.createdAt < ABILITY_CONFIG.DECOY_DURATION;
         }));
         setExplosions(prev => prev.filter(e => now - e.createdAt < e.duration));
-        setTracers(prev => prev.length === 0 ? prev : prev.filter(t => now - t.createdAt < TRACER_MS));
+        setTracers(prev => prev.length === 0 ? prev : prev.filter(t => now - t.createdAt < shotFxLifeMs(t)));
         setRailBeams(prev => prev.length === 0 ? prev : prev.filter(b => now - b.createdAt < RAIL_BEAM_MS));
 
     }, 500); 
@@ -3097,6 +3117,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               setStructuresState(prev => applyCiwsState(prev, ciws.structureUpdates));
           }
           ciwsLinksRef.current = ciws.links;
+          // Who is fighting whom, for the minimap's engagement arrows: every direct-fire shot this
+          // tick, rail guns, Hornet rockets and the CIWS guns.
+          const engage = (attackerId: string, targetId: string) => engagementsRef.current.set(attackerId, { targetId, at: now });
+          attacks.shots.forEach(s => engage(s.attackerId, s.targetId));
+          attacks.aiming.forEach((targetId, attackerId) => { if (targetId) engage(attackerId, targetId); });
+          rail.shots.forEach(s => engage(s.attackerId, s.targetId));
+          hornetVolley.shots.forEach(s => engage(s.attackerId, s.targetId));
+          ciws.links.forEach(l => { if (!l.ordnance) engage(l.gunId, l.targetId); });
           ciws.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
           if (ciws.ordnanceDamage.size > 0) {
               const downed: AirThreat[] = [];
@@ -3219,7 +3247,27 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               }
           }
           if (attacks.shots.length > 0) {
-              setTracers(prev => [...prev, ...attacks.shots.map((shot, i) => ({ ...shot, id: `tracer-${now}-${i}`, createdAt: now }))]);
+              // What each shot looks like: rifles and flak only flash at the muzzle; Lancers fire
+              // a small missile, cannons a shell, AP guns a fast round. Sentinels draw their own laser.
+              const fx: TracerData[] = [];
+              attacks.shots.forEach((shot, i) => {
+                  const shooter = currentUnitsRef.find(u => u.id === shot.attackerId);
+                  if (shooter?.type === 'defense_drone') return;
+                  const structure = !shooter;
+                  const infantry = shooter ? UNIT_RULES[shooter.type].armor === 'infantry' : false;
+                  const kind: ShotKind = shot.type === 'rifle' || shot.type === 'flak' ? 'flash'
+                      : shot.type === 'ap' ? (shooter?.type === 'lancer' ? 'missile' : 'round')
+                      : 'shell';
+                  const targetIsStructure = !currentUnitsRef.some(u => u.id === shot.targetId);
+                  fx.push({
+                      id: `shot-${now}-${i}`, kind, createdAt: now,
+                      attackerId: shot.attackerId, targetId: shot.targetId,
+                      from: { x: shot.from.x * tileSize - offset, y: shot.fromAir ? 74 : structure ? 4 : infantry ? 1.6 : 2.4, z: shot.from.z * tileSize - offset },
+                      to: { x: shot.to.x * tileSize - offset, y: shot.toAir ? 75 : targetIsStructure ? 3 : 1.4, z: shot.to.z * tileSize - offset },
+                      flashSize: structure ? 3.5 : shot.fromAir ? 2.6 : infantry ? 1.6 : 2.6,
+                  });
+              });
+              if (fx.length > 0) setTracers(prev => [...prev, ...fx]);
           }
           if (attacks.structureDamage.size > 0 || [...attacks.fired.keys(), ...attacks.aiming.keys()].some(id => structuresRef.current.some(st => st.id === id))) {
               const applyFire = (list: StructureData[]) => applyStructureCombat(list, attacks, now);
@@ -3702,9 +3750,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         {/* Explosions */}
         {explosions.map(e => <ExplosionMesh key={e.id} explosion={e} />)}
 
-        {/* Weapon tracers, only where the player can see one end of the shot */}
+        {/* Weapons fire, only where the player can see one end of the shot */}
         {tracers.filter(t => visibleUnitIds.has(t.attackerId) || visibleUnitIds.has(t.targetId) || structuresState.some(st => st.id === t.attackerId || st.id === t.targetId))
-            .map(t => <TracerMesh key={t.id} tracer={t} tileSize={tileSize} offset={offset} />)}
+            .map(t => <ShotFx key={t.id} shot={t} />)}
         {railBeams.filter(b => b.team === playerTeam || visibleUnitIds.has(b.attackerId) || visibleUnitIds.has(b.targetId)).map(b => <RailBeam key={b.id} beam={b} tileSize={tileSize} offset={offset} />)}
         
         {/* Cloud Effects */}
