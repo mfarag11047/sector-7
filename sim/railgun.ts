@@ -1,10 +1,11 @@
 // The main battle tank's rail gun.
 //
 // Besides its short-range gun (sim/combat.ts), every tank (and orbital-drop Titan) carries a
-// rail gun that fires on its own: a hypervelocity slug, instant hit, at any enemy ground vehicle
-// or structure within long range that its side can see, its own sight or any friendly unit's or
-// building's. It is an anti-armour gun: infantry are left to the short-range gun, so Lancers can
-// still close on tanks. Each shot costs battery and the gun recharges between shots.
+// rail gun that fires on its own: a hypervelocity slug, instant hit, at any enemy ground unit or
+// structure within long range that its side can see, its own sight or any friendly unit's or
+// building's. It is built to kill armour: it goes for vehicles first, and a slug through a
+// soldier does far less than one through a hull, so Lancers can still close on tanks. Each shot
+// costs battery and the gun recharges between shots.
 //
 // Pure: it reads the state it is given and reports the shots. CityMap and the headless runner
 // apply the damage and the gun's state.
@@ -22,6 +23,8 @@ export const RAILGUN = {
   range: 14,
   cooldownMs: 5000,
   batteryCost: 15,
+  // Against infantry the slug does this share of its usual (anti-armour) damage.
+  infantryFactor: 0.25,
 };
 const WEAPON: Weapon = { damage: RAILGUN.damage, cooldownMs: RAILGUN.cooldownMs, range: RAILGUN.range, type: 'ap', hitsGround: true, hitsAir: false };
 
@@ -31,8 +34,10 @@ export const railgunReady = (u: UnitData, now: number) => now - (u.railgunFiredA
 export interface RailShot { attackerId: string; targetId: string; team: UnitData['team']; from: GridPos; to: GridPos; structure: boolean }
 
 const tiles = (a: GridPos, b: GridPos) => Math.hypot(a.x - b.x, a.z - b.z);
-// Heavy armour before light; nearer first within each.
-const priority = (armor: ArmorClass) => (armor === 'heavy' ? 0 : 1);
+// Heavy armour, then light, then infantry; nearer first within each.
+const priority = (armor: ArmorClass) => (armor === 'heavy' ? 0 : armor === 'light' ? 1 : 2);
+// What one slug does to a given armour class.
+export const railDamage = (armor: ArmorClass) => shotDamage(WEAPON, armor) * (armor === 'infantry' ? RAILGUN.infantryFactor : 1);
 
 export function fireRailguns(
   units: readonly UnitData[],
@@ -52,7 +57,7 @@ export function fireRailguns(
     for (const t of units) {
       if (t.team === u.team || t.health <= 0 || isHidden(t) || inNanoCloud(t.gridPos)) continue;
       const armor = UNIT_RULES[t.type].armor;
-      if (armor === 'air' || armor === 'infantry') continue;
+      if (armor === 'air') continue;
       const d = tiles(u.gridPos, t.gridPos);
       if (d > RAILGUN.range) continue;
       const key = priority(armor) * 1000 + d;
@@ -62,7 +67,7 @@ export function fireRailguns(
     }
     if (best) {
       const armor = UNIT_RULES[best.t.type].armor;
-      add(unitDamage, best.t.id, shotDamage(WEAPON, armor) * damageTakenMultiplier(best.t));
+      add(unitDamage, best.t.id, railDamage(armor) * damageTakenMultiplier(best.t));
       shots.push({ attackerId: u.id, targetId: best.t.id, team: u.team, from: u.gridPos, to: best.t.gridPos, structure: false });
       continue;
     }

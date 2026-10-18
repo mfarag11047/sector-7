@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { StructureData, UnitData } from '../types';
 import { createUnit } from './production';
-import { afterRailShot, fireRailguns, RAILGUN } from './railgun';
+import { afterRailShot, fireRailguns, RAILGUN, railDamage } from './railgun';
 import { addBuff } from './unitAbilities';
 import { shotDamage } from './units';
 
@@ -26,10 +26,19 @@ describe('tank rail gun', () => {
     expect(fireRailguns(units, [], NOW).shots).toHaveLength(0);
   });
 
-  it('leaves infantry and aircraft alone and prefers heavy armour', () => {
-    const units = [unit('tank', 'blue', 't', 0), unit('trooper', 'red', 'inf', 3), unit('hornet', 'red', 'air', 3), unit('razorback', 'red', 'light', 3, 1), unit('tank', 'red', 'heavy', 5)];
+  it('goes for heavy armour, then light, then infantry, and never aircraft', () => {
+    const units = [unit('tank', 'blue', 't', 0), unit('trooper', 'red', 'inf', 3), unit('hornet', 'red', 'air', 2), unit('razorback', 'red', 'light', 3, 1), unit('tank', 'red', 'heavy', 5)];
     expect(ours(fireRailguns(units, [], NOW)).map(s => s.targetId)).toEqual(['heavy']);
-    expect(fireRailguns(units.slice(0, 3), [], NOW).shots).toHaveLength(0);
+    expect(ours(fireRailguns(units.slice(0, 4), [], NOW)).map(s => s.targetId)).toEqual(['light']);
+    expect(ours(fireRailguns(units.slice(0, 3), [], NOW)).map(s => s.targetId)).toEqual(['inf']);
+    expect(ours(fireRailguns(units.slice(0, 1).concat(units[2]), [], NOW))).toHaveLength(0);
+  });
+
+  it('does far less to infantry than to armour', () => {
+    const r = fireRailguns([unit('tank', 'blue', 't', 0), unit('trooper', 'red', 'inf', 3)], [], NOW);
+    expect(r.unitDamage.get('inf')).toBeCloseTo(railDamage('infantry'));
+    expect(railDamage('infantry')).toBeLessThan(railDamage('light') / 4);
+    expect(railDamage('heavy')).toBeGreaterThan(railDamage('light'));
   });
 
   it('falls back on a seen enemy building', () => {
