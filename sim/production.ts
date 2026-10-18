@@ -35,6 +35,7 @@ export function createUnit(type: UnitType, team: UnitData['team'], id: string, g
       ...unit, isDeployed: false, batteryTetherIds: [],
       battery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, maxBattery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY,
     };
+    case 'swarm_host': return { ...unit, cooldowns: { spawnCrawler: 0 } };
     case 'wasp': return { ...unit, cooldowns: { swarmLaunch: 0 }, charges: { swarm: ABILITY_CONFIG.WASP_MAX_CHARGES } };
     case 'bombard': return { ...unit, battery: ABILITY_CONFIG.BOMBARD_BATTERY, maxBattery: ABILITY_CONFIG.BOMBARD_BATTERY };
     case 'tank': return { ...unit, charges: { smoke: ABILITY_CONFIG.MAX_CHARGES_SMOKE, aps: ABILITY_CONFIG.MAX_CHARGES_APS } };

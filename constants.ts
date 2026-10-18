@@ -57,12 +57,12 @@ export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: st
   // Depot and Ordnance Fab
   mason: { unitClass: 'builder', cost: 120, captureMultiplier: 0, label: '"Mason" Combat Engineer', visionRange: 3, speedMod: 0.8, maxHealth: 150 },
   mule: { unitClass: 'ordnance', cost: 260, captureMultiplier: 0, label: 'Field Fabricator', visionRange: 3, speedMod: 0.9, maxHealth: 200 },
+  swarm_host: { unitClass: 'ordnance', cost: 340, captureMultiplier: 0, label: 'Swarm Host', visionRange: 4, speedMod: 0.8, maxHealth: 300 },
   courier: { unitClass: 'support', cost: 50, captureMultiplier: 0, label: 'Ordnance Courier', visionRange: 3, speedMod: 1.8, maxHealth: 40 },
   // Never trained: spawned by the map, abilities or doctrines
   defense_drone: { unitClass: 'defense', cost: 0, captureMultiplier: 0, label: 'Sentinel Drone', visionRange: 4, speedMod: 0, maxHealth: 300 },
   titan_dropped: { unitClass: 'armor', cost: 0, captureMultiplier: 0, label: 'Titan (Orbital Drop)', visionRange: 5, speedMod: 0.7, maxHealth: 700 },
   cloak_generator: { unitClass: 'support', cost: 0, captureMultiplier: 0, label: 'Cloaking Field Generator', visionRange: 3, speedMod: 0, maxHealth: 350 },
-  swarm_host: { unitClass: 'ordnance', cost: 0, captureMultiplier: 0, label: 'Swarm Host', visionRange: 4, speedMod: 0.8, maxHealth: 300 },
   crawler_drone: { unitClass: 'ordnance', cost: 0, captureMultiplier: 0, label: 'Crawler Drone', visionRange: 3, speedMod: 1.2, maxHealth: 40 },
 };
 

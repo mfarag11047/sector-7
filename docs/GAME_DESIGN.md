@@ -45,7 +45,7 @@ The intended arc:
 | Factory | 550 | 25 s | Vehicles |
 | Comm Link | 450 | 20 s | Support units |
 | Airpad | 600 | 25 s | Aircraft |
-| Ordnance Fab | 800 | 30 s | Field Fabricator, Courier, warheads |
+| Ordnance Fab | 800 | 30 s | Field Fabricator, Swarm Host, Courier, warheads |
 
 ## Energy grid and batteries
 
@@ -102,7 +102,7 @@ which stay unlocked for good.
 | Tier | Research cost | Unlocks |
 |---|---|---|
 | T1 | Start | Troopers, Razorbacks, Thunderheads, Battery Mules, Drones, Guardians, Helios, Masons |
-| T2 | 120 compute | Ghosts, Lancers, Titans, Aegis, Wasps, Hornets, Banshees, Field Fabricators, T2 doctrine powers |
+| T2 | 120 compute | Ghosts, Lancers, Titans, Aegis, Wasps, Hornets, Banshees, Field Fabricators, Swarm Hosts, T2 doctrine powers |
 | T3 | 360 compute | Bombardment Drones, Ballistas, T3 doctrine powers |
 
 Research from the button in your team panel or the HQ build menu.
@@ -223,7 +223,8 @@ listed as damage / cooldown / range.
     the Aegis does (32/s to aircraft, 60/s to ordnance, 3.5 s bursts, 6 s reload); with the sky
     clear it fires on ground units within 6 tiles at half its flak damage (about 6/s to infantry
     and light vehicles, 3/s to heavy armour). 800 HP.
-- **Ordnance Fab:** Field Fabricator (260, T2) and EMP and HE warheads. Couriers are sent by
+- **Ordnance Fab:** Field Fabricator (260, T2), Swarm Host (340, T2, 3 pop, 30 s: anchors to release
+  up to 7 Crawler Drones that hunt nearby enemies) and EMP and HE warheads. Couriers are sent by
   Transfer Warhead, not trained.
 - **Command HQ:** 5000 HP; AP 30 / 1.0 s / 5, hits air.
 
@@ -320,8 +321,7 @@ Infect: a virus bomb that falls for 1.2 s and goes off in a 1.5-tile blast.
 - Infected units crawl with Blackwall glitch (red, magenta and blue scanlines, a jittering split
   cage and a red ring on the ground); a unit catching it shows a magenta ring filling up.
 
-The Swarm Host is no longer part of any doctrine; the unit itself (anchoring, Crawler Drones) is
-unchanged.
+The Swarm Host is no longer part of any doctrine; it is now trained at the Ordnance Fab (Tier 2).
 
 ## Bombardment Drone strike cycle
 

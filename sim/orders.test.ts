@@ -55,6 +55,19 @@ describe('training', () => {
     const researched = view({ economy: research(setCompute(createEconomy(1000), 'blue', TIER_RESEARCH_COST[2]), 'blue', 2)! });
     expect(run(researched, { type: 'TRAIN_UNIT', structureId: 'barracks', unitType: 'lancer' }).refused).toBeUndefined();
   });
+
+  it('builds the Swarm Host at the Ordnance Fab from Tier 2', () => {
+    const fab = structure('fab', { type: 'ordnance_fab' });
+    const order = { type: 'TRAIN_UNIT', structureId: 'fab', unitType: 'swarm_host' } as const;
+    expect(run(view({ structures: [fab] }), order).refused).toMatch(/Tier 2/);
+    const researched = view({ structures: [fab], economy: research(setCompute(createEconomy(1000), 'blue', TIER_RESEARCH_COST[2]), 'blue', 2)! });
+    const r = run(researched, order);
+    expect(r.refused).toBeUndefined();
+    expect(r.economy!.blue.cores).toBe(1000 - 340);
+    expect(r.structures![0].queue?.[0]).toMatchObject({ unitType: 'swarm_host', remainingMs: UNIT_RULES.swarm_host.buildTimeMs });
+    expect(run(view({ structures: [structure('b2')] }), { type: 'TRAIN_UNIT', structureId: 'b2', unitType: 'swarm_host' }).refused).toMatch(/cannot train/);
+    expect(createUnit('swarm_host', 'blue', 'h', { x: 1, z: 1 }).cooldowns).toEqual({ spawnCrawler: 0 });
+  });
 });
 
 describe('research', () => {

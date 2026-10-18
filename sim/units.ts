@@ -83,6 +83,7 @@ export const UNIT_RULES: Record<UnitType, UnitRules> = {
   // --- Depot and Ordnance Fab ---
   mason: { armor: 'light', weapon: null, pop: 1, tier: 1, producer: 'builder', buildTimeMs: 12000, role: 'Builds walls and turrets.' },
   mule: { armor: 'light', weapon: null, pop: 2, tier: 2, producer: 'ordnance_fab', buildTimeMs: 20000, role: 'Fabricates missiles in the field.' },
+  swarm_host: { armor: 'heavy', weapon: null, pop: 3, tier: 2, producer: 'ordnance_fab', buildTimeMs: 30000, role: 'Mobile drone hive. Anchors to release Crawler Drones that hunt nearby enemies.' },
   // Couriers are dispatched by Transfer Warhead, not trained.
   courier: { armor: 'light', weapon: null, pop: 0, tier: 2, producer: null, buildTimeMs: 0, role: 'Runs a warhead to a Ballista.' },
 
@@ -90,7 +91,6 @@ export const UNIT_RULES: Record<UnitType, UnitRules> = {
   defense_drone: { armor: 'heavy', weapon: rifle(14, 500, 3), pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Guards a server node. Hostile to everyone.' },
   titan_dropped: { armor: 'heavy', weapon: shell(60, 2200, 4, 1, 0.1), pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Orbital-drop Titan.' },
   cloak_generator: { armor: 'light', weapon: null, pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Cloaks friendly units within 3 tiles while it has battery.' },
-  swarm_host: { armor: 'heavy', weapon: null, pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Releases Crawler Drones when anchored.' },
   crawler_drone: { armor: 'light', weapon: null, pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Detonates next to enemies.' },
 };
 
