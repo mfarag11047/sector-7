@@ -5,6 +5,7 @@ import { BuildingData, UnitData, BuildingBlock, GameStats, DoctrineType, RoadTyp
 import Building from './Building';
 import Structure from './Structure';
 import Base from './Base';
+import BlackWall from './BlackWall';
 import Unit from './Unit';
 import BlockStatus from './BlockStatus';
 import { InstancedRoads } from './RoadSystem';
@@ -3381,6 +3382,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             <planeGeometry args={[gridSize * tileSize, gridSize * tileSize]} />
             <meshStandardMaterial color="#1e293b" roughness={1} metalness={0} />
         </mesh>
+
+        {/* The Blackwall sealing the city in, and the waste ground beyond it. */}
+        <BlackWall gridSize={gridSize} tileSize={tileSize} />
 
         {/* Instanced Roads with Procedural Textures */}
         <InstancedRoads 
