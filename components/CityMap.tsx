@@ -27,6 +27,7 @@ import { Blackout, chargeSources, isInsideEnergyGrid, powerTick } from '../sim/e
 import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, leashStep, repairTick, slowTick, surveillanceStep } from '../sim/support';
 import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells, shellGroundPos } from '../sim/artillery';
+import { EmpRocket, EMP_ROCKET, empRocketImpact, empRocketTick, isEmpTarget, mergeUnitUpdates } from '../sim/empRocket';
 import { AirThreat, applyCiwsState, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, resolveAttacks } from '../sim/combat';
 import { generateCity } from '../sim/mapgen';
@@ -392,6 +393,74 @@ const ProjectileMesh: React.FC<{ projectile: Projectile; flightRef: React.Mutabl
                  <meshBasicMaterial color="#fca5a5" />
              </mesh>
         </group>
+    );
+};
+
+// Lancer EMP Tandem Rockets (sim/empRocket.ts): a small rocket with a blue exhaust trail. The sim
+// moves it a step each tick; drawing eases after it and, once a locked rocket is close, homes on
+// where its target is drawn so it visibly strikes the unit.
+const EMP_TRAIL = 10;
+const EmpRocketMesh: React.FC<{ id: string; rocketsRef: React.MutableRefObject<EmpRocket[]>; unitsRef: React.MutableRefObject<UnitData[]>; tileSize: number; offset: number }> = ({ id, rocketsRef, unitsRef, tileSize, offset }) => {
+    const groupRef = useRef<THREE.Group>(null);
+    const trailRef = useRef<THREE.InstancedMesh>(null);
+    const placed = useRef(false);
+    const history = useRef<THREE.Vector3[]>([]);
+    const dummy = useMemo(() => new THREE.Object3D(), []);
+    useFrame((_, delta) => {
+        const group = groupRef.current;
+        const r = rocketsRef.current.find(x => x.id === id);
+        if (!group || !r) return;
+        const target = r.targetUnitId ? unitsRef.current.find(u => u.id === r.targetUnitId && u.health > 0) : undefined;
+        const total = Math.max(0.01, Math.hypot(r.aim.x - r.from.x, r.aim.z - r.from.z));
+        const left = Math.hypot(r.aim.x - r.at.x, r.aim.z - r.at.z);
+        const progress = Math.min(1, Math.max(0, 1 - left / Math.max(total, left)));
+        const targetY = target ? flightUnitY(target) : 1.5;
+        let goal = new THREE.Vector3(r.at.x * tileSize - offset, 2.5 + (targetY - 2.5) * progress + (target && targetY > 10 ? 0 : 6 * Math.sin(Math.PI * progress)), r.at.z * tileSize - offset);
+        if (target && left < 1.5) {
+            const w = unitWorld(target, tileSize, offset, targetY);
+            goal = new THREE.Vector3(w.x, w.y, w.z);
+        }
+        if (!placed.current) { group.position.copy(goal); placed.current = true; }
+        const before = group.position.clone();
+        group.position.lerp(goal, 1 - Math.exp(-delta * 14));
+        if (before.distanceToSquared(group.position) > 1e-4) group.lookAt(group.position.clone().add(group.position.clone().sub(before)));
+        // Exhaust trail: the last few positions, shrinking and fading back along the path.
+        const h = history.current;
+        h.unshift(group.position.clone());
+        if (h.length > EMP_TRAIL) h.pop();
+        const trail = trailRef.current;
+        if (trail) {
+            for (let i = 0; i < EMP_TRAIL; i++) {
+                const p = h[Math.min(i, h.length - 1)];
+                dummy.position.copy(p);
+                dummy.scale.setScalar(Math.max(0.05, 1 - i / EMP_TRAIL) * 0.55);
+                dummy.updateMatrix();
+                trail.setMatrixAt(i, dummy.matrix);
+            }
+            trail.instanceMatrix.needsUpdate = true;
+        }
+    });
+    return (
+        <>
+            <group ref={groupRef}>
+                <mesh rotation={[Math.PI / 2, 0, 0]} raycast={() => null}>
+                    <cylinderGeometry args={[0.18, 0.18, 1.4, 8]} />
+                    <meshBasicMaterial color="#e2e8f0" />
+                </mesh>
+                <mesh position={[0, 0, 0.85]} rotation={[Math.PI / 2, 0, 0]} raycast={() => null}>
+                    <coneGeometry args={[0.18, 0.4, 8]} />
+                    <meshBasicMaterial color={EMP_BLUE} toneMapped={false} />
+                </mesh>
+                <mesh position={[0, 0, -0.8]} raycast={() => null}>
+                    <sphereGeometry args={[0.35, 8, 6]} />
+                    <meshBasicMaterial color="#bae6fd" transparent opacity={0.9} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+                </mesh>
+            </group>
+            <instancedMesh ref={trailRef} args={[undefined, undefined, EMP_TRAIL]} raycast={() => null} frustumCulled={false}>
+                <sphereGeometry args={[1, 6, 4]} />
+                <meshBasicMaterial color={EMP_BLUE} transparent opacity={0.45} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+            </instancedMesh>
+        </>
     );
 };
 
@@ -1040,6 +1109,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // Thunderhead shells in flight. The ref is the authority; the state is for drawing them.
   const [shells, setShells] = useState<ArtilleryShell[]>([]);
   const shellsRef = useRef<ArtilleryShell[]>([]);
+  // Lancer EMP rockets in flight, the same way.
+  const [rockets, setRockets] = useState<EmpRocket[]>([]);
+  const rocketsRef = useRef<EmpRocket[]>([]);
   // Aegis cannon fire this tick (for the tracer stream), and fire each piece of ordnance has taken.
   const ciwsLinksRef = useRef<CiwsLink[]>([]);
   const ordnanceHitsRef = useRef(new Map<string, number>());
@@ -1803,10 +1875,27 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       return () => clearInterval(interval);
   }, []);
 
+  // EMP rocket lock-on: every selected Lancer in range fires at the chosen enemy and the rockets
+  // chase it. Only an enemy vehicle or aircraft your side can see can be locked.
+  const LOCK_ON = 'UNIT:emp_rocket:lock';
+  const fireLockOn = (target: UnitData) => {
+      const source = unitsRef.current.find(u => u.id === targetingSourceId);
+      const ids = unitsRef.current.filter(u => u.type === source?.type && (u.id === targetingSourceId || selectedUnitIds.has(u.id))).map(u => u.id);
+      if (dispatchAbility({ type: 'UNIT_ABILITY', unitIds: ids, ability: 'emp_rocket', targetUnitId: target.id })) clearTargeting();
+  };
+  const lockable = (u: UnitData) => u.team !== playerTeam && isEmpTarget(u) && visibleUnitIdsRef.current.has(u.id);
+
   const handleUnitSelect = (id: string) => {
       // If we just dragged, ignore click logic that might fire
       if (didDragRef.current) return;
       if (interactionMode === 'target') return; // Selection disabled in target mode
+
+      if (targetingSourceId && targetingAbility === LOCK_ON) {
+          const target = unitsRef.current.find(u => u.id === id);
+          if (target && lockable(target)) fireLockOn(target);
+          else onNotice?.('Lock on to an enemy vehicle or aircraft in sight', 'warn');
+          return;
+      }
 
       if (targetingSourceId && targetingAbility === 'TETHER') {
           if (dispatchAbility({ type: 'HARDLINE_TETHER', unitId: targetingSourceId, targetUnitId: id })) clearTargeting();
@@ -1897,6 +1986,16 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           const ids = unitsRef.current.filter(u => u.type === 'howitzer' && (u.id === targetingSourceId || selectedUnitIds.has(u.id))).map(u => u.id);
           dispatchAbility({ type: 'ARTILLERY_FIRE', unitIds: ids, target: { x, z } });
           clearTargeting();
+      } else if (targetingSourceId && targetingAbility === LOCK_ON) {
+          // A click on the ground near a lockable enemy counts as clicking it: units are small.
+          let best: UnitData | null = null;
+          let bestD = 1.5;
+          for (const u of unitsRef.current) {
+              const d = Math.hypot(u.gridPos.x - x, u.gridPos.z - z);
+              if (d <= bestD && lockable(u)) { best = u; bestD = d; }
+          }
+          if (best) fireLockOn(best);
+          else onNotice?.('No lock: click an enemy vehicle or aircraft in sight, or use Fire at Location', 'warn');
       } else if (targetingSourceId && targetingAbility?.startsWith('UNIT:')) {
           // Every selected unit of the same type that is in range joins the strike.
           const ability = targetingAbility.slice(5);
@@ -2037,6 +2136,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           setDecoys(prev => [...prev.filter(d => !d.ownerId || !fx.clearDecoysOf.includes(d.ownerId)), ...fx.spawnDecoys]);
       }
       if (fx.spawnProjectiles.length > 0) setProjectiles(prev => [...prev, ...fx.spawnProjectiles]);
+      if (fx.rockets && fx.rockets.length > 0) {
+          rocketsRef.current = [...rocketsRef.current, ...fx.rockets];
+          setRockets(rocketsRef.current);
+      }
       // An aimed EMP rocket or Hellfire salvo: a burst at the target.
       if (fx.strike) {
           const at = { x: fx.strike.at.x * tileSize - offset, y: 1.5, z: fx.strike.at.z * tileSize - offset };
@@ -2206,9 +2309,16 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (action.startsWith('TAKE_')) { dispatchAbility({ type: 'TAKE_WARHEAD', unitId, warhead: warheadIn(action) }); return; }
       if (action === 'RESUPPLY_MATERIAL') { dispatchAbility({ type: 'RESUPPLY_MATERIAL', unitId }); return; }
       if (action.startsWith('UNIT_ABILITY:')) {
-          const ability = action.slice('UNIT_ABILITY:'.length);
+          const [ability, mode] = action.slice('UNIT_ABILITY:'.length).split(':');
           const def = abilityDef(ability);
           if (!def) return;
+          if (mode === 'lock') {
+              // Lock on with the next click on an enemy vehicle or aircraft in sight.
+              setTargetingSourceId(unitId);
+              setTargetingAbility(`UNIT:${ability}:lock`);
+              onNotice?.(`${def.name}: click an enemy vehicle or aircraft in sight within ${def.targeted?.range} tiles to lock on`);
+              return;
+          }
           if (def.targeted) {
               // Aim with the next map click.
               setTargetingSourceId(unitId);
@@ -2718,6 +2828,29 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   setShells(impact.flying);
               }
           }
+          // Lancer EMP rockets (sim/empRocket.ts): step them, and the ones that arrive go off.
+          if (rocketsRef.current.length > 0) {
+              const flight = empRocketTick(rocketsRef.current, currentUnitsRef, now, TICK_RATE);
+              rocketsRef.current = flight.flying;
+              setRockets(flight.flying);
+              if (flight.detonated.length > 0) {
+                  const pulse = new Map<string, (u: UnitData) => UnitData>();
+                  for (const { rocket, at } of flight.detonated) mergeUnitUpdates(pulse, empRocketImpact(unitsRef.current, at, rocket.team, now));
+                  if (pulse.size > 0) {
+                      const hit = (list: UnitData[]) => list.map(u => pulse.get(u.id)?.(u) ?? u);
+                      unitsRef.current = hit(unitsRef.current);
+                      setUnits(hit);
+                  }
+                  setExplosions(prev => [...prev, ...flight.detonated.map(({ rocket, at }) => {
+                      const target = rocket.targetUnitId ? unitsRef.current.find(u => u.id === rocket.targetUnitId) : undefined;
+                      return {
+                          id: `rocket-exp-${rocket.id}`,
+                          position: { x: at.x * tileSize - offset, y: target ? flightUnitY(target) : 1.5, z: at.z * tileSize - offset },
+                          radius: EMP_ROCKET.radius * tileSize, duration: 1100, createdAt: now, style: 'emp' as const,
+                      };
+                  })]);
+              }
+          }
           if (attacks.shots.length > 0) {
               setTracers(prev => [...prev, ...attacks.shots.map((shot, i) => ({ ...shot, id: `tracer-${now}-${i}`, createdAt: now }))]);
           }
@@ -2957,6 +3090,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const tetherTargetingSource = targetingAbility === 'TETHER' && targetingSourceId
       ? units.find(src => src.id === targetingSourceId)
       : undefined;
+  // Lancers about to lock on, and how far they reach: enemies they could lock get a marker.
+  const lockRange = abilityDef('emp_rocket')?.targeted?.range ?? 0;
+  const lockSource = targetingAbility === LOCK_ON ? units.find(src => src.id === targetingSourceId) : undefined;
+  const lockers = lockSource ? units.filter(l => l.type === lockSource.type && l.health > 0 && (l.id === lockSource.id || selectedUnitIds.has(l.id))) : [];
   const batteryTargetingSource = targetingAbility === 'BATTERY_TETHER' && targetingSourceId
       ? units.find(src => src.id === targetingSourceId && src.type === 'sun_plate' && src.isDeployed)
       : undefined;
@@ -3061,9 +3198,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         ))}
         {units.map(u => {
              const isVisible = visibleUnitIds.has(u.id);
+             const isLockCandidate = lockers.length > 0 && isVisible && u.team !== playerTeam && isEmpTarget(u)
+                 && lockers.some(l => Math.hypot(l.gridPos.x - u.gridPos.x, l.gridPos.z - u.gridPos.z) <= lockRange);
              const atOrdnanceFab = structuresState.some(s => s.type === 'ordnance_fab' && s.team === u.team && !s.isBlueprint && Math.hypot(s.gridPos.x - u.gridPos.x, s.gridPos.z - u.gridPos.z) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE);
              const ballistaInRange = u.type === 'mule' && units.some(b => b.type === 'ballista' && b.team === u.team && b.health > 0 && Math.hypot(b.gridPos.x - u.gridPos.x, b.gridPos.z - u.gridPos.z) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE);
-             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? economy[u.team].tier : 0} showRadar={u.team === playerTeam && isRadarActive(u)} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && (!!u.tetherTargetId || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} showBatteryRange={u.type === 'sun_plate' && !!u.isDeployed && (selectedUnitIds.has(u.id) || (targetingSourceId === u.id && targetingAbility === 'BATTERY_TETHER'))} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} isBatteryLinkCandidate={!!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE} warheadStock={u.team === playerTeam && (playerTeam === 'blue' || playerTeam === 'red') ? stockpile[playerTeam] : undefined} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={(u.team === 'blue' || u.team === 'red') ? teamResources[u.team] : 0} /> );
+             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? economy[u.team].tier : 0} showRadar={u.team === playerTeam && isRadarActive(u)} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && (!!u.tetherTargetId || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} showBatteryRange={u.type === 'sun_plate' && !!u.isDeployed && (selectedUnitIds.has(u.id) || (targetingSourceId === u.id && targetingAbility === 'BATTERY_TETHER'))} isLockCandidate={isLockCandidate} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} isBatteryLinkCandidate={!!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE} warheadStock={u.team === playerTeam && (playerTeam === 'blue' || playerTeam === 'red') ? stockpile[playerTeam] : undefined} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={(u.team === 'blue' || u.team === 'red') ? teamResources[u.team] : 0} /> );
         })}
         {decoys.map(d => {
             const seen = d.team === playerTeam || units.some(f => f.team === playerTeam && Math.hypot(f.gridPos.x - d.gridPos.x, f.gridPos.z - d.gridPos.z) <= (f.visionRange || 2));
@@ -3111,6 +3250,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         )}
 
         {/* Thunderhead shells, and the fire missions of selected batteries */}
+        {rockets.map(r => <EmpRocketMesh key={r.id} id={r.id} rocketsRef={rocketsRef} unitsRef={unitsRef} tileSize={tileSize} offset={offset} />)}
         {shells.map(s => <ShellMesh key={s.id} shell={s} tileSize={tileSize} offset={offset} enemy={s.team !== playerTeam} />)}
         {units.filter(u => u.type === 'howitzer' && u.artilleryTarget && u.team === playerTeam && selectedUnitIds.has(u.id))
             .map(u => <FireMissionMarker key={`fm-${u.id}`} at={u.artilleryTarget!} tileSize={tileSize} offset={offset} />)}

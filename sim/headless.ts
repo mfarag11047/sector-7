@@ -10,6 +10,7 @@ import { CITY_CONFIG, STRUCTURE_INFO, TEAM_BASES } from '../constants';
 import type { BuildingData, DoctrineType, RoadType, StructureData, UnitData } from '../types';
 import { abilityEffects, applyUnitEffects } from './abilities';
 import { AiMemory, AI_PROFILES, aiThink, freshAiMemory } from './ai';
+import { EmpRocket, empRocketImpact, empRocketTick, mergeUnitUpdates } from './empRocket';
 import { ArtilleryShell, fireArtillery, landShells, shellGroundPos } from './artillery';
 import { captureTick } from './capture';
 import { applyCiwsState, ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
@@ -55,6 +56,8 @@ export interface HeadlessMatch {
   shells: ArtilleryShell[];
   // Fire each shell has taken from Aegis cannons.
   shellHits: Map<string, number>;
+  // Lancer EMP rockets in flight.
+  rockets: EmpRocket[];
   nextId: number;
   // Seeded, so the same options always play out the same match.
   random: () => number;
@@ -89,6 +92,7 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     lastShot: new Map(),
     shells: [],
     shellHits: new Map(),
+    rockets: [],
     nextId: 0,
     random: seededRandom(opts.seed ^ 0x5eed),
     gridSize,
@@ -167,6 +171,14 @@ export function stepMatch(m: HeadlessMatch): void {
   const impact = landShells([...m.shells, ...volley.shells], now, m.units, m.structures);
   m.shells = impact.flying;
   impact.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+  // Lancer EMP rockets: the ones that arrive go off.
+  if (m.rockets.length > 0) {
+    const flight = empRocketTick(m.rockets, m.units, now, MOVE_TICK_MS);
+    m.rockets = flight.flying;
+    const pulse = new Map<string, (u: UnitData) => UnitData>();
+    for (const { rocket, at } of flight.detonated) mergeUnitUpdates(pulse, empRocketImpact(m.units, at, rocket.team, now));
+    if (pulse.size > 0) m.units = m.units.map(u => pulse.get(u.id)?.(u) ?? u);
+  }
   if (impact.structureDamage.size > 0) m.structures = applyStructureCombat(m.structures, { structureDamage: impact.structureDamage, fired: new Map(), aiming: new Map() }, now);
 
   // Capture.
@@ -265,6 +277,7 @@ function think(m: HeadlessMatch, team: Team, paths: ReturnType<typeof pathfinder
       });
       if (!('reason' in outcome)) {
         m.units = applyUnitEffects(m.units, outcome.effects);
+        if (outcome.effects.rockets) m.rockets.push(...outcome.effects.rockets);
         if (outcome.effects.economy) m.economy = outcome.effects.economy(m.economy) ?? m.economy;
       }
     } else if (action.kind === 'doctrine') {

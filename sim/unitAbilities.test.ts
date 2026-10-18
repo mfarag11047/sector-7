@@ -4,6 +4,7 @@ import { CIWS, ciwsTick } from './ciws';
 import { resolveAttacks } from './combat';
 import { speedMultiplier } from './movement';
 import { createUnit } from './production';
+import { EMP_ROCKET, EmpRocket, empRocketImpact, empRocketTick } from './empRocket';
 import { abilitiesFor, empVictims, HELLFIRE_DAMAGE, pruneBuffs, spendOvercharge, STIM_HEALTH_COST, unitAbilityEffects, UNIT_ABILITIES } from './unitAbilities';
 import { shotDamage, UNIT_RULES } from './units';
 
@@ -12,6 +13,18 @@ const apply = (units: UnitData[], updates: Map<string, (u: UnitData) => UnitData
 const use = (units: UnitData[], tier: 1 | 2 | 3, command: { unitIds: string[]; ability: string; target?: { x: number; z: number } }, now = 1000) => {
   const r = unitAbilityEffects(units, 'blue', tier, command, now);
   return 'reason' in r ? { refused: r.reason } : { units: apply(units, r.updates), strike: r.strike };
+};
+
+// Flies rockets in 100 ms steps until the first one goes off.
+const flyRockets = (rockets: EmpRocket[], units: UnitData[], from: number) => {
+  let now = from;
+  for (let i = 0; i < 100; i++) {
+    now += 100;
+    const step = empRocketTick(rockets, units, now, 100);
+    if (step.detonated.length > 0) return { landed: true, at: step.detonated[0].at, now };
+    rockets = step.flying;
+  }
+  return { landed: false, at: { x: NaN, z: NaN }, now };
 };
 
 describe('the ability roster', () => {
@@ -79,17 +92,76 @@ describe('effects in combat and movement', () => {
     expect(woven).toBeCloseTo(plain / 2);
   });
 
-  it('EMP shuts down vehicles and aircraft in the blast, not infantry', () => {
+  it('EMP rocket: fired at a location, it flies there and shuts down vehicles and aircraft in the blast, not infantry', () => {
     const lancer = at(createUnit('lancer', 'blue', 'l', { x: 0, z: 0 }), 0);
     const units = [lancer, enemy('razorback', 5, 'rb'), enemy('hornet', 5, 'h'), enemy('trooper', 5, 'tr'), enemy('tank', 9, 'far')];
-    const r = use(units, 3, { unitIds: ['l'], ability: 'emp_rocket', target: { x: 5, z: 0 } });
-    const hitBy = (id: string) => r.units!.find(u => u.id === id)!.buffs?.some(b => b.kind === 'emp') ?? false;
+    const r = unitAbilityEffects(units, 'blue', 3, { unitIds: ['l'], ability: 'emp_rocket', target: { x: 5, z: 0 } }, 1000);
+    if ('reason' in r) throw new Error(r.reason);
+    // Nothing happens until the rocket arrives.
+    expect(r.rockets).toHaveLength(1);
+    expect(r.rockets![0]).toMatchObject({ aim: { x: 5, z: 0 }, targetUnitId: null });
+    expect(apply(units, r.updates).some(u => u.buffs?.some(b => b.kind === 'emp'))).toBe(false);
+    const { landed, at: boom, now } = flyRockets(r.rockets!, units, 1000);
+    expect(boom).toEqual({ x: 5, z: 0 });
+    const hit = apply(units, empRocketImpact(units, boom, 'blue', now));
+    const hitBy = (id: string) => hit.find(u => u.id === id)!.buffs?.some(b => b.kind === 'emp') ?? false;
+    expect(landed).toBe(true);
     expect([hitBy('rb'), hitBy('h'), hitBy('tr'), hitBy('far')]).toEqual([true, true, false, false]);
-    expect(r.strike).toMatchObject({ kind: 'emp', at: { x: 5, z: 0 } });
     // A disabled Razorback can't move or shoot.
-    const rb = { ...r.units!.find(u => u.id === 'rb')!, path: ['4,0'] };
+    const rb = { ...hit.find(u => u.id === 'rb')!, path: ['4,0'] };
     expect(speedMultiplier(rb, () => 'street')).toBe(0);
-    expect(fire([rb, at(createUnit('trooper', 'blue', 'b', { x: 0, z: 0 }), 4)], 50_000).fired.has('rb')).toBe(false);
+    expect(fire([rb, at(createUnit('trooper', 'blue', 'b', { x: 0, z: 0 }), 4)], now + 50).fired.has('rb')).toBe(false);
+  });
+
+  it('EMP rocket drains half a full battery from each victim', () => {
+    const units = [at(createUnit('lancer', 'blue', 'l', { x: 0, z: 0 }), 0), { ...enemy('tank', 3, 'a'), battery: 80 }, { ...enemy('tank', 3, 'b'), battery: 30 }];
+    const hit = apply(units, empRocketImpact(units, { x: 3, z: 0 }, 'blue', 1000));
+    expect(hit.find(u => u.id === 'a')!.battery).toBe(80 - 50);
+    expect(hit.find(u => u.id === 'b')!.battery).toBe(0);
+    expect(hit.find(u => u.id === 'l')!.battery).toBe(100);
+  });
+
+  it('EMP rocket locked on tracks its target until it hits', () => {
+    const lancer = at(createUnit('lancer', 'blue', 'l', { x: 0, z: 0 }), 0);
+    let units = [lancer, enemy('razorback', 4, 'rb')];
+    const r = unitAbilityEffects(units, 'blue', 3, { unitIds: ['l'], ability: 'emp_rocket', targetUnitId: 'rb' }, 1000);
+    if ('reason' in r) throw new Error(r.reason);
+    expect(r.rockets![0].targetUnitId).toBe('rb');
+    // The Razorback runs; the rocket follows it.
+    let rockets = r.rockets!;
+    let now = 1000;
+    let boom: { x: number; z: number } | null = null;
+    for (let i = 0; i < 40 && !boom; i++) {
+      now += 100;
+      units = units.map(u => u.id === 'rb' ? { ...u, gridPos: { x: 4, z: Math.min(5, Math.floor(i / 2)) } } : u);
+      const step = empRocketTick(rockets, units, now, 100);
+      rockets = step.flying;
+      if (step.detonated.length > 0) boom = step.detonated[0].at;
+    }
+    expect(boom).toEqual({ x: 4, z: units[1].gridPos.z });
+    expect(units[1].gridPos.z).toBeGreaterThan(0);
+  });
+
+  it('EMP rocket can only lock on to an enemy vehicle or aircraft that is in sight and in range', () => {
+    const lancer = at(createUnit('lancer', 'blue', 'l', { x: 0, z: 0 }), 0);
+    const units = [lancer, enemy('trooper', 3, 'tr'), enemy('tank', 6, 'seen'), enemy('tank', 9, 'far'), at(createUnit('tank', 'blue', 'own', { x: 0, z: 0 }), 2)];
+    const lock = (id: string, canSee?: (u: UnitData) => boolean) => {
+      const r = unitAbilityEffects(units, 'blue', 3, { unitIds: ['l'], ability: 'emp_rocket', targetUnitId: id }, 1000, canSee);
+      return 'reason' in r ? r.reason : 'ok';
+    };
+    expect(lock('tr')).toMatch(/vehicle or aircraft/);
+    expect(lock('own')).toMatch(/vehicle or aircraft/);
+    expect(lock('far')).toMatch(/line of sight|out of range/);
+    expect(lock('seen', () => false)).toMatch(/line of sight/);
+    expect(lock('seen', () => true)).toBe('ok');
+    expect(lock('far', () => true)).toMatch(/out of range/);
+  });
+
+  it('EMP rocket burns out and goes off where it is if it cannot catch its target', () => {
+    const rocket = { id: 'r', team: 'blue' as const, attackerId: 'l', from: { x: 0, z: 0 }, at: { x: 0, z: 0 }, aim: { x: 100, z: 0 }, targetUnitId: null, firedAt: 0 };
+    const { landed, at: boom } = flyRockets([rocket], [], 0);
+    expect(landed).toBe(true);
+    expect(boom.x).toBeCloseTo(EMP_ROCKET.speed * EMP_ROCKET.maxFlightMs / 1000, 0);
   });
 
   it('Hellfire hits ground units in the area, and needs to be in range', () => {

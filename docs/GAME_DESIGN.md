@@ -257,7 +257,7 @@ energy discharge rather than a fireball, and disabled machines crackle with blue
   enemy's energy grid there for the same time: nothing recharges from the grid inside the zone and
   nothing can be built there. The blackout shows as a crackling blue disc. Rules: `Blackout` and
   `isInsideEnergyGrid` in `sim/energy.ts`, `empVictims` in `sim/unitAbilities.ts`.
-- **Lancer EMP Tandem Rocket** (Tier 3 ability): 2-tile blast, 4 s shutdown.
+- **Lancer EMP Tandem Rocket** (Tier 3 ability): 2-tile blast, 4 s shutdown, and each victim loses half a full battery. Two fire modes: lock on to an enemy vehicle or aircraft in sight (the rocket tracks it to impact), or fire at a location. The rocket flies at 9 tiles/s and burns out after 4 s.
 - **Shadow Ops Global EMP** (Tier 3 doctrine power): stuns every enemy unit for 10 s.
 
 ## Thunderhead mobile artillery
@@ -297,7 +297,7 @@ Abilities act on every selected unit of that type. Rules: `sim/unitAbilities.ts`
 | Razorback | Nitro Injection | T1 | 25 s | +80% speed for 5 s |
 | | Overclocked Autogun | T2 | 35 s | Double fire rate for 6 s |
 | Lancer | Overcharged Warhead | T2 | 25 s | Next rocket (within 15 s) does 2.5x damage |
-| | EMP Tandem Rocket ⌖ | T3 | 45 s | Range 6, radius 2: vehicles and aircraft can't move or fire for 4 s; infantry unaffected |
+| | EMP Tandem Rocket ⌖ | T3 | 45 s | Range 6, radius 2. Lock On (an enemy vehicle or aircraft in sight; the rocket tracks it) or Fire at Location. Vehicles and aircraft can't move or fire for 4 s and lose half a battery; infantry unaffected |
 | Aegis | Flak Barrage | T2 | 30 s | Double fire rate for 6 s, and bursts also hit aircraft within 1.5 tiles of the target |
 | | Sky-Net Radar Sweep | T3 | 40 s | Vision 14 and +2 weapon range for 10 s |
 | Hornet | Afterburners | T2 | 25 s | +70% speed for 5 s |

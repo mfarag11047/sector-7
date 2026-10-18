@@ -77,7 +77,8 @@ export interface DisconnectBatteryCommand { type: 'DISCONNECT_BATTERY'; unitId: 
 
 // --- New-unit abilities (sim/unitAbilities.ts) ---
 // Every listed unit of the ability's type uses it; aimed ones take a target tile.
-export interface UnitAbilityCommand { type: 'UNIT_ABILITY'; unitIds: string[]; ability: string; target?: GridPos }
+// `targetUnitId` locks an aimed ability on to an enemy unit (the Lancer's EMP rocket).
+export interface UnitAbilityCommand { type: 'UNIT_ABILITY'; unitIds: string[]; ability: string; target?: GridPos; targetUnitId?: string }
 
 // --- Doctrine ---
 
@@ -196,7 +197,7 @@ const CHECKS: Record<CommandType, (c: Fields) => boolean> = {
   DISCONNECT_TETHER: unit,
   BATTERY_LINK: unitLink,
   DISCONNECT_BATTERY: unit,
-  UNIT_ABILITY: c => isIdList(c.unitIds) && typeof c.ability === 'string' && c.ability.length <= 32 && (c.target === undefined || isTile(c.target)),
+  UNIT_ABILITY: c => isIdList(c.unitIds) && typeof c.ability === 'string' && c.ability.length <= 32 && (c.target === undefined || isTile(c.target)) && (c.targetUnitId === undefined || isId(c.targetUnitId)),
   SELECT_DOCTRINE: c => oneOf(DOCTRINES, c.doctrine),
   DOCTRINE_POWER: c => (c.tier === 2 || c.tier === 3) && (c.target === undefined || isTile(c.target)),
 };

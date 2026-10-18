@@ -6,7 +6,8 @@
 //
 // Most abilities give the unit a timed buff, which combat (sim/combat.ts) and movement
 // (sim/movement.ts) read: faster firing, more damage, less damage taken, more speed or range.
-// Two are aimed at a tile: the Lancer's EMP rocket and the Hornet's Hellfire salvo.
+// Two are aimed: the Hornet's Hellfire salvo at a tile, and the Lancer's EMP rocket either at a
+// tile or locked on to an enemy vehicle it can see (the rocket's flight is sim/empRocket.ts).
 //
 // Orders arrive as UNIT_ABILITY commands and are checked here like every other ability:
 // the sender's units, the right type, the tier researched, off cooldown, in range.
@@ -14,6 +15,7 @@
 import { UNIT_STATS } from '../constants';
 import type { UnitData, UnitType } from '../types';
 import type { GridPos, Team } from './commands';
+import type { EmpRocket } from './empRocket';
 import { shotDamage, Tier, UNIT_RULES } from './units';
 
 export type BuffKind = 'stim' | 'nanoweave' | 'overcharge' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'emp';
@@ -43,7 +45,7 @@ export const UNIT_ABILITIES: readonly UnitAbilityDef[] = [
   { id: 'overcharge', unit: 'lancer', name: 'Overcharged Warhead', tier: 2, cooldownMs: 25_000, durationMs: 15_000,
     description: 'Routes the suit battery into the next rocket: 2.5x damage.' },
   { id: 'emp_rocket', unit: 'lancer', name: 'EMP Tandem Rocket', tier: 3, cooldownMs: 45_000, durationMs: 4_000, targeted: { range: 6, radius: 2 },
-    description: 'Electromagnetic pulse warhead: vehicles and aircraft in the blast shut down for 4s, unable to move or fire.' },
+    description: 'Electromagnetic pulse warhead. Lock on to an enemy vehicle or aircraft in sight and the rocket tracks it to impact, or fire it at a location. Vehicles and aircraft in the blast shut down for 4s and lose half a battery.' },
 
   { id: 'nitro', unit: 'razorback', name: 'Nitro Injection', tier: 1, cooldownMs: 25_000, durationMs: 5_000,
     description: '+80% speed for 5s. Hit, run, or close the gap.' },
@@ -111,15 +113,17 @@ export const abilityCooldownLeft = (u: UnitData, id: UnitAbilityId, now: number)
 // --- The order ---
 
 export type UnitAbilityOutcome =
-  | { ok: true; updates: Map<string, (u: UnitData) => UnitData>; strike?: { at: GridPos; radius: number; kind: 'emp' | 'hellfire' } }
+  | { ok: true; updates: Map<string, (u: UnitData) => UnitData>; strike?: { at: GridPos; radius: number; kind: 'emp' | 'hellfire' }; rockets?: EmpRocket[] }
   | { ok: false; reason: string };
 
 export function unitAbilityEffects(
   units: readonly UnitData[],
   team: Team,
   tier: Tier,
-  command: { unitIds: string[]; ability: string; target?: GridPos },
+  command: { unitIds: string[]; ability: string; target?: GridPos; targetUnitId?: string },
   now: number,
+  // Whether `team` can see a unit, for locking on. Defaults to any friendly unit's vision.
+  canSee: (u: UnitData) => boolean = u => units.some(f => f.team === team && f.health > 0 && Math.hypot(f.gridPos.x - u.gridPos.x, f.gridPos.z - u.gridPos.z) <= visionOf(f)),
 ): UnitAbilityOutcome {
   const def = abilityDef(command.ability);
   if (!def) return { ok: false, reason: 'unknown ability' };
@@ -144,25 +148,36 @@ export function unitAbilityEffects(
     return { ok: true, updates };
   }
 
+  // Locked on: every selected Lancer in range fires a rocket that chases the target.
+  let locked: UnitData | undefined;
+  if (command.targetUnitId) {
+    if (def.id !== 'emp_rocket') return { ok: false, reason: `${def.name} can't lock on` };
+    locked = units.find(u => u.id === command.targetUnitId);
+    if (!locked || locked.team === team || locked.health <= 0 || UNIT_RULES[locked.type].armor === 'infantry') return { ok: false, reason: 'lock on to an enemy vehicle or aircraft' };
+    if (!canSee(locked)) return { ok: false, reason: 'no line of sight to lock on' };
+  }
   // Aimed: every selected caster in range fires once at the same tile.
-  const target = command.target;
+  const target = locked ? locked.gridPos : command.target;
   if (!target) return { ok: false, reason: 'pick a target' };
   const inRange = casters.filter(c => Math.hypot(c.gridPos.x - target.x, c.gridPos.z - target.z) <= def.targeted!.range);
   if (inRange.length === 0) return { ok: false, reason: `out of range (${def.targeted.range} tiles)` };
   for (const c of inRange) updates.set(c.id, ready);
 
+  // The EMP rocket flies (sim/empRocket.ts); its pulse goes off where it lands.
   if (def.id === 'emp_rocket') {
-    for (const victim of empVictims(units, target, def.targeted.radius, team)) updates.set(victim.id, u => addBuff(u, 'emp', now + def.durationMs));
+    const rockets = inRange.map((c): EmpRocket => ({
+      id: `rocket-${c.id}-${now}`, team, attackerId: c.id, from: { ...c.gridPos }, at: { ...c.gridPos }, aim: { ...target },
+      targetUnitId: locked?.id ?? null, firedAt: now,
+    }));
+    return { ok: true, updates, rockets };
   }
   const hit = units.filter(u => u.team !== team && u.health > 0 && Math.hypot(u.gridPos.x - target.x, u.gridPos.z - target.z) <= def.targeted!.radius);
   for (const victim of hit) {
     const armor = UNIT_RULES[victim.type].armor;
-    if (def.id === 'hellfire') {
-      if (armor === 'air') continue;
-      const damage = shotDamage({ damage: HELLFIRE_DAMAGE, cooldownMs: 0, range: 0, type: 'ap', hitsGround: true, hitsAir: false }, armor)
-        * inRange.length * damageTakenMultiplier(victim);
-      updates.set(victim.id, u => ({ ...u, health: Math.max(0, u.health - damage) }));
-    }
+    if (armor === 'air') continue;
+    const damage = shotDamage({ damage: HELLFIRE_DAMAGE, cooldownMs: 0, range: 0, type: 'ap', hitsGround: true, hitsAir: false }, armor)
+      * inRange.length * damageTakenMultiplier(victim);
+    updates.set(victim.id, u => ({ ...u, health: Math.max(0, u.health - damage) }));
   }
-  return { ok: true, updates, strike: { at: target, radius: def.targeted.radius, kind: def.id === 'emp_rocket' ? 'emp' : 'hellfire' } };
+  return { ok: true, updates, strike: { at: target, radius: def.targeted.radius, kind: 'hellfire' } };
 }

@@ -190,6 +190,8 @@ interface UnitProps {
   showTetherRange?: boolean;
   showBatteryRange?: boolean;
   isTetherCandidate?: boolean;
+  // An enemy the selected Lancer can lock its EMP rocket on to.
+  isLockCandidate?: boolean;
   isBatteryLinkCandidate?: boolean;
   batteryTetherIds?: string[];
   ammoState?: 'empty' | 'loading' | 'armed' | 'awaiting_delivery';
@@ -351,7 +353,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, showRadar, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, showRadar, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -1131,6 +1133,13 @@ const Unit: React.FC<UnitProps> = ({
           <meshBasicMaterial color="#facc15" transparent opacity={0.45} side={THREE.DoubleSide} />
         </mesh>
       )}
+      {/* Lock-on reticle: drawn over everything so it reads on any vehicle or aircraft. */}
+      {isLockCandidate && (
+        <mesh rotation={[-Math.PI/2, 0, Math.PI / 4]} position={[0, isAir ? 0 : 1, 0]} raycast={() => null} renderOrder={15}>
+          <ringGeometry args={[tileSize * 0.36, tileSize * 0.44, 4]} />
+          <meshBasicMaterial color="#38bdf8" transparent opacity={0.9} side={THREE.DoubleSide} depthTest={false} depthWrite={false} toneMapped={false} />
+        </mesh>
+      )}
       {isTetherCandidate && (
         <group>
           <mesh position={[0, -hoverHeight / 2, 0]}>
@@ -1274,22 +1283,27 @@ const Unit: React.FC<UnitProps> = ({
                   {isAegis && <CiwsStatus usedMs={ciwsUsedMs ?? 0} reloadUntil={ciwsReloadUntil ?? 0} firing={!!ciwsTargetId} />}
 
                   {/* New-unit abilities: unlocked by the team's researched tier (teamCompute carries it). */}
-                  {abilitiesFor(type).map(a => {
+                  {abilitiesFor(type).flatMap(a => {
                       const locked = teamCompute < a.tier;
                       const wait = Math.ceil(Math.max(0, (abilityReadyAt?.[a.id] ?? 0) - Date.now()) / 1000);
                       const active = !!buffs?.some(b => b.kind === a.id);
-                      return (
+                      // The EMP rocket has two fire modes, sharing one cooldown.
+                      const modes = a.id === 'emp_rocket'
+                          ? [{ action: `UNIT_ABILITY:${a.id}:lock`, label: 'EMP Rocket: Lock On', hint: 'Click an enemy vehicle or aircraft in sight; the rocket tracks it to impact.' },
+                             { action: `UNIT_ABILITY:${a.id}`, label: 'EMP Rocket: Fire at Location', hint: 'Click a spot; for when nothing is in sight.' }]
+                          : [{ action: `UNIT_ABILITY:${a.id}`, label: a.name, hint: '' }];
+                      return modes.map(m => (
                           <button
-                              key={a.id}
+                              key={m.action}
                               disabled={locked || wait > 0}
-                              title={`${a.description}${locked ? ` Needs Tier ${a.tier}.` : ''}`}
-                              onClick={(e) => { e.stopPropagation(); handleMenuAction(`UNIT_ABILITY:${a.id}`); }}
+                              title={`${a.description}${m.hint ? ` ${m.hint}` : ''}${locked ? ` Needs Tier ${a.tier}.` : ''}`}
+                              onClick={(e) => { e.stopPropagation(); handleMenuAction(m.action); }}
                               className={`text-[10px] px-2 py-1 rounded text-left flex justify-between gap-2 ${active ? 'bg-cyan-900 text-cyan-200' : locked ? 'bg-slate-900 text-slate-500' : 'bg-slate-800 hover:bg-slate-700 text-white'} disabled:cursor-not-allowed`}
                           >
-                              <span>{a.name}{a.targeted ? ' ⌖' : ''}</span>
+                              <span>{m.label}{a.targeted ? ' ⌖' : ''}</span>
                               <span className="font-mono">{locked ? `T${a.tier}` : wait > 0 ? `${wait}s` : active ? 'ON' : ''}</span>
                           </button>
-                      );
+                      ));
                   })}
 
                   {/* Actions based on unit type */}
