@@ -9,7 +9,7 @@ import { ABILITY_CONFIG, BUILDING_VALUES, DOCTRINE_CONFIG, STRUCTURE_INFO, UNIT_
 import type { DoctrineType, StructureType, UnitType } from '../types';
 import { ARTILLERY } from '../sim/artillery';
 import { BASE_REPAIR } from '../sim/support';
-import { RADAR } from '../sim/radar';
+import { RADAR, SEARCH_RADAR } from '../sim/radar';
 import { CLOAK_FIELD } from '../sim/cloak';
 import { CIWS, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { HQ_INCOME } from '../sim/economy';
@@ -101,8 +101,8 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
     ],
   },
   drone: {
-    use: 'Cheap scout. Fly ahead to find the enemy and spot for Thunderheads.',
-    actions: [{ name: 'Surveillance', text: `Loiters over a spot for ${ABILITY_CONFIG.SURVEILLANCE_DURATION / 60000} minutes, revealing a wide area.` }],
+    use: `Loitering radar scout. Its ground-search radar (${SEARCH_RADAR.range} tiles) shows enemy ground units, cloaked ones included, and large aircraft (the Bombardment Drone) as red blips; small and medium aircraft slip under it. Spots for Thunderheads.`,
+    actions: [{ name: 'Surveillance', text: `Flies to a spot and circles it for ${ABILITY_CONFIG.SURVEILLANCE_DURATION / 60000} minutes, its radar reaching ${SEARCH_RADAR.surveillanceRange} tiles from the centre.` }],
   },
   wasp: {
     use: 'Harasser aircraft with homing missile swarms.',

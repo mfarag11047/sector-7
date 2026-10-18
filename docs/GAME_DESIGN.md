@@ -260,6 +260,22 @@ energy discharge rather than a fireball, and disabled machines crackle with blue
   `isInsideEnergyGrid` in `sim/energy.ts`, `empVictims` in `sim/unitAbilities.ts`.
 - **Lancer EMP Tandem Rocket** (Tier 3 ability): 2-tile blast, 4 s shutdown, and each victim loses half a full battery. Range 14 in both fire modes: lock on to an enemy vehicle or aircraft in sight (the rocket tracks it to impact), or fire at a location. A Javelin-style top-attack missile: it climbs steeply, cruises high and dives onto the target from above. It covers 9 tiles/s over the ground and burns out after 6 s.
 
+## Infiltrator Drone ground-search radar
+
+The Infiltrator Drone is a loitering surveillance drone (long glider wings, pusher prop and a
+turning radar rotodome). Every working one carries a ground-search radar (`SEARCH_RADAR` in
+`sim/radar.ts`), drawn for its owner like the Aegis sweep: the outer ring always, the sweep while
+selected.
+
+- Reach 8 tiles; on a Surveillance loiter (the drone circles a chosen spot for 2 minutes) 12
+  tiles, measured from the centre of the orbit.
+- It picks up enemy ground units, Cloaking-Field ones included, and large aircraft (the
+  Bombardment Drone). Small and medium aircraft (Infiltrators, Helios, Wasps, Hornets) and
+  ordnance slip under it.
+- Contacts that nothing of yours can see show as red blips on the map and minimap, like Aegis
+  contacts: something is there, not what.
+- EMP-disabled or stunned drones are off the air.
+
 ## Shadow Ops Cloaking Field
 
 The Shadow Ops Tier 3 doctrine power (1000 cores, 240 s cooldown) air-drops a Cloaking Field

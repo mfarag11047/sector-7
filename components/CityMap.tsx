@@ -22,7 +22,7 @@ import { cameraFocus } from './DroneCamera';
 import { AbilityCommand, abilityEffects, applyUnitEffects, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
 import { Warhead } from '../sim/commands';
 import { FlightEvent, FlightTickResult, LiveFlight, cloneProjectile, drawnShotPosition, ballisticProgress, flightUnitY, isHeavyOrdnance, sampleBallistic, stepProjectiles } from '../sim/projectiles';
-import { isRadarActive, onRadar, RADAR, radarSources, radarUnits } from '../sim/radar';
+import { onRadar, radarRangeOf, radarSources, radarUnits, searchRadarSources } from '../sim/radar';
 import { Blackout, chargeSources, isInsideEnergyGrid, powerTick } from '../sim/energy';
 import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, leashStep, repairTick, slowTick, surveillanceStep } from '../sim/support';
@@ -532,17 +532,18 @@ const radarBlipTexture = () => {
 const isRadarOrdnance = (p: Projectile) => p.trajectory === 'ballistic' || p.payload === 'titan_drop' || p.payload === 'cloak_drop' || isHeavyOrdnance(p);
 
 // Where enemy things on radar are right now, in world units: hidden aircraft, field-cloaked units
-// and ordnance in flight. Shared by the map blips and the minimap.
+// and ordnance in flight under an Aegis, ground units and large aircraft under an Infiltrator. Shared by the map blips and the minimap.
 type RadarContact = { id: string; x: number; y: number; z: number; ordnance: boolean };
 function radarContactsFor(
     team: 'blue' | 'red', units: readonly UnitData[], visible: ReadonlySet<string>,
     flights: Map<string, LiveFlight>, shells: readonly ArtilleryShell[], tileSize: number, offset: number, now: number,
 ): RadarContact[] {
     const sources = radarSources(units, team);
-    if (sources.length === 0) return [];
+    const search = searchRadarSources(units, team);
+    if (sources.length === 0 && search.length === 0) return [];
     const toGrid = (w: number) => (w + offset) / tileSize;
     const contacts: RadarContact[] = [];
-    for (const u of radarUnits(units, team, sources, a => visible.has(a.id))) {
+    for (const u of radarUnits(units, team, sources, a => visible.has(a.id), search)) {
         // Partway along its current step, so the dot glides rather than hops tile to tile.
         let gx = u.gridPos.x, gz = u.gridPos.z;
         if (u.moveTarget) {
@@ -1380,11 +1381,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             }));
 
             const now = Date.now();
-            // Aegis radar: hidden enemy aircraft and enemy ordnance in coverage show as plain dots.
+            // Radar (Aegis and Infiltrator): contacts in coverage show as plain dots.
             const team = playerTeam === 'red' ? 'red' : 'blue';
             const contacts = radarContactsFor(team, unitsRef.current, visibleUnitIdsRef.current, flightRef.current, shellsRef.current, tileSize, offset, now);
             const radarContacts = contacts.map(c => ({ id: c.id, x: (c.x + offset) / tileSize, z: (c.z + offset) / tileSize }));
-            const radars = unitsRef.current.filter(u => u.team === team && isRadarActive(u)).map(u => ({ x: u.gridPos.x, z: u.gridPos.z, range: RADAR.range }));
+            const radars = unitsRef.current.filter(u => u.team === team && radarRangeOf(u) > 0).map(u => ({ x: u.gridPos.x, z: u.gridPos.z, range: radarRangeOf(u) }));
             const missiles: MinimapMissile[] = [];
             const missileWarnings: NonNullable<MinimapData['missileWarnings']> = [];
             for (const live of flightRef.current.values()) {
@@ -3233,7 +3234,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                  && lockers.some(l => Math.hypot(l.gridPos.x - u.gridPos.x, l.gridPos.z - u.gridPos.z) <= lockRange);
              const atOrdnanceFab = structuresState.some(s => s.type === 'ordnance_fab' && s.team === u.team && !s.isBlueprint && Math.hypot(s.gridPos.x - u.gridPos.x, s.gridPos.z - u.gridPos.z) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE);
              const ballistaInRange = u.type === 'mule' && units.some(b => b.type === 'ballista' && b.team === u.team && b.health > 0 && Math.hypot(b.gridPos.x - u.gridPos.x, b.gridPos.z - u.gridPos.z) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE);
-             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? economy[u.team].tier : 0} showRadar={u.team === playerTeam && isRadarActive(u)} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && (!!u.tetherTargetId || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} showBatteryRange={u.type === 'sun_plate' && !!u.isDeployed && (selectedUnitIds.has(u.id) || (targetingSourceId === u.id && targetingAbility === 'BATTERY_TETHER'))} isLockCandidate={isLockCandidate} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} isBatteryLinkCandidate={!!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE} warheadStock={u.team === playerTeam && (playerTeam === 'blue' || playerTeam === 'red') ? stockpile[playerTeam] : undefined} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={(u.team === 'blue' || u.team === 'red') ? teamResources[u.team] : 0} /> );
+             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? economy[u.team].tier : 0} radarRange={u.team === playerTeam ? radarRangeOf(u) : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && (!!u.tetherTargetId || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} showBatteryRange={u.type === 'sun_plate' && !!u.isDeployed && (selectedUnitIds.has(u.id) || (targetingSourceId === u.id && targetingAbility === 'BATTERY_TETHER'))} isLockCandidate={isLockCandidate} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} isBatteryLinkCandidate={!!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE} warheadStock={u.team === playerTeam && (playerTeam === 'blue' || playerTeam === 'red') ? stockpile[playerTeam] : undefined} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={(u.team === 'blue' || u.team === 'red') ? teamResources[u.team] : 0} /> );
         })}
         {decoys.map(d => {
             const seen = d.team === playerTeam || units.some(f => f.team === playerTeam && Math.hypot(f.gridPos.x - d.gridPos.x, f.gridPos.z - d.gridPos.z) <= (f.visionRange || 2));
