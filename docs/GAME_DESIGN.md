@@ -516,3 +516,9 @@ Drop, or Masons.
 - Between them the centre server node sits in a roundabout: painted ring lanes and a palm island at
   street level, and two stacked elevated ring roads above. It is scenery only and changes no
   pathing; a deck fades out while any ground unit is beneath it.
+- The city is zoned into districts by block (`sim/districts.ts`), in rings from the middle out:
+  the **corporate core** (the 3×3 blocks around the centre), a **downtown** ring around it,
+  **midtown** filling most of the map, **outskirts** just inside the edge and the **Blackwall
+  fringe** along it. Two **industrial** patches sit on the flanks of each base. The zoning mirrors
+  like the rest of the map. For now the districts only tint the minimap, unnamed; they are the
+  groundwork for giving each district its own building layouts and density.
