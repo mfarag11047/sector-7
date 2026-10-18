@@ -176,7 +176,7 @@ listed as damage / cooldown / range.
 | **Razorback** (new) | 200 | 2 | T1 | 300 | Light | Rifle 10 / 0.5 s / 3, hits air | Fast raider, anti-infantry |
 | **Thunderhead** (new) | 320 | 3 | T1 | 240 | Light | Explosive 70 / 5 s / 12–20, splash 1.6, ground only | Mobile artillery; fires only when anchored |
 | **Battery Mule** | 250 | 2 | T1 | 500 | Heavy | None | Mobile power for vehicles |
-| **Titan MBT** | 420 | 3 | T2 | 700 | Heavy | Explosive 60 / 2.2 s / 4, splash 1 (10%); rail gun AP 120 / 5 s / 14 | Main battle tank, automatic rail gun, smoke, APS |
+| **Titan MBT** | 420 | 3 | T2 | 600 | Heavy | Explosive 50 / 2.2 s / 4, splash 1 (10%); rail gun AP 120 / 5 s / 14 | Main battle tank, automatic rail gun, smoke, APS |
 | **Aegis** (new) | 240 | 2 | T2 | 300 | Light | Flak 30 / 1.2 s / 5, air only | Anti-air escort |
 
 ### Airpad (aircraft)
@@ -275,6 +275,9 @@ replaced the old manually aimed Main Cannon:
 - Balance note: the short-range gun's splash was cut from 30% to 10% when the rail gun started
   shooting infantry, so a shell plus the rail gun's chip damage doesn't one-shot a Lancer and
   Lancers stay a counter to tanks (`sim/balance.test.ts`).
+- One tank against Lancers on its own: it beats one easily and two only just (it comes out of
+  the fight with under 10% health); three beat it. To get there the tank has 600 health and a
+  50-damage short-range shell.
 - Stunned, EMP-disabled, out-of-battery or nano-clouded tanks hold fire, and it can't target
   cloaked units.
 - Drawn as a white-hot core in a cyan glow from muzzle to target, with a flash where it strikes.

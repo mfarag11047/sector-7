@@ -40,7 +40,7 @@ export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: st
   lancer: { unitClass: 'infantry', cost: 150, captureMultiplier: 1.0, label: 'Lancer Rocket Team', visionRange: 5, speedMod: 0.9, maxHealth: 100 },
   // Factory
   razorback: { unitClass: 'armor', cost: 200, captureMultiplier: 0, label: 'Razorback Raider', visionRange: 5, speedMod: 1.5, maxHealth: 300 },
-  tank: { unitClass: 'armor', cost: 420, captureMultiplier: 0, label: 'Titan Main Battle Tank', visionRange: 5, speedMod: 0.7, maxHealth: 700 },
+  tank: { unitClass: 'armor', cost: 420, captureMultiplier: 0, label: 'Titan Main Battle Tank', visionRange: 5, speedMod: 0.7, maxHealth: 600 },
   aegis: { unitClass: 'armor', cost: 240, captureMultiplier: 0, label: 'Aegis Flak Carrier', visionRange: 6, speedMod: 1.0, maxHealth: 300 },
   howitzer: { unitClass: 'armor', cost: 320, captureMultiplier: 0, label: '"Thunderhead" Mobile Battery', visionRange: 4, speedMod: 0.6, maxHealth: 240 },
   sun_plate: { unitClass: 'armor', cost: 250, captureMultiplier: 0, label: 'Battery Mule', visionRange: 3, speedMod: 0.55, maxHealth: 500 },

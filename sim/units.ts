@@ -62,7 +62,7 @@ export const UNIT_RULES: Record<UnitType, UnitRules> = {
   // --- Factory: vehicles. Tough, run on the grid, beat infantry. ---
   razorback: { armor: 'light', weapon: rifle(10, 500, 3), pop: 2, tier: 1, producer: 'armor', buildTimeMs: 18000, role: 'Fast raider. Shreds infantry.' },
   sun_plate: { armor: 'heavy', weapon: null, pop: 2, tier: 1, producer: 'armor', buildTimeMs: 20000, role: 'Anchors to power linked vehicles away from the grid.' },
-  tank: { armor: 'heavy', weapon: shell(60, 2200, 4, 1, 0.1), pop: 3, tier: 2, producer: 'armor', buildTimeMs: 30000, role: 'Main battle tank. Long-range rail gun that kills armour, short-range gun for close work.' },
+  tank: { armor: 'heavy', weapon: shell(50, 2200, 4, 1, 0.1), pop: 3, tier: 2, producer: 'armor', buildTimeMs: 30000, role: 'Main battle tank. Long-range rail gun that kills armour, short-range gun for close work.' },
   // Its weapon is shown here for menus and balance; it fires through sim/artillery.ts. Range grows with tier.
   howitzer: { armor: 'light', weapon: { ...shell(70, 5000, 12, 1.6, 0.4), indirect: true }, pop: 3, tier: 1, producer: 'armor', buildTimeMs: 28000, role: 'Long-range artillery. Anchors to shell a target; helpless while moving.' },
   // Its rotary cannon fires through sim/ciws.ts in bursts (3.5 s on, 6 s reload); shown here as its rate against aircraft while firing.

@@ -54,6 +54,21 @@ describe('counters at equal cost', () => {
   });
 });
 
+describe('a lone tank against Lancers', () => {
+  // One tank beats one Lancer squad easily, two only just, and loses to three.
+  const tankLeft = (lancers: number) => {
+    const asBlue = simulateBattle([{ type: 'tank', count: 1 }], [{ type: 'lancer', count: lancers }]);
+    const asRed = simulateBattle([{ type: 'lancer', count: lancers }], [{ type: 'tank', count: 1 }]);
+    return (asBlue.blueLeft + asRed.redLeft) / 2;
+  };
+  it('wins against one or two, barely against two, and loses to three', () => {
+    expect(tankLeft(1)).toBeGreaterThan(0.5);
+    expect(tankLeft(2)).toBeGreaterThan(0);
+    expect(tankLeft(2)).toBeLessThan(0.2);
+    expect(tankLeft(3)).toBe(0);
+  });
+});
+
 describe('no dominant unit', () => {
   it.each(COMBAT_UNITS)('%s has a counter', unit => {
     const best = Math.max(...COMBAT_UNITS.filter(u => u !== unit).map(other => unitMargin(other, unit)));
