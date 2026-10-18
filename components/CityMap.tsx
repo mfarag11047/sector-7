@@ -3,6 +3,7 @@ import React, { useMemo, useState, useCallback, useEffect, useRef, useLayoutEffe
 import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, BUILDING_VALUES, BUILDING_HEALTH, TEAM_BASES, UNIT_STATS, ABILITY_CONFIG, STRUCTURE_COST, BUILD_RADIUS, STRUCTURE_INFO, COMPUTE_GATES, DOCTRINE_CONFIG } from '../constants';
 import { BuildingData, UnitData, BuildingBlock, GameStats, DoctrineType, RoadType, RoadTileData, StructureData, UnitClass, DecoyData, UnitType, StructureType, CloudData, Projectile, Explosion, DoctrineState, MinimapMissile, MinimapData } from '../types';
 import Building from './Building';
+import Landmarks from './Landmarks';
 import Structure from './Structure';
 import Base from './Base';
 import BlackWall from './BlackWall';
@@ -1222,9 +1223,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
   // Map Generation State
   // Seeded, mirrored city (sim/mapgen.ts): both sides get the same map.
-  const { initialBuildings, initialBlocks, roadTiles, roadTileSet, tileTypeMap, initialDrones } = useMemo(() => {
+  const { initialBuildings, initialBlocks, roadTiles, roadTileSet, tileTypeMap, initialDrones, landmarks } = useMemo(() => {
     const city = generateCity({ seed: match.seed, gridSize, tileSize, buildingDensity, blueBase: baseA_Coord, redBase: baseB_Coord });
-    return { initialBuildings: city.buildings, initialBlocks: city.blocks, roadTiles: city.roadTiles, roadTileSet: city.roadTileSet, tileTypeMap: city.tileTypeMap, initialDrones: city.sentinels };
+    return { initialBuildings: city.buildings, initialBlocks: city.blocks, roadTiles: city.roadTiles, roadTileSet: city.roadTileSet, tileTypeMap: city.tileTypeMap, initialDrones: city.sentinels, landmarks: city.landmarks };
   }, [match.seed, gridSize, tileSize, buildingDensity, baseA_Coord, baseB_Coord]);
 
   useEffect(() => { if (onMapInit) onMapInit({ roadTiles, gridSize }); }, [roadTiles, gridSize, onMapInit]);
@@ -3389,6 +3390,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
         {/* The Blackwall sealing the city in, and the waste ground beyond it. */}
         <BlackWall gridSize={gridSize} tileSize={tileSize} />
+        <Landmarks landmarks={landmarks} tileSize={tileSize} offset={offset} />
 
         {/* Instanced Roads with Procedural Textures */}
         <InstancedRoads 

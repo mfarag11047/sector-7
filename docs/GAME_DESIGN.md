@@ -450,3 +450,7 @@ Drop, or Masons.
   enemy's.
 - Generation uses a seeded random number generator, so a seed reproduces a map.
 - There are 6 core nodes and 5 server nodes, all in mirrored pairs (the centre node mirrors onto itself).
+- Four corporate megatowers (Tokugen, Nexum, Axiom, Vanta) fill the four diagonal blocks around
+  the centre server node. They are landmarks, not targets: each fills its whole block, cannot be
+  driven through, captured or destroyed, and never becomes a base site. Their lots mirror like
+  everything else; only the towers' looks differ.

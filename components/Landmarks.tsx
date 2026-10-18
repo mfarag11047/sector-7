@@ -1,0 +1,684 @@
+// The corporate arcologies at the heart of the city (sim/mapgen.ts places their lots).
+//
+// Four megatowers ring the central server node, each a different corp with its own silhouette:
+//   - Tokugen: a stepped military-industrial slab, terraces cantilevered off its face, gold neon
+//     strips running its full height and red-lit floors.
+//   - Nexum: a black monolith with a raked crown, a huge red neon emblem and a searchlight
+//     sweeping the sky.
+//   - Axiom: twin spires joined by a sky bridge, a beam of blue light from the roof and a
+//     giant holographic koi circling between them.
+//   - Vanta: an orange-finned tower wrapped in scrolling holo-billboards, with its own koi and a
+//     red beam into the clouds.
+// Around them aerodynes cruise in loops above the streets.
+//
+// Everything is plain geometry with canvas-drawn textures (windows, signs, adverts), so nothing
+// is fetched. Nothing here is interactive: the lots are solid ground the sim already routes
+// around.
+
+import React, { useEffect, useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
+import type { Landmark, LandmarkKind } from '../sim/mapgen';
+import { seededRandom } from '../sim/mapgen';
+
+// --- Canvas textures ---
+
+// Lit office windows on a dark facade. `palette` weights the colours of lit windows.
+function windowTexture(seed: number, palette: string[], litShare = 0.45, accent?: { color: string; share: number }) {
+  const rng = seededRandom(seed);
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = 256;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#05070d';
+  ctx.fillRect(0, 0, 128, 256);
+  const cols = 8;
+  const rows = 20;
+  const cw = 128 / cols;
+  const rh = 256 / rows;
+  for (let r = 0; r < rows; r++) {
+    // Whole floors dark or lit together now and then, like the reference skylines.
+    const floorMood = rng();
+    const floorLit = floorMood < 0.15 ? 0.04 : floorMood > 0.92 ? 0.85 : litShare;
+    const floorAccent = accent && rng() < accent.share;
+    for (let c = 0; c < cols; c++) {
+      if (rng() > floorLit) continue;
+      ctx.globalAlpha = 0.35 + rng() * 0.5;
+      ctx.fillStyle = floorAccent ? accent!.color : palette[Math.floor(rng() * palette.length)];
+      ctx.fillRect(c * cw + 3, r * rh + 3, cw - 6, rh - 5);
+    }
+  }
+  ctx.globalAlpha = 1;
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
+  return tex;
+}
+
+// Neon lettering: a glowing wordmark on a transparent background.
+function signTexture(text: string, color: string, opts: { vertical?: boolean; emblem?: boolean } = {}) {
+  const canvas = document.createElement('canvas');
+  const vertical = !!opts.vertical;
+  canvas.width = vertical ? 128 : 512;
+  canvas.height = vertical ? 512 : (opts.emblem ? 384 : 128);
+  const ctx = canvas.getContext('2d')!;
+  ctx.strokeStyle = color;
+  ctx.fillStyle = '#ffffff';
+  ctx.shadowColor = color;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const glowText = (t: string, x: number, y: number, size: number) => {
+    ctx.font = `900 ${size}px "Arial Black", "Helvetica Neue", Arial, sans-serif`;
+    for (const blur of [28, 14, 4]) {
+      ctx.shadowBlur = blur;
+      ctx.lineWidth = 5;
+      ctx.strokeText(t, x, y);
+    }
+    ctx.shadowBlur = 8;
+    ctx.fillText(t, x, y);
+  };
+  if (vertical) {
+    const letters = text.split('');
+    const step = 512 / (letters.length + 1);
+    letters.forEach((l, i) => glowText(l, 64, step * (i + 1), 78));
+  } else if (opts.emblem) {
+    // An original emblem: a hexagon split by a chevron, above the wordmark.
+    ctx.lineWidth = 9;
+    ctx.lineJoin = 'round';
+    for (const blur of [30, 12, 3]) {
+      ctx.shadowBlur = blur;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = Math.PI / 6 + (i * Math.PI) / 3;
+        const x = 256 + Math.cos(a) * 105;
+        const y = 130 + Math.sin(a) * 105;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.moveTo(166, 82); ctx.lineTo(256, 160); ctx.lineTo(346, 82);
+      ctx.moveTo(190, 205); ctx.lineTo(256, 150); ctx.lineTo(322, 205);
+      ctx.stroke();
+    }
+    glowText(text, 256, 320, 82);
+  } else {
+    glowText(text, 256, 64, 92);
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// A holo-advert: coloured panels and blocky glyph columns that scroll upward.
+function advertTexture(seed: number, colors: string[]) {
+  const rng = seededRandom(seed);
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 512;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#020409';
+  ctx.fillRect(0, 0, 64, 512);
+  let y = 0;
+  while (y < 512) {
+    const h = 30 + rng() * 90;
+    const c = colors[Math.floor(rng() * colors.length)];
+    const grad = ctx.createLinearGradient(0, y, 0, y + h);
+    grad.addColorStop(0, c);
+    grad.addColorStop(1, '#020409');
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = grad;
+    ctx.fillRect(4, y + 3, 56, h - 6);
+    // Glyphs: little bright blocks in a column, like signage characters.
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ffffff';
+    for (let gy = y + 10; gy < y + h - 12; gy += 14) {
+      if (rng() < 0.3) continue;
+      const gx = 12 + Math.floor(rng() * 3) * 14;
+      ctx.fillRect(gx, gy, 10 + rng() * 6, 3);
+      ctx.fillRect(gx + 4, gy - 3, 3, 9);
+    }
+    y += h;
+  }
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+// A soft round glow, for halos behind neon.
+function glowTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = 64;
+  const ctx = canvas.getContext('2d')!;
+  const g = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.35, 'rgba(255,255,255,0.35)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(canvas);
+}
+
+// Textures and materials are made once for the whole skyline and freed with it.
+function useDisposable<T extends { dispose: () => void }>(make: () => T[], deps: React.DependencyList): T[] {
+  const items = useMemo(make, deps);
+  useEffect(() => () => items.forEach(i => i.dispose()), [items]);
+  return items;
+}
+
+// --- Building blocks ---
+
+const ROOF = new THREE.MeshStandardMaterial({ color: '#0a0d16', metalness: 0.7, roughness: 0.5 });
+const FRAME = new THREE.MeshStandardMaterial({ color: '#141a28', metalness: 0.85, roughness: 0.35 });
+
+// A tower block with lit windows on its sides and a dark roof. Window size stays the same
+// whatever the block's dimensions.
+const WindowBlock: React.FC<{ size: [number, number, number]; position: [number, number, number]; tex: THREE.Texture; tint?: string }> = ({ size, position, tex, tint = '#ffffff' }) => {
+  const [w, h, d] = size;
+  const materials = useMemo(() => {
+    const side = (span: number) => {
+      const t = tex.clone();
+      t.needsUpdate = true;
+      t.repeat.set(span / 30, h / 60);
+      return new THREE.MeshStandardMaterial({
+        color: '#0d1220', map: t, emissiveMap: t, emissive: tint, emissiveIntensity: 0.9,
+        metalness: 0.55, roughness: 0.32,
+      });
+    };
+    const x = side(d);
+    const z = side(w);
+    return [x, x, ROOF, ROOF, z, z];
+  }, [tex, w, h, d, tint]);
+  useEffect(() => () => {
+    for (const m of new Set(materials)) {
+      if (m === ROOF) continue;
+      (m as THREE.MeshStandardMaterial).map?.dispose();
+      m.dispose();
+    }
+  }, [materials]);
+  return (
+    <mesh position={position} material={materials} receiveShadow>
+      <boxGeometry args={size} />
+    </mesh>
+  );
+};
+
+// A bright neon tube.
+const Neon: React.FC<{ size: [number, number, number]; position: [number, number, number]; color: string; rotation?: [number, number, number] }> = ({ size, position, color, rotation }) => (
+  <mesh position={position} rotation={rotation} raycast={() => null}>
+    <boxGeometry args={size} />
+    <meshBasicMaterial color={color} toneMapped={false} />
+  </mesh>
+);
+
+// A neon outline around a w x d rectangle at height y.
+const NeonFrame: React.FC<{ w: number; d: number; y: number; color: string; thickness?: number }> = ({ w, d, y, color, thickness = 0.6 }) => (
+  <group>
+    <Neon size={[w + thickness, thickness, thickness]} position={[0, y, d / 2]} color={color} />
+    <Neon size={[w + thickness, thickness, thickness]} position={[0, y, -d / 2]} color={color} />
+    <Neon size={[thickness, thickness, d + thickness]} position={[w / 2, y, 0]} color={color} />
+    <Neon size={[thickness, thickness, d + thickness]} position={[-w / 2, y, 0]} color={color} />
+  </group>
+);
+
+// A neon sign: the lettering plus a soft halo behind it, on one face.
+const Sign: React.FC<{ tex: THREE.Texture; glow: THREE.Texture; color: string; size: [number, number]; position: [number, number, number]; rotationY?: number }> = ({ tex, glow, color, size, position, rotationY = 0 }) => (
+  <group position={position} rotation={[0, rotationY, 0]}>
+    <mesh position={[0, 0, 0.3]} raycast={() => null}>
+      <planeGeometry args={[size[0] * 1.5, size[1] * 1.9]} />
+      <meshBasicMaterial map={glow} color={color} transparent opacity={0.35} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+    </mesh>
+    <mesh position={[0, 0, 0.6]} raycast={() => null}>
+      <planeGeometry args={size} />
+      <meshBasicMaterial map={tex} transparent blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+    </mesh>
+  </group>
+);
+
+// A red aircraft-warning light that blinks.
+const Beacon: React.FC<{ position: [number, number, number]; glow: THREE.Texture; phase?: number }> = ({ position, glow, phase = 0 }) => {
+  const ref = useRef<THREE.Group>(null);
+  useFrame(({ clock }) => {
+    if (ref.current) ref.current.visible = Math.sin(clock.elapsedTime * 3 + phase) > -0.2;
+  });
+  return (
+    <group ref={ref} position={position}>
+      <mesh raycast={() => null}>
+        <sphereGeometry args={[0.8, 8, 6]} />
+        <meshBasicMaterial color="#ff2a2a" toneMapped={false} />
+      </mesh>
+      <sprite scale={[9, 9, 1]}>
+        <spriteMaterial map={glow} color="#ff3030" transparent blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+      </sprite>
+    </group>
+  );
+};
+
+const beamVertex = /* glsl */ `
+  varying vec2 vUv;
+  void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
+`;
+const beamFragment = /* glsl */ `
+  uniform vec3 uColor;
+  uniform float uTime;
+  uniform float uStrength;
+  varying vec2 vUv;
+  void main() {
+    // Bright at the source, fading out toward the sky, with a slow shimmer running up it.
+    float fade = pow(1.0 - vUv.y, 1.4);
+    float shimmer = 0.85 + 0.15 * sin(vUv.y * 40.0 - uTime * 3.0);
+    float edge = 1.0 - abs(vUv.x - 0.5) * 2.0;
+    float a = fade * shimmer * (0.35 + 0.65 * edge) * uStrength;
+    gl_FragColor = vec4(uColor * a, a);
+  }
+`;
+
+// A column of light into the sky. `sweep` swings it around like a searchlight.
+const SkyBeam: React.FC<{ position: [number, number, number]; color: string; radius: number; length: number; tilt?: number; sweep?: number; strength?: number }> = ({ position, color, radius, length, tilt = 0, sweep = 0, strength = 0.8 }) => {
+  const ref = useRef<THREE.Group>(null);
+  const material = useMemo(() => new THREE.ShaderMaterial({
+    vertexShader: beamVertex,
+    fragmentShader: beamFragment,
+    uniforms: { uColor: { value: new THREE.Color(color) }, uTime: { value: 0 }, uStrength: { value: strength } },
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false, toneMapped: false,
+  }), [color, strength]);
+  useEffect(() => () => material.dispose(), [material]);
+  useFrame(({ clock }) => {
+    material.uniforms.uTime.value = clock.elapsedTime;
+    if (ref.current && sweep) ref.current.rotation.y = clock.elapsedTime * sweep;
+  });
+  return (
+    <group ref={ref} position={position}>
+      <group rotation={[0, 0, tilt]}>
+        <mesh position={[0, length / 2, 0]} material={material} raycast={() => null} frustumCulled={false} renderOrder={6}>
+          <cylinderGeometry args={[radius * 2.2, radius, length, 20, 1, true]} />
+        </mesh>
+      </group>
+    </group>
+  );
+};
+
+// A giant holographic koi swimming in a circle: a translucent body with a wireframe skin and a
+// long trailing fan of tail and fins that ripple as it swims.
+const HoloKoi: React.FC<{ center: [number, number, number]; radius: number; length: number; color: string; speed: number; phase?: number; bob?: number }> = ({ center, radius, length, color, speed, phase = 0, bob = 6 }) => {
+  const ref = useRef<THREE.Group>(null);
+  const tail = useRef<THREE.Group>(null);
+  const body = useMemo(() => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.16, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }), [color]);
+  const skin = useMemo(() => new THREE.MeshBasicMaterial({ color, wireframe: true, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }), [color]);
+  const fin = useMemo(() => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.2, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }), [color]);
+  useEffect(() => () => { body.dispose(); skin.dispose(); fin.dispose(); }, [body, skin, fin]);
+  // Long thin fan strands for the tail.
+  const strands = useMemo(() => Array.from({ length: 11 }, (_, i) => ({ angle: (i - 5) * 0.1, len: length * (0.6 + 0.3 * Math.cos((i - 5) * 0.35)) })), [length]);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime * speed + phase;
+    if (ref.current) {
+      ref.current.position.set(center[0] + Math.cos(t) * radius, center[1] + Math.sin(t * 2.3) * bob, center[2] + Math.sin(t) * radius);
+      // Face along the circle (the fish's nose points down +x).
+      ref.current.rotation.y = -t - Math.PI / 2 * Math.sign(speed);
+    }
+    if (tail.current) tail.current.rotation.y = Math.sin(clock.elapsedTime * 2.2 + phase) * 0.35;
+  });
+  const L = length;
+  return (
+    <group ref={ref}>
+      <mesh scale={[L * 0.5, L * 0.16, L * 0.13]} material={body} raycast={() => null} frustumCulled={false}>
+        <sphereGeometry args={[1, 20, 12]} />
+      </mesh>
+      <mesh scale={[L * 0.505, L * 0.165, L * 0.135]} material={skin} raycast={() => null} frustumCulled={false}>
+        <sphereGeometry args={[1, 18, 6]} />
+      </mesh>
+      {/* Pectoral and pelvic fins hanging below, and a dorsal fin along the back. */}
+      {[[0.15, 1], [0.15, -1], [-0.12, 1], [-0.12, -1]].map(([x, side], i) => (
+        <mesh key={i} position={[L * x, -L * 0.2, side * L * 0.1]} rotation={[side * 0.5, 0, -0.3]} material={fin} raycast={() => null} frustumCulled={false}>
+          <planeGeometry args={[L * 0.14, L * 0.32]} />
+        </mesh>
+      ))}
+      <mesh position={[-L * 0.05, L * 0.24, 0]} material={fin} raycast={() => null} frustumCulled={false}>
+        <planeGeometry args={[L * 0.5, L * 0.12]} />
+      </mesh>
+      <group ref={tail} position={[-L * 0.45, 0, 0]}>
+        {strands.map((s, i) => (
+          <mesh key={i} rotation={[0, 0, s.angle]} position={[-s.len / 2 * Math.cos(s.angle), -s.len / 2 * Math.sin(s.angle), 0]} material={fin} raycast={() => null} frustumCulled={false}>
+            <planeGeometry args={[s.len, L * 0.035]} />
+          </mesh>
+        ))}
+        {strands.map((s, i) => (
+          <mesh key={`v${i}`} rotation={[Math.PI / 2, 0, s.angle]} position={[-s.len / 2 * Math.cos(s.angle), -s.len / 2 * Math.sin(s.angle), 0]} material={fin} raycast={() => null} frustumCulled={false}>
+            <planeGeometry args={[s.len, L * 0.035]} />
+          </mesh>
+        ))}
+      </group>
+    </group>
+  );
+};
+
+// A tall holo-billboard whose content scrolls.
+const Billboard: React.FC<{ tex: THREE.Texture; size: [number, number]; position: [number, number, number]; rotationY?: number; speed?: number }> = ({ tex, size, position, rotationY = 0, speed = 0.03 }) => {
+  const own = useMemo(() => { const t = tex.clone(); t.needsUpdate = true; return t; }, [tex]);
+  useEffect(() => () => own.dispose(), [own]);
+  useFrame((_, delta) => { own.offset.y = (own.offset.y + delta * speed) % 1; });
+  return (
+    <group position={position} rotation={[0, rotationY, 0]}>
+      <mesh position={[0, 0, 0.2]} raycast={() => null}>
+        <planeGeometry args={size} />
+        <meshBasicMaterial map={own} toneMapped={false} />
+      </mesh>
+      <Neon size={[size[0] + 0.8, 0.5, 0.5]} position={[0, size[1] / 2, 0.2]} color="#9ff6ff" />
+      <Neon size={[size[0] + 0.8, 0.5, 0.5]} position={[0, -size[1] / 2, 0.2]} color="#9ff6ff" />
+    </group>
+  );
+};
+
+// --- The four towers ---
+
+interface Kit {
+  glow: THREE.Texture;
+  windows: Record<'cool' | 'warm' | 'red' | 'amber', THREE.Texture>;
+  signs: Record<LandmarkKind, THREE.Texture>;
+  verticalSigns: Record<'axiom' | 'vanta' | 'tokugen', THREE.Texture>;
+  adverts: THREE.Texture[];
+}
+
+// Tokugen: a stepped military-industrial slab with cantilevered terraces and gold neon.
+const Tokugen: React.FC<{ kit: Kit }> = ({ kit }) => {
+  const gold = '#ffd34d';
+  const terraces = [36, 58, 80, 102, 124];
+  return (
+    <group>
+      <WindowBlock size={[64, 10, 64]} position={[0, 5, 0]} tex={kit.windows.amber} />
+      <NeonFrame w={64} d={64} y={10.2} color={gold} />
+      <WindowBlock size={[42, 150, 36]} position={[0, 85, -4]} tex={kit.windows.red} />
+      {/* Terraces jutting from the front, alternating left and right, each edged in gold. */}
+      {terraces.map((y, i) => {
+        const x = i % 2 === 0 ? -5 : 5;
+        return (
+          <group key={y} position={[x, y, 16]}>
+            <WindowBlock size={[46, 12, 14]} position={[0, 0, 0]} tex={kit.windows.red} />
+            <Neon size={[46.2, 0.5, 0.5]} position={[0, 6.2, 7.1]} color={gold} />
+            <Neon size={[46.2, 0.5, 0.5]} position={[0, -6.2, 7.1]} color={gold} />
+          </group>
+        );
+      })}
+      {/* Full-height gold strips down the corners of the core. */}
+      {[[-21.3, 14.3], [21.3, 14.3], [-21.3, -22.3], [21.3, -22.3]].map(([x, z], i) => (
+        <Neon key={i} size={[0.8, 148, 0.8]} position={[x, 85, z]} color={gold} />
+      ))}
+      <Neon size={[0.6, 120, 0.6]} position={[-8, 70, 23.4]} color={gold} />
+      <Neon size={[0.6, 120, 0.6]} position={[8, 70, 23.4]} color={gold} />
+      {/* Crown and mast. */}
+      <WindowBlock size={[30, 22, 26]} position={[0, 171, -4]} tex={kit.windows.amber} />
+      <mesh position={[0, 182.5, -4]} material={ROOF}><boxGeometry args={[34, 1.5, 30]} /></mesh>
+      <mesh position={[0, 200, -4]} material={FRAME}><cylinderGeometry args={[0.6, 1.2, 36, 6]} /></mesh>
+      <Beacon position={[0, 218.5, -4]} glow={kit.glow} />
+      <Beacon position={[-14, 184, -16]} glow={kit.glow} phase={1.3} />
+      <Beacon position={[14, 184, 8]} glow={kit.glow} phase={2.1} />
+      {/* The wordmark across the crown, front and back, and down one flank. */}
+      <Sign tex={kit.signs.tokugen} glow={kit.glow} color={gold} size={[30, 7.5]} position={[0, 171, 9.1]} />
+      <Sign tex={kit.signs.tokugen} glow={kit.glow} color={gold} size={[30, 7.5]} position={[0, 171, -17.1]} rotationY={Math.PI} />
+      <Sign tex={kit.verticalSigns.tokugen} glow={kit.glow} color={gold} size={[6, 24]} position={[-21.2, 140, -4]} rotationY={-Math.PI / 2} />
+    </group>
+  );
+};
+
+// Nexum: a black monolith with a raked crown, a red neon emblem and a sweeping searchlight.
+const Nexum: React.FC<{ kit: Kit }> = ({ kit }) => {
+  const red = '#ff4a3a';
+  const crown = useMemo(() => {
+    // Side profile: the roof rises from 0 at the back to 26 at the front.
+    const shape = new THREE.Shape();
+    shape.moveTo(-17, 0); shape.lineTo(17, 0); shape.lineTo(17, 26); shape.lineTo(-17, 6); shape.lineTo(-17, 0);
+    const g = new THREE.ExtrudeGeometry(shape, { depth: 34, bevelEnabled: false });
+    g.translate(0, 0, -17);
+    return g;
+  }, []);
+  useEffect(() => () => crown.dispose(), [crown]);
+  return (
+    <group>
+      <WindowBlock size={[62, 8, 62]} position={[0, 4, 0]} tex={kit.windows.cool} />
+      <NeonFrame w={62} d={62} y={8.2} color={red} />
+      {/* The monolith, turned a little off the street grid. */}
+      <group rotation={[0, Math.PI / 10, 0]}>
+        <WindowBlock size={[34, 190, 34]} position={[0, 103, 0]} tex={kit.windows.cool} />
+        <mesh geometry={crown} position={[0, 198, 0]} rotation={[0, Math.PI / 2, 0]}>
+          <meshStandardMaterial color="#0b0f1a" metalness={0.8} roughness={0.3} />
+        </mesh>
+        <Neon size={[0.6, 0.6, 34.4]} position={[17.2, 198.3, 0]} color={red} />
+        {/* A dark cladding band the emblem hangs on. */}
+        <mesh position={[0, 165, 0]} material={FRAME}><boxGeometry args={[35, 40, 35]} /></mesh>
+        <Sign tex={kit.signs.nexum} glow={kit.glow} color={red} size={[30, 22.5]} position={[0, 165, 17.6]} />
+        <Sign tex={kit.signs.nexum} glow={kit.glow} color={red} size={[30, 22.5]} position={[0, 165, -17.6]} rotationY={Math.PI} />
+        <Sign tex={kit.signs.nexum} glow={kit.glow} color={red} size={[30, 22.5]} position={[17.6, 165, 0]} rotationY={Math.PI / 2} />
+        <Sign tex={kit.signs.nexum} glow={kit.glow} color={red} size={[30, 22.5]} position={[-17.6, 165, 0]} rotationY={-Math.PI / 2} />
+        {[[-17.3, 17.3], [17.3, 17.3], [-17.3, -17.3], [17.3, -17.3]].map(([x, z], i) => (
+          <Neon key={i} size={[0.5, 186, 0.5]} position={[x, 103, z]} color="#ff7a5a" />
+        ))}
+        <Beacon position={[16, 225, 0]} glow={kit.glow} />
+      </group>
+      {/* A low annex with a tall cyan advert facing the boulevard. */}
+      <WindowBlock size={[20, 70, 20]} position={[-20, 43, 20]} tex={kit.windows.warm} />
+      <Billboard tex={kit.adverts[0]} size={[12, 52]} position={[-20, 44, 30.1]} />
+      <Billboard tex={kit.adverts[1]} size={[12, 52]} position={[-30.1, 44, 20]} rotationY={-Math.PI / 2} speed={0.045} />
+      <SkyBeam position={[8, 212, 4]} color="#ffe9c4" radius={3.5} length={420} tilt={0.35} sweep={0.18} strength={0.6} />
+    </group>
+  );
+};
+
+// Axiom: twin spires on a sky bridge, a blue light column from the roof and a holo koi.
+const Axiom: React.FC<{ kit: Kit }> = ({ kit }) => {
+  const cyan = '#3ee0ff';
+  return (
+    <group>
+      <WindowBlock size={[64, 12, 64]} position={[0, 6, 0]} tex={kit.windows.cool} />
+      <NeonFrame w={64} d={64} y={12.2} color={cyan} />
+      <WindowBlock size={[22, 196, 22]} position={[-14, 110, -14]} tex={kit.windows.cool} />
+      <WindowBlock size={[20, 160, 20]} position={[15, 92, 15]} tex={kit.windows.cool} />
+      {/* Stepped tops. */}
+      <WindowBlock size={[16, 18, 16]} position={[-14, 217, -14]} tex={kit.windows.cool} />
+      <WindowBlock size={[14, 14, 14]} position={[15, 179, 15]} tex={kit.windows.cool} />
+      {/* Sky bridges linking the spires. */}
+      {[96, 134].map(y => (
+        <group key={y} position={[0.5, y, 0.5]} rotation={[0, -Math.PI / 4, 0]}>
+          <mesh material={FRAME}><boxGeometry args={[30, 5, 7]} /></mesh>
+          <Neon size={[30, 0.4, 7.4]} position={[0, -2.6, 0]} color={cyan} />
+        </group>
+      ))}
+      {[[-25.2, -2.8], [-2.8, -2.8], [-25.2, -25.2], [-2.8, -25.2]].map(([x, z], i) => (
+        <Neon key={i} size={[0.5, 194, 0.5]} position={[x, 110, z]} color={cyan} />
+      ))}
+      <Sign tex={kit.verticalSigns.axiom} glow={kit.glow} color={cyan} size={[8, 32]} position={[15, 120, 25.1]} />
+      <Sign tex={kit.verticalSigns.axiom} glow={kit.glow} color={cyan} size={[8, 32]} position={[25.1, 120, 15]} rotationY={Math.PI / 2} />
+      <Sign tex={kit.signs.axiom} glow={kit.glow} color={cyan} size={[20, 5]} position={[-14, 212, -2.9]} />
+      <Beacon position={[-14, 228, -14]} glow={kit.glow} />
+      <SkyBeam position={[-14, 226, -14]} color="#4fc8ff" radius={4} length={460} strength={0.85} />
+      <HoloKoi center={[0, 130, 0]} radius={58} length={78} color="#64d8ff" speed={0.12} bob={10} />
+    </group>
+  );
+};
+
+// Vanta: an orange-finned tower wrapped in holo-billboards, with a koi of its own and a red beam.
+const Vanta: React.FC<{ kit: Kit }> = ({ kit }) => {
+  const orange = '#ff6a2a';
+  // Vertical fins around all four faces.
+  const fins = useMemo(() => {
+    const list: { x: number; z: number; ry: number }[] = [];
+    for (let i = -3; i <= 3; i++) {
+      list.push({ x: i * 5, z: 18.6, ry: 0 }, { x: i * 5, z: -18.6, ry: 0 }, { x: 18.6, z: i * 5, ry: Math.PI / 2 }, { x: -18.6, z: i * 5, ry: Math.PI / 2 });
+    }
+    return list;
+  }, []);
+  return (
+    <group>
+      <WindowBlock size={[64, 9, 64]} position={[0, 4.5, 0]} tex={kit.windows.warm} />
+      <NeonFrame w={64} d={64} y={9.2} color={orange} />
+      <WindowBlock size={[36, 176, 36]} position={[0, 97, 0]} tex={kit.windows.warm} tint="#ffd2b0" />
+      {fins.map((f, i) => (
+        <mesh key={i} position={[f.x, 97, f.z]} rotation={[0, f.ry, 0]}>
+          <boxGeometry args={[0.7, 172, 1.2]} />
+          <meshStandardMaterial color="#2a0d05" emissive={orange} emissiveIntensity={0.28} metalness={0.6} roughness={0.4} />
+        </mesh>
+      ))}
+      {/* Crown: a floating halo ring and a beam. */}
+      <WindowBlock size={[26, 14, 26]} position={[0, 192, 0]} tex={kit.windows.warm} />
+      <mesh position={[0, 206, 0]} rotation={[Math.PI / 2, 0, 0]} raycast={() => null}>
+        <torusGeometry args={[19, 0.5, 6, 48]} />
+        <meshBasicMaterial color={orange} toneMapped={false} />
+      </mesh>
+      <Sign tex={kit.signs.vanta} glow={kit.glow} color={orange} size={[24, 6]} position={[0, 192, 13.1]} />
+      <Sign tex={kit.signs.vanta} glow={kit.glow} color={orange} size={[24, 6]} position={[0, 192, -13.1]} rotationY={Math.PI} />
+      <Sign tex={kit.verticalSigns.vanta} glow={kit.glow} color={orange} size={[7, 28]} position={[-26, 40, 27]} rotationY={-Math.PI / 4} />
+      {/* Holo-billboards on the lower flanks. */}
+      <Billboard tex={kit.adverts[2]} size={[10, 46]} position={[0, 52, 19.6]} />
+      <Billboard tex={kit.adverts[0]} size={[10, 46]} position={[19.6, 70, 0]} rotationY={Math.PI / 2} speed={0.05} />
+      <Billboard tex={kit.adverts[1]} size={[10, 46]} position={[0, 60, -19.6]} rotationY={Math.PI} speed={0.035} />
+      <Beacon position={[0, 200, 0]} glow={kit.glow} phase={0.7} />
+      <SkyBeam position={[0, 199, 0]} color="#ff5a3a" radius={3.5} length={440} strength={0.75} />
+      <HoloKoi center={[0, 90, 0]} radius={52} length={56} color="#ff8a4a" speed={-0.15} phase={2} bob={6} />
+    </group>
+  );
+};
+
+const TOWERS: Record<LandmarkKind, React.FC<{ kit: Kit }>> = { tokugen: Tokugen, nexum: Nexum, axiom: Axiom, vanta: Vanta };
+
+// --- Air traffic ---
+
+// Aerodynes looping over the centre at different heights: dark hulls with white headlights and
+// red tail lights.
+const Aerodynes: React.FC<{ glow: THREE.Texture }> = ({ glow }) => {
+  const cars = useMemo(() => {
+    const rng = seededRandom(707);
+    return Array.from({ length: 14 }, () => ({
+      rx: 60 + rng() * 90, rz: 60 + rng() * 90,
+      y: 35 + rng() * 45,
+      speed: (0.05 + rng() * 0.07) * (rng() < 0.5 ? -1 : 1),
+      phase: rng() * Math.PI * 2,
+      tilt: rng() * Math.PI,
+    }));
+  }, []);
+  const refs = useRef<(THREE.Group | null)[]>([]);
+  useFrame(({ clock }) => {
+    const t = clock.elapsedTime;
+    cars.forEach((c, i) => {
+      const g = refs.current[i];
+      if (!g) return;
+      const a = t * c.speed + c.phase;
+      // An ellipse turned by `tilt`, so the loops cross each other.
+      const ex = Math.cos(a) * c.rx;
+      const ez = Math.sin(a) * c.rz;
+      const x = ex * Math.cos(c.tilt) - ez * Math.sin(c.tilt);
+      const z = ex * Math.sin(c.tilt) + ez * Math.cos(c.tilt);
+      const dx = (-Math.sin(a) * c.rx) * Math.cos(c.tilt) - (Math.cos(a) * c.rz) * Math.sin(c.tilt);
+      const dz = (-Math.sin(a) * c.rx) * Math.sin(c.tilt) + (Math.cos(a) * c.rz) * Math.cos(c.tilt);
+      const dir = Math.sign(c.speed);
+      g.position.set(x, c.y + Math.sin(t * 0.7 + c.phase) * 3, z);
+      g.rotation.y = Math.atan2(-dz * dir, dx * dir);
+    });
+  });
+  return (
+    <group>
+      {cars.map((c, i) => (
+        <group key={i} ref={el => { refs.current[i] = el; }}>
+          <mesh material={FRAME}><boxGeometry args={[5, 1.2, 2.4]} /></mesh>
+          <mesh position={[0.4, 0.8, 0]} material={ROOF}><boxGeometry args={[2.4, 0.8, 2]} /></mesh>
+          <Neon size={[0.3, 0.3, 2]} position={[2.6, 0, 0]} color="#ffffff" />
+          <Neon size={[0.3, 0.3, 2.2]} position={[-2.6, 0, 0]} color="#ff2040" />
+          <sprite position={[-3, 0, 0]} scale={[5, 5, 1]}>
+            <spriteMaterial map={glow} color="#ff2040" transparent blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+          </sprite>
+          <sprite position={[3, 0, 0]} scale={[4, 4, 1]}>
+            <spriteMaterial map={glow} color="#fff4e0" transparent blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+          </sprite>
+        </group>
+      ))}
+    </group>
+  );
+};
+
+// --- The skyline ---
+
+// Towers are modelled at full size and shrunk to fit the game's camera, which flies at 20-340
+// units and usually sits around 80: at this scale the tallest roofs are a little over 110.
+const TOWER_SCALE = 0.5;
+const TOWER_TOP = 230 * TOWER_SCALE;
+const LOT_COLORS: Record<LandmarkKind, string> = { tokugen: '#ffd34d', nexum: '#ff4a3a', axiom: '#3ee0ff', vanta: '#ff6a2a' };
+
+// A tower's whole city block: a dark plaza edged in its corp colour, with the tower on it. While
+// the camera is down among the floors of a tower, the tower is hidden so it never fills the view.
+const LandmarkLot: React.FC<{ position: [number, number, number]; rotationY: number; size: number; color: string; children: React.ReactNode }> = ({ position, rotationY, size, color, children }) => {
+  const tower = useRef<THREE.Group>(null);
+  const half = size / 2;
+  useFrame(({ camera }) => {
+    if (!tower.current) return;
+    const inside = Math.abs(camera.position.x - position[0]) < half && Math.abs(camera.position.z - position[2]) < half && camera.position.y < TOWER_TOP + 8;
+    tower.current.visible = !inside;
+  });
+  return (
+    <group position={position} rotation={[0, rotationY, 0]}>
+      <mesh position={[0, 0.5, 0]} material={ROOF} receiveShadow>
+        <boxGeometry args={[size, 1, size]} />
+      </mesh>
+      <NeonFrame w={size} d={size} y={1.05} color={color} thickness={0.35} />
+      <group ref={tower} position={[0, 1, 0]} scale={TOWER_SCALE}>
+        {children}
+      </group>
+    </group>
+  );
+};
+
+export const Landmarks: React.FC<{ landmarks: Landmark[]; tileSize: number; offset: number }> = ({ landmarks, tileSize, offset }) => {
+  const [glow, cool, warm, red, amber, sTokugen, sNexum, sAxiom, sVanta, vAxiom, vVanta, vTokugen, ad0, ad1, ad2] = useDisposable(() => [
+    glowTexture(),
+    windowTexture(11, ['#bfe6ff', '#e8f4ff', '#7fd8ff', '#fff1cf']),
+    windowTexture(23, ['#ffd9a0', '#ffc47a', '#fff1cf', '#ff9a5a'], 0.5),
+    windowTexture(37, ['#ffe6b0', '#e8f4ff', '#fff1cf'], 0.4, { color: '#ff2a3a', share: 0.18 }),
+    windowTexture(41, ['#ffd27a', '#fff1cf', '#ffe6b0'], 0.5),
+    signTexture('TOKUGEN', '#ffd34d'),
+    signTexture('NEXUM', '#ff4a3a', { emblem: true }),
+    signTexture('AXIOM', '#3ee0ff'),
+    signTexture('VANTA', '#ff6a2a'),
+    signTexture('AXIOM', '#3ee0ff', { vertical: true }),
+    signTexture('VANTA', '#ff6a2a', { vertical: true }),
+    signTexture('TOKUGEN', '#ffd34d', { vertical: true }),
+    advertTexture(5, ['#ff2a8a', '#2ad8ff', '#ffb02a']),
+    advertTexture(9, ['#2affc8', '#8a5aff', '#ff4a6a']),
+    advertTexture(13, ['#ff7a2a', '#ff2a5a', '#ffd84a']),
+  ], []);
+  const kit: Kit = useMemo(() => ({
+    glow,
+    windows: { cool, warm, red, amber },
+    signs: { tokugen: sTokugen, nexum: sNexum, axiom: sAxiom, vanta: sVanta },
+    verticalSigns: { axiom: vAxiom, vanta: vVanta, tokugen: vTokugen },
+    adverts: [ad0, ad1, ad2],
+  }), [glow, cool, warm, red, amber, sTokugen, sNexum, sAxiom, sVanta, vAxiom, vVanta, vTokugen, ad0, ad1, ad2]);
+
+  // The towers face the middle of the map, so their fronts all look onto the central plaza.
+  const centre = useMemo(() => {
+    if (landmarks.length === 0) return { x: 0, z: 0 };
+    return {
+      x: landmarks.reduce((s, l) => s + l.center.x, 0) / landmarks.length,
+      z: landmarks.reduce((s, l) => s + l.center.z, 0) / landmarks.length,
+    };
+  }, [landmarks]);
+
+  return (
+    <group>
+      {landmarks.map(l => {
+        const Tower = TOWERS[l.kind];
+        const facing = Math.atan2(centre.x - l.center.x, centre.z - l.center.z);
+        // Snap to the nearest diagonal-facing quarter turn so the block stays on the grid.
+        const ry = Math.round(facing / (Math.PI / 2)) * (Math.PI / 2);
+        return (
+          <LandmarkLot key={l.id} position={[l.center.x * tileSize - offset, 0, l.center.z * tileSize - offset]} rotationY={ry} size={tileSize * 5 - 2} color={LOT_COLORS[l.kind]}>
+            <Tower kit={kit} />
+          </LandmarkLot>
+        );
+      })}
+      {landmarks.length > 0 && (
+        <group position={[centre.x * tileSize - offset, 0, centre.z * tileSize - offset]}>
+          <Aerodynes glow={glow} />
+        </group>
+      )}
+    </group>
+  );
+};
+
+export default Landmarks;

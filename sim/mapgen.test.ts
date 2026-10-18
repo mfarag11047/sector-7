@@ -43,6 +43,23 @@ describe('generateCity', () => {
     expect(servers.filter(b => Math.abs(toBlue(b) - toRed(b)) < 1)).toHaveLength(3);
   });
 
+  it('rings the centre with four solid, mirrored corporate landmarks', () => {
+    const city = generateCity(options(11));
+    expect(city.landmarks.map(l => l.kind).sort()).toEqual(['axiom', 'nexum', 'tokugen', 'vanta']);
+    const centre = (SIZE - 1) / 2;
+    const lots = new Set(city.landmarks.map(l => `${l.center.x},${l.center.z}`));
+    for (const l of city.landmarks) {
+      expect(Math.abs(l.center.x - centre)).toBe(6);
+      expect(Math.abs(l.center.z - centre)).toBe(6);
+      expect(lots.has(mirror(l.center.x, l.center.z))).toBe(true);
+      expect(l.tiles).toHaveLength(25);
+      for (const t of l.tiles) {
+        expect(city.roadTileSet.has(`${t.x},${t.z}`)).toBe(false);
+        expect(city.buildings.some(b => b.gridX === t.x && b.gridZ === t.z)).toBe(false);
+      }
+    }
+  });
+
   it('is reproducible from its seed, and different seeds differ', () => {
     const a = generateCity(options(99));
     const b = generateCity(options(99));

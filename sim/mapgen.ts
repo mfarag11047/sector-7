@@ -41,7 +41,29 @@ export interface City {
   tileTypeMap: Record<string, RoadType>;
   // A Sentinel drone guarding each server node.
   sentinels: UnitData[];
+  // The corporate megatowers around the centre (see LANDMARKS).
+  landmarks: Landmark[];
 }
+
+// The four corporate arcologies that ring the central server node, one on each diagonal block.
+// They are scenery with a footprint: each fills its whole 5x5 block, can't be driven through,
+// captured or destroyed, and never becomes a base site. Their lots mirror, so the map stays fair;
+// the towers themselves are all different.
+export type LandmarkKind = 'tokugen' | 'nexum' | 'axiom' | 'vanta';
+export interface Landmark {
+  id: string;
+  kind: LandmarkKind;
+  // The middle tile of its block.
+  center: GridPos;
+  // Every tile it stands on.
+  tiles: GridPos[];
+}
+const LANDMARK_LOTS: { kind: LandmarkKind; dx: number; dz: number }[] = [
+  { kind: 'tokugen', dx: -1, dz: -1 },
+  { kind: 'nexum', dx: 1, dz: 1 },
+  { kind: 'axiom', dx: -1, dz: 1 },
+  { kind: 'vanta', dx: 1, dz: -1 },
+];
 
 const ROAD_STRIDE = 6;
 
@@ -145,6 +167,22 @@ export function generateCity(opts: CityOptions): City {
     });
   }
 
+  // --- Landmarks: the corporate towers on the four diagonal blocks around the centre ---
+  const landmarks: Landmark[] = LANDMARK_LOTS.map(({ kind, dx, dz }) => {
+    const ix = mid + dx;
+    const iz = mid + dz;
+    keepBlockEmpty(ix, iz);
+    const id = `landmark-${kind}`;
+    const tiles: GridPos[] = [];
+    for (let x = ix * ROAD_STRIDE + 1; x <= ix * ROAD_STRIDE + 5; x++) {
+      for (let z = iz * ROAD_STRIDE + 1; z <= iz * ROAD_STRIDE + 5; z++) {
+        tiles.push({ x, z });
+        buildingMap.set(key(x, z), id);
+      }
+    }
+    return { id, kind, center: { x: blockCenter(ix), z: blockCenter(iz) }, tiles };
+  });
+
   // --- Ordinary buildings, generated in one half of the map and mirrored into the other.
   // The half stops two tiles short of the anti-diagonal so a block and its mirror never touch.
   const inHalf = (x: number, z: number) => x + z <= last - 2;
@@ -215,5 +253,5 @@ export function generateCity(opts: CityOptions): City {
     }
   }
 
-  return { buildings, blocks, roadTiles, roadTileSet, tileTypeMap, sentinels };
+  return { buildings, blocks, roadTiles, roadTileSet, tileTypeMap, sentinels, landmarks };
 }
