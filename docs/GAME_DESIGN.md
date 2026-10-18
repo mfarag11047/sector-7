@@ -202,7 +202,7 @@ listed as damage / cooldown / range.
 |---|---|---|---|---|---|---|---|
 | **Infiltrator Drone** | 60 | 1 | T1 | 60 | Air | None | Scout, surveillance |
 | **Wasp** | 240 | 2 | T2 | 160 | Air | Rifle 6 / 0.6 s / 3, hits air | Harasser, swarm volley |
-| **Hornet Gunship** (new) | 320 | 3 | T2 | 320 | Air | AP 32 / 1.6 s / 4 | Anti-vehicle air |
+| **Hornet Gunship** (new) | 320 | 3 | T2 | 320 | Air | AP 32 / 1.6 s / 4; T3 rocket AP 60 / 6 s | Anti-vehicle air |
 | **Bombardment Drone** | 480 | 4 | T3 | 260 | Air | None | Levels city blocks |
 
 ### Comm Link (support)
@@ -299,6 +299,13 @@ replaced the old manually aimed Main Cannon:
   cloaked units.
 - Drawn as a white-hot core in a cyan glow from muzzle to target, with a flash where it strikes.
 
+## Hornet rockets
+
+`sim/hornet.ts`. From Tier 2 the Hornet's gun fires armour-piercing rounds (AP 32 every 1.6 s,
+double against heavy armour). Once its side has Tier 3 it also fires an anti-vehicle rocket on
+its own every 6 s at whatever its gun is shooting (AP 60, so 120 to heavy armour), drawn as an
+orange streak. The Hellfire Salvo (above) is its aimed Tier 3 area attack.
+
 ## Infiltrator Drone ground-search radar
 
 The Infiltrator Drone is a loitering surveillance drone (long glider wings, pusher prop and a
@@ -380,7 +387,7 @@ Abilities act on every selected unit of that type. Rules: `sim/unitAbilities.ts`
 | Aegis | Flak Barrage | T2 | 30 s | Double fire rate for 6 s, and bursts also hit aircraft within 1.5 tiles of the target |
 | | Sky-Net Radar Sweep | T3 | 40 s | Vision 14 and +2 weapon range for 10 s |
 | Hornet | Afterburners | T2 | 25 s | +70% speed for 5 s |
-| | Hellfire Salvo ⌖ | T3 | 40 s | Range 6, radius 1.5: 90 anti-armour damage to every enemy ground unit, per Hornet firing |
+| | Hellfire Salvo ⌖ | T3 | 40 s | Range 8, radius 3: each Hornet ripple-fires 16 unguided mini-rockets that come down across the area over 1.4 s, 20 explosive damage each in a 1.2-tile blast (half at the edge). An area weapon: best on infantry and light vehicles in the open |
 
 A coloured ring under a unit shows an ability running (red: shut down by an EMP). The computer
 opponent uses them too: stims and overclocks when it's in a fight, Nano-Weave and Afterburners when

@@ -28,6 +28,7 @@ import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, leashStep, repairTick, slowTick, surveillanceStep } from '../sim/support';
 import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells, shellGroundPos } from '../sim/artillery';
 import { afterRailShot, fireRailguns, RailShot } from '../sim/railgun';
+import { fireHornetRockets, landSalvo, MiniRocket } from '../sim/hornet';
 import { BASE_SITE, BaseSite, baseSites, clearedBlocks, commandPosts, rubbleCleared } from '../sim/bases';
 import { EmpRocket, EMP_ROCKET, empRocketImpact, empRocketTick, isEmpTarget, mergeUnitUpdates, topAttackHeight } from '../sim/empRocket';
 import { AirThreat, applyCiwsState, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY } from '../sim/ciws';
@@ -473,14 +474,20 @@ const EmpRocketMesh: React.FC<{ id: string; rocketsRef: React.MutableRefObject<E
 
 // Tank rail gun shots (sim/railgun.ts): an instant hypervelocity slug, drawn as a white-hot
 // core inside a cyan glow from muzzle to target with a flash where it strikes, fading fast.
-type RailBeamData = RailShot & { id: string; createdAt: number };
+// The Hornet's Tier 3 anti-vehicle rocket (sim/hornet.ts) uses the same streak in fire orange,
+// from the gunship's altitude.
+type RailBeamData = RailShot & { id: string; createdAt: number; kind?: 'rail' | 'rocket'; fromY?: number };
+const BEAM_COLORS = {
+    rail: { glow: '#22d3ee', core: '#f0fdff', flash: '#a5f3fc' },
+    rocket: { glow: '#f97316', core: '#fef3c7', flash: '#fdba74' },
+};
 const RAIL_BEAM_MS = 450;
 const RailBeam: React.FC<{ beam: RailBeamData; tileSize: number; offset: number }> = ({ beam, tileSize, offset }) => {
     const glowRef = useRef<any>(null);
     const coreRef = useRef<any>(null);
     const flashRef = useRef<THREE.Mesh>(null);
     const points = useMemo(() => [
-        [(beam.from.x * tileSize) - offset, 3.4, (beam.from.z * tileSize) - offset],
+        [(beam.from.x * tileSize) - offset, beam.fromY ?? 3.4, (beam.from.z * tileSize) - offset],
         [(beam.to.x * tileSize) - offset, beam.structure ? 4 : 2, (beam.to.z * tileSize) - offset],
     ] as [number, number, number][], [beam, tileSize, offset]);
     useFrame(() => {
@@ -494,13 +501,43 @@ const RailBeam: React.FC<{ beam: RailBeamData; tileSize: number; offset: number 
             (flash.material as THREE.MeshBasicMaterial).opacity = 0.9 * fade;
         }
     });
+    const colors = BEAM_COLORS[beam.kind ?? 'rail'];
     return (
         <group>
-            <Line ref={glowRef} points={points} color="#22d3ee" lineWidth={7} transparent opacity={0.7} toneMapped={false} />
-            <Line ref={coreRef} points={points} color="#f0fdff" lineWidth={2} transparent opacity={1} toneMapped={false} />
+            <Line ref={glowRef} points={points} color={colors.glow} lineWidth={7} transparent opacity={0.7} toneMapped={false} />
+            <Line ref={coreRef} points={points} color={colors.core} lineWidth={2} transparent opacity={1} toneMapped={false} />
             <mesh ref={flashRef} position={points[1]} raycast={() => null}>
                 <sphereGeometry args={[1, 12, 10]} />
-                <meshBasicMaterial color="#a5f3fc" transparent opacity={0.9} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+                <meshBasicMaterial color={colors.flash} transparent opacity={0.9} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+            </mesh>
+        </group>
+    );
+};
+
+// Hellfire Salvo mini-rockets (sim/hornet.ts): small streaks dropping from the gunship's pods to
+// where each comes down.
+const MiniRocketMesh: React.FC<{ rocket: MiniRocket; fromY: number; tileSize: number; offset: number }> = ({ rocket, fromY, tileSize, offset }) => {
+    const ref = useRef<THREE.Group>(null);
+    const from = useMemo(() => new THREE.Vector3(rocket.from.x * tileSize - offset, fromY - 2, rocket.from.z * tileSize - offset), [rocket, fromY, tileSize, offset]);
+    const to = useMemo(() => new THREE.Vector3(rocket.at.x * tileSize - offset, 0.8, rocket.at.z * tileSize - offset), [rocket, tileSize, offset]);
+    useFrame(() => {
+        const g = ref.current;
+        if (!g) return;
+        const t = (Date.now() - rocket.firedAt) / (rocket.landsAt - rocket.firedAt);
+        g.visible = t >= 0 && t <= 1;
+        if (!g.visible) return;
+        g.position.lerpVectors(from, to, t);
+        g.lookAt(to);
+    });
+    return (
+        <group ref={ref} visible={false}>
+            <mesh rotation={[Math.PI / 2, 0, 0]} raycast={() => null}>
+                <cylinderGeometry args={[0.12, 0.12, 1.1, 6]} />
+                <meshBasicMaterial color="#e2e8f0" />
+            </mesh>
+            <mesh position={[0, 0, -1.6]} rotation={[Math.PI / 2, 0, 0]} raycast={() => null}>
+                <coneGeometry args={[0.28, 2.2, 6, 1, true]} />
+                <meshBasicMaterial color="#fb923c" transparent opacity={0.75} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
             </mesh>
         </group>
     );
@@ -1212,6 +1249,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // Tank rail gun shots in the air for a moment, and when each gun last fired (ahead of state).
   const [railBeams, setRailBeams] = useState<RailBeamData[]>([]);
   const railShotRef = useRef(new Map<string, number>());
+  // Hornet Tier 3 rockets: when each fired (ahead of state), and Hellfire Salvo rockets in flight.
+  const hornetShotRef = useRef(new Map<string, number>());
+  const [miniRockets, setMiniRockets] = useState<MiniRocket[]>([]);
+  const miniRocketsRef = useRef<MiniRocket[]>([]);
   // Thunderhead shells in flight. The ref is the authority; the state is for drawing them.
   const [shells, setShells] = useState<ArtilleryShell[]>([]);
   const shellsRef = useRef<ArtilleryShell[]>([]);
@@ -2289,6 +2330,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           setDecoys(prev => [...prev.filter(d => !d.ownerId || !fx.clearDecoysOf.includes(d.ownerId)), ...fx.spawnDecoys]);
       }
       if (fx.spawnProjectiles.length > 0) setProjectiles(prev => [...prev, ...fx.spawnProjectiles]);
+      if (fx.salvo && fx.salvo.length > 0) {
+          miniRocketsRef.current = [...miniRocketsRef.current, ...fx.salvo];
+          setMiniRockets(miniRocketsRef.current);
+      }
       if (fx.rockets && fx.rockets.length > 0) {
           rocketsRef.current = [...rocketsRef.current, ...fx.rockets];
           setRockets(rocketsRef.current);
@@ -2926,6 +2971,32 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           rail.structureDamage.forEach((n, id) => attacks.structureDamage.set(id, (attacks.structureDamage.get(id) || 0) + n));
           if (rail.shots.length > 0) setRailBeams(prev => [...prev, ...rail.shots.map((s, i) => ({ ...s, id: `rail-${now}-${i}`, createdAt: now }))]);
 
+          // Hornet anti-vehicle rockets at Tier 3, and Hellfire Salvo rockets coming down (sim/hornet.ts).
+          const hornetReady = (u: UnitData) => {
+              const t = hornetShotRef.current.get(u.id);
+              return t && t > (u.hornetRocketAt ?? -Infinity) ? { ...u, hornetRocketAt: t } : u;
+          };
+          const hornetVolley = fireHornetRockets(currentUnitsRef.map(hornetReady), structuresRef.current, now, t => (t === 'blue' || t === 'red') ? economyRef.current[t].tier : 1);
+          const hornetFired = new Set(hornetVolley.shots.map(s => s.attackerId));
+          hornetFired.forEach(id => hornetShotRef.current.set(id, now));
+          hornetVolley.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+          hornetVolley.structureDamage.forEach((n, id) => attacks.structureDamage.set(id, (attacks.structureDamage.get(id) || 0) + n));
+          if (hornetVolley.shots.length > 0) setRailBeams(prev => [...prev, ...hornetVolley.shots.map((s, i) => ({ ...s, id: `hrocket-${now}-${i}`, createdAt: now, kind: 'rocket' as const, fromY: 74 }))]);
+          if (miniRocketsRef.current.length > 0) {
+              const salvo = landSalvo(miniRocketsRef.current, now, currentUnitsRef, structuresRef.current);
+              salvo.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+              salvo.structureDamage.forEach((n, id) => attacks.structureDamage.set(id, (attacks.structureDamage.get(id) || 0) + n));
+              if (salvo.landed.length > 0) {
+                  miniRocketsRef.current = salvo.flying;
+                  setMiniRockets(salvo.flying);
+                  setExplosions(prev => [...prev, ...salvo.landed.map(r => ({
+                      id: `mini-exp-${r.id}`,
+                      position: { x: r.at.x * tileSize - offset, y: 1, z: r.at.z * tileSize - offset },
+                      radius: 1.8, duration: 450, createdAt: now,
+                  }))]);
+              }
+          }
+
           // Aegis rotary cannons (sim/ciws.ts): hose down aircraft, and missiles, shells and drop
           // pods in flight. Ordnance that has taken enough fire is knocked out of the sky.
           const ordnance: AirThreat[] = [];
@@ -3145,6 +3216,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       }
                       if (volley.fired.has(u.id)) newUnit.artilleryAim = volley.fired.get(u.id);
                       if (railFired.has(u.id)) { newUnit = afterRailShot(newUnit, now); uChanged = true; }
+                      if (hornetFired.has(u.id)) { newUnit.hornetRocketAt = now; uChanged = true; }
                       const gun = ciws.updates.get(u.id);
                       if (gun) { newUnit = { ...newUnit, ...gun }; uChanged = true; }
                       if (attacks.fired.has(u.id)) {
@@ -3439,6 +3511,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         )}
 
         {/* Thunderhead shells, and the fire missions of selected batteries */}
+        {miniRockets.map(r => <MiniRocketMesh key={r.id} rocket={r} fromY={74} tileSize={tileSize} offset={offset} />)}
         {rockets.map(r => <EmpRocketMesh key={r.id} id={r.id} rocketsRef={rocketsRef} unitsRef={unitsRef} tileSize={tileSize} offset={offset} />)}
         {shells.map(s => <ShellMesh key={s.id} shell={s} tileSize={tileSize} offset={offset} enemy={s.team !== playerTeam} />)}
         {units.filter(u => u.type === 'howitzer' && u.artilleryTarget && u.team === playerTeam && selectedUnitIds.has(u.id))

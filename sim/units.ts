@@ -71,7 +71,7 @@ export const UNIT_RULES: Record<UnitType, UnitRules> = {
   // --- Airpad: aircraft. Ignore walls and terrain, beat vehicles. ---
   drone: { armor: 'air', weapon: null, pop: 1, tier: 1, producer: 'air', buildTimeMs: 10000, role: 'Radar scout. Picks up ground units and large aircraft.' },
   wasp: { armor: 'air', weapon: rifle(6, 600, 3), pop: 2, tier: 2, producer: 'air', buildTimeMs: 22000, role: 'Harasser. Fires homing swarm volleys.' },
-  hornet: { armor: 'air', weapon: ap(32, 1600, 4), pop: 3, tier: 2, producer: 'air', buildTimeMs: 26000, role: 'Gunship. Hunts vehicles.' },
+  hornet: { armor: 'air', weapon: ap(32, 1600, 4), pop: 3, tier: 2, producer: 'air', buildTimeMs: 26000, role: 'Gunship. AP rounds hunt vehicles; rockets at Tier 3.' },
   bombard: { armor: 'air', weapon: null, pop: 4, tier: 3, producer: 'air', buildTimeMs: 35000, role: 'Levels a 5x5 patch of city, opening new lanes.' },
 
   // --- Comm Link: support. ---

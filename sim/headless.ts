@@ -11,6 +11,7 @@ import type { BuildingData, DoctrineType, RoadType, StructureData, UnitData } fr
 import { abilityEffects, applyUnitEffects } from './abilities';
 import { AiMemory, AI_PROFILES, aiThink, freshAiMemory } from './ai';
 import { afterRailShot, fireRailguns } from './railgun';
+import { fireHornetRockets, landSalvo, MiniRocket } from './hornet';
 import { EmpRocket, empRocketImpact, empRocketTick, mergeUnitUpdates } from './empRocket';
 import { ArtilleryShell, fireArtillery, landShells, shellGroundPos } from './artillery';
 import { captureTick } from './capture';
@@ -59,6 +60,8 @@ export interface HeadlessMatch {
   shellHits: Map<string, number>;
   // Lancer EMP rockets in flight.
   rockets: EmpRocket[];
+  // Hornet Hellfire Salvo rockets in flight.
+  salvo: MiniRocket[];
   nextId: number;
   // Seeded, so the same options always play out the same match.
   random: () => number;
@@ -94,6 +97,7 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     shells: [],
     shellHits: new Map(),
     rockets: [],
+    salvo: [],
     nextId: 0,
     random: seededRandom(opts.seed ^ 0x5eed),
     gridSize,
@@ -168,6 +172,16 @@ export function stepMatch(m: HeadlessMatch): void {
   if (railFired.size > 0) m.units = m.units.map(u => railFired.has(u.id) ? afterRailShot(u, now) : u);
   rail.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
   if (rail.structureDamage.size > 0) m.structures = applyStructureCombat(m.structures, { structureDamage: rail.structureDamage, fired: new Map(), aiming: new Map() }, now);
+  // Hornet rockets: the Tier 3 anti-vehicle rocket, and Hellfire Salvo rockets coming down.
+  const hornets = fireHornetRockets(m.units, m.structures, now, team => (team === 'neutral' ? 1 : m.economy[team].tier));
+  const hornetFired = new Set(hornets.shots.map(s => s.attackerId));
+  if (hornetFired.size > 0) m.units = m.units.map(u => hornetFired.has(u.id) ? { ...u, hornetRocketAt: now } : u);
+  const salvo = landSalvo(m.salvo, now, m.units, m.structures);
+  m.salvo = salvo.flying;
+  for (const map of [hornets.unitDamage, salvo.unitDamage]) map.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+  for (const map of [hornets.structureDamage, salvo.structureDamage]) {
+    if (map.size > 0) m.structures = applyStructureCombat(m.structures, { structureDamage: map, fired: new Map(), aiming: new Map() }, now);
+  }
   // Aegis rotary cannons: aircraft, and Thunderhead shells (the only ordnance flown here).
   const ciws = ciwsTick(m.units, m.shells.map(s => ({ id: s.id, team: s.team, at: shellGroundPos(s, now), kind: 'shell' as const })), now, MOVE_TICK_MS, m.structures);
   m.structures = applyCiwsState(m.structures, ciws.structureUpdates);
@@ -285,6 +299,7 @@ function think(m: HeadlessMatch, team: Team, paths: ReturnType<typeof pathfinder
       if (!('reason' in outcome)) {
         m.units = applyUnitEffects(m.units, outcome.effects);
         if (outcome.effects.rockets) m.rockets.push(...outcome.effects.rockets);
+        if (outcome.effects.salvo) m.salvo.push(...outcome.effects.salvo);
         if (outcome.effects.economy) m.economy = outcome.effects.economy(m.economy) ?? m.economy;
       }
     } else if (action.kind === 'doctrine') {

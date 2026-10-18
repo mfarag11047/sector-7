@@ -11,6 +11,7 @@ import { ARTILLERY } from '../sim/artillery';
 import { BASE_REPAIR } from '../sim/support';
 import { RADAR, SEARCH_RADAR } from '../sim/radar';
 import { RAILGUN, railDamage } from '../sim/railgun';
+import { HORNET } from '../sim/hornet';
 import { CLOAK_FIELD } from '../sim/cloak';
 import { BASE_SITE } from '../sim/bases';
 import { CIWS, ORDNANCE_INTEGRITY } from '../sim/ciws';
@@ -110,7 +111,7 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
     use: 'Harasser aircraft with homing missile swarms.',
     actions: [{ name: 'Fire Swarm', text: `Launches ${ABILITY_CONFIG.WASP_MISSILES_PER_VOLLEY} homing missiles at a spot up to ${ABILITY_CONFIG.WASP_SWARM_RANGE} tiles away. ${ABILITY_CONFIG.WASP_MAX_CHARGES} charges.` }],
   },
-  hornet: { use: 'Gunship. Hunts vehicles. Avoid Aegis and massed Troopers.' },
+  hornet: { use: `Gunship. Hunts vehicles with armour-piercing rounds; at Tier 3 it also fires an anti-vehicle rocket every ${HORNET.rocket.cooldownMs / 1000}s at its target (${HORNET.rocket.damage} AP) and gains the Hellfire Salvo, a rocket barrage over an area. Avoid Aegis and massed Troopers.` },
   bombard: {
     use: 'Slow heavy drone that flattens city blocks to open new lanes.',
     actions: [{ name: 'Bombard', text: `Flies to a spot and levels a ${ABILITY_CONFIG.BOMBARD_RADIUS * 2 + 1}×${ABILITY_CONFIG.BOMBARD_RADIUS * 2 + 1} patch: ${ABILITY_CONFIG.BOMBARD_BUILDING_DAMAGE} damage to buildings, ${ABILITY_CONFIG.BOMBARD_UNIT_DAMAGE} to every unit under it, friend or foe.` }],

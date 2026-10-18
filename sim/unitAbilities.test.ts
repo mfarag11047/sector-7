@@ -4,8 +4,9 @@ import { CIWS, ciwsTick } from './ciws';
 import { resolveAttacks } from './combat';
 import { speedMultiplier } from './movement';
 import { createUnit } from './production';
+import { HORNET } from './hornet';
 import { EMP_ROCKET, EmpRocket, empRocketImpact, empRocketTick, topAttackHeight } from './empRocket';
-import { abilitiesFor, empVictims, HELLFIRE_DAMAGE, pruneBuffs, spendOvercharge, STIM_HEALTH_COST, unitAbilityEffects, UNIT_ABILITIES } from './unitAbilities';
+import { abilitiesFor, empVictims, pruneBuffs, spendOvercharge, STIM_HEALTH_COST, unitAbilityEffects, UNIT_ABILITIES } from './unitAbilities';
 import { shotDamage, UNIT_RULES } from './units';
 
 const at = (u: UnitData, x: number, z = 0): UnitData => ({ ...u, gridPos: { x, z } });
@@ -186,15 +187,16 @@ describe('effects in combat and movement', () => {
     expect(boom.x).toBeCloseTo(EMP_ROCKET.speed * EMP_ROCKET.maxFlightMs / 1000, 0);
   });
 
-  it('Hellfire hits ground units in the area, and needs to be in range', () => {
+  it('Hellfire Salvo launches a volley of rockets over the area, and needs to be in range', () => {
     const hornet = at(createUnit('hornet', 'blue', 'h', { x: 0, z: 0 }), 0);
-    const units = [hornet, enemy('tank', 5, 'tank'), enemy('wasp', 5, 'air')];
+    const units = [hornet, enemy('tank', 5, 'tank')];
     expect(use(units, 3, { unitIds: ['h'], ability: 'hellfire', target: { x: 12, z: 0 } }).refused).toMatch(/range/);
-    const r = use(units, 3, { unitIds: ['h'], ability: 'hellfire', target: { x: 5, z: 0 } });
-    const tank = r.units!.find(u => u.id === 'tank')!;
-    const expected = shotDamage({ damage: HELLFIRE_DAMAGE, cooldownMs: 0, range: 0, type: 'ap', hitsGround: true, hitsAir: false }, 'heavy');
-    expect(units[1].health - tank.health).toBeCloseTo(expected);
-    expect(r.units!.find(u => u.id === 'air')!.health).toBe(units[2].health);
+    const r = unitAbilityEffects(units, 'blue', 3, { unitIds: ['h'], ability: 'hellfire', target: { x: 6, z: 0 } }, 1000);
+    if ('reason' in r) throw new Error(r.reason);
+    expect(r.salvo!.length).toBe(HORNET.salvo.rockets);
+    // Nothing is hit until the rockets come down.
+    expect(apply(units, r.updates).find(u => u.id === 'tank')!.health).toBe(units[1].health);
+    for (const rocket of r.salvo!) expect(Math.hypot(rocket.at.x - 6, rocket.at.z)).toBeLessThanOrEqual(3 + 1e-9);
   });
 
   it('Radar extends weapon range; speed buffs speed units up', () => {

@@ -15,6 +15,7 @@ import { Economy, spend, takeWarhead, warheadCost } from './economy';
 import { ARTILLERY, artilleryRange, inArtilleryReach } from './artillery';
 import { teamTier } from './orders';
 import type { EmpRocket } from './empRocket';
+import type { MiniRocket } from './hornet';
 import { unitAbilityEffects } from './unitAbilities';
 
 export type AbilityCommand = Extract<PlayerCommand, { type:
@@ -64,6 +65,8 @@ export interface AbilityEffects {
   strike?: { at: GridPos; radius: number; kind: 'emp' | 'hellfire' };
   // Lancer EMP rockets launched, to keep in flight (sim/empRocket.ts).
   rockets?: EmpRocket[];
+  // Hellfire Salvo mini-rockets launched (sim/hornet.ts).
+  salvo?: MiniRocket[];
   // Cores or stockpiled warheads the order uses. Returns null if they are gone by the time it applies.
   economy?: (e: Economy) => Economy | null;
 }
@@ -309,7 +312,7 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
     case 'UNIT_ABILITY': {
       const outcome = unitAbilityEffects(view.units, team, view.economy[team].tier, command, ctx.now);
       if ('reason' in outcome) return reject(outcome.reason);
-      return effects({ updates: outcome.updates, strike: outcome.strike, rockets: outcome.rockets });
+      return effects({ updates: outcome.updates, strike: outcome.strike, rockets: outcome.rockets, salvo: outcome.salvo });
     }
   }
 }

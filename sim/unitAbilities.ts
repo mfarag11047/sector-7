@@ -6,7 +6,7 @@
 //
 // Most abilities give the unit a timed buff, which combat (sim/combat.ts) and movement
 // (sim/movement.ts) read: faster firing, more damage, less damage taken, more speed or range.
-// Two are aimed: the Hornet's Hellfire salvo at a tile, and the Lancer's EMP rocket either at a
+// Two are aimed: the Hornet's Hellfire salvo at an area (sim/hornet.ts), and the Lancer's EMP rocket either at a
 // tile or locked on to an enemy vehicle it can see (the rocket's flight is sim/empRocket.ts).
 //
 // Orders arrive as UNIT_ABILITY commands and are checked here like every other ability:
@@ -16,6 +16,7 @@ import { UNIT_STATS } from '../constants';
 import type { UnitData, UnitType } from '../types';
 import type { GridPos, Team } from './commands';
 import type { EmpRocket } from './empRocket';
+import { MiniRocket, salvoFrom } from './hornet';
 import { shotDamage, Tier, UNIT_RULES } from './units';
 
 export type BuffKind = 'stim' | 'nanoweave' | 'overcharge' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'emp';
@@ -59,15 +60,13 @@ export const UNIT_ABILITIES: readonly UnitAbilityDef[] = [
 
   { id: 'afterburner', unit: 'hornet', name: 'Afterburners', tier: 2, cooldownMs: 25_000, durationMs: 5_000,
     description: '+70% speed for 5s. Get out of flak range.' },
-  { id: 'hellfire', unit: 'hornet', name: 'Hellfire Salvo', tier: 3, cooldownMs: 40_000, durationMs: 0, targeted: { range: 6, radius: 1.5 },
-    description: 'Ripple-fires the rocket pods: heavy anti-armour damage to every enemy ground unit in the area.' },
+  { id: 'hellfire', unit: 'hornet', name: 'Hellfire Salvo', tier: 3, cooldownMs: 40_000, durationMs: 0, targeted: { range: 8, radius: 3 },
+    description: 'Ripple-fires the rocket pods: a burst of small unguided rockets blankets the area, each with a small blast. Built for area damage: shreds infantry and light vehicles in the open.' },
 ];
 
 export const abilitiesFor = (type: UnitType) => UNIT_ABILITIES.filter(a => a.unit === type);
 export const abilityDef = (id: string) => UNIT_ABILITIES.find(a => a.id === id);
 
-// Hellfire: AP damage before armour.
-export const HELLFIRE_DAMAGE = 90;
 export const STIM_HEALTH_COST = 15;
 const OVERCHARGE_MULTIPLIER = 2.5;
 
@@ -113,7 +112,7 @@ export const abilityCooldownLeft = (u: UnitData, id: UnitAbilityId, now: number)
 // --- The order ---
 
 export type UnitAbilityOutcome =
-  | { ok: true; updates: Map<string, (u: UnitData) => UnitData>; strike?: { at: GridPos; radius: number; kind: 'emp' | 'hellfire' }; rockets?: EmpRocket[] }
+  | { ok: true; updates: Map<string, (u: UnitData) => UnitData>; strike?: { at: GridPos; radius: number; kind: 'emp' | 'hellfire' }; rockets?: EmpRocket[]; salvo?: MiniRocket[] }
   | { ok: false; reason: string };
 
 export function unitAbilityEffects(
@@ -172,13 +171,8 @@ export function unitAbilityEffects(
     }));
     return { ok: true, updates, rockets };
   }
-  const hit = units.filter(u => u.team !== team && u.health > 0 && Math.hypot(u.gridPos.x - target.x, u.gridPos.z - target.z) <= def.targeted!.radius);
-  for (const victim of hit) {
-    const armor = UNIT_RULES[victim.type].armor;
-    if (armor === 'air') continue;
-    const damage = shotDamage({ damage: HELLFIRE_DAMAGE, cooldownMs: 0, range: 0, type: 'ap', hitsGround: true, hitsAir: false }, armor)
-      * inRange.length * damageTakenMultiplier(victim);
-    updates.set(victim.id, u => ({ ...u, health: Math.max(0, u.health - damage) }));
-  }
-  return { ok: true, updates, strike: { at: target, radius: def.targeted.radius, kind: 'hellfire' } };
+  // Hellfire Salvo: every Hornet in range ripple-fires its pods; the rockets fly (sim/hornet.ts).
+  const salvo = inRange.flatMap(c => salvoFrom(c, target, def.targeted!.radius, now));
+  return { ok: true, updates, salvo };
+
 }
