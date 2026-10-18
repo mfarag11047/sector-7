@@ -48,7 +48,7 @@ const SlowRender: React.FC = () => {
 };
 
 // ?autostart=1 skips the setup screen with default settings (for automated tests);
-// &doctrine=shadow_ops picks the player's doctrine.
+// &doctrine=shadow_ops picks the player's doctrine, &mode=sandbox starts the sandbox.
 const PARAMS = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
 const AUTOSTART = !!PARAMS?.has('autostart');
 const AUTOSTART_DOCTRINE = (['heavy_metal', 'shadow_ops', 'skunkworks'] as DoctrineType[]).find(d => d === PARAMS?.get('doctrine')) ?? 'heavy_metal';
@@ -60,7 +60,7 @@ const NO_DOCTRINE: DoctrineState = { selected: null, unlockedTiers: 0, cooldowns
 function App() {
   // The setup screen fills this in. Each new match bumps `round`, which remounts the map.
   const [match, setMatch] = useState<MatchConfig | null>(() => AUTOSTART
-      ? { mode: 'ai', seed: Math.floor(Math.random() * 1e6), playerTeam: 'blue', difficulty: 'normal', playerDoctrine: AUTOSTART_DOCTRINE, aiDoctrine: 'skunkworks' }
+      ? { mode: PARAMS?.get('mode') === 'sandbox' ? 'sandbox' : 'ai', seed: Math.floor(Math.random() * 1e6), playerTeam: 'blue', difficulty: 'normal', playerDoctrine: AUTOSTART_DOCTRINE, aiDoctrine: 'skunkworks' }
       : null);
   const [round, setRound] = useState(0);
   const [result, setResult] = useState<{ victory: Victory, summary: MatchSummary } | null>(null);

@@ -1,6 +1,6 @@
 
 import StructureStatus from './StructureStatus';
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges, Html } from '@react-three/drei';
 import { StructureData, StructureType, UnitType } from '../types';
@@ -436,6 +436,14 @@ const AirpadModel = ({ color, teamColor }: { color: string, teamColor: string })
 }
 
 const DepotModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
+    // The HTML label waits until after the first commit: mounting drei's Html while the scene's
+    // very first render is still under way (a depot that exists from the start, as in sandbox)
+    // makes React warn about unmounting a root mid-render.
+    const [showLabel, setShowLabel] = React.useState(false);
+    useEffect(() => {
+        const id = setTimeout(() => setShowLabel(true), 0);
+        return () => clearTimeout(id);
+    }, []);
     return (
         <group>
              <mesh position={[0, 0.3, 0]}>
@@ -452,9 +460,11 @@ const DepotModel = ({ color, teamColor }: { color: string, teamColor: string }) 
                  <meshBasicMaterial color="#fbbf24" transparent opacity={0.2} />
                  <Edges color="#fbbf24" />
              </mesh>
+             {showLabel && (
              <Html position={[-1.5, 0.65, 1.5]} transform rotation={[-Math.PI/2, 0, 0]} scale={[0.5, 0.5, 0.5]}>
                  <div className="text-yellow-500 font-mono font-bold text-4xl border-4 border-yellow-500 p-2">LOADING ZONE</div>
              </Html>
+             )}
              <group position={[2.5, 0, -2.5]}>
                  <mesh position={[0, 2.5, 0]}>
                      <boxGeometry args={[1, 5, 1]} />

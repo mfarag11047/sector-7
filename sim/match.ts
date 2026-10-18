@@ -1,7 +1,7 @@
 // Match settings and each side's starting force.
 
-import { ABILITY_CONFIG, UNIT_STATS } from '../constants';
-import type { DoctrineType, UnitData, UnitType } from '../types';
+import { ABILITY_CONFIG, STRUCTURE_INFO, UNIT_STATS } from '../constants';
+import type { DoctrineType, StructureData, StructureType, UnitData, UnitType } from '../types';
 import type { GridPos, Team } from './commands';
 
 export type MatchMode = 'ai' | 'sandbox';
@@ -80,6 +80,23 @@ export function sandboxRoster(gridSize: number): UnitData[] {
     { id: 'u21', type: 'banshee', unitClass: 'support', team: 'blue', gridPos: { x: 6, z: 6 }, path: [], visionRange: UNIT_STATS.banshee.visionRange, health: UNIT_STATS.banshee.maxHealth, maxHealth: UNIT_STATS.banshee.maxHealth, cooldowns: {}, battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, jammerActive: false },
     { id: 'u22', type: 'banshee', unitClass: 'support', team: 'red', gridPos: { x: gridSize - 7, z: gridSize - 7 }, path: [], visionRange: UNIT_STATS.banshee.visionRange, health: UNIT_STATS.banshee.maxHealth, maxHealth: UNIT_STATS.banshee.maxHealth, cooldowns: {}, battery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, maxBattery: ABILITY_CONFIG.BANSHEE_MAX_MAIN_BATTERY, secondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, maxSecondaryBattery: ABILITY_CONFIG.BANSHEE_MAX_SEC_BATTERY, jammerActive: false },
   ];
+}
+
+// The sandbox also starts each side with one of every base building, finished, on the free
+// tiles along the outer edge of its base (clear of the starting units). Mirrored for red.
+const SANDBOX_LAYOUT: [StructureType, number, number][] = [
+  ['infantry', 1, 1], ['armor', 3, 1], ['air', 5, 1], ['support', 7, 2], ['builder', 1, 3], ['ordnance_fab', 1, 7],
+];
+export function sandboxStructures(gridSize: number): StructureData[] {
+  const last = gridSize - 1;
+  return SANDBOX_LAYOUT.flatMap(([type, x, z]) => (['blue', 'red'] as const).map((team): StructureData => {
+    const info = STRUCTURE_INFO[type];
+    return {
+      id: `sandbox-${team}-${type}`, type, team, gridPos: team === 'blue' ? { x, z } : { x: last - x, z: last - z },
+      isBlueprint: false, constructionProgress: info.maxProgress || 100, maxProgress: info.maxProgress || 100,
+      health: info.maxHealth, maxHealth: info.maxHealth,
+    };
+  }));
 }
 
 export const startingRoster = (config: MatchConfig, gridSize: number, blueBase: GridPos) =>

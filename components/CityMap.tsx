@@ -35,7 +35,7 @@ import { EmpRocket, EMP_ROCKET, empRocketImpact, empRocketTick, isEmpTarget, mer
 import { AirThreat, applyCiwsState, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, resolveAttacks } from '../sim/combat';
 import { generateCity } from '../sim/mapgen';
-import { MatchConfig, STARTING_CORES, aiTeamOf, incomeMultipliers, startingRoster } from '../sim/match';
+import { MatchConfig, STARTING_CORES, aiTeamOf, incomeMultipliers, sandboxStructures, startingRoster } from '../sim/match';
 import { AI_PROFILES, aiThink, freshAiMemory } from '../sim/ai';
 import { OrderCommand, applyOrderToStructures, applyOrderToUnits, orderEffects, popUsed, coreNodesHeld, serverNodesHeld, teamPopCap, teamTier } from '../sim/orders';
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
@@ -1236,11 +1236,15 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   
   // Each side's Command HQ is a structure with health: it can be attacked, fires back, and
   // losing it loses the match. Base.tsx draws it.
-  const [structuresState, setStructuresState] = useState<StructureData[]>(() => (['blue', 'red'] as const).map(team => ({
+  const [structuresState, setStructuresState] = useState<StructureData[]>(() => [
+    ...(['blue', 'red'] as const).map(team => ({
       id: `hq-${team}`, type: 'hq' as const, team, gridPos: team === 'blue' ? { ...baseA_Coord } : { ...baseB_Coord },
       isBlueprint: false, constructionProgress: 0, maxProgress: 0,
       health: STRUCTURE_INFO.hq.maxHealth, maxHealth: STRUCTURE_INFO.hq.maxHealth,
-  })));
+    })),
+    // Sandbox: both sides start with every base building already up, for quick play testing.
+    ...(match.mode === 'sandbox' ? sandboxStructures(gridSize) : []),
+  ]);
   const [decoys, setDecoys] = useState<DecoyData[]>([]);
   const [clouds, setClouds] = useState<CloudData[]>([]);
   const [projectiles, setProjectiles] = useState<Projectile[]>([]);
