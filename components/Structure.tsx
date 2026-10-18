@@ -435,15 +435,32 @@ const AirpadModel = ({ color, teamColor }: { color: string, teamColor: string })
     );
 }
 
+// The LOADING ZONE marking painted on every Depot's pad. It is drawn into a texture once and
+// laid on the floor as part of the 3D scene, so menus and panels cover it like the rest of the
+// map (an HTML overlay sat on top of every screen).
+let loadingZoneTexture: THREE.CanvasTexture | null = null;
+const getLoadingZoneTexture = () => {
+    if (loadingZoneTexture) return loadingZoneTexture;
+    const canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 128;
+    const ctx = canvas.getContext('2d')!;
+    ctx.strokeStyle = '#eab308';
+    ctx.lineWidth = 10;
+    ctx.strokeRect(8, 8, 496, 112);
+    ctx.fillStyle = '#eab308';
+    ctx.font = 'bold 64px ui-monospace, "Courier New", monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('LOADING ZONE', 256, 68);
+    loadingZoneTexture = new THREE.CanvasTexture(canvas);
+    loadingZoneTexture.colorSpace = THREE.SRGBColorSpace;
+    loadingZoneTexture.anisotropy = 4;
+    return loadingZoneTexture;
+};
+
 const DepotModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
-    // The HTML label waits until after the first commit: mounting drei's Html while the scene's
-    // very first render is still under way (a depot that exists from the start, as in sandbox)
-    // makes React warn about unmounting a root mid-render.
-    const [showLabel, setShowLabel] = React.useState(false);
-    useEffect(() => {
-        const id = setTimeout(() => setShowLabel(true), 0);
-        return () => clearTimeout(id);
-    }, []);
+    const label = useMemo(getLoadingZoneTexture, []);
     return (
         <group>
              <mesh position={[0, 0.3, 0]}>
@@ -460,11 +477,10 @@ const DepotModel = ({ color, teamColor }: { color: string, teamColor: string }) 
                  <meshBasicMaterial color="#fbbf24" transparent opacity={0.2} />
                  <Edges color="#fbbf24" />
              </mesh>
-             {showLabel && (
-             <Html position={[-1.5, 0.65, 1.5]} transform rotation={[-Math.PI/2, 0, 0]} scale={[0.5, 0.5, 0.5]}>
-                 <div className="text-yellow-500 font-mono font-bold text-4xl border-4 border-yellow-500 p-2">LOADING ZONE</div>
-             </Html>
-             )}
+             <mesh position={[-1.5, 0.64, 1.5]} rotation={[-Math.PI/2, 0, 0]} raycast={() => null}>
+                 <planeGeometry args={[2.8, 0.7]} />
+                 <meshBasicMaterial map={label} transparent depthWrite={false} toneMapped={false} />
+             </mesh>
              <group position={[2.5, 0, -2.5]}>
                  <mesh position={[0, 2.5, 0]}>
                      <boxGeometry args={[1, 5, 1]} />
