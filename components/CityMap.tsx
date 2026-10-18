@@ -27,7 +27,7 @@ import { Blackout, chargeSources, isInsideEnergyGrid, powerTick } from '../sim/e
 import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, leashStep, repairTick, slowTick, surveillanceStep } from '../sim/support';
 import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells, shellGroundPos } from '../sim/artillery';
-import { EmpRocket, EMP_ROCKET, empRocketImpact, empRocketTick, isEmpTarget, mergeUnitUpdates } from '../sim/empRocket';
+import { EmpRocket, EMP_ROCKET, empRocketImpact, empRocketTick, isEmpTarget, mergeUnitUpdates, topAttackHeight } from '../sim/empRocket';
 import { AirThreat, applyCiwsState, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, resolveAttacks } from '../sim/combat';
 import { generateCity } from '../sim/mapgen';
@@ -396,9 +396,9 @@ const ProjectileMesh: React.FC<{ projectile: Projectile; flightRef: React.Mutabl
     );
 };
 
-// Lancer EMP Tandem Rockets (sim/empRocket.ts): a small rocket with a blue exhaust trail. The sim
-// moves it a step each tick; drawing eases after it and, once a locked rocket is close, homes on
-// where its target is drawn so it visibly strikes the unit.
+// Lancer EMP Tandem Rockets (sim/empRocket.ts): a small rocket with a blue exhaust trail on a
+// top-attack arc. The sim moves it a step each tick over the ground; drawing eases after it and,
+// once a locked rocket is diving in, homes on where its target is drawn so it strikes the unit.
 const EMP_TRAIL = 10;
 const EmpRocketMesh: React.FC<{ id: string; rocketsRef: React.MutableRefObject<EmpRocket[]>; unitsRef: React.MutableRefObject<UnitData[]>; tileSize: number; offset: number }> = ({ id, rocketsRef, unitsRef, tileSize, offset }) => {
     const groupRef = useRef<THREE.Group>(null);
@@ -414,9 +414,12 @@ const EmpRocketMesh: React.FC<{ id: string; rocketsRef: React.MutableRefObject<E
         const total = Math.max(0.01, Math.hypot(r.aim.x - r.from.x, r.aim.z - r.from.z));
         const left = Math.hypot(r.aim.x - r.at.x, r.aim.z - r.at.z);
         const progress = Math.min(1, Math.max(0, 1 - left / Math.max(total, left)));
+        // Javelin-style top attack: up high, then straight down on the target. Short shots
+        // still loft, so it always comes in from above.
         const targetY = target ? flightUnitY(target) : 1.5;
-        let goal = new THREE.Vector3(r.at.x * tileSize - offset, 2.5 + (targetY - 2.5) * progress + (target && targetY > 10 ? 0 : 6 * Math.sin(Math.PI * progress)), r.at.z * tileSize - offset);
-        if (target && left < 1.5) {
+        const apex = Math.max(targetY + 25, Math.min(70, 18 + total * 4));
+        let goal = new THREE.Vector3(r.at.x * tileSize - offset, topAttackHeight(progress, apex, 2.5, targetY), r.at.z * tileSize - offset);
+        if (target && left < 0.6) {
             const w = unitWorld(target, tileSize, offset, targetY);
             goal = new THREE.Vector3(w.x, w.y, w.z);
         }
@@ -1319,6 +1322,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           return unit.id;
       },
       select: (ids: string[]) => setSelectedUnitIds(new Set(ids)),
+      // Glide the camera over a tile.
+      focus: (at: { x: number; z: number }) => { cameraFocus.target = { x: at.x * tileSize - offset, z: at.z * tileSize - offset }; },
       // A finished structure, for testing turrets and the like.
       spawnStructure: (type: StructureType, team: 'blue' | 'red', at: { x: number; z: number }) => {
           const info = STRUCTURE_INFO[type];

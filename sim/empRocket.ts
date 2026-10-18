@@ -1,4 +1,6 @@
-// The Lancer's EMP Tandem Rocket in flight.
+// The Lancer's EMP Tandem Rocket in flight: a Javelin-style top-attack missile. It pops up
+// steeply off the launcher, cruises high and plunges onto its target from above (drawn in
+// CityMap; the sim tracks it over the ground).
 //
 // It has two fire modes. Locked on, it is fired at an enemy vehicle or aircraft the Lancer's side
 // can see and steers after it until it hits, wherever the target runs. Fired at a location, it
@@ -18,8 +20,9 @@ import { UNIT_RULES } from './units';
 export const EMP_ROCKET = {
   // Tiles a second.
   speed: 9,
-  // A rocket that can't catch its target burns out and goes off where it is.
-  maxFlightMs: 4000,
+  // A rocket that can't catch its target burns out and goes off where it is. Long enough to
+  // reach the edge of its 14-tile range with a fleeing target.
+  maxFlightMs: 6000,
   radius: abilityDef('emp_rocket')!.targeted!.radius,
   empMs: abilityDef('emp_rocket')!.durationMs,
   // Share of a full battery each victim loses.
@@ -38,6 +41,17 @@ export interface EmpRocket {
   // Locked on: the unit it is chasing. The aim follows it while it lives.
   targetUnitId: string | null;
   firedAt: number;
+}
+
+// Height above the ground at `progress` (0 at launch, 1 at impact) of a top-attack flight that
+// peaks at `apex` and comes down onto something at `targetY`: a steep climb, a high cruise, then
+// a fast plunge for the last stretch.
+export function topAttackHeight(progress: number, apex: number, launchY: number, targetY: number) {
+  const p = Math.min(1, Math.max(0, progress));
+  if (p < 0.3) return launchY + (apex - launchY) * Math.sin((p / 0.3) * Math.PI / 2);
+  if (p < 0.65) return apex;
+  const t = (p - 0.65) / 0.35;
+  return apex + (targetY - apex) * t * t;
 }
 
 // Vehicles and aircraft: what the rocket can lock on to and what its pulse knocks out.

@@ -428,7 +428,9 @@ function unitAbilityMoves(
           // Aim at the enemy unit with the most valid victims around it, if that's worth a shot.
           const victims = (t: UnitData) => d.id === 'emp_rocket' ? isMachine(t) : armorOf(t) !== 'air';
           let best: { at: GridPos; count: number } | null = null;
-          for (const t of near(u, d.targeted!.range, victims)) {
+          // The EMP rocket reaches 14 tiles, but the AI only aims at what a Lancer would see.
+          const reach = d.id === 'emp_rocket' ? Math.min(d.targeted!.range, 7) : d.targeted!.range;
+          for (const t of near(u, reach, victims)) {
             const count = theirs.filter(o => victims(o) && dist(o.gridPos, t.gridPos) <= d.targeted!.radius).length;
             if (!best || count > best.count) best = { at: { ...t.gridPos }, count };
           }

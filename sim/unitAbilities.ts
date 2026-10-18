@@ -44,8 +44,8 @@ export const UNIT_ABILITIES: readonly UnitAbilityDef[] = [
 
   { id: 'overcharge', unit: 'lancer', name: 'Overcharged Warhead', tier: 2, cooldownMs: 25_000, durationMs: 15_000,
     description: 'Routes the suit battery into the next rocket: 2.5x damage.' },
-  { id: 'emp_rocket', unit: 'lancer', name: 'EMP Tandem Rocket', tier: 3, cooldownMs: 45_000, durationMs: 4_000, targeted: { range: 6, radius: 2 },
-    description: 'Electromagnetic pulse warhead. Lock on to an enemy vehicle or aircraft in sight and the rocket tracks it to impact, or fire it at a location. Vehicles and aircraft in the blast shut down for 4s and lose half a battery.' },
+  { id: 'emp_rocket', unit: 'lancer', name: 'EMP Tandem Rocket', tier: 3, cooldownMs: 45_000, durationMs: 4_000, targeted: { range: 14, radius: 2 },
+    description: 'Top-attack EMP missile, range 14. It climbs steeply, then dives onto the target from above. Lock on to an enemy vehicle or aircraft in sight and it tracks it to impact, or fire it at a location. Vehicles and aircraft in the blast shut down for 4s and lose half a battery.' },
 
   { id: 'nitro', unit: 'razorback', name: 'Nitro Injection', tier: 1, cooldownMs: 25_000, durationMs: 5_000,
     description: '+80% speed for 5s. Hit, run, or close the gap.' },

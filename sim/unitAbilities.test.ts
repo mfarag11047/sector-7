@@ -4,7 +4,7 @@ import { CIWS, ciwsTick } from './ciws';
 import { resolveAttacks } from './combat';
 import { speedMultiplier } from './movement';
 import { createUnit } from './production';
-import { EMP_ROCKET, EmpRocket, empRocketImpact, empRocketTick } from './empRocket';
+import { EMP_ROCKET, EmpRocket, empRocketImpact, empRocketTick, topAttackHeight } from './empRocket';
 import { abilitiesFor, empVictims, HELLFIRE_DAMAGE, pruneBuffs, spendOvercharge, STIM_HEALTH_COST, unitAbilityEffects, UNIT_ABILITIES } from './unitAbilities';
 import { shotDamage, UNIT_RULES } from './units';
 
@@ -144,7 +144,7 @@ describe('effects in combat and movement', () => {
 
   it('EMP rocket can only lock on to an enemy vehicle or aircraft that is in sight and in range', () => {
     const lancer = at(createUnit('lancer', 'blue', 'l', { x: 0, z: 0 }), 0);
-    const units = [lancer, enemy('trooper', 3, 'tr'), enemy('tank', 6, 'seen'), enemy('tank', 9, 'far'), at(createUnit('tank', 'blue', 'own', { x: 0, z: 0 }), 2)];
+    const units = [lancer, enemy('trooper', 3, 'tr'), enemy('tank', 12, 'seen'), enemy('tank', 20, 'far'), at(createUnit('tank', 'blue', 'own', { x: 0, z: 0 }), 2)];
     const lock = (id: string, canSee?: (u: UnitData) => boolean) => {
       const r = unitAbilityEffects(units, 'blue', 3, { unitIds: ['l'], ability: 'emp_rocket', targetUnitId: id }, 1000, canSee);
       return 'reason' in r ? r.reason : 'ok';
@@ -155,6 +155,28 @@ describe('effects in combat and movement', () => {
     expect(lock('seen', () => false)).toMatch(/line of sight/);
     expect(lock('seen', () => true)).toBe('ok');
     expect(lock('far', () => true)).toMatch(/out of range/);
+  });
+
+  it('EMP rocket reaches 14 tiles in both modes', () => {
+    const lancer = at(createUnit('lancer', 'blue', 'l', { x: 0, z: 0 }), 0);
+    const units = [lancer, enemy('tank', 14, 'edge'), enemy('tank', 15, 'beyond')];
+    const fire = (cmd: { target?: { x: number; z: number }; targetUnitId?: string }) => {
+      const r = unitAbilityEffects(units, 'blue', 3, { unitIds: ['l'], ability: 'emp_rocket', ...cmd }, 1000, () => true);
+      return 'reason' in r ? r.reason : 'ok';
+    };
+    expect(fire({ target: { x: 14, z: 0 } })).toBe('ok');
+    expect(fire({ target: { x: 15, z: 0 } })).toMatch(/out of range/);
+    expect(fire({ targetUnitId: 'edge' })).toBe('ok');
+    expect(fire({ targetUnitId: 'beyond' })).toMatch(/out of range/);
+  });
+
+  it('EMP rocket flies a top-attack arc: up steeply, high cruise, down onto the target', () => {
+    const h = (p: number) => topAttackHeight(p, 40, 2.5, 1.5);
+    expect(h(0)).toBeCloseTo(2.5);
+    expect(h(0.15)).toBeGreaterThan(25);
+    expect(h(0.5)).toBe(40);
+    expect(h(0.9)).toBeLessThan(h(0.7));
+    expect(h(1)).toBeCloseTo(1.5);
   });
 
   it('EMP rocket burns out and goes off where it is if it cannot catch its target', () => {
