@@ -283,6 +283,7 @@ const DECKS: DeckSpec[] = [
   // A narrower tier above it, set off-centre so the two read as stacked.
   { inner: 28, outer: 38, height: 15, at: [5, -4], pillars: 9, lanes: [{ radius: 31, count: 4, speed: -0.16 }, { radius: 35, count: 5, speed: 0.14 }] },
 ];
+const UPPER = DECKS[1];
 
 export const CorpoPlaza: React.FC<{ center: { x: number; z: number }; tileSize: number; offset: number; getUnits: () => UnitData[] }> = ({ center, tileSize, offset, getUnits }) => {
   const cx = center.x * tileSize - offset;
@@ -314,13 +315,16 @@ export const CorpoPlaza: React.FC<{ center: { x: number; z: number }; tileSize: 
 
   return (
     <group position={[cx, 0, cz]}>
-      {/* Street level: the painted roundabout. */}
-      <RingLine radius={22} width={0.5} y={0.24} color={YELLOW} />
-      <RingLine radius={40} width={0.5} y={0.24} color={YELLOW} />
-      <Dashes radius={31} count={44} y={0.24} size={[2.4, 0.3]} color="#e6edf7" />
-      <Dashes radius={41} count={36} y={0.25} size={[0.9, 0.5]} color={BLUE} glow />
-      {/* Yellow hazard stripes round the inside of the ring. */}
-      <Dashes radius={20.5} count={48} y={0.24} size={[1.2, 1.4]} color={YELLOW} />
+      {/* Street level: the painted roundabout, laid out right under the upper tier so its yellow
+          edge lines trace that deck's edges. */}
+      <group position={[UPPER.at[0], 0, UPPER.at[1]]}>
+        <RingLine radius={UPPER.inner} width={0.5} y={0.24} color={YELLOW} />
+        <RingLine radius={UPPER.outer} width={0.5} y={0.24} color={YELLOW} />
+        <Dashes radius={(UPPER.inner + UPPER.outer) / 2} count={44} y={0.24} size={[2.4, 0.3]} color="#e6edf7" />
+        <Dashes radius={UPPER.outer + 1} count={36} y={0.25} size={[0.9, 0.5]} color={BLUE} glow />
+        {/* Yellow hazard stripes round the inside of the ring. */}
+        <Dashes radius={UPPER.inner - 1.5} count={48} y={0.24} size={[1.2, 1.4]} color={YELLOW} />
+      </group>
       {/* The island: a low curb with a lit edge, planted with palms, round the server node. */}
       <mesh position={[0, 0.5, 0]} raycast={noRaycast}>
         <cylinderGeometry args={[18.5, 18.5, 0.8, 72, 1, true]} />
