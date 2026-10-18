@@ -1,6 +1,7 @@
 // How a match is won.
 //
-//   Destruction: the enemy Command HQ is destroyed.
+//   Destruction: every enemy Command HQ is destroyed (its starting HQ and any it has built,
+//   sim/bases.ts).
 //   Domination: hold DOMINATION_NODES of the core nodes for DOMINATION_MS without a break.
 //
 // Domination is what stops a turtling player from sitting on a lead forever: the side that

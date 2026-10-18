@@ -1,6 +1,6 @@
 // Moving, training and building, as validated commands.
 //
-// orderEffects checks a MOVE, TRAIN_UNIT or PLACE_STRUCTURE command for the sending team and
+// orderEffects checks a MOVE, TRAIN_UNIT, PLACE_STRUCTURE or BUILD_BASE command for the sending team and
 // returns what it does, or a reason it was refused. The player's clicks and the AI both go
 // through here, so the computer opponent plays by exactly the same rules.
 //
@@ -11,6 +11,7 @@ import type { BuildingData, StructureData, StructureType, UnitData } from '../ty
 import type { GridPos, PlayerCommand, Team } from './commands';
 import { Economy, research, researchCost, spend, structureCost, unitCost } from './economy';
 import { Blackout, isBlackedOut, isInsideEnergyGrid } from './energy';
+import { baseOrder } from './bases';
 import { isAirType, popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from './units';
 
 export { popUsed };
@@ -32,9 +33,9 @@ export const isOperational = (s: StructureData) => !s.isBlueprint && !((s.buildR
 
 // --- Commands ---
 
-export type OrderCommand = Extract<PlayerCommand, { type: 'MOVE' | 'TRAIN_UNIT' | 'PLACE_STRUCTURE' | 'SET_RALLY' | 'RESEARCH_TIER' }>;
+export type OrderCommand = Extract<PlayerCommand, { type: 'MOVE' | 'TRAIN_UNIT' | 'PLACE_STRUCTURE' | 'SET_RALLY' | 'RESEARCH_TIER' | 'BUILD_BASE' }>;
 export const isOrderCommand = (c: PlayerCommand): c is OrderCommand =>
-  c.type === 'MOVE' || c.type === 'TRAIN_UNIT' || c.type === 'PLACE_STRUCTURE' || c.type === 'SET_RALLY' || c.type === 'RESEARCH_TIER';
+  c.type === 'MOVE' || c.type === 'TRAIN_UNIT' || c.type === 'PLACE_STRUCTURE' || c.type === 'SET_RALLY' || c.type === 'RESEARCH_TIER' || c.type === 'BUILD_BASE';
 
 export interface OrdersView {
   units: readonly UnitData[];
@@ -49,7 +50,8 @@ export interface OrdersView {
 
 export interface OrdersContext {
   gridSize: number;
-  bases: Record<Team, GridPos>;
+  // Each side's command bases: its starting HQ and any it has built.
+  bases: Record<Team, GridPos | readonly GridPos[]>;
   isWalkable: (x: number, z: number) => boolean;
   findPath: (from: GridPos, to: GridPos) => string[];
   findAirPath: (from: GridPos, to: GridPos) => string[];
@@ -80,6 +82,11 @@ export function orderEffects(view: OrdersView, team: Team, command: OrderCommand
     case 'PLACE_STRUCTURE': return placeOrder(view, team, command.structureType, command.at, ctx);
     case 'SET_RALLY': return rallyOrder(view, team, command.structureId, command.at, ctx);
     case 'RESEARCH_TIER': return researchOrder(view, team, command.tier);
+    case 'BUILD_BASE': {
+      const outcome = baseOrder(view, team, command.at, ctx.newId);
+      if ('reason' in outcome) return reject(outcome.reason);
+      return effects({ economy: outcome.pay, newStructures: [outcome.structure] });
+    }
   }
 }
 

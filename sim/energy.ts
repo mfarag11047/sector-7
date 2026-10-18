@@ -29,18 +29,21 @@ export function isInsideEnergyGrid(
   pos: GridPos,
   team: UnitData['team'],
   buildings: readonly BuildingData[],
-  blueBase: GridPos,
-  redBase: GridPos,
+  // A side's command bases: its starting HQ, plus any it has built (sim/bases.ts).
+  blueBase: GridPos | readonly GridPos[],
+  redBase: GridPos | readonly GridPos[],
   blackouts: readonly Blackout[] = [],
 ): boolean {
   if (team !== 'blue' && team !== 'red') return false;
   if (blackouts.length > 0 && isBlackedOut(pos, team, blackouts)) return false;
   const baseRadiusSq = ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS * ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS;
   const buildingRadiusSq = ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS * ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS;
-  const base = team === 'blue' ? blueBase : redBase;
-  const baseDx = pos.x - base.x;
-  const baseDz = pos.z - base.z;
-  if (baseDx * baseDx + baseDz * baseDz <= baseRadiusSq) return true;
+  const bases = team === 'blue' ? blueBase : redBase;
+  for (const base of Array.isArray(bases) ? bases : [bases as GridPos]) {
+    const baseDx = pos.x - base.x;
+    const baseDz = pos.z - base.z;
+    if (baseDx * baseDx + baseDz * baseDz <= baseRadiusSq) return true;
+  }
   for (const building of buildings) {
     if (building.destroyed || building.owner !== team || building.type === 'core_node') continue;
     const dx = pos.x - building.gridX;

@@ -12,6 +12,7 @@ import { BASE_REPAIR } from '../sim/support';
 import { RADAR, SEARCH_RADAR } from '../sim/radar';
 import { RAILGUN, railDamage } from '../sim/railgun';
 import { CLOAK_FIELD } from '../sim/cloak';
+import { BASE_SITE } from '../sim/bases';
 import { CIWS, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { HQ_INCOME } from '../sim/economy';
 import { abilitiesFor } from '../sim/unitAbilities';
@@ -691,7 +692,9 @@ const WinningTab: React.FC = () => (
   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
     <div>
       <H>Destruction</H>
-      <p className="text-xs text-slate-300 leading-relaxed">Destroy the enemy Command HQ. It has {STRUCTURE_INFO.hq.maxHealth} health and an anti-vehicle gun, so bring Titans, Lancers or artillery.</p>
+      <p className="text-xs text-slate-300 leading-relaxed">Destroy every enemy Command HQ: its starting one and any new bases it has built. Each has {STRUCTURE_INFO.hq.maxHealth} health and an anti-vehicle gun, so bring Titans, Lancers or artillery.</p>
+      <H>New bases</H>
+      <p className="text-xs text-slate-300 leading-relaxed">Level every building in a city block and its rubble clears away, leaving a base site marked with a button in the middle. Click it to build a new Command HQ there: {BASE_SITE.cores} cores and {BASE_SITE.compute} compute, {BASE_SITE.buildMs / 1000}s to build, and one of your units must be within {BASE_SITE.reach} tiles. It extends your energy grid, repairs units in its block and has the HQ menu.</p>
     </div>
     <div>
       <H>Domination</H>

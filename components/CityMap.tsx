@@ -12,7 +12,7 @@ import BuildingHitProxies from './BuildingHitProxies';
 import * as THREE from 'three';
 import { Edges, Html, Line, Float, Instance, Instances } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Zap, Ban } from 'lucide-react';
+import { Zap, Ban, Building2 } from 'lucide-react';
 import { freezeContainer } from '../perf';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from '../sim/movement';
@@ -28,6 +28,7 @@ import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, leashStep, repairTick, slowTick, surveillanceStep } from '../sim/support';
 import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells, shellGroundPos } from '../sim/artillery';
 import { afterRailShot, fireRailguns, RailShot } from '../sim/railgun';
+import { BASE_SITE, BaseSite, baseSites, clearedBlocks, commandPosts, rubbleCleared } from '../sim/bases';
 import { EmpRocket, EMP_ROCKET, empRocketImpact, empRocketTick, isEmpTarget, mergeUnitUpdates, topAttackHeight } from '../sim/empRocket';
 import { AirThreat, applyCiwsState, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, isBombardStrike, resolveAttacks } from '../sim/combat';
@@ -1052,19 +1053,79 @@ const GroundPointer: React.FC<{ handlersRef: React.MutableRefObject<{ down: (e: 
     return null;
 };
 
+// A levelled city block where a new Command HQ can go (sim/bases.ts): a glowing pad on the
+// ground and a button over it that opens the build menu.
+const BaseSiteMarker: React.FC<{
+  site: BaseSite; tileSize: number; offset: number; open: boolean; cores: number; compute: number;
+  onToggle: () => void; onBuild: () => void;
+}> = ({ site, tileSize, offset, open, cores, compute, onToggle, onBuild }) => {
+  const ringRef = useRef<THREE.Mesh>(null);
+  useFrame(({ clock }) => {
+    const ring = ringRef.current;
+    if (!ring) return;
+    ring.rotation.z = clock.elapsedTime * 0.4;
+    (ring.material as THREE.MeshBasicMaterial).opacity = 0.45 + 0.25 * Math.sin(clock.elapsedTime * 2);
+  });
+  const x = site.at.x * tileSize - offset;
+  const z = site.at.z * tileSize - offset;
+  const afford = cores >= BASE_SITE.cores && compute >= BASE_SITE.compute;
+  return (
+    <group position={[x, 0.3, z]}>
+      <mesh ref={ringRef} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+        <ringGeometry args={[tileSize * 1.6, tileSize * 1.85, 6]} />
+        <meshBasicMaterial color="#67e8f9" transparent opacity={0.6} side={THREE.DoubleSide} depthWrite={false} toneMapped={false} />
+      </mesh>
+      <mesh rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+        <circleGeometry args={[tileSize * 1.6, 6]} />
+        <meshBasicMaterial color="#0e7490" transparent opacity={0.12} depthWrite={false} />
+      </mesh>
+      <Html position={[0, 6, 0]} center zIndexRange={[150, 0]}>
+        <div className="flex flex-col items-center pointer-events-auto" onPointerDown={e => e.stopPropagation()}>
+          <button
+            onClick={(e) => { e.stopPropagation(); onToggle(); }}
+            title="Cleared city block: build a new Command HQ here"
+            className={`w-9 h-9 rounded-md border-2 flex items-center justify-center shadow-lg ${open ? 'bg-cyan-500/40 border-cyan-200' : 'bg-slate-900/80 border-cyan-400/80 hover:bg-cyan-900/70'}`}
+          >
+            <Building2 className="w-5 h-5 text-cyan-200" />
+          </button>
+          {open && (
+            <div className="hud-plate hud-corners hud-menu backdrop-blur mt-2 min-w-[230px] p-2 flex flex-col gap-1.5 text-left">
+              <span className="text-cyan-400 font-mono font-bold text-xs uppercase">Base site</span>
+              <span className="text-[10px] text-slate-300 leading-snug">A levelled city block. Build a new Command HQ: it extends your energy grid, repairs units in its block and has the HQ menu. Needs one of your units within {BASE_SITE.reach} tiles.</span>
+              <button
+                disabled={!afford}
+                onClick={(e) => { e.stopPropagation(); onBuild(); }}
+                className={`flex items-center justify-between px-3 py-2 rounded border ${afford ? 'border-cyan-300 bg-cyan-500/20 text-white hover:bg-cyan-500/40' : 'border-slate-700 opacity-60 text-slate-400 cursor-not-allowed'}`}
+              >
+                <span className="text-xs font-mono font-bold">Build Command HQ</span>
+                <span className="text-[10px] font-mono text-right">
+                  <span className={cores >= BASE_SITE.cores ? 'text-emerald-300' : 'text-red-400'}>{BASE_SITE.cores} cores</span><br />
+                  <span className={compute >= BASE_SITE.compute ? 'text-blue-300' : 'text-red-400'}>{BASE_SITE.compute} ⚡</span>
+                </span>
+              </button>
+              <span className="text-[9px] font-mono text-slate-500">Takes {BASE_SITE.buildMs / 1000}s to go up.</span>
+            </div>
+          )}
+        </div>
+      </Html>
+    </group>
+  );
+};
+
 const EnergyGridField: React.FC<{
   buildings: BuildingData[];
   playerTeam: 'blue' | 'red';
+  // The player's command bases: the starting HQ and any built since (sim/bases.ts).
+  bases: readonly { x: number; z: number }[];
   tileSize: number;
   offset: number;
-}> = ({ buildings, playerTeam, tileSize, offset }) => {
+}> = ({ buildings, playerTeam, bases, tileSize, offset }) => {
   const sources = useMemo(() => {
-    const base = TEAM_BASES[playerTeam];
     const owned = buildings
       .filter(building => !building.destroyed && building.owner === playerTeam && building.type !== 'core_node')
       .map(building => ({ x: building.gridX, z: building.gridZ, radius: ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS }));
-    return [{ x: base.x, z: base.z, radius: ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS }, ...owned];
-  }, [buildings, playerTeam]);
+    return [...bases.map(b => ({ x: b.x, z: b.z, radius: ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS })), ...owned];
+  }, [buildings, playerTeam, bases]);
 
   const arcs = useMemo(() => outerEnergyGridPolylines(sources), [sources]);
 
@@ -1170,7 +1231,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // 'UNIT:<ability id>' while aiming a new unit's ability (sim/unitAbilities.ts).
   const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'BATTERY_TETHER' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'SWARM' | 'BOMBARD' | 'ARTILLERY' | `UNIT:${string}` | null>(null);
 
-  const [baseMenuOpen, setBaseMenuOpen] = useState<'blue' | 'red' | null>(null);
+  // The open HQ menu: 'blue' or 'red' for a starting HQ, or a built HQ's id.
+  const [baseMenuOpen, setBaseMenuOpen] = useState<string | null>(null);
   const [placementMode, setPlacementMode] = useState<{type: StructureType, cost: number} | null>(null);
   const placementModeRef = useRef(placementMode);
   placementModeRef.current = placementMode;
@@ -1378,6 +1440,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           return unit.id;
       },
       select: (ids: string[]) => setSelectedUnitIds(new Set(ids)),
+      // Level every building in the city block (5x5 lot) holding a tile, for testing base sites.
+      levelBlock: (at: { x: number; z: number }) => {
+          const ix = Math.floor(at.x / 6), iz = Math.floor(at.z / 6);
+          const level = (list: BuildingData[]) => list.map(b => Math.floor(b.gridX / 6) === ix && Math.floor(b.gridZ / 6) === iz && !b.destroyed ? { ...b, destroyed: true, health: 0 } : b);
+          buildingsRef.current = level(buildingsRef.current);
+          setBuildings(level);
+          return { x: ix * 6 + 3, z: iz * 6 + 3 };
+      },
       // A doctrine power, e.g. power('SHADOW_OPS_TIER3', { x, z }, 'blue'), with the usual checks.
       power: (type: string, target: { x: number; z: number }, team: 'blue' | 'red') => runDoctrinePowerRef.current({ type, target, team }),
       resetPowerCooldowns: () => { doctrineReadyAtRef.current = { blue: { tier2: 0, tier3: 0 }, red: { tier2: 0, tier3: 0 } }; },
@@ -1610,6 +1680,21 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
     });
     return open;
   }, [buildings]);
+
+  // Command bases (sim/bases.ts): each side's HQs that are up, the city blocks levelled to the
+  // ground (their rubble is cleared away), and the sites on them free to build a new base on.
+  const teamBases = useMemo(() => ({
+      blue: commandPosts(structuresState, 'blue', baseA_Coord),
+      red: commandPosts(structuresState, 'red', baseB_Coord),
+  }), [structuresState, baseA_Coord, baseB_Coord]);
+  const teamBasesRef = useRef(teamBases);
+  teamBasesRef.current = teamBases;
+  const clearedLots = useMemo(() => clearedBlocks(buildings), [buildings]);
+  const sites = useMemo(() => baseSites(buildings, structuresState), [buildings, structuresState]);
+  const [siteMenuId, setSiteMenuId] = useState<string | null>(null);
+  // On an HQ's pad (the starting ones or any built since): nothing else goes there.
+  const onHqPad = (x: number, z: number, structures: readonly StructureData[]) =>
+      structures.some(s => s.type === 'hq' && Math.abs(x - s.gridPos.x) <= 1 && Math.abs(z - s.gridPos.z) <= 1);
 
   const dynamicRoadTileSet = useMemo(() => {
     const set = new Set<number>();
@@ -1984,10 +2069,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (x < 0 || z < 0 || x >= gridSize || z >= gridSize) return false;
       if (Math.abs(x - baseA_Coord.x) <= 1 && Math.abs(z - baseA_Coord.z) <= 1) return false;
       if (Math.abs(x - baseB_Coord.x) <= 1 && Math.abs(z - baseB_Coord.z) <= 1) return false;
+      if (onHqPad(x, z, structuresState)) return false;
       if (structuresState.some(s => s.gridPos.x === x && s.gridPos.z === z)) return false;
       if (buildings.some(b => b.gridX === x && b.gridZ === z)) return false;
-      // You can only build where you hold power: around the HQ and captured buildings.
-      if (!isInsideEnergyGrid({ x, z }, playerTeam, buildings, baseA_Coord, baseB_Coord, activeBlackouts())) return false;
+      // You can only build where you hold power: around your HQs and captured buildings.
+      if (!isInsideEnergyGrid({ x, z }, playerTeam, buildings, teamBases.blue, teamBases.red, activeBlackouts())) return false;
       // The structure occupies its own tile, so the Mason needs a road beside it.
       const beside = [
           {x: x + 1, z}, {x: x - 1, z}, {x, z: z + 1}, {x, z: z - 1},
@@ -2134,6 +2220,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const canBuildOnTile = (bx: number, bz: number) => {
       if (Math.abs(bx - baseA_Coord.x) <= 1 && Math.abs(bz - baseA_Coord.z) <= 1) return false;
       if (Math.abs(bx - baseB_Coord.x) <= 1 && Math.abs(bz - baseB_Coord.z) <= 1) return false;
+      if (onHqPad(bx, bz, structuresRef.current)) return false;
       if (structuresRef.current.some(st => st.gridPos.x === bx && st.gridPos.z === bz)) return false;
       if (buildingsRef.current.some(b => b.gridX === bx && b.gridZ === bz)) return false;
       return [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => isWalkable(bx + dx, bz + dz));
@@ -2145,7 +2232,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           team,
           command,
           {
-              gridSize, bases: { blue: baseA_Coord, red: baseB_Coord },
+              gridSize, bases: teamBasesRef.current,
               isWalkable, findPath, findAirPath, newId,
               canBuildOn: canBuildOnTile,
           },
@@ -3018,7 +3105,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   }
 
                   // Guardians and the base block are the only healing (sim/support.ts).
-                  const repair = repairTick(activeUnits, TICK_RATE, { blue: baseA_Coord, red: baseB_Coord }, team => (team === 'blue' || team === 'red') ? doctrines?.[team]?.selected : null, team => economyRef.current[team].tier, now);
+                  const repair = repairTick(activeUnits, TICK_RATE, teamBasesRef.current, team => (team === 'blue' || team === 'red') ? doctrines?.[team]?.selected : null, team => economyRef.current[team].tier, now);
 
                   const chargers = activeUnits.filter(u => u.type === 'helios');
                   
@@ -3112,7 +3199,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       if (powerTick(u, newUnit, {
                           units: activeUnits,
                           sources: power,
-                          onGrid: isInsideEnergyGrid(u.gridPos, u.team, buildingsRef.current, baseA_Coord, baseB_Coord, blackouts),
+                          onGrid: isInsideEnergyGrid(u.gridPos, u.team, buildingsRef.current, teamBasesRef.current.blue, teamBasesRef.current.red, blackouts),
                           inNanoCloud: isPointInCloud(u.gridPos, activeClouds, 'nano'),
                           helios: chargers,
                       })) uChanged = true;
@@ -3250,11 +3337,31 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         <EnergyGridField
             buildings={buildings}
             playerTeam={playerTeam}
+            bases={teamBases[playerTeam === 'red' ? 'red' : 'blue']}
             tileSize={tileSize}
             offset={offset}
         />
-        {buildings.map(b => ( 
+        {/* A levelled city block's rubble is cleared away (sim/bases.ts). */}
+        {buildings.filter(b => !rubbleCleared(b, clearedLots)).map(b => ( 
             <HoverBuilding key={b.id} data={b} store={hoverStore} />
+        ))}
+        {sites.map(site => (
+            <BaseSiteMarker
+                key={site.id}
+                site={site}
+                tileSize={tileSize}
+                offset={offset}
+                open={siteMenuId === site.id}
+                onToggle={() => setSiteMenuId(id => id === site.id ? null : site.id)}
+                cores={economy[playerTeam === 'red' ? 'red' : 'blue'].cores}
+                compute={economy[playerTeam === 'red' ? 'red' : 'blue'].compute}
+                onBuild={() => {
+                    if (dispatchOrder({ type: 'BUILD_BASE', at: site.at })) {
+                        setSiteMenuId(null);
+                        onNotice?.(`Command base under construction: ready in ${BASE_SITE.buildMs / 1000}s`);
+                    }
+                }}
+            />
         ))}
         {structuresState.filter(s => s.type !== 'hq').map(s => ( 
             <Structure 
@@ -3381,6 +3488,32 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             compute={economy.red.compute}
             onResearch={playerTeam === 'red' ? (tier: 2 | 3) => dispatchOrder({ type: 'RESEARCH_TIER', tier }) : undefined}
         />
+
+        {/* Command HQs built on cleared city blocks (sim/bases.ts). */}
+        {structuresState.filter(s => s.type === 'hq' && s.id !== 'hq-blue' && s.id !== 'hq-red' && s.health > 0).map(s => {
+            const team = s.team === 'red' ? 'red' : 'blue';
+            const mine = s.team === playerTeam;
+            return (
+                <Base
+                    key={s.id}
+                    position={[(s.gridPos.x * CITY_CONFIG.tileSize) - offset, 0, (s.gridPos.z * CITY_CONFIG.tileSize) - offset]}
+                    gridPos={s.gridPos}
+                    teamColor={TEAM_COLORS[team]}
+                    label={`${team.toUpperCase()} BASE`}
+                    onMoveCommand={handleTileClick}
+                    onDoubleClick={() => { if (mine && !(s.buildRemainingMs! > 0)) setBaseMenuOpen(s.id); }}
+                    menuOpen={baseMenuOpen === s.id}
+                    resources={teamResources[team]}
+                    onBuild={handleBuild}
+                    onRightClick={handleRightClick}
+                    hq={s}
+                    tier={economy[team].tier}
+                    compute={economy[team].compute}
+                    onResearch={mine ? (tier: 2 | 3) => dispatchOrder({ type: 'RESEARCH_TIER', tier }) : undefined}
+                    buildProgress={(s.buildTotalMs || 0) > 0 ? 1 - (s.buildRemainingMs || 0) / s.buildTotalMs! : 1}
+                />
+            );
+        })}
 
         {/* Movement Visualization for Friendly Moving Units */}
         {movingUnitsData.map((data) => (

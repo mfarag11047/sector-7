@@ -13,7 +13,7 @@ so tuning keeps the shape.
    doctrine comes from the seed.
 2. **Start.** Each side has its Command HQ, 3 Strike Troopers, a Mason, an Infiltrator Drone and
    1000 cores.
-3. **Win** by destroying the enemy HQ, or by **domination**: holding 4 of the 6 core nodes for
+3. **Win** by destroying every enemy HQ (its starting one and any it has built), or by **domination**: holding 4 of the 6 core nodes for
    two minutes without interruption. The HUD shows the countdown for whoever is closest.
 4. **End screen** with the result, match time and stats, and a button to play again.
 
@@ -66,6 +66,23 @@ The intended arc:
   there sooner than the direct line through side streets and empty lots.
 - Aircraft ignore terrain: they fly a straight line, diagonals included, over buildings and city
   blocks, at the same speed everywhere.
+
+## New command bases
+
+Rules: `sim/bases.ts`. Once every building in a city block (the 5x5 lot between roads) is
+destroyed, the block's rubble is cleared away and a base site appears at its centre: a glowing
+hex pad with a button over it. Core and server node blocks never become sites.
+
+- Clicking the button opens the site menu: **Build Command HQ** for 2000 cores and 200 compute
+  (`BUILD_BASE`, checked in `sim/orders.ts`). One of your units must be within 6 tiles of the
+  site. Either side can build on any free site.
+- The new HQ takes 60 s to go up, rising out of the ground with a build bar. Until then it does
+  nothing, but it can be attacked.
+- Finished, it is a full HQ: 5000 health and the HQ's gun, its own energy grid circle (so you can
+  build around it), repair for units in its block, and the HQ menu (structures, research).
+- Victory by destruction now means destroying every one of a side's HQs, its starting HQ and any
+  it has built. A base still going up counts.
+- The AI doesn't build new bases yet.
 
 ## Population
 

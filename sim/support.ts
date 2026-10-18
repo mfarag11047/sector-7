@@ -78,7 +78,8 @@ export function inBaseBlock(pos: GridPos, base: GridPos): boolean {
 export function repairTick(
   units: readonly UnitData[],
   tickMs: number,
-  bases: Record<'blue' | 'red', GridPos>,
+  // Each side's command bases (one, or several once it has built more: sim/bases.ts).
+  bases: Record<'blue' | 'red', GridPos | readonly GridPos[]>,
   doctrineOf: (team: UnitData['team']) => DoctrineType | null | undefined,
   tierOf: (team: 'blue' | 'red') => number = () => 1,
   now = 0,
@@ -88,7 +89,8 @@ export function repairTick(
   const heavyMetalArmour = (u: UnitData) => u.unitClass === 'armor' && doctrineOf(u.team) === 'heavy_metal';
   for (const u of units) {
     if (u.health <= 0 || u.health >= u.maxHealth || (u.team !== 'blue' && u.team !== 'red')) continue;
-    if (inBaseBlock(u.gridPos, bases[u.team])) add(u.id, u.maxHealth * BASE_REPAIR.perSecond * (tickMs / 1000));
+    const own = bases[u.team];
+    if ((Array.isArray(own) ? own : [own as GridPos]).some(b => inBaseBlock(u.gridPos, b))) add(u.id, u.maxHealth * BASE_REPAIR.perSecond * (tickMs / 1000));
   }
   for (const [id, amount] of heal) {
     const u = units.find(x => x.id === id);

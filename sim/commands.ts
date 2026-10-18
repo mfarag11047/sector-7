@@ -34,6 +34,8 @@ export interface TrainUnitCommand { type: 'TRAIN_UNIT'; structureId: string; uni
 export interface SetRallyCommand { type: 'SET_RALLY'; structureId: string; at: GridPos }
 // Spend compute to unlock the next tech tier for good.
 export interface ResearchTierCommand { type: 'RESEARCH_TIER'; tier: 2 | 3 }
+// A new Command HQ on a cleared city block, at the block's centre (sim/bases.ts).
+export interface BuildBaseCommand { type: 'BUILD_BASE'; at: GridPos }
 export interface BuildWarheadCommand { type: 'BUILD_WARHEAD'; structureId: string; warhead: Warhead }
 
 // --- Toggles and instant abilities ---
@@ -92,6 +94,7 @@ export type PlayerCommand =
   | TrainUnitCommand
   | SetRallyCommand
   | ResearchTierCommand
+  | BuildBaseCommand
   | BuildWarheadCommand
   | ToggleDampenerCommand
   | ToggleJammerCommand
@@ -175,6 +178,7 @@ const CHECKS: Record<CommandType, (c: Fields) => boolean> = {
   TRAIN_UNIT: c => isId(c.structureId) && oneOf(UNIT_TYPES, c.unitType),
   SET_RALLY: c => isId(c.structureId) && isTile(c.at),
   RESEARCH_TIER: c => c.tier === 2 || c.tier === 3,
+  BUILD_BASE: c => isTile(c.at),
   BUILD_WARHEAD: c => isId(c.structureId) && oneOf(WARHEADS, c.warhead),
   TOGGLE_DAMPENER: unitList,
   TOGGLE_JAMMER: unitList,

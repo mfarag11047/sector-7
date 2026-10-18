@@ -30,6 +30,6 @@ describe('isPlayerCommand', () => {
   });
 
   it('covers every command type', () => {
-    expect(COMMAND_TYPES).toHaveLength(30);
+    expect(COMMAND_TYPES).toHaveLength(31);
   });
 });

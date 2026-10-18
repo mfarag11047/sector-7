@@ -26,10 +26,12 @@ interface BaseProps {
   tier?: number;
   compute?: number;
   onResearch?: (tier: 2 | 3) => void;
+  // 0 to 1 while a newly ordered HQ goes up (sim/bases.ts); it rises out of the ground.
+  buildProgress?: number;
 }
 
 const Base: React.FC<BaseProps> = ({ 
-  position, gridPos, teamColor, label, onMoveCommand, onRightClick, onDoubleClick, menuOpen, resources = 0, onBuild, hq, tier = 1, compute = 0, onResearch
+  position, gridPos, teamColor, label, onMoveCommand, onRightClick, onDoubleClick, menuOpen, resources = 0, onBuild, hq, tier = 1, compute = 0, onResearch, buildProgress = 1
 }) => {
   const radarRef = useRef<THREE.Group>(null);
   const baseGroupRef = useRef<THREE.Group>(null);
@@ -106,6 +108,8 @@ const Base: React.FC<BaseProps> = ({
       onPointerOut={() => (document.body.style.cursor = 'auto')}
     >
       {hq && <StructureStatus data={hq} height={10} />}
+      {/* A new HQ rises out of the ground as it is built. */}
+      <group scale={[1, Math.max(0.12, buildProgress), 1]}>
       {/* --- LEVEL 1: BASE PLATFORM (Octagonal/Chamfered look) --- */}
       <group position={[0, 0.5, 0]}>
           {/* Main Central Slab */}
@@ -285,6 +289,8 @@ const Base: React.FC<BaseProps> = ({
       </Float>
 
       {/* Construction Menu Overlay */}
+      </group>
+
       {menuOpen && (
         <Html position={[0, 10, 0]} center zIndexRange={[200, 0]}>
           <div className="hud-plate hud-corners hud-menu backdrop-blur min-w-[220px] overflow-hidden flex flex-col pointer-events-auto">
