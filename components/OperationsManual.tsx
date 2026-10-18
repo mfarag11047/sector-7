@@ -155,7 +155,7 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
   titan_dropped: { use: 'A Titan delivered from orbit.', source: 'Heavy Metal doctrine, Tier 2 power: Orbital Drop.' },
   swarm_host: {
     use: 'Mobile drone hive.',
-    source: 'Skunkworks doctrine, Tier 3 power.',
+    source: 'Not currently fielded by any doctrine.',
     actions: [{ name: 'Anchor', text: `Anchored, it releases Crawler Drones (up to ${ABILITY_CONFIG.SWARM_HOST_MAX_DRONES}) that hunt enemies nearby.` }],
   },
   cloak_generator: {

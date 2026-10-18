@@ -2,7 +2,7 @@
 //
 // Base structures go up on their own once placed (buildRemainingMs counts down). A finished
 // production structure works through its training queue one unit at a time. Both run at the
-// team's production speed, so the Skunkworks doctrine bonus applies to them as it does to
+// team's production speed, so the Netrunner doctrine bonus applies to them as it does to
 // warheads.
 //
 // Also here: createUnit, the one place a fresh unit of any type is put together, used for

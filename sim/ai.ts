@@ -625,10 +625,11 @@ function doctrineMove(
       if (t === 2 && mode === 'attack') return { kind: 'doctrine', tier: 2, target: objective };
       // Cloaking Field over the army as it moves in, before the shooting gives it away.
       if (t === 3 && army.length >= 4 && (mode === 'attack' || mode === 'defend')) return { kind: 'doctrine', tier: 3, target: front };
-    } else if (doctrine === 'skunkworks') {
+    } else if (doctrine === 'netrunner') {
       // Nano clouds stop all fire inside them: cover a retreat.
       if (t === 2 && mode === 'retreat' && army.length >= 4) return { kind: 'doctrine', tier: 2, target: front };
-      if (t === 3 && (mode === 'attack' || mode === 'defend') && cluster) return { kind: 'doctrine', tier: 3, target: { x: Math.round((cluster.at.x + front.x) / 2), z: Math.round((cluster.at.z + front.z) / 2) } };
+      // Black Wall Infect into the thick of the enemy, where the virus has the most friends to jump to.
+      if (t === 3 && (mode === 'attack' || mode === 'defend') && cluster && cluster.value >= 500) return { kind: 'doctrine', tier: 3, target: cluster.at };
     }
   }
   return null;

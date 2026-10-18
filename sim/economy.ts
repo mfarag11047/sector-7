@@ -14,8 +14,8 @@ export const STARTING_CORES = 2500;
 export const ECONOMY_TICK_MS = 1000;
 // Warhead fabs and Field Fabricators advance once per logic tick.
 export const PRODUCTION_TICK_MS = 100;
-// Skunkworks tier 1 passive: production runs 10% faster.
-const SKUNKWORKS_PRODUCTION_BONUS = 1.1;
+// Netrunner tier 1 passive: production runs 10% faster.
+const NETRUNNER_PRODUCTION_BONUS = 1.1;
 
 export interface TeamEconomy {
   cores: number;
@@ -143,7 +143,7 @@ export function setCompute(economy: Economy, team: Team, compute: number): Econo
 
 // Milliseconds of build progress one production tick is worth for this team.
 export const productionStep = (doctrine: DoctrineType | null | undefined) =>
-  PRODUCTION_TICK_MS * (doctrine === 'skunkworks' ? SKUNKWORKS_PRODUCTION_BONUS : 1);
+  PRODUCTION_TICK_MS * (doctrine === 'netrunner' ? NETRUNNER_PRODUCTION_BONUS : 1);
 
 export interface WarheadProductionResult {
   // New production state for each fab that advanced, keyed by structure id.

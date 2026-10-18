@@ -140,9 +140,9 @@ describe('doctrine powers', () => {
 });
 
 describe('warhead production', () => {
-  it('runs 10% faster under Skunkworks', () => {
+  it('runs 10% faster under Netrunner', () => {
     expect(productionStep(null)).toBe(100);
-    expect(productionStep('skunkworks')).toBeCloseTo(110);
+    expect(productionStep('netrunner')).toBeCloseTo(110);
   });
 
   it('finishes exactly once and reports the team and warhead', () => {

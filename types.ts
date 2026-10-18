@@ -165,6 +165,10 @@ export interface UnitData {
   // Bombardment Drone munitions (sim/bombard.ts): drops left (undefined = a full load), when it
   // last dropped, flying home empty, and when it started rearming at a base.
   bombardMunitions?: number;
+  // Black Wall virus (sim/blackwall.ts): when it was infected, and how long it has stood near an
+  // infected friend without catching it yet.
+  blackwallInfectedAt?: number;
+  blackwallExposureMs?: number;
   bombardLastStrikeAt?: number;
   bombardReturning?: boolean;
   bombardRearmStartedAt?: number;
@@ -254,7 +258,7 @@ export interface RoadTileData {
   type: RoadType;
 }
 
-export type DoctrineType = 'heavy_metal' | 'shadow_ops' | 'skunkworks';
+export type DoctrineType = 'heavy_metal' | 'shadow_ops' | 'netrunner';
 
 export interface DoctrineState {
   selected: DoctrineType | null;
@@ -371,7 +375,8 @@ export interface Explosion {
     duration: number;
     createdAt: number;
     // 'emp': a blue energy discharge whose ring reaches `radius`, instead of a fireball.
-    style?: 'emp';
+    // 'blackwall': the Black Wall virus bomb's glitching blast.
+    style?: 'emp' | 'blackwall';
 }
 
 export interface CityConfig {

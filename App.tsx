@@ -51,7 +51,7 @@ const SlowRender: React.FC = () => {
 // &doctrine=shadow_ops picks the player's doctrine, &mode=sandbox starts the sandbox.
 const PARAMS = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
 const AUTOSTART = !!PARAMS?.has('autostart');
-const AUTOSTART_DOCTRINE = (['heavy_metal', 'shadow_ops', 'skunkworks'] as DoctrineType[]).find(d => d === PARAMS?.get('doctrine')) ?? 'heavy_metal';
+const AUTOSTART_DOCTRINE = (['heavy_metal', 'shadow_ops', 'netrunner'] as DoctrineType[]).find(d => d === PARAMS?.get('doctrine')) ?? 'heavy_metal';
 
 export interface Notice { id: number; text: string; tone: 'info' | 'warn'; at: number }
 
@@ -60,7 +60,7 @@ const NO_DOCTRINE: DoctrineState = { selected: null, unlockedTiers: 0, cooldowns
 function App() {
   // The setup screen fills this in. Each new match bumps `round`, which remounts the map.
   const [match, setMatch] = useState<MatchConfig | null>(() => AUTOSTART
-      ? { mode: PARAMS?.get('mode') === 'sandbox' ? 'sandbox' : 'ai', seed: Math.floor(Math.random() * 1e6), playerTeam: 'blue', difficulty: 'normal', playerDoctrine: AUTOSTART_DOCTRINE, aiDoctrine: 'skunkworks' }
+      ? { mode: PARAMS?.get('mode') === 'sandbox' ? 'sandbox' : 'ai', seed: Math.floor(Math.random() * 1e6), playerTeam: 'blue', difficulty: 'normal', playerDoctrine: AUTOSTART_DOCTRINE, aiDoctrine: 'netrunner' }
       : null);
   const [round, setRound] = useState(0);
   const [result, setResult] = useState<{ victory: Victory, summary: MatchSummary } | null>(null);
@@ -180,8 +180,8 @@ function App() {
     // heavy_metal_tier3: Nuke (Targeted)
     // shadow_ops_tier2: Decoy (Targeted)
     // shadow_ops_tier3: Cloaking Field (Targeted)
-    // skunkworks_tier2: Nano-Cloud (Targeted)
-    // skunkworks_tier3: Swarm Host (Targeted)
+    // netrunner_tier2: Nano-Cloud (Targeted)
+    // netrunner_tier3: Black Wall Infect (Targeted)
 
     const fullType = type.toUpperCase();
     const needsTarget = true;

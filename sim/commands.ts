@@ -149,7 +149,7 @@ const UNIT_TYPES = Object.keys({
   banshee: 1, defense_drone: 1, titan_dropped: 1, swarm_host: 1, crawler_drone: 1, bombard: 1,
   trooper: 1, lancer: 1, razorback: 1, aegis: 1, hornet: 1, howitzer: 1, cloak_generator: 1,
 } satisfies Record<UnitType, 1>);
-const DOCTRINES = Object.keys({ heavy_metal: 1, shadow_ops: 1, skunkworks: 1 } satisfies Record<DoctrineType, 1>);
+const DOCTRINES = Object.keys({ heavy_metal: 1, shadow_ops: 1, netrunner: 1 } satisfies Record<DoctrineType, 1>);
 const WARHEADS = Object.keys({ emp: 1, he: 1 } satisfies Record<Warhead, 1>);
 
 // Large enough for any real selection, small enough to stop a flood.

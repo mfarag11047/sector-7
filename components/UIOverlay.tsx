@@ -96,7 +96,7 @@ const DoctrineIcon: React.FC<{ type: DoctrineType | null, className?: string }> 
     if (!type) return <span className={`text-slate-500 font-mono ${className}`}>-</span>;
     if (type === 'heavy_metal') return <span className={`text-orange-500 font-bold ${className}`}>⛨</span>;
     if (type === 'shadow_ops') return <span className={`text-purple-500 font-bold ${className}`}>👁</span>;
-    if (type === 'skunkworks') return <span className={`text-cyan-500 font-bold ${className}`}>⚡</span>;
+    if (type === 'netrunner') return <span className={`text-cyan-500 font-bold ${className}`}>⚡</span>;
     return null;
 };
 
@@ -337,7 +337,7 @@ const DoctrineHUD: React.FC<{
     const theme = {
         heavy_metal: 'border-amber-400 text-amber-300',
         shadow_ops: 'border-fuchsia-400 text-fuchsia-300',
-        skunkworks: 'border-cyan-300 text-cyan-200',
+        netrunner: 'border-cyan-300 text-cyan-200',
     }[type];
 
     const wait2 = Math.ceil((cooldowns?.tier2 || 0) / 1000);
@@ -430,7 +430,7 @@ const DoctrineCard: React.FC<{
     const colors = {
         heavy_metal: 'border-amber-400 text-amber-300',
         shadow_ops: 'border-fuchsia-400 text-fuchsia-300',
-        skunkworks: 'border-cyan-300 text-cyan-200',
+        netrunner: 'border-cyan-300 text-cyan-200',
     };
     const theme = colors[type];
 

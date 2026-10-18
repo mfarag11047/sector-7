@@ -33,6 +33,8 @@ import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells, s
 import { afterRailShot, fireRailguns, RailShot } from '../sim/railgun';
 import { fireHornetRockets, landSalvo, MiniRocket } from '../sim/hornet';
 import { BASE_SITE, BaseSite, baseSites, clearedBlocks, commandPosts, rubbleCleared } from '../sim/bases';
+import { BLACKWALL, blackwallImpact, blackwallTick } from '../sim/blackwall';
+import { BlackwallBomb, BlackwallBurst } from './BlackwallFx';
 import { EmpRocket, EMP_ROCKET, empRocketImpact, empRocketTick, isEmpTarget, mergeUnitUpdates, topAttackHeight } from '../sim/empRocket';
 import { AirThreat, applyCiwsState, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, resolveAttacks } from '../sim/combat';
@@ -955,6 +957,7 @@ const EmpFieldMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: numbe
 // Explosion Component
 const ExplosionMesh: React.FC<{ explosion: Explosion }> = ({ explosion }) => {
     if (explosion.style === 'emp') return <EmpDischargeMesh explosion={explosion} />;
+    if (explosion.style === 'blackwall') return <BlackwallBurst position={explosion.position} radius={explosion.radius} createdAt={explosion.createdAt} duration={explosion.duration} />;
     return <FireballMesh explosion={explosion} />;
 };
 const FireballMesh: React.FC<{ explosion: Explosion }> = ({ explosion }) => {
@@ -1268,6 +1271,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const shellsRef = useRef<ArtilleryShell[]>([]);
   // Lancer EMP rockets in flight, the same way.
   const [rockets, setRockets] = useState<EmpRocket[]>([]);
+  // Black Wall virus bombs on their way down (Netrunner Tier 3, sim/blackwall.ts).
+  type VirusBomb = { id: string; team: 'blue' | 'red'; at: { x: number; z: number }; firedAt: number; landAt: number };
+  const [virusBombs, setVirusBombs] = useState<VirusBomb[]>([]);
+  const virusBombsRef = useRef<VirusBomb[]>([]);
   const rocketsRef = useRef<EmpRocket[]>([]);
   // Aegis cannon fire this tick (for the tracer stream), and fire each piece of ordnance has taken.
   const ciwsLinksRef = useRef<CiwsLink[]>([]);
@@ -1904,7 +1911,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const doctrineReadyAtRef = useRef<Record<'blue' | 'red', { tier2: number, tier3: number }>>({ blue: { tier2: 0, tier3: 0 }, red: { tier2: 0, tier3: 0 } });
   const runDoctrinePower = (action: { type: string, target: { x: number, z: number }, team: 'blue' | 'red' }): boolean => {
           const { type, target, team } = action;
-          const power = /^(HEAVY_METAL|SHADOW_OPS|SKUNKWORKS)_TIER([23])$/.exec(type);
+          const power = /^(HEAVY_METAL|SHADOW_OPS|NETRUNNER)_TIER([23])$/.exec(type);
           if (!power) return false;
           const doctrine = power[1].toLowerCase() as DoctrineType;
           const tier = Number(power[2]) as 2 | 3;
@@ -2005,7 +2012,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   startTime: Date.now()
               }]);
           }
-          else if (type === 'SKUNKWORKS_TIER2') {
+          else if (type === 'NETRUNNER_TIER2') {
               // Nano Cloud Projectile Volley
               const count = 3;
               for (let i = 0; i < count; i++) {
@@ -2050,11 +2057,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   }]);
               }
           }
-          else if (type === 'SKUNKWORKS_TIER3') {
-              // Spawn Swarm Host
-              const host = createUnit('swarm_host', team, `host-${Date.now()}`, target);
-              host.cooldowns = { spawnCrawler: 0 };
-              setUnits(prev => [...prev, host]);
+          else if (type === 'NETRUNNER_TIER3') {
+              // Black Wall Infect: a virus bomb falls on the target and goes off when it lands.
+              const firedAt = Date.now();
+              const bomb = { id: `virus-${team}-${firedAt}`, team, at: { ...target }, firedAt, landAt: firedAt + BLACKWALL.fallMs };
+              virusBombsRef.current = [...virusBombsRef.current, bomb];
+              setVirusBombs(virusBombsRef.current);
           }
           return true;
   };
@@ -3109,6 +3117,27 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   })]);
               }
           }
+          // Black Wall virus (sim/blackwall.ts): bombs that land infect the enemies under them; the
+          // infected burn and pass it to friends who linger next to them.
+          {
+              const landed = virusBombsRef.current.filter(b => b.landAt <= now);
+              const virus = blackwallTick(unitsRef.current, TICK_RATE, now);
+              if (landed.length > 0) {
+                  virusBombsRef.current = virusBombsRef.current.filter(b => b.landAt > now);
+                  setVirusBombs(virusBombsRef.current);
+                  for (const b of landed) mergeUnitUpdates(virus, blackwallImpact(unitsRef.current, b.at, b.team, now));
+                  setExplosions(prev => [...prev, ...landed.map(b => ({
+                      id: `virus-exp-${b.id}`,
+                      position: { x: b.at.x * tileSize - offset, y: 0.5, z: b.at.z * tileSize - offset },
+                      radius: BLACKWALL.radius * tileSize, duration: 1600, createdAt: now, style: 'blackwall' as const,
+                  }))]);
+              }
+              if (virus.size > 0) {
+                  const infect = (list: UnitData[]) => list.map(u => virus.get(u.id)?.(u) ?? u);
+                  unitsRef.current = infect(unitsRef.current);
+                  setUnits(infect);
+              }
+          }
           if (attacks.shots.length > 0) {
               setTracers(prev => [...prev, ...attacks.shots.map((shot, i) => ({ ...shot, id: `tracer-${now}-${i}`, createdAt: now }))]);
           }
@@ -3539,6 +3568,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
         {/* Thunderhead shells, and the fire missions of selected batteries */}
         {miniRockets.map(r => <MiniRocketMesh key={r.id} rocket={r} fromY={74} tileSize={tileSize} offset={offset} />)}
+        {virusBombs.map(b => <BlackwallBomb key={b.id} at={{ x: b.at.x * tileSize - offset, z: b.at.z * tileSize - offset }} firedAt={b.firedAt} landAt={b.landAt} radius={BLACKWALL.radius * tileSize} />)}
         {rockets.map(r => <EmpRocketMesh key={r.id} id={r.id} rocketsRef={rocketsRef} unitsRef={unitsRef} tileSize={tileSize} offset={offset} />)}
         {shells.map(s => <ShellMesh key={s.id} shell={s} tileSize={tileSize} offset={offset} enemy={s.team !== playerTeam} />)}
         {units.filter(u => u.type === 'howitzer' && u.artilleryTarget && u.team === playerTeam && selectedUnitIds.has(u.id))
@@ -3684,8 +3714,24 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                               <meshBasicMaterial color="#fca5a5" transparent opacity={0.15} depthWrite={false} />
                          </mesh>
                      </group>
-                ) : (targetingAbility === 'SWARM' || (interactionMode === 'target' && targetingDoctrine?.type.includes('SKUNKWORKS'))) ? (
-                    (interactionMode === 'target' && targetingDoctrine?.type === 'SKUNKWORKS_TIER2') ? (
+                ) : (interactionMode === 'target' && targetingDoctrine?.type === 'NETRUNNER_TIER3') ? (
+                    // Black Wall Infect: the bomb's blast radius in Blackwall red.
+                    <group>
+                        <mesh rotation={[-Math.PI/2, 0, Date.now() * 0.004]}>
+                            <ringGeometry args={[BLACKWALL.radius * tileSize - 0.6, BLACKWALL.radius * tileSize, 48]} />
+                            <meshBasicMaterial color="#ff1a3c" transparent opacity={0.8} side={THREE.DoubleSide} toneMapped={false} />
+                        </mesh>
+                        <mesh rotation={[-Math.PI/2, 0, 0]}>
+                            <circleGeometry args={[BLACKWALL.radius * tileSize, 48]} />
+                            <meshBasicMaterial color="#ff2fb4" transparent opacity={0.15} depthWrite={false} />
+                        </mesh>
+                        <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.05, 0]}>
+                            <ringGeometry args={[(BLACKWALL.radius + BLACKWALL.spreadRange) * tileSize - 0.3, (BLACKWALL.radius + BLACKWALL.spreadRange) * tileSize, 48, 1, 0, Math.PI * 2]} />
+                            <meshBasicMaterial color="#3f6bff" transparent opacity={0.35} side={THREE.DoubleSide} />
+                        </mesh>
+                    </group>
+                ) : (targetingAbility === 'SWARM' || (interactionMode === 'target' && targetingDoctrine?.type.includes('NETRUNNER'))) ? (
+                    (interactionMode === 'target' && targetingDoctrine?.type === 'NETRUNNER_TIER2') ? (
                         // Nano Cloud Reticle (Green, 5 radius) - Crosshair + Ring
                         <group>
                             {/* Outer Ring */}

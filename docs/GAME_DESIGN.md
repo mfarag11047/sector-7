@@ -306,6 +306,22 @@ double against heavy armour). Once its side has Tier 3 it also fires an anti-veh
 its own every 6 s at whatever its gun is shooting (AP 60, so 120 to heavy armour), drawn as an
 orange streak. The Hellfire Salvo (above) is its aimed Tier 3 area attack.
 
+## Netrunner doctrine: Black Wall Infect
+
+`sim/blackwall.ts`. The Netrunner doctrine (formerly Skunkworks) keeps its Overclock passive (+10%
+production) and Nano-Cloud (Tier 2). Its Tier 3 power (1100 cores, 300 s cooldown) is Black Wall
+Infect: a virus bomb that falls for 1.2 s and goes off in a 1.5-tile blast.
+- Every enemy unit in the blast loses 25% of its maximum health at once and is infected.
+- An infected unit burns 2.5% of its maximum health a second until it dies (30 s from 75%).
+  Nothing cures it.
+- The virus spreads within the infected unit's own side: a unit that stays within 2 tiles of an
+  infected friend for 2.5 s catches it. Leaving range before that resets the exposure. It never
+  jumps to the other side or to the neutral Sentinels.
+- Infected units crawl with Blackwall glitch (red, magenta and blue scanlines, a jittering split
+  cage and a red ring on the ground); a unit catching it shows a magenta ring filling up.
+
+The Swarm Host it used to deploy is no longer fielded by any doctrine.
+
 ## Bombardment Drone strike cycle
 
 `sim/bombard.ts`. Ordered onto a tile, the drone flies there and keeps dropping a cluster strike on
@@ -438,7 +454,7 @@ same kind of economy.
    again. Vehicles low on battery outside the grid drive home to recharge.
 5. **Powers:** Titan smoke when hurt. Doctrine powers on Normal (T2) and Hard (T2 and T3): Orbital
    Drop into a fight, Nuke on a big cluster, Decoys on an attack, EMP in a big fight, a Nano Cloud
-   over a retreat, a Swarm Host between the armies.
+   over a retreat, a Black Wall Infect bomb on a big enemy cluster.
 
 Easier levels aren't just slower; they're less attentive, the way a person juggling a base and a
 fight is. They only go round their production structures every so often (and skip some), they leave a gap between

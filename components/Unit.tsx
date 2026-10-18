@@ -14,6 +14,7 @@ import { ARTILLERY, artilleryRange } from '../sim/artillery';
 import { CIWS } from '../sim/ciws';
 import { BOMBARD } from '../sim/bombard';
 import { CLOAK_FIELD } from '../sim/cloak';
+import { BlackwallExposure, BlackwallInfection } from './BlackwallFx';
 import { follow, predictPosition, simClock, walkAlong } from './glide';
 
 // Helper component for spinning rotors
@@ -211,6 +212,8 @@ interface UnitProps {
   courierPayload?: 'emp' | 'he';
   bombardmentTarget?: { x: number; z: number } | null;
   bombardMunitions?: number;
+  blackwallInfectedAt?: number;
+  blackwallExposureMs?: number;
   bombardReturning?: boolean;
   bombardRearmStartedAt?: number;
   jammerActive?: boolean;
@@ -360,7 +363,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -1220,6 +1223,10 @@ const Unit: React.FC<UnitProps> = ({
           <RadarSweep radius={radarRange * tileSize} y={0} strong={isSelected || !!actionMenuOpen} />
         </group>
       )}
+      {/* Infected with the Black Wall virus: glitching red and blue code crawling over it. A unit
+          catching it from a nearby carrier shows a ring filling up. */}
+      {blackwallInfectedAt !== undefined && health > 0 && <BlackwallInfection size={hoverHeight > 20 ? 5 : 3.2} seed={blackwallInfectedAt} />}
+      {blackwallInfectedAt === undefined && (blackwallExposureMs ?? 0) > 0 && <BlackwallExposure size={hoverHeight > 20 ? 5 : 3.2} exposureMs={blackwallExposureMs!} />}
       {/* Knocked out by an EMP: a shell of blue static flickering over the machine. */}
       {buffs?.some(b => b.kind === 'emp') && <EmpStatic size={hoverHeight > 20 ? 5 : 4} />}
       {isJammed && (<mesh position={[0, 2, 0]} raycast={() => null}><sphereGeometry args={[1]} /><meshBasicMaterial color="#ffffff" wireframe transparent opacity={0.3} /></mesh>)}

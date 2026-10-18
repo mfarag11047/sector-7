@@ -344,8 +344,8 @@ export const DOCTRINE_CONFIG: Record<DoctrineType, {
     tier3_name: "Cloaking Field",
     tier3_desc: "Air-drops a Cloaking Field Generator. Friendly units within 3 tiles are hidden from the enemy until they fire or are hit. Runs on battery (indefinitely inside your grid); one per side, a new drop destroys the old.",
   },
-  skunkworks: {
-    label: "Skunkworks",
+  netrunner: {
+    label: "Netrunner",
     tier1_passive: "Overclock: Production speed +10% globally.",
     tier2_cost: 600,
     tier2_cooldown: 90000,
@@ -353,8 +353,8 @@ export const DOCTRINE_CONFIG: Record<DoctrineType, {
     tier2_desc: "Deploys a dense smoke screen at target area.",
     tier3_cost: 1100,
     tier3_cooldown: 300000,
-    tier3_name: "Swarm Host",
-    tier3_desc: "Deploys a mobile factory that spawns Wasp drones.",
+    tier3_name: "Black Wall Infect",
+    tier3_desc: "Drops a Black Wall virus bomb. Enemies in its small blast lose 25% of their max health and are infected: they slowly burn until they die, and any friend who stays within 2 tiles of them for 2.5 s catches it too.",
   }
 };
 
