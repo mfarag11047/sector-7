@@ -90,6 +90,7 @@ export const UNIT_RULES: Record<UnitType, UnitRules> = {
   // --- Never trained ---
   defense_drone: { armor: 'heavy', weapon: rifle(14, 500, 3), pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Guards a server node. Hostile to everyone.' },
   titan_dropped: { armor: 'heavy', weapon: shell(60, 2200, 4, 1, 0.1), pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Orbital-drop Titan.' },
+  field_generator: { armor: 'heavy', weapon: null, pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Projects a force field the enemy cannot shoot into.' },
   cloak_generator: { armor: 'light', weapon: null, pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Cloaks friendly units within 3 tiles while it has battery.' },
   crawler_drone: { armor: 'light', weapon: null, pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Detonates next to enemies.' },
 };

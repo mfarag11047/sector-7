@@ -13,6 +13,7 @@ import { RADAR, SEARCH_RADAR } from '../sim/radar';
 import { RAILGUN, railDamage } from '../sim/railgun';
 import { HORNET } from '../sim/hornet';
 import { BOMBARD, DROPS_TO_DESTROY } from '../sim/bombard';
+import { FORCE_FIELD } from '../sim/forcefield';
 import { CLOAK_FIELD } from '../sim/cloak';
 import { BASE_SITE } from '../sim/bases';
 import { CIWS, ORDNANCE_INTEGRITY } from '../sim/ciws';
@@ -156,6 +157,10 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
   swarm_host: {
     use: 'Mobile drone hive.',
     actions: [{ name: 'Anchor', text: `Anchored, it releases Crawler Drones (up to ${ABILITY_CONFIG.SWARM_HOST_MAX_DRONES}) that hunt enemies nearby.` }],
+  },
+  field_generator: {
+    use: `Projects a force-field dome ${FORCE_FIELD.radius} tiles across its centre, about a city block. Your units inside fire out freely; enemy shots and projectiles from outside can't get in. Enemies who walk in can fight from inside but are shocked for ${FORCE_FIELD.shockDps} damage a second. Runs for ${FORCE_FIELD.lifetimeMs / 1000}s, then burns out. Destroy the generator from inside to drop it sooner; an EMP inside the dome knocks it out.`,
+    source: 'Heavy Metal doctrine, Tier 3 power: Bulwark Force Field. Dropped in a pod.',
   },
   cloak_generator: {
     use: `Projects a ${CLOAK_FIELD.radius}-tile Cloaking Field: friendly units inside, and the generator itself, are hidden from the enemy and can't be targeted, though blasts and shelling still hurt. An enemy Aegis' radar still shows them as red blips. A unit that fires or is hit shows itself for ${CLOAK_FIELD.revealMs / 1000}s. Runs on its battery: indefinitely inside your grid, about a minute outside it; a Battery Mule or Helios keeps it going. An EMP shuts it down.`,

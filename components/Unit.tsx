@@ -9,7 +9,7 @@ import { abilitiesFor } from '../sim/unitAbilities';
 import { roleBadgeTexture, UNIT_ROLE } from './unitIcons';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
-import { AegisModel, CloakGeneratorModel, HornetModel, InfiltratorModel, LancerLauncher, RazorbackModel, ThunderheadModel, TrooperKit } from './unitModels';
+import { AegisModel, CloakGeneratorModel, FieldGeneratorModel, HornetModel, InfiltratorModel, LancerLauncher, RazorbackModel, ThunderheadModel, TrooperKit } from './unitModels';
 import { ARTILLERY, artilleryRange } from '../sim/artillery';
 import { CIWS } from '../sim/ciws';
 import { BOMBARD } from '../sim/bombard';
@@ -419,6 +419,7 @@ const Unit: React.FC<UnitProps> = ({
   const isRazorback = type === 'razorback';
   const isHowitzer = type === 'howitzer';
   const isCloakGen = type === 'cloak_generator';
+  const isFieldGen = type === 'field_generator';
   const fieldUp = isCloakGen && !cloakFieldOff && health > 0 && battery > 0 && !buffs?.some(b => b.kind === 'emp');
   const isAegis = type === 'aegis';
   const isHornet = type === 'hornet';
@@ -434,7 +435,7 @@ const Unit: React.FC<UnitProps> = ({
 
   // Floating height difference
   // Raised ground units to 1.2 to clear the Base platform (height 1.0)
-  const hoverHeight = isBombard ? 42 : isDefenseDrone ? 12.0 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler || isTrooper || isLancer || isRazorback || isAegis || isHowitzer || isCloakGen) ? 1.2 : (isAir ? 75.0 : 2.0);
+  const hoverHeight = isBombard ? 42 : isDefenseDrone ? 12.0 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler || isTrooper || isLancer || isRazorback || isAegis || isHowitzer || isCloakGen || isFieldGen) ? 1.2 : (isAir ? 75.0 : 2.0);
   
   // Logical World Position
   const logicalWorldPos = useMemo(() => new THREE.Vector3(
@@ -737,6 +738,7 @@ const Unit: React.FC<UnitProps> = ({
     );
     if (isRazorback) return <RazorbackModel teamColor={teamColor} />;
     if (isCloakGen) return <CloakGeneratorModel teamColor={teamColor} active={fieldUp} />;
+    if (isFieldGen) return <FieldGeneratorModel teamColor={teamColor} active={health > 0 && !buffs?.some(b => b.kind === 'emp')} />;
     if (isHowitzer) return <ThunderheadModel teamColor={teamColor} deployed={!!isDeployed} aim={aimWorld} />;
     if (isAegis) return <AegisModel teamColor={teamColor} firing={!!ciwsTargetId} />;
     if (isHornet) return <HornetModel teamColor={teamColor} />;

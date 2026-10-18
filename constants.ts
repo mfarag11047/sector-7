@@ -62,6 +62,7 @@ export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: st
   // Never trained: spawned by the map, abilities or doctrines
   defense_drone: { unitClass: 'defense', cost: 0, captureMultiplier: 0, label: 'Sentinel Drone', visionRange: 4, speedMod: 0, maxHealth: 300 },
   titan_dropped: { unitClass: 'armor', cost: 0, captureMultiplier: 0, label: 'Titan (Orbital Drop)', visionRange: 5, speedMod: 0.7, maxHealth: 700 },
+  field_generator: { unitClass: 'armor', cost: 0, captureMultiplier: 0, label: 'Bulwark Field Generator', visionRange: 3, speedMod: 0, maxHealth: 2000 },
   cloak_generator: { unitClass: 'support', cost: 0, captureMultiplier: 0, label: 'Cloaking Field Generator', visionRange: 3, speedMod: 0, maxHealth: 350 },
   crawler_drone: { unitClass: 'ordnance', cost: 0, captureMultiplier: 0, label: 'Crawler Drone', visionRange: 3, speedMod: 1.2, maxHealth: 40 },
 };
@@ -329,8 +330,8 @@ export const DOCTRINE_CONFIG: Record<DoctrineType, {
     tier2_desc: "Deploys a Titan tank directly to the target location.",
     tier3_cost: 1200,
     tier3_cooldown: 300000,
-    tier3_name: "Tactical Nuke",
-    tier3_desc: "Massive area damage strike on target coordinates.",
+    tier3_name: "Bulwark Force Field",
+    tier3_desc: "Drops a force field generator that raises a dome about a city block across for 60 s. Your units fire out through it; enemy shots and projectiles from outside are stopped. Enemies who walk in are shocked for slight damage every second.",
   },
   shadow_ops: {
     label: "Shadow Ops",

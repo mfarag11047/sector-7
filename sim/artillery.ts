@@ -9,6 +9,7 @@
 // Everything here is pure: it reads the state it is given and reports what happens. CityMap and
 // the headless runner keep the shells in flight and apply the damage.
 
+import { ForceField, impactAbsorbed, shotBlocked } from './forcefield';
 import type { StructureData, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { isHidden } from './cloak';
@@ -126,7 +127,11 @@ export function landShells(
   now: number,
   units: readonly UnitData[],
   structures: readonly StructureData[],
-): { landed: ArtilleryShell[]; flying: ArtilleryShell[]; unitDamage: Map<string, number>; structureDamage: Map<string, number> } {
+  // Enemy force fields (sim/forcefield.ts): a shell from outside coming down inside one is
+  // absorbed, and a burst outside one doesn't reach in.
+  fields: readonly ForceField[] = [],
+): { landed: ArtilleryShell[]; flying: ArtilleryShell[]; absorbed: ArtilleryShell[]; unitDamage: Map<string, number>; structureDamage: Map<string, number> } {
+  const absorbed: ArtilleryShell[] = [];
   const landed: ArtilleryShell[] = [];
   const flying: ArtilleryShell[] = [];
   const unitDamage = new Map<string, number>();
@@ -134,19 +139,20 @@ export function landShells(
   const add = (map: Map<string, number>, id: string, n: number) => map.set(id, (map.get(id) || 0) + n);
   for (const shell of shells) {
     if (shell.landsAt > now) { flying.push(shell); continue; }
+    if (impactAbsorbed(fields, shell.team, shell.at, shell.from)) { absorbed.push(shell); continue; }
     landed.push(shell);
     for (const u of units) {
       if (u.team === shell.team || u.health <= 0) continue;
       const armor = UNIT_RULES[u.type].armor;
       const d = tiles(u.gridPos, shell.at);
-      if (armor === 'air' || d > ARTILLERY.splash) continue;
+      if (armor === 'air' || d > ARTILLERY.splash || shotBlocked(fields, shell.team, shell.at, u.gridPos)) continue;
       add(unitDamage, u.id, shellDamage(armor, d) * damageTakenMultiplier(u));
     }
     for (const s of structures) {
       if (s.team === shell.team || s.health <= 0) continue;
       const d = tiles(s.gridPos, shell.at);
-      if (d <= ARTILLERY.splash) add(structureDamage, s.id, shellDamage('structure', d));
+      if (d <= ARTILLERY.splash && !shotBlocked(fields, shell.team, shell.at, s.gridPos)) add(structureDamage, s.id, shellDamage('structure', d));
     }
   }
-  return { landed, flying, unitDamage, structureDamage };
+  return { landed, flying, absorbed, unitDamage, structureDamage };
 }

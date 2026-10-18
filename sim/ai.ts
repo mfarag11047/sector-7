@@ -620,7 +620,8 @@ function doctrineMove(
     if (wait > 0 || cores < cost + 200) continue;
     if (doctrine === 'heavy_metal') {
       if (t === 2 && (mode === 'attack' || mode === 'defend' || mode === 'tech')) return { kind: 'doctrine', tier: 2, target: front };
-      if (t === 3 && cluster && cluster.value >= 900 && !army.some(u => dist(u.gridPos, cluster.at) <= 5)) return { kind: 'doctrine', tier: 3, target: cluster.at };
+      // Bulwark Force Field over its own army once it is locked in a real fight.
+      if (t === 3 && army.length >= 4 && engaged >= 600 && (mode === 'attack' || mode === 'defend')) return { kind: 'doctrine', tier: 3, target: front };
     } else if (doctrine === 'shadow_ops') {
       if (t === 2 && mode === 'attack') return { kind: 'doctrine', tier: 2, target: objective };
       // Cloaking Field over the army as it moves in, before the shooting gives it away.

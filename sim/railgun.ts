@@ -44,6 +44,8 @@ export function fireRailguns(
   structures: readonly StructureData[],
   now: number,
   inNanoCloud: (pos: GridPos) => boolean = () => false,
+  // An enemy force field in the way (sim/forcefield.ts).
+  blocked: (team: UnitData['team'], from: GridPos, to: GridPos) => boolean = () => false,
 ): { shots: RailShot[]; unitDamage: Map<string, number>; structureDamage: Map<string, number> } {
   const shots: RailShot[] = [];
   const unitDamage = new Map<string, number>();
@@ -59,7 +61,7 @@ export function fireRailguns(
       const armor = UNIT_RULES[t.type].armor;
       if (armor === 'air') continue;
       const d = tiles(u.gridPos, t.gridPos);
-      if (d > RAILGUN.range) continue;
+      if (d > RAILGUN.range || blocked(u.team, u.gridPos, t.gridPos)) continue;
       const key = priority(armor) * 1000 + d;
       if (best && key >= best.key) continue;
       if (!spottedBy(u.team, t.gridPos, units, structures)) continue;
@@ -76,7 +78,7 @@ export function fireRailguns(
     for (const s of structures) {
       if (s.team === u.team || u.team === 'neutral' || s.health <= 0 || s.isBlueprint) continue;
       const d = tiles(u.gridPos, s.gridPos);
-      if (d > RAILGUN.range || (wall && d >= wall.d) || !spottedBy(u.team, s.gridPos, units, structures)) continue;
+      if (d > RAILGUN.range || (wall && d >= wall.d) || blocked(u.team, u.gridPos, s.gridPos) || !spottedBy(u.team, s.gridPos, units, structures)) continue;
       wall = { s, d };
     }
     if (wall) {

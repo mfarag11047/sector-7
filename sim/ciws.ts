@@ -9,6 +9,7 @@
 // Pure: it reads the state it is given and reports damage and gun state. The caller keeps the
 // ordnance in flight and its remaining integrity (how much more fire it takes to knock down).
 
+import { ForceField, shotBlocked } from './forcefield';
 import type { StructureData, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { isHidden } from './cloak';
@@ -34,8 +35,8 @@ export const CIWS = {
 };
 
 // How much fire each kind of ordnance takes to knock down.
-// A missile takes 2 s of fire; one magazine (3.5 s) is enough for anything but a nuke.
-export const ORDNANCE_INTEGRITY = { missile: 120, nuke: 240, shell: 30, pod: 180 } as const;
+// A missile takes 2 s of fire; one magazine (3.5 s) brings down anything.
+export const ORDNANCE_INTEGRITY = { missile: 120, shell: 30, pod: 180 } as const;
 export type OrdnanceKind = keyof typeof ORDNANCE_INTEGRITY;
 
 // Something in the air the gun can shoot at: in fractional tiles.
@@ -88,6 +89,8 @@ export function ciwsTick(
   now: number,
   dtMs: number,
   structures: readonly StructureData[] = [],
+  // Enemy force fields (sim/forcefield.ts): the guns can't shoot into one from outside.
+  fields: readonly ForceField[] = [],
 ): CiwsResult {
   const result: CiwsResult = { updates: new Map(), structureUpdates: new Map(), unitDamage: new Map(), ordnanceDamage: new Map(), links: [] };
   const add = (m: Map<string, number>, id: string, n: number) => m.set(id, (m.get(id) || 0) + n);
@@ -118,12 +121,14 @@ export function ciwsTick(
     for (const o of ordnance) {
       if (o.team === gun.team) continue;
       const d = tiles(gun.at, o.at);
+      if (shotBlocked(fields, gun.team, gun.at, o.at)) continue;
       if (d <= gun.range && d < best) { best = d; target = { id: o.id, ordnance: true, ground: false }; }
     }
     const pickUnit = (air: boolean, range: number) => {
       for (const t of units) {
         if (t.team === gun.team || t.health <= 0 || isHidden(t) || (UNIT_RULES[t.type].armor === 'air') !== air) continue;
         const d = tiles(gun.at, t.gridPos);
+        if (shotBlocked(fields, gun.team, gun.at, t.gridPos)) continue;
         // Stick with the current target rather than flicking between equals.
         const score = t.id === state.ciwsTargetId ? d - 1 : d;
         if (d <= range && score < best) { best = score; target = { id: t.id, ordnance: false, ground: !air }; }

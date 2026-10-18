@@ -9,6 +9,7 @@
 //
 // Pure: CityMap and the headless runner keep the salvo in flight and apply the damage.
 
+import { ForceField, impactAbsorbed, shotBlocked } from './forcefield';
 import type { StructureData, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { isHidden } from './cloak';
@@ -35,6 +36,7 @@ export function fireHornetRockets(
   structures: readonly StructureData[],
   now: number,
   tierOf: (team: UnitData['team']) => Tier,
+  fields: readonly ForceField[] = [],
 ): { shots: HornetRocketShot[]; unitDamage: Map<string, number>; structureDamage: Map<string, number> } {
   const shots: HornetRocketShot[] = [];
   const unitDamage = new Map<string, number>();
@@ -46,13 +48,13 @@ export function fireHornetRockets(
     const t = units.find(u => u.id === h.combatTargetId);
     if (t) {
       const armor = UNIT_RULES[t.type].armor;
-      if (t.team === h.team || t.health <= 0 || isHidden(t) || armor === 'air' || tiles(h.gridPos, t.gridPos) > HORNET.rocket.range) continue;
+      if (t.team === h.team || t.health <= 0 || isHidden(t) || armor === 'air' || tiles(h.gridPos, t.gridPos) > HORNET.rocket.range || shotBlocked(fields, h.team, h.gridPos, t.gridPos)) continue;
       add(unitDamage, t.id, shotDamage(ROCKET, armor) * damageTakenMultiplier(t));
       shots.push({ attackerId: h.id, targetId: t.id, team: h.team, from: h.gridPos, to: t.gridPos, structure: false });
       continue;
     }
     const s = structures.find(x => x.id === h.combatTargetId);
-    if (!s || s.team === h.team || s.health <= 0 || tiles(h.gridPos, s.gridPos) > HORNET.rocket.range) continue;
+    if (!s || s.team === h.team || s.health <= 0 || tiles(h.gridPos, s.gridPos) > HORNET.rocket.range || shotBlocked(fields, h.team, h.gridPos, s.gridPos)) continue;
     add(structureDamage, s.id, shotDamage(ROCKET, 'structure'));
     shots.push({ attackerId: h.id, targetId: s.id, team: h.team, from: h.gridPos, to: s.gridPos, structure: true });
   }
@@ -99,7 +101,10 @@ export function salvoFrom(hornet: UnitData, target: GridPos, radius: number, now
 
 // Rockets that have come down by `now`, and their blasts: enemy ground units and structures
 // within the blast radius, full damage at the centre falling to half at the edge.
-export function landSalvo(rockets: readonly MiniRocket[], now: number, units: readonly UnitData[], structures: readonly StructureData[]) {
+// Enemy force fields (sim/forcefield.ts) absorb rockets that come down inside them and keep out
+// the blast of ones that land outside.
+export function landSalvo(rockets: readonly MiniRocket[], now: number, units: readonly UnitData[], structures: readonly StructureData[], fields: readonly ForceField[] = []) {
+  const absorbed: MiniRocket[] = [];
   const landed: MiniRocket[] = [];
   const flying: MiniRocket[] = [];
   const unitDamage = new Map<string, number>();
@@ -108,19 +113,20 @@ export function landSalvo(rockets: readonly MiniRocket[], now: number, units: re
   const falloff = (d: number) => 1 - 0.5 * Math.min(1, d / HORNET.salvo.blast);
   for (const r of rockets) {
     if (r.landsAt > now) { flying.push(r); continue; }
+    if (impactAbsorbed(fields, r.team, r.at, r.from)) { absorbed.push(r); continue; }
     landed.push(r);
     for (const u of units) {
       if (u.team === r.team || u.health <= 0) continue;
       const armor = UNIT_RULES[u.type].armor;
       const d = tiles(u.gridPos, r.at);
-      if (armor === 'air' || d > HORNET.salvo.blast) continue;
+      if (armor === 'air' || d > HORNET.salvo.blast || shotBlocked(fields, r.team, r.at, u.gridPos)) continue;
       add(unitDamage, u.id, shotDamage(MINI, armor) * falloff(d) * damageTakenMultiplier(u));
     }
     for (const s of structures) {
       if (s.team === r.team || s.health <= 0) continue;
       const d = tiles(s.gridPos, r.at);
-      if (d <= HORNET.salvo.blast) add(structureDamage, s.id, shotDamage(MINI, 'structure') * falloff(d));
+      if (d <= HORNET.salvo.blast && !shotBlocked(fields, r.team, r.at, s.gridPos)) add(structureDamage, s.id, shotDamage(MINI, 'structure') * falloff(d));
     }
   }
-  return { landed, flying, unitDamage, structureDamage };
+  return { landed, flying, absorbed, unitDamage, structureDamage };
 }

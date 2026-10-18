@@ -4,6 +4,7 @@
 // Each function only reads the state it is given and reports damage; the caller applies it,
 // so the same code can run on a server. Weapons, armor and damage types are in sim/units.ts.
 
+import { ForceField, shotBlocked } from './forcefield';
 import { ABILITY_CONFIG } from '../constants';
 import { dropDamage } from './bombard';
 import type { BuildingData, CloudData, StructureType, UnitData } from '../types';
@@ -25,12 +26,14 @@ export interface Blast {
 
 // Damage to every enemy unit inside a blast, falling off linearly from full at the center
 // to nothing at the edge. Cloaked Ghosts are untouchable by shots but not by Crawler blasts.
+// A blast outside an enemy force field doesn't reach anyone inside it (sim/forcefield.ts).
 export function blastDamage(
   units: readonly UnitData[],
   blasts: readonly Blast[],
   tileSize: number,
   offset: number,
   { hitsCloaked }: { hitsCloaked: boolean },
+  fields: readonly ForceField[] = [],
 ): DamageMap {
   const damage: DamageMap = new Map();
   for (const u of units) {
@@ -41,7 +44,9 @@ export function blastDamage(
       if (u.team === b.team) continue;
       const radius = b.radius || tileSize * 1.5;
       const dist = Math.hypot(b.position.x - ux, b.position.z - uz);
-      if (dist <= radius) addDamage(damage, u.id, b.damage * (1 - dist / radius));
+      if (dist > radius) continue;
+      if (fields.length > 0 && shotBlocked(fields, b.team, { x: (b.position.x + offset) / tileSize, z: (b.position.z + offset) / tileSize }, u.gridPos)) continue;
+      addDamage(damage, u.id, b.damage * (1 - dist / radius));
     }
   }
   return damage;
@@ -115,11 +120,14 @@ const tiles = (a: GridPos, b: GridPos) => Math.hypot(a.x - b.x, a.z - b.z);
 // otherwise the nearest enemy unit, and only shoots buildings when no unit is in range.
 // Cloaked Ghosts and anything inside a nano cloud can neither shoot nor be shot.
 // Neutral Sentinels are hostile to both teams and both teams to them.
+// `blocked` says whether a shot by a team between two tiles is stopped by an enemy force field
+// (sim/forcefield.ts); a blocked target can't be picked and splash doesn't reach it.
 export function resolveAttacks(
   units: readonly UnitData[],
   structures: readonly CombatStructure[],
   now: number,
   inNanoCloud: (pos: GridPos) => boolean,
+  blocked: (team: UnitData['team'], from: GridPos, to: GridPos) => boolean = () => false,
 ): AttackResult {
   const result: AttackResult = { unitDamage: new Map(), structureDamage: new Map(), fired: new Map(), aiming: new Map(), shots: [] };
 
@@ -135,7 +143,7 @@ export function resolveAttacks(
       const isAir = armor === 'air';
       if (!canHit(weapon, isAir)) continue;
       const d = tiles(at, t.gridPos);
-      if (d > weapon.range) continue;
+      if (d > weapon.range || blocked(team, at, t.gridPos)) continue;
       // Stick with the current target rather than flicking between equals.
       const score = t.id === current ? -1 : d;
       if (score < bestDist) {
@@ -147,7 +155,7 @@ export function resolveAttacks(
     for (const s of structureTargets) {
       if (!hostile(team, s.team)) continue;
       const d = tiles(at, s.gridPos);
-      if (d > weapon.range) continue;
+      if (d > weapon.range || blocked(team, at, s.gridPos)) continue;
       const score = s.id === current ? -1 : d;
       if (score < bestDist) {
         bestDist = score;
@@ -170,7 +178,7 @@ export function resolveAttacks(
       for (const t of unitTargets) {
         if (t.id === target.id || !hostile(team, t.team)) continue;
         const armor = UNIT_RULES[t.type].armor;
-        if ((armor === 'air') !== target.isAir || tiles(t.gridPos, target.gridPos) > weapon.splash) continue;
+        if ((armor === 'air') !== target.isAir || tiles(t.gridPos, target.gridPos) > weapon.splash || blocked(team, from, t.gridPos)) continue;
         hitUnit(t.id, shotDamage(weapon, armor) * (weapon.splashFactor ?? 0.5));
       }
     }
@@ -253,12 +261,14 @@ export function bombardBuildings(buildings: readonly BuildingData[], strikes: re
   return changed ? next : (buildings as BuildingData[]);
 }
 
-// Units caught under a strike take flat damage, friend or foe. The drone itself is spared.
-export function bombardUnitDamage(units: readonly UnitData[], strikes: readonly { droneId: string; at: GridPos }[]): DamageMap {
+// Units caught under a strike take flat damage, friend or foe. The drone itself is spared, and
+// an enemy force field keeps the blast out (sim/forcefield.ts).
+export function bombardUnitDamage(units: readonly UnitData[], strikes: readonly { droneId: string; at: GridPos; team?: UnitData['team'] }[], fields: readonly ForceField[] = []): DamageMap {
   const damage: DamageMap = new Map();
   for (const u of units) {
     if (u.health <= 0 || strikes.some(s => s.droneId === u.id)) continue;
     for (const s of strikes) {
+      if (s.team && shotBlocked(fields, s.team, s.at, u.gridPos)) continue;
       if (inBombardBlast(u.gridPos.x, u.gridPos.z, s.at)) addDamage(damage, u.id, ABILITY_CONFIG.BOMBARD_UNIT_DAMAGE);
     }
   }

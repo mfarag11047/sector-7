@@ -79,7 +79,7 @@ export interface BuildingBlock {
   owner: 'blue' | 'red' | null;
 }
 
-export type UnitType = 'drone' | 'tank' | 'ghost' | 'guardian' | 'mule' | 'wasp' | 'mason' | 'helios' | 'sun_plate' | 'ballista' | 'courier' | 'banshee' | 'defense_drone' | 'titan_dropped' | 'swarm_host' | 'crawler_drone' | 'bombard' | 'trooper' | 'lancer' | 'razorback' | 'aegis' | 'hornet' | 'howitzer' | 'cloak_generator';
+export type UnitType = 'drone' | 'tank' | 'ghost' | 'guardian' | 'mule' | 'wasp' | 'mason' | 'helios' | 'sun_plate' | 'ballista' | 'courier' | 'banshee' | 'defense_drone' | 'titan_dropped' | 'swarm_host' | 'crawler_drone' | 'bombard' | 'trooper' | 'lancer' | 'razorback' | 'aegis' | 'hornet' | 'howitzer' | 'cloak_generator' | 'field_generator';
 export type UnitClass = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'defense';
 
 export interface UnitData {
@@ -167,6 +167,8 @@ export interface UnitData {
   bombardMunitions?: number;
   // Black Wall virus (sim/blackwall.ts): when it was infected, and how long it has stood near an
   // infected friend without catching it yet.
+  // Bulwark Force Field generator (sim/forcefield.ts): when its run time ends.
+  fieldExpiresAt?: number;
   blackwallInfectedAt?: number;
   blackwallExposureMs?: number;
   bombardLastStrikeAt?: number;
@@ -358,7 +360,7 @@ export interface Projectile {
     distanceTraveled: number;
     targetPos?: { x: number, y: number, z: number }; // For guided/ballistic
     trajectory: 'direct' | 'ballistic' | 'swarm';
-    payload?: 'emp' | 'he' | 'nuke' | 'nano_canister' | 'nano_cloud_master' | 'titan_drop' | 'cloak_drop' | null; // For warheads
+    payload?: 'emp' | 'he' | 'nano_canister' | 'nano_cloud_master' | 'titan_drop' | 'cloak_drop' | 'field_drop' | null; // For warheads
     startPos?: { x: number, y: number, z: number };
     startTime?: number;
     lockedTargetId?: string | null; // For swarm homing
@@ -376,7 +378,8 @@ export interface Explosion {
     createdAt: number;
     // 'emp': a blue energy discharge whose ring reaches `radius`, instead of a fireball.
     // 'blackwall': the Black Wall virus bomb's glitching blast.
-    style?: 'emp' | 'blackwall';
+    // 'shield': a shot or projectile stopped on a force field's skin.
+    style?: 'emp' | 'blackwall' | 'shield';
 }
 
 export interface CityConfig {

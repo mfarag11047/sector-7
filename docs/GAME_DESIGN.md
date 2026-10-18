@@ -261,7 +261,7 @@ tiles, incoming ordnance first. It does 32 damage a second to aircraft but 60 to
 built to stop missiles and only fairly good against aircraft (Flak Barrage doubles its rate; Sky-Net
 Radar Sweep adds 2 tiles). A magazine holds 3.5 s of fire; empty, the gun stops for a 6 s reload,
 and after 4 s without firing a part-used magazine is topped up. Ordnance has integrity rather than
-health: missiles take 120 (2 s of fire), nukes 240, drop pods 180, shells 30. A downed missile
+health: missiles take 120 (2 s of fire), drop pods 180, shells 30. A downed missile
 bursts in the air and does nothing. The fire is drawn as a dense stream of glowing rounds; an
 enemy Aegis you can't see doesn't show its stream.
 
@@ -306,6 +306,22 @@ replaced the old manually aimed Main Cannon:
 double against heavy armour). Once its side has Tier 3 it also fires an anti-vehicle rocket on
 its own every 6 s at whatever its gun is shooting (AP 60, so 120 to heavy armour), drawn as an
 orange streak. The Hellfire Salvo (above) is its aimed Tier 3 area attack.
+
+## Heavy Metal Tier 3: Bulwark Force Field
+
+`sim/forcefield.ts`. Replaces the Tactical Nuke, which wiped out whole groups. The power (1200
+cores, 300 s cooldown) drops a Bulwark Field Generator in a pod. It raises a dome 3 tiles in
+radius (about a city block) for 60 s, then burns out.
+- The owner's units fire out through it freely.
+- Enemy fire from outside can't get in. Direct fire (guns, HQ and turret cannons, tank rail guns,
+  Hornet rockets, CIWS) can't pick a target behind or under the dome. Shells, Hellfire rockets,
+  EMP rockets, Ballista missiles, Wasp swarms, drop pods, Bombardment drops and Black Wall bombs
+  that come down inside are stopped on its skin with a ripple. A blast just outside doesn't reach in.
+- Enemy units that walk in can fight from inside, but the field shocks them for 8 damage a
+  second, drawn as lightning from the generator.
+- The generator (2000 HP, can't move) is inside its own dome, so it can only be attacked from
+  inside. An EMP set off inside knocks the field down while it lasts.
+- The AI drops it over its own army in a big fight.
 
 ## Netrunner doctrine: Black Wall Infect
 
@@ -366,7 +382,7 @@ Generator on a chosen tile, in a drop pod like the Orbital Drop Titan. Rules: `s
 - It can't move. While it has battery it projects a 3-tile field; every friendly unit inside
   (not the generator itself) is cloaked: hidden from the enemy's view and minimap, and no weapon,
   turret, CIWS, artillery battery or homing missile will pick it as a target. Area damage (shell
-  splash, missile and nuke blasts) still hurts it.
+  splash and missile blasts) still hurts it.
 - A cloaked unit that fires (including an aimed ability or CIWS burst), or is hit, shows itself
   for 6 s, then slips back under if it is still inside the field.
 - The field drains 0.13 battery per tick (about 75 s on a full charge). Inside your energy grid
@@ -454,7 +470,7 @@ same kind of economy.
    It retreats when the enemy near its target is worth 1.4× its army, and waits 30 s before trying
    again. Vehicles low on battery outside the grid drive home to recharge.
 5. **Powers:** Titan smoke when hurt. Doctrine powers on Normal (T2) and Hard (T2 and T3): Orbital
-   Drop into a fight, Nuke on a big cluster, Decoys on an attack, EMP in a big fight, a Nano Cloud
+   Drop into a fight, a Force Field over its army in a big fight, Decoys on an attack, EMP in a big fight, a Nano Cloud
    over a retreat, a Black Wall Infect bomb on a big enemy cluster.
 
 Easier levels aren't just slower; they're less attentive, the way a person juggling a base and a

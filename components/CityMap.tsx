@@ -34,7 +34,9 @@ import { afterRailShot, fireRailguns, RailShot } from '../sim/railgun';
 import { fireHornetRockets, landSalvo, MiniRocket } from '../sim/hornet';
 import { BASE_SITE, BaseSite, baseSites, clearedBlocks, commandPosts, rubbleCleared } from '../sim/bases';
 import { BLACKWALL, blackwallImpact, blackwallTick } from '../sim/blackwall';
+import { FORCE_FIELD, ForceField, absorbingField, activeFields, burntOutGenerators, impactAbsorbed, shockDamage, shockedBy, shotBlocked } from '../sim/forcefield';
 import { BlackwallBomb, BlackwallBurst } from './BlackwallFx';
+import { ForceFieldDome, ShieldImpact } from './ForceFieldFx';
 import { EmpRocket, EMP_ROCKET, empRocketImpact, empRocketTick, isEmpTarget, mergeUnitUpdates, topAttackHeight } from '../sim/empRocket';
 import { AirThreat, applyCiwsState, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { Blast, CombatStructure, Shot, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, resolveAttacks } from '../sim/combat';
@@ -338,8 +340,9 @@ const ProjectileMesh: React.FC<{ projectile: Projectile; flightRef: React.Mutabl
         group.quaternion.slerp(orient.current.quaternion, 1 - Math.exp(-Math.min(delta, 0.05) * turn));
     });
 
-    if (projectile.payload === 'titan_drop' || projectile.payload === 'cloak_drop') {
+    if (projectile.payload === 'titan_drop' || projectile.payload === 'cloak_drop' || projectile.payload === 'field_drop') {
         const cloak = projectile.payload === 'cloak_drop';
+        const field = projectile.payload === 'field_drop';
         return (
             <group ref={meshRef}>
                 <mesh rotation={[Math.PI, 0, 0]}>
@@ -348,7 +351,7 @@ const ProjectileMesh: React.FC<{ projectile: Projectile; flightRef: React.Mutabl
                 </mesh>
                 <mesh position={[0, 1.5, 0]}>
                     <coneGeometry args={[0.5, 2, 8, 1, true]} />
-                    <meshBasicMaterial color={cloak ? "#c084fc" : "#f97316"} transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} />
+                    <meshBasicMaterial color={cloak ? "#c084fc" : field ? "#38bdf8" : "#f97316"} transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} />
                 </mesh>
             </group>
         );
@@ -372,7 +375,7 @@ const ProjectileMesh: React.FC<{ projectile: Projectile; flightRef: React.Mutabl
     }
 
     if (projectile.trajectory === 'ballistic') {
-        const payloadColor = projectile.payload === 'emp' ? EMP_BLUE : (projectile.payload === 'nuke' ? '#f59e0b' : '#ef4444');
+        const payloadColor = projectile.payload === 'emp' ? EMP_BLUE : '#ef4444';
         return (
             <group ref={meshRef}>
                  <DetailedMissileModel color={payloadColor} />
@@ -609,7 +612,7 @@ const radarBlipTexture = () => {
 };
 
 // Large ordnance radar can track: missiles, drop pods, heavy shells. Not small arms or swarm darts.
-const isRadarOrdnance = (p: Projectile) => p.trajectory === 'ballistic' || p.payload === 'titan_drop' || p.payload === 'cloak_drop' || isHeavyOrdnance(p);
+const isRadarOrdnance = (p: Projectile) => p.trajectory === 'ballistic' || p.payload === 'titan_drop' || p.payload === 'cloak_drop' || p.payload === 'field_drop' || isHeavyOrdnance(p);
 
 // Where enemy things on radar are right now, in world units: hidden aircraft, field-cloaked units
 // and ordnance in flight under an Aegis, ground units and large aircraft under an Infiltrator. Shared by the map blips and the minimap.
@@ -957,6 +960,7 @@ const EmpFieldMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: numbe
 // Explosion Component
 const ExplosionMesh: React.FC<{ explosion: Explosion }> = ({ explosion }) => {
     if (explosion.style === 'emp') return <EmpDischargeMesh explosion={explosion} />;
+    if (explosion.style === 'shield') return <ShieldImpact position={explosion.position} radius={explosion.radius} createdAt={explosion.createdAt} duration={explosion.duration} />;
     if (explosion.style === 'blackwall') return <BlackwallBurst position={explosion.position} radius={explosion.radius} createdAt={explosion.createdAt} duration={explosion.duration} />;
     return <FireballMesh explosion={explosion} />;
 };
@@ -1275,6 +1279,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   type VirusBomb = { id: string; team: 'blue' | 'red'; at: { x: number; z: number }; firedAt: number; landAt: number };
   const [virusBombs, setVirusBombs] = useState<VirusBomb[]>([]);
   const virusBombsRef = useRef<VirusBomb[]>([]);
+  // Force fields up as of the last game tick (sim/forcefield.ts).
+  const fieldsRef = useRef<ForceField[]>([]);
   const rocketsRef = useRef<EmpRocket[]>([]);
   // Aegis cannon fire this tick (for the tracer stream), and fire each piece of ordnance has taken.
   const ciwsLinksRef = useRef<CiwsLink[]>([]);
@@ -1437,6 +1443,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   explosions.push(...gone.map(u => ({ id: `cloakgen-exp-${u.id}`, position: { x: u.gridPos.x * tileSize - offset, y: 1.5, z: u.gridPos.z * tileSize - offset }, radius: 3, duration: 600, createdAt: now })));
                   if (team === playerTeam) onNoticeRef.current?.('New Cloaking Field up: the old generator was destroyed');
               }
+          } else if (event.kind === 'field') {
+              // The Bulwark generator lands and its dome goes up for FORCE_FIELD.lifetimeMs.
+              const team = event.team;
+              const at = { x: Math.round((event.position.x + offset) / tileSize), z: Math.round((event.position.z + offset) / tileSize) };
+              const gen = { ...createUnit('field_generator', team, `fieldgen-${team}-${now}-${spawnCounterRef.current++}`, at), fieldExpiresAt: now + FORCE_FIELD.lifetimeMs };
+              unitsRef.current = [...unitsRef.current, gen];
+              setUnits(prev => [...prev, gen]);
+              if (team === playerTeam) onNoticeRef.current?.(`Force field up for ${FORCE_FIELD.lifetimeMs / 1000}s`);
           } else if (event.kind === 'titan') {
               const targetPos = event.position;
               const team = event.team;
@@ -1468,7 +1482,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       }
       if (damages.length > 0) {
           // Shots never hurt a cloaked Ghost; the projections around it take the hit instead.
-          setUnits(prev => applyDamage(prev, blastDamage(prev, damages, tileSize, offset, { hitsCloaked: false })));
+          setUnits(prev => applyDamage(prev, blastDamage(prev, damages, tileSize, offset, { hitsCloaked: false }, fieldsRef.current)));
       }
   };
 
@@ -1955,25 +1969,25 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               }]);
           }
           else if (type === 'HEAVY_METAL_TIER3') {
-              // Tactical Nuke
-              const startPos = { x: (target.x * tileSize) - offset, y: 120, z: (target.z * tileSize) - offset };
-              const targetPos = { x: (target.x * tileSize) - offset, y: 1.0, z: (target.z * tileSize) - offset };
-              
-              setProjectiles(prev => [...prev, { 
-                  id: `nuke-${Date.now()}`, 
-                  ownerId: 'command', 
-                  team: team as 'blue' | 'red', 
-                  position: startPos, 
-                  velocity: { x: 0, y: -40, z: 0 }, 
-                  damage: 500, // Massive damage handled in explosion logic
-                  radius: 8, 
+              // Bulwark Force Field: the generator comes down in a drop pod (sim/forcefield.ts) and
+              // lands through the 'field' flight event.
+              const dropPos = { x: (target.x * tileSize) - offset, y: 100, z: (target.z * tileSize) - offset };
+              const impactPos = { x: (target.x * tileSize) - offset, y: 0.5, z: (target.z * tileSize) - offset };
+              setProjectiles(prev => [...prev, {
+                  id: `field-drop-${Date.now()}`,
+                  ownerId: 'orbital',
+                  team,
+                  position: dropPos,
+                  velocity: { x: 0, y: -65.6, z: 0 },
+                  damage: 0,
+                  radius: 2,
                   maxDistance: 200,
-                  distanceTraveled: 0, 
-                  targetPos: targetPos,
-                  trajectory: 'ballistic',
-                  payload: 'nuke',
-                  startPos: startPos,
-                  startTime: Date.now()
+                  distanceTraveled: 0,
+                  targetPos: impactPos,
+                  trajectory: 'direct',
+                  payload: 'field_drop',
+                  startPos: dropPos,
+                  startTime: Date.now(),
               }]);
           }
           else if (type === 'SHADOW_OPS_TIER2') {
@@ -2893,6 +2907,15 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           }
           let newExplosions: Explosion[] = [];
           const currentUnitsRef = unitsRef.current;
+          // Heavy Metal force fields up this tick (sim/forcefield.ts): every weapon below checks them.
+          const fields = activeFields(currentUnitsRef, now);
+          fieldsRef.current = fields;
+          const blockedByField = (team: UnitData['team'], from: { x: number; z: number }, to: { x: number; z: number }) => shotBlocked(fields, team, from, to);
+          // A ripple on the dome where something was stopped, at a tile position.
+          const shieldFlash = (id: string, at: { x: number; z: number }, y = 4) => ({
+              id: `shield-${id}`, position: { x: at.x * tileSize - offset, y, z: at.z * tileSize - offset },
+              radius: 3, duration: 600, createdAt: now, style: 'shield' as const,
+          });
 
           // Projectiles fly on the game tick (sim/projectiles.ts), not the animation frame.
           if (flightRef.current.size > 0) {
@@ -2902,6 +2925,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   buildings: buildingsRef.current,
                   structures: structuresRef.current,
                   decoys: decoysRef.current,
+                  fields,
               }, trophyReadyRef.current), now);
           }
 
@@ -2930,8 +2954,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               aiHelpersRef.current.findAirPath,
               id => bombardStrikeRef.current.get(id),
           );
-          const strikes = bombard.strikes;
-          strikes.forEach(s => bombardStrikeRef.current.set(s.droneId, now));
+          // A drop over an enemy force field is absorbed by its dome.
+          const teamOfDrone = (id: string) => currentUnitsRef.find(u => u.id === id)?.team ?? 'neutral';
+          bombard.strikes.forEach(s => bombardStrikeRef.current.set(s.droneId, now));
+          const strikes = bombard.strikes.map(s => ({ ...s, team: teamOfDrone(s.droneId) })).filter(s => {
+              if (!impactAbsorbed(fields, s.team, s.at)) return true;
+              newExplosions.push(shieldFlash(`bomb-${s.droneId}-${now}`, s.at, 20));
+              return false;
+          });
           if (strikes.length > 0) {
               setBuildings(prev => bombardBuildings(prev, strikes.map(s => s.at)));
               const radius = ABILITY_CONFIG.BOMBARD_RADIUS;
@@ -2976,6 +3006,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               structuresRef.current.map(reloaded) as CombatStructure[],
               now,
               pos => isPointInCloud(pos, nanoClouds, 'nano'),
+              blockedByField,
           );
           attacks.fired.forEach((_, id) => lastShotRef.current.set(id, now));
 
@@ -2993,7 +3024,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               const t = railShotRef.current.get(u.id);
               return t && t > (u.railgunFiredAt ?? -Infinity) ? { ...u, railgunFiredAt: t } : u;
           };
-          const rail = fireRailguns(currentUnitsRef.map(railReady), structuresRef.current, now, pos => isPointInCloud(pos, nanoClouds, 'nano'));
+          const rail = fireRailguns(currentUnitsRef.map(railReady), structuresRef.current, now, pos => isPointInCloud(pos, nanoClouds, 'nano'), blockedByField);
           const railFired = new Set(rail.shots.map(s => s.attackerId));
           railFired.forEach(id => railShotRef.current.set(id, now));
           rail.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
@@ -3005,17 +3036,18 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               const t = hornetShotRef.current.get(u.id);
               return t && t > (u.hornetRocketAt ?? -Infinity) ? { ...u, hornetRocketAt: t } : u;
           };
-          const hornetVolley = fireHornetRockets(currentUnitsRef.map(hornetReady), structuresRef.current, now, t => (t === 'blue' || t === 'red') ? economyRef.current[t].tier : 1);
+          const hornetVolley = fireHornetRockets(currentUnitsRef.map(hornetReady), structuresRef.current, now, t => (t === 'blue' || t === 'red') ? economyRef.current[t].tier : 1, fields);
           const hornetFired = new Set(hornetVolley.shots.map(s => s.attackerId));
           hornetFired.forEach(id => hornetShotRef.current.set(id, now));
           hornetVolley.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
           hornetVolley.structureDamage.forEach((n, id) => attacks.structureDamage.set(id, (attacks.structureDamage.get(id) || 0) + n));
           if (hornetVolley.shots.length > 0) setRailBeams(prev => [...prev, ...hornetVolley.shots.map((s, i) => ({ ...s, id: `hrocket-${now}-${i}`, createdAt: now, kind: 'rocket' as const, fromY: 74 }))]);
           if (miniRocketsRef.current.length > 0) {
-              const salvo = landSalvo(miniRocketsRef.current, now, currentUnitsRef, structuresRef.current);
+              const salvo = landSalvo(miniRocketsRef.current, now, currentUnitsRef, structuresRef.current, fields);
+              if (salvo.absorbed.length > 0) setExplosions(prev => [...prev, ...salvo.absorbed.map(r => shieldFlash(`mini-${r.id}`, r.at))]);
               salvo.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
               salvo.structureDamage.forEach((n, id) => attacks.structureDamage.set(id, (attacks.structureDamage.get(id) || 0) + n));
-              if (salvo.landed.length > 0) {
+              if (salvo.landed.length > 0 || salvo.absorbed.length > 0) {
                   miniRocketsRef.current = salvo.flying;
                   setMiniRockets(salvo.flying);
                   setExplosions(prev => [...prev, ...salvo.landed.map(r => ({
@@ -3032,13 +3064,13 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           for (const live of flightRef.current.values()) {
               const p = live.shot;
               if (live.impacted) continue;
-              const kind = p.payload === 'titan_drop' || p.payload === 'cloak_drop' ? 'pod' : p.trajectory !== 'ballistic' ? null : p.payload === 'nuke' ? 'nuke' : 'missile';
+              const kind = p.payload === 'titan_drop' || p.payload === 'cloak_drop' || p.payload === 'field_drop' ? 'pod' : p.trajectory !== 'ballistic' ? null : 'missile';
               if (!kind) continue;
               const pos = p.startPos && p.targetPos && p.trajectory === 'ballistic' ? sampleBallistic(p, now) : p.position;
               ordnance.push({ id: p.id, team: p.team, at: { x: (pos.x + offset) / tileSize, z: (pos.z + offset) / tileSize }, kind });
           }
           for (const s of shellsRef.current) ordnance.push({ id: s.id, team: s.team, at: shellGroundPos(s, now), kind: 'shell' });
-          const ciws = ciwsTick(currentUnitsRef, ordnance, now, TICK_RATE, structuresRef.current);
+          const ciws = ciwsTick(currentUnitsRef, ordnance, now, TICK_RATE, structuresRef.current, fields);
           if (ciws.structureUpdates.size > 0) {
               structuresRef.current = applyCiwsState(structuresRef.current, ciws.structureUpdates);
               setStructuresState(prev => applyCiwsState(prev, ciws.structureUpdates));
@@ -3079,7 +3111,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               }
           }
           if (volley.shells.length > 0 || shellsRef.current.length > 0) {
-              const impact = landShells([...shellsRef.current, ...volley.shells], now, currentUnitsRef, structuresRef.current);
+              const impact = landShells([...shellsRef.current, ...volley.shells], now, currentUnitsRef, structuresRef.current, fields);
+              if (impact.absorbed.length > 0) setExplosions(prev => [...prev, ...impact.absorbed.map(s => shieldFlash(`shell-${s.id}`, s.at, 8))]);
               impact.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
               impact.structureDamage.forEach((n, id) => attacks.structureDamage.set(id, (attacks.structureDamage.get(id) || 0) + n));
               if (impact.landed.length > 0) {
@@ -3089,7 +3122,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       radius: 3.5, duration: 700, createdAt: now,
                   }))]);
               }
-              if (volley.shells.length > 0 || impact.landed.length > 0) {
+              if (volley.shells.length > 0 || impact.landed.length > 0 || impact.absorbed.length > 0) {
                   shellsRef.current = impact.flying;
                   setShells(impact.flying);
               }
@@ -3099,9 +3132,21 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               const flight = empRocketTick(rocketsRef.current, currentUnitsRef, now, TICK_RATE);
               rocketsRef.current = flight.flying;
               setRockets(flight.flying);
+              // A rocket fired from outside an enemy force field is stopped on its dome; one that
+              // goes off outside doesn't reach in.
+              const absorbedRockets = flight.detonated.filter(({ rocket, at }) => impactAbsorbed(fields, rocket.team, at, rocket.from));
+              if (absorbedRockets.length > 0) setExplosions(prev => [...prev, ...absorbedRockets.map(({ rocket, at }) => shieldFlash(`rocket-${rocket.id}`, at, 10))]);
+              flight.detonated = flight.detonated.filter(d => !absorbedRockets.includes(d));
               if (flight.detonated.length > 0) {
                   const pulse = new Map<string, (u: UnitData) => UnitData>();
-                  for (const { rocket, at } of flight.detonated) mergeUnitUpdates(pulse, empRocketImpact(unitsRef.current, at, rocket.team, now));
+                  for (const { rocket, at } of flight.detonated) {
+                      const hits = empRocketImpact(unitsRef.current, at, rocket.team, now);
+                      for (const id of [...hits.keys()]) {
+                          const victim = unitsRef.current.find(u => u.id === id);
+                          if (victim && shotBlocked(fields, rocket.team, at, victim.gridPos)) hits.delete(id);
+                      }
+                      mergeUnitUpdates(pulse, hits);
+                  }
                   if (pulse.size > 0) {
                       const hit = (list: UnitData[]) => list.map(u => pulse.get(u.id)?.(u) ?? u);
                       unitsRef.current = hit(unitsRef.current);
@@ -3125,8 +3170,19 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               if (landed.length > 0) {
                   virusBombsRef.current = virusBombsRef.current.filter(b => b.landAt > now);
                   setVirusBombs(virusBombsRef.current);
-                  for (const b of landed) mergeUnitUpdates(virus, blackwallImpact(unitsRef.current, b.at, b.team, now));
-                  setExplosions(prev => [...prev, ...landed.map(b => ({
+                  // A bomb coming down on an enemy force field is absorbed by the dome.
+                  const absorbedBombs = landed.filter(b => impactAbsorbed(fields, b.team, b.at));
+                  const struck = landed.filter(b => !absorbedBombs.includes(b));
+                  if (absorbedBombs.length > 0) setExplosions(prev => [...prev, ...absorbedBombs.map(b => shieldFlash(`virus-${b.id}`, b.at, 20))]);
+                  for (const b of struck) {
+                      const hits = blackwallImpact(unitsRef.current, b.at, b.team, now);
+                      for (const id of [...hits.keys()]) {
+                          const victim = unitsRef.current.find(u => u.id === id);
+                          if (victim && shotBlocked(fields, b.team, b.at, victim.gridPos)) hits.delete(id);
+                      }
+                      mergeUnitUpdates(virus, hits);
+                  }
+                  setExplosions(prev => [...prev, ...struck.map(b => ({
                       id: `virus-exp-${b.id}`,
                       position: { x: b.at.x * tileSize - offset, y: 0.5, z: b.at.z * tileSize - offset },
                       radius: BLACKWALL.radius * tileSize, duration: 1600, createdAt: now, style: 'blackwall' as const,
@@ -3211,7 +3267,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   // Courier Delivery Events to be processed after map
                   const deliveries: Delivery[] = [];
 
-                  const damageMap = blastDamage(prevUnits, damageEvents, tileSize, offset, { hitsCloaked: true });
+                  const damageMap = blastDamage(prevUnits, damageEvents, tileSize, offset, { hitsCloaked: true }, fieldsRef.current);
                   attacks.unitDamage.forEach((amount, id) => damageMap.set(id, (damageMap.get(id) || 0) + amount));
                   heCloudDamage(prevUnits, burningClouds).forEach((amount, id) => damageMap.set(id, (damageMap.get(id) || 0) + amount));
 
@@ -3233,7 +3289,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   // Clouds for visual obscuration logic (Charging & Targeting)
                   const activeClouds = cloudsRef.current.filter(c => c.type === 'nano');
 
-                  const bombardDamage = bombardUnitDamage(activeUnits, strikes);
+                  const bombardDamage = bombardUnitDamage(activeUnits, strikes, fields);
+                  // Enemies standing inside a force field are shocked; spent generators burn out.
+                  const shock = shockDamage(activeUnits, fields, TICK_RATE);
+                  const burntOut = new Set(burntOutGenerators(activeUnits, now));
                   let nextUnits = activeUnits.map(u => {
                       let newUnit = { ...u };
                       let uChanged = false;
@@ -3241,6 +3300,16 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       const bombardHit = bombardDamage.get(u.id) || 0;
                       if (bombardHit > 0) {
                           newUnit.health = u.health - bombardHit;
+                          uChanged = true;
+                      }
+                      const shocked = shock.get(u.id) || 0;
+                      if (shocked > 0) {
+                          newUnit.health = newUnit.health - shocked;
+                          newUnit.lastDamageTime = now;
+                          uChanged = true;
+                      }
+                      if (burntOut.has(u.id)) {
+                          newUnit.health = 0;
                           uChanged = true;
                       }
                       const bombardUpdate = bombard.updates.get(u.id);
@@ -3568,6 +3637,24 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
         {/* Thunderhead shells, and the fire missions of selected batteries */}
         {miniRockets.map(r => <MiniRocketMesh key={r.id} rocket={r} fromY={74} tileSize={tileSize} offset={offset} />)}
+        {/* Heavy Metal force fields: the dome, and lightning to every enemy inside. */}
+        {(() => {
+            const fields = activeFields(units, Date.now());
+            const shocked = shockedBy(units, fields);
+            return fields.map(f => {
+                const gen = units.find(u => u.id === f.id);
+                return (
+                    <ForceFieldDome
+                        key={f.id}
+                        center={{ x: f.center.x * tileSize - offset, z: f.center.z * tileSize - offset }}
+                        radius={f.radius * tileSize}
+                        color={f.team === 'blue' ? '#38bdf8' : '#fb7185'}
+                        expiresAt={gen?.fieldExpiresAt}
+                        shocked={(shocked.get(f.id) ?? []).map(u => ({ x: u.gridPos.x * tileSize - offset, y: flightUnitY(u), z: u.gridPos.z * tileSize - offset }))}
+                    />
+                );
+            });
+        })()}
         {virusBombs.map(b => <BlackwallBomb key={b.id} at={{ x: b.at.x * tileSize - offset, z: b.at.z * tileSize - offset }} firedAt={b.firedAt} landAt={b.landAt} radius={BLACKWALL.radius * tileSize} />)}
         {rockets.map(r => <EmpRocketMesh key={r.id} id={r.id} rocketsRef={rocketsRef} unitsRef={unitsRef} tileSize={tileSize} offset={offset} />)}
         {shells.map(s => <ShellMesh key={s.id} shell={s} tileSize={tileSize} offset={offset} enemy={s.team !== playerTeam} />)}
@@ -3681,8 +3768,20 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                             <meshBasicMaterial color="#ef4444" side={THREE.DoubleSide} />
                         </mesh>
                     </group>
+                ) : (interactionMode === 'target' && targetingDoctrine?.type === 'HEAVY_METAL_TIER3') ? (
+                    // Bulwark Force Field: the dome's footprint.
+                    <group>
+                        <mesh rotation={[-Math.PI/2, 0, Date.now() * 0.003]}>
+                            <ringGeometry args={[FORCE_FIELD.radius * tileSize - 0.7, FORCE_FIELD.radius * tileSize, 6]} />
+                            <meshBasicMaterial color="#38bdf8" transparent opacity={0.8} side={THREE.DoubleSide} toneMapped={false} />
+                        </mesh>
+                        <mesh rotation={[-Math.PI/2, 0, 0]}>
+                            <circleGeometry args={[FORCE_FIELD.radius * tileSize, 48]} />
+                            <meshBasicMaterial color="#38bdf8" transparent opacity={0.12} depthWrite={false} />
+                        </mesh>
+                    </group>
                 ) : targetingAbility === 'MISSILE' || (interactionMode === 'target' && targetingDoctrine?.type.includes('HEAVY_METAL')) ? (
-                     // Nuke / Missile Targeting Reticle
+                     // Missile / Orbital Drop Targeting Reticle
                      <group>
                          {/* Spinning Ring Outer */}
                          <mesh rotation={[-Math.PI/2, 0, Date.now() * 0.005]}>

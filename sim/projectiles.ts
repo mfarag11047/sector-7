@@ -10,6 +10,7 @@
 import { ABILITY_CONFIG, CITY_CONFIG, STRUCTURE_INFO } from '../constants';
 import type { BuildingData, CloudData, DecoyData, Explosion, Projectile, StructureData, UnitData } from '../types';
 import { isAirType } from './units';
+import type { ForceField } from './forcefield';
 import { isHidden } from './cloak';
 
 // How far along its arc a ballistic missile is, 0 at launch to 1 at impact.
@@ -46,7 +47,8 @@ export type FlightEvent =
     | { kind: 'decoy'; id: string }
     | { kind: 'cloud'; cloudType: 'nano' | 'emp'; position: { x: number; y: number; z: number }; team: CloudData['team'] }
     | { kind: 'titan'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' }
-    | { kind: 'cloak'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' };
+    | { kind: 'cloak'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' }
+    | { kind: 'field'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' };
 
 export const cloneProjectile = (p: Projectile): Projectile => ({
     ...p,
@@ -58,7 +60,7 @@ export const cloneProjectile = (p: Projectile): Projectile => ({
 
 // Trophy systems stop heavy ordnance only. Small-arms fire and swarm darts are not shots it can catch.
 export const isHeavyOrdnance = (p: Projectile) => {
-    if (p.trajectory === 'ballistic' && (p.payload === 'emp' || p.payload === 'he' || p.payload === 'nuke')) return true;
+    if (p.trajectory === 'ballistic' && (p.payload === 'emp' || p.payload === 'he')) return true;
     if (p.trajectory === 'direct' && !p.payload && p.damage >= ABILITY_CONFIG.TITAN_CANNON_DAMAGE) return true;
     return false;
 };
@@ -100,7 +102,6 @@ export const advanceFlight = (
         if (t < 1) return null;
 
         const events: FlightEvent[] = [];
-        const isNuke = p.payload === 'nuke';
         if (p.payload === 'emp') {
             // A blue energy discharge the size of the blast, not a fireball.
             events.push({ kind: 'explosion', position: p.targetPos, radius: ABILITY_CONFIG.EMP_RADIUS * tileSize, duration: 1400, style: 'emp' });
@@ -110,12 +111,10 @@ export const advanceFlight = (
         events.push({
             kind: 'explosion',
             position: p.targetPos,
-            radius: isNuke ? 12 : (p.payload === 'nano_canister' ? 2 : 8),
-            duration: isNuke ? 2000 : (p.payload === 'nano_canister' ? 500 : 1200),
+            radius: p.payload === 'nano_canister' ? 2 : 8,
+            duration: p.payload === 'nano_canister' ? 500 : 1200,
         });
-        if (isNuke) {
-            events.push({ kind: 'damage', position: p.targetPos, damage: 500, radius: 8 * tileSize, team: p.team });
-        } else if ((p.payload || 'he') === 'he') {
+        if ((p.payload || 'he') === 'he') {
             events.push({ kind: 'damage', position: p.targetPos, damage: 150, radius: 4 * tileSize, team: p.team });
         }
         if (p.payload === 'nano_cloud_master') events.push({ kind: 'cloud', cloudType: 'nano', position: p.targetPos, team: p.team });
@@ -245,7 +244,7 @@ export const advanceFlight = (
 
             if (p.position.y <= 0.5) { hit = true; break; }
 
-            if (p.payload === 'titan_drop' || p.payload === 'cloak_drop') {
+            if (p.payload === 'titan_drop' || p.payload === 'cloak_drop' || p.payload === 'field_drop') {
                 if (p.position.y <= 0.5) { hit = true; break; }
             } else {
                 if (p.distanceTraveled >= p.maxDistance) { hit = true; break; }
@@ -283,6 +282,8 @@ export const advanceFlight = (
         events.push({ kind: 'titan', position: p.targetPos, team: p.team as 'blue' | 'red' });
     } else if (p.payload === 'cloak_drop' && p.targetPos) {
         events.push({ kind: 'cloak', position: p.targetPos, team: p.team as 'blue' | 'red' });
+    } else if (p.payload === 'field_drop' && p.targetPos) {
+        events.push({ kind: 'field', position: p.targetPos, team: p.team as 'blue' | 'red' });
     } else if (p.payload === 'nano_cloud_master') {
         events.push({ kind: 'cloud', cloudType: 'nano', position: { ...p.position }, team: p.team });
         events.push({ kind: 'damage', position: { ...p.position }, damage: p.damage, radius: 3, team: p.team });
@@ -309,6 +310,24 @@ export interface FlightWorld {
     buildings: BuildingData[];
     structures: StructureData[];
     decoys: DecoyData[];
+    // Force fields up (sim/forcefield.ts). An enemy shot that came from outside one is stopped
+    // on its dome, which is a hemisphere of the field's radius.
+    fields?: readonly ForceField[];
+}
+
+// The enemy dome a shot has just flown into from outside, if any.
+function domeHit(p: Projectile, fields: readonly ForceField[], offset: number, tileSize: number) {
+    for (const f of fields) {
+        if (f.team === p.team) continue;
+        const cx = f.center.x * tileSize - offset;
+        const cz = f.center.z * tileSize - offset;
+        const r = f.radius * tileSize;
+        if (Math.hypot(p.position.x - cx, p.position.y, p.position.z - cz) > r) continue;
+        const start = p.startPos;
+        if (start && Math.hypot(start.x - cx, start.y, start.z - cz) <= r) continue;
+        return f;
+    }
+    return null;
 }
 
 export interface FlightTickResult {
@@ -338,6 +357,14 @@ export function stepProjectiles(
             if (live.impacted) continue;
             const produced = advanceFlight(live.shot, stepMs / 1000, at, world.offset, world.tileSize, world.gridSize,
                 world.units, world.buildings, world.structures, world.decoys);
+
+            // Stopped on an enemy force field's skin.
+            if (world.fields?.length && domeHit(live.shot, world.fields, world.offset, world.tileSize)) {
+                live.impacted = true;
+                result.impactedIds.push(id);
+                result.events.push({ kind: 'explosion', position: { ...live.shot.position }, radius: 3, duration: 600, style: 'shield' });
+                continue;
+            }
 
             // A Guardian's Trophy system knocks heavy ordnance out of the air, one shot per cooldown.
             if (isHeavyOrdnance(live.shot)) {

@@ -177,7 +177,7 @@ function App() {
     // 2. Identify Targeting Mode
     // Mapping specific doctrine types to their behavior
     // heavy_metal_tier2: Drop (Targeted)
-    // heavy_metal_tier3: Nuke (Targeted)
+    // heavy_metal_tier3: Bulwark Force Field (Targeted)
     // shadow_ops_tier2: Decoy (Targeted)
     // shadow_ops_tier3: Cloaking Field (Targeted)
     // netrunner_tier2: Nano-Cloud (Targeted)
