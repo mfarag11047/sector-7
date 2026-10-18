@@ -9,7 +9,7 @@
 //
 // Pure: CityMap and the headless runner keep the salvo in flight and apply the damage.
 
-import { ForceField, impactAbsorbed, shotBlocked } from './forcefield';
+import { ForceField, impactAbsorbed, shotBlocked, shotBlockedBy } from './forcefield';
 import type { StructureData, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { isHidden } from './cloak';
@@ -37,7 +37,8 @@ export function fireHornetRockets(
   now: number,
   tierOf: (team: UnitData['team']) => Tier,
   fields: readonly ForceField[] = [],
-): { shots: HornetRocketShot[]; unitDamage: Map<string, number>; structureDamage: Map<string, number> } {
+): { shots: HornetRocketShot[]; unitDamage: Map<string, number>; structureDamage: Map<string, number>; shieldDamage: Map<string, number> } {
+  const shieldDamage = new Map<string, number>();
   const shots: HornetRocketShot[] = [];
   const unitDamage = new Map<string, number>();
   const structureDamage = new Map<string, number>();
@@ -48,17 +49,30 @@ export function fireHornetRockets(
     const t = units.find(u => u.id === h.combatTargetId);
     if (t) {
       const armor = UNIT_RULES[t.type].armor;
-      if (t.team === h.team || t.health <= 0 || isHidden(t) || armor === 'air' || tiles(h.gridPos, t.gridPos) > HORNET.rocket.range || shotBlocked(fields, h.team, h.gridPos, t.gridPos)) continue;
+      if (t.team === h.team || t.health <= 0 || isHidden(t) || armor === 'air' || tiles(h.gridPos, t.gridPos) > HORNET.rocket.range) continue;
+      // Behind an enemy force field: the rocket hits the dome.
+      const shield = shotBlockedBy(fields, h.team, h.gridPos, t.gridPos);
+      if (shield) {
+        add(shieldDamage, shield.field.id, HORNET.rocket.damage);
+        shots.push({ attackerId: h.id, targetId: t.id, team: h.team, from: h.gridPos, to: shield.at, structure: false });
+        continue;
+      }
       add(unitDamage, t.id, shotDamage(ROCKET, armor) * damageTakenMultiplier(t));
       shots.push({ attackerId: h.id, targetId: t.id, team: h.team, from: h.gridPos, to: t.gridPos, structure: false });
       continue;
     }
     const s = structures.find(x => x.id === h.combatTargetId);
-    if (!s || s.team === h.team || s.health <= 0 || tiles(h.gridPos, s.gridPos) > HORNET.rocket.range || shotBlocked(fields, h.team, h.gridPos, s.gridPos)) continue;
+    if (!s || s.team === h.team || s.health <= 0 || tiles(h.gridPos, s.gridPos) > HORNET.rocket.range) continue;
+    const shield = shotBlockedBy(fields, h.team, h.gridPos, s.gridPos);
+    if (shield) {
+      add(shieldDamage, shield.field.id, HORNET.rocket.damage);
+      shots.push({ attackerId: h.id, targetId: s.id, team: h.team, from: h.gridPos, to: shield.at, structure: true });
+      continue;
+    }
     add(structureDamage, s.id, shotDamage(ROCKET, 'structure'));
     shots.push({ attackerId: h.id, targetId: s.id, team: h.team, from: h.gridPos, to: s.gridPos, structure: true });
   }
-  return { shots, unitDamage, structureDamage };
+  return { shots, unitDamage, structureDamage, shieldDamage };
 }
 
 // --- Hellfire Salvo ---

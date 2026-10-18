@@ -159,8 +159,8 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
     actions: [{ name: 'Anchor', text: `Anchored, it releases Crawler Drones (up to ${ABILITY_CONFIG.SWARM_HOST_MAX_DRONES}) that hunt enemies nearby.` }],
   },
   field_generator: {
-    use: `Projects a force-field dome ${FORCE_FIELD.radius} tiles across its centre, about a city block. Your units inside fire out freely; enemy shots and projectiles from outside can't get in. Enemies who walk in can fight from inside but are shocked for ${FORCE_FIELD.shockDps} damage a second. Runs for ${FORCE_FIELD.lifetimeMs / 1000}s, then burns out. Destroy the generator from inside to drop it sooner; an EMP inside the dome knocks it out.`,
-    source: 'Heavy Metal doctrine, Tier 3 power: Bulwark Force Field. Dropped in a pod.',
+    use: `Projects a force-field dome ${FORCE_FIELD.radius} tiles out from its centre, about a city block. Your units inside fire out freely; enemy shots and projectiles from outside hit the dome instead. Enemies who walk in can fight from inside but are shocked for ${FORCE_FIELD.shockDps} damage a second. The dome has ${FORCE_FIELD.shieldHp} shield health: everything it stops wears it down, and once broken it reboots for ${FORCE_FIELD.rebootMs / 1000}s before coming back at full strength. It runs on the generator's battery, indefinitely inside your grid. The generator can be destroyed by enemies who go inside; an EMP inside the dome knocks it out.`,
+    source: 'Heavy Metal doctrine, Tier 3 power: Bulwark Force Field. Dropped in a pod; one per side, a new drop removes the old one.',
   },
   cloak_generator: {
     use: `Projects a ${CLOAK_FIELD.radius}-tile Cloaking Field: friendly units inside, and the generator itself, are hidden from the enemy and can't be targeted, though blasts and shelling still hurt. An enemy Aegis' radar still shows them as red blips. A unit that fires or is hit shows itself for ${CLOAK_FIELD.revealMs / 1000}s. Runs on its battery: indefinitely inside your grid, about a minute outside it; a Battery Mule or Helios keeps it going. An EMP shuts it down.`,

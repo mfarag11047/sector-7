@@ -10,6 +10,7 @@
 // Pure: it reads the state it is given and reports the shots. CityMap and the headless runner
 // apply the damage and the gun's state.
 
+import type { ShieldBlock } from './combat';
 import type { StructureData, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { spottedBy } from './artillery';
@@ -44,9 +45,11 @@ export function fireRailguns(
   structures: readonly StructureData[],
   now: number,
   inNanoCloud: (pos: GridPos) => boolean = () => false,
-  // An enemy force field in the way (sim/forcefield.ts).
-  blocked: (team: UnitData['team'], from: GridPos, to: GridPos) => boolean = () => false,
-): { shots: RailShot[]; unitDamage: Map<string, number>; structureDamage: Map<string, number> } {
+  // An enemy force field in the way (sim/forcefield.ts): targets behind one come last, and a shot
+  // at one hits the dome instead.
+  shieldOf: (team: UnitData['team'], from: GridPos, to: GridPos) => ShieldBlock | null = () => null,
+): { shots: RailShot[]; unitDamage: Map<string, number>; structureDamage: Map<string, number>; shieldDamage: Map<string, number> } {
+  const shieldDamage = new Map<string, number>();
   const shots: RailShot[] = [];
   const unitDamage = new Map<string, number>();
   const structureDamage = new Map<string, number>();
@@ -61,13 +64,19 @@ export function fireRailguns(
       const armor = UNIT_RULES[t.type].armor;
       if (armor === 'air') continue;
       const d = tiles(u.gridPos, t.gridPos);
-      if (d > RAILGUN.range || blocked(u.team, u.gridPos, t.gridPos)) continue;
-      const key = priority(armor) * 1000 + d;
+      if (d > RAILGUN.range) continue;
+      const key = priority(armor) * 1000 + d + (shieldOf(u.team, u.gridPos, t.gridPos) ? 10_000 : 0);
       if (best && key >= best.key) continue;
       if (!spottedBy(u.team, t.gridPos, units, structures)) continue;
       best = { t, key };
     }
     if (best) {
+      const shield = shieldOf(u.team, u.gridPos, best.t.gridPos);
+      if (shield) {
+        add(shieldDamage, shield.fieldId, RAILGUN.damage);
+        shots.push({ attackerId: u.id, targetId: best.t.id, team: u.team, from: u.gridPos, to: shield.at, structure: false });
+        continue;
+      }
       const armor = UNIT_RULES[best.t.type].armor;
       add(unitDamage, best.t.id, railDamage(armor) * damageTakenMultiplier(best.t));
       shots.push({ attackerId: u.id, targetId: best.t.id, team: u.team, from: u.gridPos, to: best.t.gridPos, structure: false });
@@ -78,7 +87,7 @@ export function fireRailguns(
     for (const s of structures) {
       if (s.team === u.team || u.team === 'neutral' || s.health <= 0 || s.isBlueprint) continue;
       const d = tiles(u.gridPos, s.gridPos);
-      if (d > RAILGUN.range || (wall && d >= wall.d) || blocked(u.team, u.gridPos, s.gridPos) || !spottedBy(u.team, s.gridPos, units, structures)) continue;
+      if (d > RAILGUN.range || (wall && d >= wall.d) || shieldOf(u.team, u.gridPos, s.gridPos) || !spottedBy(u.team, s.gridPos, units, structures)) continue;
       wall = { s, d };
     }
     if (wall) {
@@ -86,7 +95,7 @@ export function fireRailguns(
       shots.push({ attackerId: u.id, targetId: wall.s.id, team: u.team, from: u.gridPos, to: wall.s.gridPos, structure: true });
     }
   }
-  return { shots, unitDamage, structureDamage };
+  return { shots, unitDamage, structureDamage, shieldDamage };
 }
 
 // A gun that fired: recharging, and the battery it spent.

@@ -9,6 +9,7 @@
 //
 // Moved out of the main loop in CityMap.tsx unchanged.
 
+import { FORCE_FIELD } from './forcefield';
 import { ABILITY_CONFIG } from '../constants';
 import type { BuildingData, UnitData } from '../types';
 import type { GridPos } from './commands';
@@ -104,6 +105,8 @@ export function batteryDrain(u: UnitData, isMoving: boolean, onGrid: boolean): n
   if (u.type === 'banshee' && u.jammerActive) drain += ABILITY_CONFIG.DRAIN_STATIC_JAMMER;
   // The Cloaking Field runs off the generator's battery, on the grid or off it, while switched on.
   if (u.type === 'cloak_generator' && !u.cloakFieldOff) drain += CLOAK_FIELD.drainPerTick;
+  // So does the Bulwark Force Field while its dome is up (not while it reboots).
+  if (u.type === 'field_generator' && u.fieldDownUntil === undefined) drain += FORCE_FIELD.drainPerTick;
   if (u.type === 'ghost' && u.isDampenerActive) drain += ABILITY_CONFIG.GHOST_SPEED_PENALTY + ABILITY_CONFIG.DRAIN_STATIC_DOME;
   if (u.type === 'ghost' && u.decoyActive) {
     drain += ABILITY_CONFIG.PHANTOM_DECOY_DRAIN * (isMoving ? 1 : ABILITY_CONFIG.PHANTOM_DECOY_STILL_FACTOR);

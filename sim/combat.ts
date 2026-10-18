@@ -102,12 +102,19 @@ export interface Shot {
 export interface AttackResult {
   unitDamage: DamageMap;
   structureDamage: DamageMap;
+  // Damage to enemy force fields' shields, by generator id.
+  shieldDamage: DamageMap;
   // Everyone who fired this tick, and at what.
   fired: Map<string, string>;
   // Every armed unit's current target in range, or null. Attack-move holds while it has one.
   aiming: Map<string, string | null>;
   shots: Shot[];
 }
+
+// A shot stopped by a force field: which generator's dome, and where it hits.
+export type ShieldBlock = { fieldId: string; at: GridPos };
+// Added to a target's score when it is behind an enemy dome, so it is picked only as a last resort.
+const SHIELDED_PENALTY = 1000;
 
 type Target = { id: string; gridPos: GridPos; armor: ArmorClass; isAir: boolean; structure: boolean };
 
@@ -120,16 +127,18 @@ const tiles = (a: GridPos, b: GridPos) => Math.hypot(a.x - b.x, a.z - b.z);
 // otherwise the nearest enemy unit, and only shoots buildings when no unit is in range.
 // Cloaked Ghosts and anything inside a nano cloud can neither shoot nor be shot.
 // Neutral Sentinels are hostile to both teams and both teams to them.
-// `blocked` says whether a shot by a team between two tiles is stopped by an enemy force field
-// (sim/forcefield.ts); a blocked target can't be picked and splash doesn't reach it.
+// `shieldOf` says whether a shot by a team between two tiles is stopped by an enemy force field
+// (sim/forcefield.ts), and where. Guns prefer targets in the open; a shot at one behind a dome
+// hits the dome instead (shieldDamage), and splash never reaches in.
 export function resolveAttacks(
   units: readonly UnitData[],
   structures: readonly CombatStructure[],
   now: number,
   inNanoCloud: (pos: GridPos) => boolean,
-  blocked: (team: UnitData['team'], from: GridPos, to: GridPos) => boolean = () => false,
+  shieldOf: (team: UnitData['team'], from: GridPos, to: GridPos) => ShieldBlock | null = () => null,
 ): AttackResult {
-  const result: AttackResult = { unitDamage: new Map(), structureDamage: new Map(), fired: new Map(), aiming: new Map(), shots: [] };
+  const result: AttackResult = { unitDamage: new Map(), structureDamage: new Map(), shieldDamage: new Map(), fired: new Map(), aiming: new Map(), shots: [] };
+  const blocked = (team: UnitData['team'], from: GridPos, to: GridPos) => shieldOf(team, from, to) !== null;
 
   const unitTargets = units.filter(u => u.health > 0 && !isHidden(u) && !inNanoCloud(u.gridPos));
   const structureTargets = structures.filter(s => s.health > 0);
@@ -143,9 +152,10 @@ export function resolveAttacks(
       const isAir = armor === 'air';
       if (!canHit(weapon, isAir)) continue;
       const d = tiles(at, t.gridPos);
-      if (d > weapon.range || blocked(team, at, t.gridPos)) continue;
-      // Stick with the current target rather than flicking between equals.
-      const score = t.id === current ? -1 : d;
+      if (d > weapon.range) continue;
+      // Stick with the current target rather than flicking between equals; anything behind an
+      // enemy force field only when there is nothing in the open.
+      const score = (t.id === current ? -1 : d) + (blocked(team, at, t.gridPos) ? SHIELDED_PENALTY : 0);
       if (score < bestDist) {
         bestDist = score;
         best = { id: t.id, gridPos: t.gridPos, armor, isAir, structure: false };
@@ -155,8 +165,8 @@ export function resolveAttacks(
     for (const s of structureTargets) {
       if (!hostile(team, s.team)) continue;
       const d = tiles(at, s.gridPos);
-      if (d > weapon.range || blocked(team, at, s.gridPos)) continue;
-      const score = s.id === current ? -1 : d;
+      if (d > weapon.range) continue;
+      const score = (s.id === current ? -1 : d) + (blocked(team, at, s.gridPos) ? SHIELDED_PENALTY : 0);
       if (score < bestDist) {
         bestDist = score;
         best = { id: s.id, gridPos: s.gridPos, armor: 'structure', isAir: false, structure: true };
@@ -170,6 +180,14 @@ export function resolveAttacks(
   const hitUnit = (id: string, damage: number) => addDamage(result.unitDamage, id, damage * (takenBy.get(id) ?? 1));
 
   const fire = (attackerId: string, team: UnitData['team'], from: GridPos, fromAir: boolean, weapon: Weapon, target: Target) => {
+    // Stopped by an enemy force field: the dome takes the hit.
+    const shield = shieldOf(team, from, target.gridPos);
+    if (shield) {
+      addDamage(result.shieldDamage, shield.fieldId, shotDamage(weapon, 'structure'));
+      result.fired.set(attackerId, target.id);
+      result.shots.push({ attackerId, targetId: target.id, from, to: shield.at, type: weapon.type, toAir: false, fromAir });
+      return;
+    }
     const damage = shotDamage(weapon, target.armor);
     if (target.structure) addDamage(result.structureDamage, target.id, damage);
     else hitUnit(target.id, damage);

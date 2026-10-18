@@ -14,6 +14,7 @@ import { ARTILLERY, artilleryRange } from '../sim/artillery';
 import { CIWS } from '../sim/ciws';
 import { BOMBARD } from '../sim/bombard';
 import { CLOAK_FIELD } from '../sim/cloak';
+import { FORCE_FIELD } from '../sim/forcefield';
 import { BlackwallExposure, BlackwallInfection } from './BlackwallFx';
 import { follow, predictPosition, simClock, walkAlong } from './glide';
 
@@ -213,6 +214,8 @@ interface UnitProps {
   bombardmentTarget?: { x: number; z: number } | null;
   bombardMunitions?: number;
   blackwallInfectedAt?: number;
+  fieldShieldHp?: number;
+  fieldDownUntil?: number;
   blackwallExposureMs?: number;
   bombardReturning?: boolean;
   bombardRearmStartedAt?: number;
@@ -363,7 +366,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -738,7 +741,7 @@ const Unit: React.FC<UnitProps> = ({
     );
     if (isRazorback) return <RazorbackModel teamColor={teamColor} />;
     if (isCloakGen) return <CloakGeneratorModel teamColor={teamColor} active={fieldUp} />;
-    if (isFieldGen) return <FieldGeneratorModel teamColor={teamColor} active={health > 0 && !buffs?.some(b => b.kind === 'emp')} />;
+    if (isFieldGen) return <FieldGeneratorModel teamColor={teamColor} active={health > 0 && battery > 0 && fieldDownUntil === undefined && !buffs?.some(b => b.kind === 'emp')} />;
     if (isHowitzer) return <ThunderheadModel teamColor={teamColor} deployed={!!isDeployed} aim={aimWorld} />;
     if (isAegis) return <AegisModel teamColor={teamColor} firing={!!ciwsTargetId} />;
     if (isHornet) return <HornetModel teamColor={teamColor} />;
@@ -1376,6 +1379,24 @@ const Unit: React.FC<UnitProps> = ({
                         <button onClick={(e) => { e.stopPropagation(); handleMenuAction('ACTIVATE APS'); }} disabled={charges?.aps === 0} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left flex justify-between"><span>APS</span><span>{charges?.aps}</span></button>
                       </>
                   )}
+                  {isFieldGen && (() => {
+                      // The dome's shield, or the reboot countdown once it has been battered down.
+                      const rebootLeft = fieldDownUntil !== undefined ? Math.max(0, Math.ceil((fieldDownUntil - Date.now()) / 1000)) : 0;
+                      const shield = fieldShieldHp ?? FORCE_FIELD.shieldHp;
+                      return (
+                          <div className="px-1">
+                              <div className="flex items-center gap-1">
+                                  <span className="text-[8px] font-mono text-sky-300 w-5 leading-none">SH</span>
+                                  <div className="hud-meter flex-1 h-2">
+                                      <div className="h-full" style={{ width: `${(shield / FORCE_FIELD.shieldHp) * 100}%`, background: '#38bdf8' }} />
+                                  </div>
+                              </div>
+                              <div className="text-[9px] text-slate-400 mt-0.5">
+                                  {fieldDownUntil !== undefined ? `Shield down: rebooting ${rebootLeft}s` : battery <= 0 ? 'No power: dome down' : `Shield ${Math.round(shield)} / ${FORCE_FIELD.shieldHp}`}
+                              </div>
+                          </div>
+                      );
+                  })()}
                   {isCloakGen && (
                       <button
                           onClick={(e) => { e.stopPropagation(); handleMenuAction('TOGGLE_CLOAK_FIELD'); }}

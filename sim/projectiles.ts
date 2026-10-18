@@ -10,7 +10,7 @@
 import { ABILITY_CONFIG, CITY_CONFIG, STRUCTURE_INFO } from '../constants';
 import type { BuildingData, CloudData, DecoyData, Explosion, Projectile, StructureData, UnitData } from '../types';
 import { isAirType } from './units';
-import type { ForceField } from './forcefield';
+import { FORCE_FIELD, type ForceField } from './forcefield';
 import { isHidden } from './cloak';
 
 // How far along its arc a ballistic missile is, 0 at launch to 1 at impact.
@@ -48,7 +48,9 @@ export type FlightEvent =
     | { kind: 'cloud'; cloudType: 'nano' | 'emp'; position: { x: number; y: number; z: number }; team: CloudData['team'] }
     | { kind: 'titan'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' }
     | { kind: 'cloak'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' }
-    | { kind: 'field'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' };
+    | { kind: 'field'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' }
+    // A shot stopped on a force field's dome, wearing down its shield.
+    | { kind: 'shieldHit'; fieldId: string; damage: number };
 
 export const cloneProjectile = (p: Projectile): Projectile => ({
     ...p,
@@ -315,6 +317,12 @@ export interface FlightWorld {
     fields?: readonly ForceField[];
 }
 
+// What a shot stopped on a dome takes off its shield.
+const shieldDamageOf = (p: Projectile) =>
+    p.payload === 'titan_drop' || p.payload === 'cloak_drop' || p.payload === 'field_drop' ? FORCE_FIELD.absorb.pod
+    : p.trajectory === 'ballistic' ? FORCE_FIELD.absorb.missile
+    : p.damage;
+
 // The enemy dome a shot has just flown into from outside, if any.
 function domeHit(p: Projectile, fields: readonly ForceField[], offset: number, tileSize: number) {
     for (const f of fields) {
@@ -359,10 +367,12 @@ export function stepProjectiles(
                 world.units, world.buildings, world.structures, world.decoys);
 
             // Stopped on an enemy force field's skin.
-            if (world.fields?.length && domeHit(live.shot, world.fields, world.offset, world.tileSize)) {
+            const dome = world.fields?.length ? domeHit(live.shot, world.fields, world.offset, world.tileSize) : null;
+            if (dome) {
                 live.impacted = true;
                 result.impactedIds.push(id);
                 result.events.push({ kind: 'explosion', position: { ...live.shot.position }, radius: 3, duration: 600, style: 'shield' });
+                result.events.push({ kind: 'shieldHit', fieldId: dome.id, damage: shieldDamageOf(live.shot) });
                 continue;
             }
 

@@ -1,7 +1,7 @@
 // Visuals for Heavy Metal's Bulwark Force Field (sim/forcefield.ts).
 //   - ForceFieldDome: the hexagon-panelled dome, bright at its rim, with a scan band sweeping up
-//     it, flickering as the generator nears burn-out, and lightning crackling from the
-//     generator to every enemy inside.
+//     it. It dims as its shield wears down and flickers when nearly broken. Lightning crackles
+//     from the generator to every enemy inside.
 //   - ShieldImpact: a ripple of hexes where a shot or projectile is stopped on the skin.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -81,10 +81,11 @@ export const ForceFieldDome: React.FC<{
   center: { x: number; z: number };
   radius: number;
   color: string;
-  expiresAt?: number;
+  // Shield health left, 0..1.
+  strength: number;
   // World positions of the enemies being shocked.
   shocked: { x: number; y: number; z: number }[];
-}> = ({ center, radius, color, expiresAt, shocked }) => {
+}> = ({ center, radius, color, strength, shocked }) => {
   const material = useMemo(() => new THREE.ShaderMaterial({
     vertexShader: domeVertex,
     fragmentShader: domeFragment,
@@ -99,9 +100,9 @@ export const ForceFieldDome: React.FC<{
   const source = useMemo(() => new THREE.Vector3(center.x, 5.5, center.z), [center.x, center.z]);
   useFrame(({ clock }) => {
     material.uniforms.uTime.value = clock.elapsedTime;
-    // Flicker through the last five seconds before burn-out.
-    const left = expiresAt ? expiresAt - Date.now() : Infinity;
-    material.uniforms.uFade.value = left > 5000 ? 1 : (Math.random() > 0.3 ? 0.4 + 0.6 * Math.max(0, left) / 5000 : 0.1);
+    // Dimmer as the shield wears down, and flickering once it is nearly broken.
+    const level = 0.45 + 0.55 * strength;
+    material.uniforms.uFade.value = strength > 0.25 ? level : (Math.random() > 0.3 ? level : 0.1);
     if (clock.elapsedTime - lastRoll.current > 0.09) {
       lastRoll.current = clock.elapsedTime;
       setBolts(shocked.length === 0 ? [] : shocked.flatMap(p => {

@@ -311,16 +311,23 @@ orange streak. The Hellfire Salvo (above) is its aimed Tier 3 area attack.
 
 `sim/forcefield.ts`. Replaces the Tactical Nuke, which wiped out whole groups. The power (1200
 cores, 300 s cooldown) drops a Bulwark Field Generator in a pod. It raises a dome 3 tiles in
-radius (about a city block) for 60 s, then burns out.
-- The owner's units fire out through it freely.
-- Enemy fire from outside can't get in. Direct fire (guns, HQ and turret cannons, tank rail guns,
-  Hornet rockets, CIWS) can't pick a target behind or under the dome. Shells, Hellfire rockets,
-  EMP rockets, Ballista missiles, Wasp swarms, drop pods, Bombardment drops and Black Wall bombs
-  that come down inside are stopped on its skin with a ripple. A blast just outside doesn't reach in.
-- Enemy units that walk in can fight from inside, but the field shocks them for 8 damage a
-  second, drawn as lightning from the generator.
-- The generator (2000 HP, can't move) is inside its own dome, so it can only be attacked from
-  inside. An EMP set off inside knocks the field down while it lasts.
+radius (about a city block). One per side: a new drop removes the old generator.
+- **Power:** the dome has no time limit. It runs off the generator's battery (about 75 s off the
+  grid); inside your energy grid the battery is topped up as fast as it drains, so it holds
+  indefinitely. With no power the dome is down.
+- **Shield health (6000):** the owner's units fire out through the dome freely, but enemy fire
+  from outside hits the dome instead. Guns pick targets in the open first; a shot at something
+  behind or under the dome hits the dome for the weapon's damage against structures (rail gun
+  120, Hornet rocket 60). Ordnance that comes down on it is stopped on its skin with a ripple and
+  wears it down too: shell 70, Hellfire rocket 20, EMP rocket 60, missile 150, drop pod 100,
+  Bombardment drop 400, Black Wall bomb 300. A blast just outside doesn't reach in.
+- **Collapse and reboot:** battered to 0 the dome collapses, and the generator reboots for 90 s
+  before it comes back at full strength. The dome dims as it weakens and flickers below 25%.
+- **Intruders:** enemy units that walk in can fight from inside, but the field shocks them for
+  8 damage a second, drawn as lightning from the generator.
+- **The generator** (2000 HP, can't move) can be destroyed by enemies who go inside; an EMP set
+  off inside knocks the dome down while it lasts. Its menu shows the shield and the reboot
+  countdown.
 - The AI drops it over its own army in a big fight.
 
 ## Netrunner doctrine: Black Wall Infect

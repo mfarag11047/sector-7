@@ -167,8 +167,10 @@ export interface UnitData {
   bombardMunitions?: number;
   // Black Wall virus (sim/blackwall.ts): when it was infected, and how long it has stood near an
   // infected friend without catching it yet.
-  // Bulwark Force Field generator (sim/forcefield.ts): when its run time ends.
-  fieldExpiresAt?: number;
+  // Bulwark Force Field generator (sim/forcefield.ts): the shield's health left, and while it
+  // reboots after being battered down, when it comes back.
+  fieldShieldHp?: number;
+  fieldDownUntil?: number;
   blackwallInfectedAt?: number;
   blackwallExposureMs?: number;
   bombardLastStrikeAt?: number;
