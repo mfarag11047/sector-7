@@ -454,3 +454,6 @@ Drop, or Masons.
   the centre server node. They are landmarks, not targets: each fills its whole block, cannot be
   driven through, captured or destroyed, and never becomes a base site. Their lots mirror like
   everything else; only the towers' looks differ.
+- Between them the centre server node sits in a roundabout: painted ring lanes and a palm island at
+  street level, and two stacked elevated ring roads above. It is scenery only and changes no
+  pathing; a deck fades out while any ground unit is beneath it.

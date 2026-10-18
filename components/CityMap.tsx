@@ -4,6 +4,7 @@ import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, BUILDING_VALUES, BUILDING_HE
 import { BuildingData, UnitData, BuildingBlock, GameStats, DoctrineType, RoadType, RoadTileData, StructureData, UnitClass, DecoyData, UnitType, StructureType, CloudData, Projectile, Explosion, DoctrineState, MinimapMissile, MinimapData } from '../types';
 import Building from './Building';
 import Landmarks from './Landmarks';
+import CorpoPlaza from './CorpoPlaza';
 import Structure from './Structure';
 import Base from './Base';
 import BlackWall from './BlackWall';
@@ -1340,6 +1341,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const buildingsRef = useRef(buildings);
   const cloudsRef = useRef(clouds);
   const structuresRef = useRef(structuresState);
+  // The roundabout between the corporate towers sits on the central server node.
+  const plazaCenter = useMemo(() => ({ x: Math.floor(gridSize / 2), z: Math.floor(gridSize / 2) }), [gridSize]);
+  const getUnitsForScenery = useCallback(() => unitsRef.current, []);
   const selectedUnitIdsRef = useRef(selectedUnitIds);
   const flightRef = useRef(new Map<string, LiveFlight>());
   const trophyReadyRef = useRef(new Map<string, number>());
@@ -3391,6 +3395,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         {/* The Blackwall sealing the city in, and the waste ground beyond it. */}
         <BlackWall gridSize={gridSize} tileSize={tileSize} />
         <Landmarks landmarks={landmarks} tileSize={tileSize} offset={offset} />
+        <CorpoPlaza center={plazaCenter} tileSize={tileSize} offset={offset} getUnits={getUnitsForScenery} />
 
         {/* Instanced Roads with Procedural Textures */}
         <InstancedRoads 
