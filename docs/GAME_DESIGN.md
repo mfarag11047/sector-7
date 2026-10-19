@@ -540,5 +540,8 @@ Drop, or Masons.
   though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
   run along its outside faces only, a dark roof slab with a lit rim covers it (in the owner's
   colour once taken), and one tile carries its rooftop pieces: a crown and spire on commercial
-  towers, plant and an antenna on high-tech blocks, a smokestack on industrial sheds (which also
-  get sawtooth roofs) and a water tank on housing. Towers on podiums stand slim on a low base.
+  towers, plant and an antenna on high-tech blocks, a smokestack and storage tank on industrial
+  sheds (which also get sawtooth roofs, pipe runs along their walls and, on many, a tower crane)
+  and a water tank on housing. Towers on podiums stand slim on a low base. Downtown towers carry
+  flickering holographic billboards, flat panels or tall blade signs, advertising the city's
+  corporations and street businesses. Single-tile city buildings use the same kit.
