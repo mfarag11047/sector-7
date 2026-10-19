@@ -8,7 +8,7 @@ import { BUILDING_COLORS, TEAM_COLORS, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONF
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 import { TIER_REQUIREMENT, TIER_RESEARCH_COST } from '../sim/units';
 import { DOMINATION_MS, DOMINATION_NODES } from '../sim/victory';
-import { DISTRICT_COLORS, districtLayout } from '../sim/districts';
+import { DISTRICT_COLORS, districtBorders } from '../sim/districts';
 import type { MatchConfig } from '../sim/match';
 import type { MatchInfo } from './CityMap';
 import type { Notice } from '../App';
@@ -237,7 +237,7 @@ const MinimapBackground = React.memo(({
     revealedServerIds?: Set<string>,
     gridSize: number
 }) => {
-    const districts = useMemo(() => districtLayout(gridSize).filter(b => b.district !== 'base'), [gridSize]);
+    const districtEdges = useMemo(() => districtBorders(gridSize), [gridSize]);
     return (
         <g>
             {/* Road Network */}
@@ -251,10 +251,11 @@ const MinimapBackground = React.memo(({
                     fill={t.type === 'main' ? '#1e293b' : '#0f172a'}
                 />
             ))}
-            {/* Districts: a faint tint over each block, by the part of the city it is in. */}
-            {districts.map(b => (
-                <rect key={`district-${b.ix}-${b.iz}`} x={b.x} y={b.z} width={b.size} height={b.size}
-                    fill={DISTRICT_COLORS[b.district]} opacity={0.32} />
+            {/* Districts: a faint outline round each part of the city, in its colour. */}
+            {districtEdges.map((e, i) => (
+                <line key={`district-${i}`} x1={e.x1} y1={e.z1} x2={e.x2} y2={e.z2}
+                    stroke={DISTRICT_COLORS[e.district]} strokeWidth={1.25} vectorEffect="non-scaling-stroke"
+                    strokeLinecap="square" opacity={0.8} />
             ))}
             {/* Buildings Layer. Unscouted server nodes use the generic building color so
                 their tiles don't give away the sentinel standing on them. */}

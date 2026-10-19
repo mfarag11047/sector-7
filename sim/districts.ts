@@ -10,8 +10,8 @@
 //   base       each side's starting corner
 //
 // Zoning is by city block (the 5x5 lots between roads) and mirrors like the rest of the map:
-// block (ix, iz) and block (last-ix, last-iz) are always the same district. For now districts only
-// colour the minimap; the buildings in them are unchanged.
+// block (ix, iz) and block (last-ix, last-iz) are always the same district. Districts
+// outline the minimap and set how each block is built up (sim/mapgen.ts).
 
 const ROAD_STRIDE = 6;
 
@@ -77,6 +77,46 @@ export function districtLayout(gridSize: number): DistrictBlock[] {
   for (let ix = 0; ix < n; ix++) {
     for (let iz = 0; iz < n; iz++) {
       out.push({ ix, iz, district: districtOfBlock(ix, iz, gridSize), x: ix * ROAD_STRIDE + 1, z: iz * ROAD_STRIDE + 1, size: ROAD_STRIDE - 1 });
+    }
+  }
+  return out;
+}
+
+export interface DistrictBorder {
+  district: District;
+  // A straight piece of a district's outline, in tile coordinates (a tile spans x..x+1).
+  x1: number;
+  z1: number;
+  x2: number;
+  z2: number;
+}
+
+// The outline of every district (bases aside): each block edge that faces a different district or
+// the map edge. The line runs just outside the block, `inset` into the street, so where two
+// districts meet each shows its own colour on its own side of the street. Along a district's
+// edge the line carries on across the streets between its blocks, meeting mid-street.
+export function districtBorders(gridSize: number, inset = 0.25): DistrictBorder[] {
+  const n = blocksAcross(gridSize);
+  const at = (ix: number, iz: number) => (ix < 0 || iz < 0 || ix >= n || iz >= n ? null : districtOfBlock(ix, iz, gridSize));
+  const out: DistrictBorder[] = [];
+  for (let ix = 0; ix < n; ix++) {
+    for (let iz = 0; iz < n; iz++) {
+      const district = at(ix, iz)!;
+      if (district === 'base') continue;
+      const same = (dx: number, dz: number) => at(ix + dx, iz + dz) === district;
+      // The block's lot covers ix*6+1 .. ix*6+6 across; the streets either side are mid at ix*6+0.5.
+      const left = ix * ROAD_STRIDE + 1 - inset;
+      const right = (ix + 1) * ROAD_STRIDE + inset;
+      const top = iz * ROAD_STRIDE + 1 - inset;
+      const bottom = (iz + 1) * ROAD_STRIDE + inset;
+      const spanX0 = same(-1, 0) ? ix * ROAD_STRIDE + 0.5 : left;
+      const spanX1 = same(1, 0) ? (ix + 1) * ROAD_STRIDE + 0.5 : right;
+      const spanZ0 = same(0, -1) ? iz * ROAD_STRIDE + 0.5 : top;
+      const spanZ1 = same(0, 1) ? (iz + 1) * ROAD_STRIDE + 0.5 : bottom;
+      if (!same(0, -1)) out.push({ district, x1: spanX0, z1: top, x2: spanX1, z2: top });
+      if (!same(0, 1)) out.push({ district, x1: spanX0, z1: bottom, x2: spanX1, z2: bottom });
+      if (!same(-1, 0)) out.push({ district, x1: left, z1: spanZ0, x2: left, z2: spanZ1 });
+      if (!same(1, 0)) out.push({ district, x1: right, z1: spanZ0, x2: right, z2: spanZ1 });
     }
   }
   return out;

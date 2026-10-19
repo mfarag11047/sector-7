@@ -521,7 +521,8 @@ Drop, or Masons.
   the **corporate core** (the 3×3 blocks around the centre), a **downtown** ring around it,
   **midtown** filling most of the map, **outskirts** just inside the edge and the **Blackwall
   fringe** along it. Two **industrial** patches sit on the flanks of each base. The zoning mirrors
-  like the rest of the map, and the minimap tints each district in its own colour, unnamed.
+  like the rest of the map, and the minimap outlines each district faintly in its own colour,
+  unnamed, leaving the blocks dark so captured buildings stand out.
 - Each district builds up its blocks in its own way (`DISTRICT_STYLES` in `sim/mapgen.ts`). Fill
   is the share of a block's lot that is built on:
 
