@@ -114,3 +114,68 @@ export const JamStatic: React.FC<{ size: number }> = ({ size }) => {
     </group>
   );
 };
+
+// --- The Banshee's own jamming field, shown to its side only ---
+//
+// A thin blue ring always marks how far the jammer reaches. Switched on, the disc inside fills with
+// a faint wash of interference: rippling rings running outward from the vehicle and a shimmer of
+// static, so the player can see at a glance which jammers are broadcasting.
+
+const FIELD_BLUE = '#3b82f6';
+
+const fieldTime = { value: 0 };
+let fieldMaterial: THREE.ShaderMaterial | null = null;
+const getFieldMaterial = () => fieldMaterial ??= new THREE.ShaderMaterial({
+  uniforms: { uTime: fieldTime, uColor: { value: new THREE.Color(FIELD_BLUE) } },
+  vertexShader: /* glsl */ `
+    varying vec2 vUv;
+    void main() {
+      vUv = uv;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    }
+  `,
+  fragmentShader: /* glsl */ `
+    uniform float uTime;
+    uniform vec3 uColor;
+    varying vec2 vUv;
+    float hash(vec2 p) { return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453); }
+    void main() {
+      vec2 p = vUv * 2.0 - 1.0;
+      float r = length(p);
+      if (r > 1.0) discard;
+      // Waves of interference rolling outward from the jammer.
+      float waves = smoothstep(0.85, 1.0, sin(r * 26.0 - uTime * 4.0) * 0.5 + 0.5);
+      // Coarse static that changes many times a second.
+      float grain = hash(floor(p * 70.0) + floor(uTime * 18.0));
+      float a = 0.10 + waves * 0.16 + step(0.92, grain) * 0.12;
+      // A little brighter toward the rim, and fading in from the middle so the vehicle stays clear.
+      a *= smoothstep(0.05, 0.35, r) * (0.7 + 0.3 * r);
+      gl_FragColor = vec4(uColor * (1.2 + waves), a);
+    }
+  `,
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, side: THREE.DoubleSide,
+});
+
+let ringMaterial: THREE.MeshBasicMaterial | null = null;
+const getRingMaterial = () => ringMaterial ??= new THREE.MeshBasicMaterial({
+  color: FIELD_BLUE, transparent: true, opacity: 0.75, depthWrite: false, toneMapped: false, side: THREE.DoubleSide,
+});
+
+const noRaycast = () => null;
+
+// `radius` in world units; `y` lifts it to just above the ground under the vehicle.
+export const JamRange: React.FC<{ radius: number; active: boolean; y: number }> = ({ radius, active, y }) => {
+  useFrame(({ clock }) => { fieldTime.value = clock.elapsedTime; });
+  return (
+    <group position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh material={getRingMaterial()} raycast={noRaycast} renderOrder={3}>
+        <ringGeometry args={[radius - 0.45, radius, 96]} />
+      </mesh>
+      {active && (
+        <mesh position={[0, 0, 0.05]} material={getFieldMaterial()} raycast={noRaycast} renderOrder={2}>
+          <circleGeometry args={[radius - 0.45, 96]} />
+        </mesh>
+      )}
+    </group>
+  );
+};

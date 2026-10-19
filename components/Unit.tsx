@@ -18,7 +18,7 @@ import { FORCE_FIELD } from '../sim/forcefield';
 import { BlackwallExposure, BlackwallInfection } from './BlackwallFx';
 import { follow, predictPosition, simClock, walkAlong } from './glide';
 import { MAX_TETHERS } from '../sim/jamming';
-import { JamStatic } from './JamStatic';
+import { JamRange, JamStatic } from './JamStatic';
 
 // Helper component for spinning rotors
 const Rotor: React.FC = () => {
@@ -224,6 +224,8 @@ interface UnitProps {
   jammerActive?: boolean;
   tetherTargetIds?: string[];
   isJammed?: boolean;
+  // A Banshee on the player's side, which shows its jamming range.
+  ownJammer?: boolean;
   isHacked?: boolean;
   hackType?: 'recall' | 'drain' | null;
   teamCompute: number; // New Prop
@@ -368,7 +370,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -1172,7 +1174,9 @@ const Unit: React.FC<UnitProps> = ({
       )}
 
       {isHelios && (<group position={[0, -hoverHeight + 0.3, 0]}> <mesh rotation={[-Math.PI/2, 0, 0]} raycast={() => null}><ringGeometry args={[ABILITY_CONFIG.HELIOS_RADIUS * tileSize - 0.5, ABILITY_CONFIG.HELIOS_RADIUS * tileSize, 16]} /><meshBasicMaterial color="#facc15" transparent opacity={0.5} side={THREE.DoubleSide} /></mesh><mesh rotation={[-Math.PI/2, 0, 0]} raycast={() => null}><circleGeometry args={[ABILITY_CONFIG.HELIOS_RADIUS * tileSize, 16]} /><meshBasicMaterial color="#facc15" transparent opacity={0.05} depthWrite={false} /></mesh></group>)}
-      {isBanshee && jammerActive && (<group><mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.2, 0]} raycast={() => null}><ringGeometry args={[ABILITY_CONFIG.BANSHEE_JAMMER_RADIUS * tileSize, ABILITY_CONFIG.BANSHEE_JAMMER_RADIUS * tileSize + 0.2, 16]} /><meshBasicMaterial color="#ffffff" transparent opacity={0.3} side={THREE.DoubleSide} /></mesh><mesh rotation={[0, Date.now() * 0.001, 0]} raycast={() => null}><sphereGeometry args={[ABILITY_CONFIG.BANSHEE_JAMMER_RADIUS * tileSize, 16, 16]} /><meshBasicMaterial color="#ffffff" wireframe transparent opacity={0.05} /></mesh></group>)}
+      {/* Your own Banshee: a blue ring always marks its jamming reach, and the field inside it
+          shimmers with interference while the jammer is on (JamStatic.tsx). */}
+      {isBanshee && ownJammer && health > 0 && <JamRange radius={ABILITY_CONFIG.BANSHEE_JAMMER_RADIUS * tileSize} active={!!jammerActive && battery > 0} y={-hoverHeight + 0.35} />}
       {showTetherRange && (
         <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.2, 0]} raycast={() => null}>
           <ringGeometry args={[ABILITY_CONFIG.BANSHEE_TETHER_RANGE * tileSize, ABILITY_CONFIG.BANSHEE_TETHER_RANGE * tileSize + 0.35, 48]} />

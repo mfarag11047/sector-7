@@ -133,7 +133,7 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
   banshee: {
     use: 'Electronic warfare vehicle.',
     actions: [
-      { name: 'Toggle Jammer', text: `Jams communications within ${ABILITY_CONFIG.BANSHEE_JAMMER_RADIUS} tiles. Enemy drones and other remote-controlled units inside lose their link: they finish their last order and still fire at anything in range on their own, but take no new orders (moves, attacks, abilities) until they leave the field. Jammed units fizz with static. Drones on a hardline can't be jammed.` },
+      { name: 'Toggle Jammer', text: `Jams communications within ${ABILITY_CONFIG.BANSHEE_JAMMER_RADIUS} tiles. Enemy drones and other remote-controlled units inside lose their link: they finish their last order and still fire at anything in range on their own, but take no new orders (moves, attacks, abilities) until they leave the field. Jammed units fizz with static. Drones on a hardline can't be jammed. The blue ring is the jammer's reach; it shimmers while the jammer is on.` },
       { name: 'Tether Drones', text: `Hardlines up to ${MAX_TETHERS} friendly drones to the Banshee's battery: keeps them powered, leashed within the blue ring, and immune to enemy jamming. Click a tethered drone again to let it go.` },
     ],
   },

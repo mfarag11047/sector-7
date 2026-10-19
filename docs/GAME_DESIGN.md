@@ -342,6 +342,10 @@ The Banshee is the electronic-warfare vehicle (`sim/jamming.ts`).
   - they carry on with what they were last told, finishing a move, and still **fire on their
     own** at anything in range;
   - they fizz with a cloud of TV static and show a "no signal" glyph while jammed.
+
+  Your own Banshees always show their jamming reach as a thin blue ring; while the jammer is on,
+  the area inside fills with a faint shimmer of interference. Enemy Banshees show neither: you
+  see their jamming only in what it does to your units.
   Remote-controlled means uncrewed machines: Recon Drones, Wasps, Helios, Bombardment Drones and
   Crawler Drones. Crewed vehicles, aircraft with pilots and infantry are not affected. The jam lifts
   the moment the unit leaves the field or the jammer goes quiet (switched off, flat, destroyed or
