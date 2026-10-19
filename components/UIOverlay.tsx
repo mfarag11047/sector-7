@@ -7,7 +7,6 @@ import { ROLE_GLYPH, roleGlyphFilled, teamBadgeColor, UNIT_ROLE } from './unitIc
 import { BUILDING_COLORS, TEAM_COLORS, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG, TEAM_BASES } from '../constants';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 import { TIER_REQUIREMENT, TIER_RESEARCH_COST } from '../sim/units';
-import { DOMINATION_MS, DOMINATION_NODES } from '../sim/victory';
 import { DISTRICT_COLORS, districtBorders } from '../sim/districts';
 import type { MatchConfig } from '../sim/match';
 import type { MatchInfo } from './CityMap';
@@ -530,8 +529,7 @@ const objective = (s: TeamStats) => {
   if ((s.tier ?? 1) < 2 && s.buildings.server_node === 0) return 'Build a Barracks and Factory, then take the guarded server node in your half for compute.';
   if ((s.tier ?? 1) < 2) return 'Compute is building up. Research Tier 2 when you reach it.';
   if ((s.tier ?? 1) < 3) return 'Take the contested flank or centre server nodes to research Tier 3 sooner.';
-  if (s.buildings.core_node < DOMINATION_NODES) return `Hold ${DOMINATION_NODES} core nodes for ${DOMINATION_MS / 60000} minutes, or destroy the enemy HQ.`;
-  return 'Hold your core nodes until the domination timer runs out.';
+  return 'Destroy every enemy Command HQ to win: bring Titans, Lancers or artillery.';
 };
 
 const clockText = (ms: number) => {
@@ -652,18 +650,13 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
       {/* Top HUD: Team Stats */}
       <div className="flex justify-between items-start w-full relative z-50">
         
-        {/* Match clock and domination timers; the team switch in the sandbox only. */}
+        {/* Match clock; the team switch in the sandbox only. */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-2 pointer-events-auto z-50 flex flex-col items-center gap-1">
              {matchInfo && (
                 <div className="hud-plate hud-corners px-3 py-1 text-[11px] text-cyan-100 font-mono tracking-widest">
                     {clockText(matchInfo.elapsedMs)}{spectate && <span className="text-amber-200"> · AI VS AI</span>}
                 </div>
              )}
-             {matchInfo && (['blue', 'red'] as const).map(team => matchInfo.domination[team] !== null && (
-                <div key={team} className={`hud-alert hud-corners px-3 py-1 text-[11px] font-mono font-bold tracking-wider ${spectate ? (team === 'blue' ? 'text-blue-300' : 'text-red-300') : team === playerTeam ? 'text-cyan-200' : 'text-rose-300'}`}>
-                    {spectate ? `${team.toUpperCase()} HOLDS` : team === playerTeam ? 'YOU HOLD' : 'ENEMY HOLDS'} {DOMINATION_NODES} CORE NODES · {clockText(matchInfo.domination[team]!)}
-                </div>
-             ))}
 
              {sandbox && <button 
                 onClick={toggleTeam}

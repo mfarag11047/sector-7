@@ -322,8 +322,8 @@ export function recordStrategies(r: PacingRecord, team: Team, logged: readonly {
 }
 
 // The match result, as the closing milestone.
-export function recordVictory(r: PacingRecord, winner: Team, reason: 'destruction' | 'domination') {
-  recordEvent(r, winner, 'victory', `${sideName(winner)} won by ${reason === 'destruction' ? 'destroying the enemy HQ' : 'domination (holding the map)'}`);
+export function recordVictory(r: PacingRecord, winner: Team) {
+  recordEvent(r, winner, 'victory', `${sideName(winner)} won by destroying every enemy Command HQ`);
 }
 
 // The report as plain data, for saving to a file.

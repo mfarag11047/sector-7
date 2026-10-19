@@ -29,7 +29,7 @@ import { ballistaLoadStep, repairTick } from './support';
 import { isAirType } from './units';
 import { airPath, fastestPath } from './pathfinding';
 import { hasBuff } from './unitAbilities';
-import { checkVictory, DominationClock, freshDominationClock, Victory } from './victory';
+import { checkVictory, Victory } from './victory';
 import { DOCTRINE_CONFIG } from '../constants';
 import { jammingUpdates } from './jamming';
 import { heliosBeams, microwaveDamage } from './helios';
@@ -54,7 +54,6 @@ export interface HeadlessMatch {
   memory: Record<Team, AiMemory>;
   nextThink: Record<Team, number>;
   doctrineReadyAt: Record<Team, { tier2: number; tier3: number }>;
-  domination: DominationClock;
   victory: Victory | null;
   // Milestones and unit stats for the pacing report (sim/pacing.ts).
   pacing: PacingRecord;
@@ -98,7 +97,6 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     memory: { blue: freshAiMemory(), red: freshAiMemory() },
     nextThink: { blue: 0, red: 500 },
     doctrineReadyAt: { blue: { tier2: 0, tier3: 0 }, red: { tier2: 0, tier3: 0 } },
-    domination: freshDominationClock(),
     victory: null,
     pacing: freshPacing(),
     strategiesLogged: { blue: 0, red: 0 },
@@ -285,11 +283,10 @@ export function stepMatch(m: HeadlessMatch): void {
   // Once a second: income and victory.
   if (now % 1000 === 0) {
     m.economy = payIncome(m.economy, m.buildings, m.opts.income ?? {});
-    const result = checkVictory(m.structures, m.buildings, m.domination, now);
-    m.domination = result.clock;
-    if (result.victory && !m.victory) {
-      m.victory = result.victory;
-      recordVictory(m.pacing, result.victory.winner, result.victory.reason);
+    const victory = checkVictory(m.structures);
+    if (victory && !m.victory) {
+      m.victory = victory;
+      recordVictory(m.pacing, victory.winner);
     }
   }
   pacingTick(m.pacing, now, { units: m.units, structures: m.structures, buildings: m.buildings, economy: m.economy });

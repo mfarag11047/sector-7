@@ -57,7 +57,7 @@ export const MatchSetup: React.FC<{ initial?: Partial<MatchConfig>; onStart: (co
           <p className="text-sm text-slate-400 mt-2 max-w-xl">
             Take the core node by your base for income. Push your energy grid out by capturing buildings, because
             vehicles and drones only recharge inside it. Seize server nodes to unlock Tier 2 and Tier 3.
-            Destroy the enemy HQ, or hold 4 of the 6 core nodes for two minutes.
+            Destroy every enemy Command HQ to win.
           </p>
         </div>
 
@@ -162,10 +162,8 @@ export const MatchEnd: React.FC<{ victory: Victory; playerTeam: Team; summary: M
   const won = spectate ? victory.winner === 'blue' : victory.winner === playerTeam;
   const side = victory.winner === 'blue' ? 'Blue' : 'Red';
   const reason = spectate
-    ? (victory.reason === 'destruction' ? `${side} destroyed the enemy Command HQ.` : `${side} held the city’s core nodes for two minutes.`)
-    : victory.reason === 'destruction'
-      ? (won ? 'The enemy Command HQ is destroyed.' : 'Your Command HQ has fallen.')
-      : (won ? 'You held the city’s core nodes for two minutes.' : 'The enemy held the city’s core nodes for two minutes.');
+    ? `${side} destroyed every enemy Command HQ.`
+    : won ? 'Every enemy Command HQ is destroyed.' : 'Your last Command HQ has fallen.';
   const heading = spectate ? `${side.toUpperCase()} WINS` : won ? 'VICTORY' : 'DEFEAT';
   const headingTone = spectate ? (victory.winner === 'blue' ? 'text-blue-300' : 'text-red-300') : won ? 'text-cyan-300 hud-glow-cyan' : 'text-rose-400 hud-glow-red';
   const rows: [string, keyof MatchSummary['teams']['blue']][] = [

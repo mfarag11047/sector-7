@@ -73,14 +73,14 @@ describe('pacing recorder', () => {
     pacingTick(r, 100, { units: [], structures: [], buildings: [node('c1', 'core_node', null), node('s1', 'server_node', null)], economy });
     pacingTick(r, 40_000, { units: [], structures: [], buildings: [node('c1', 'core_node', 'blue'), node('s1', 'server_node', 'red')], economy: { ...economy, red: { ...economy.red, tier: 2 } } });
     pacingTick(r, 50_000, { units: [], structures: [], buildings: [node('c1', 'core_node', 'red'), node('s1', 'server_node', 'red')], economy: { ...economy, red: { ...economy.red, tier: 2 } } });
-    recordVictory(r, 'red', 'domination');
+    recordVictory(r, 'red');
     expect(r.events.map(e => `${e.kind}:${e.team}`)).toEqual([
       'core_captured:blue', 'server_captured:red', 'tier:red', 'core_lost:blue', 'core_captured:red', 'victory:red',
     ]);
     expect(r.samples.map(s => s.atMs)).toEqual([100, 40_000]);
     expect(r.samples[1].blue.coreNodes).toBe(1);
     expect(SAMPLE_MS).toBe(30_000);
-    expect(pacingText(r)).toContain('Red won by domination');
+    expect(pacingText(r)).toContain('Red won by destroying every enemy Command HQ');
     expect(JSON.parse(JSON.stringify(pacingJson(r))).events).toHaveLength(6);
   });
 });

@@ -147,6 +147,22 @@ describe('placing structures', () => {
     expect(r.structures![1]).toMatchObject({ type: 'wall_tier1', isBlueprint: true });
   });
 
+  it('keeps turrets to the area around a Command HQ, but lets walls go anywhere on the grid', () => {
+    const depot = structure('d', { type: 'builder' });
+    // A captured building far from base puts the grid out there.
+    const v = view({ structures: [depot], buildings: [node('b', 'residential', 'blue')] });
+    const place = (structureType: 'defense' | 'aa_turret' | 'wall_tier1', at: { x: number; z: number }) =>
+      run(v, { type: 'PLACE_STRUCTURE', structureType, at });
+    expect(place('defense', { x: 40, z: 41 }).refused).toMatch(/Command HQ/);
+    expect(place('aa_turret', { x: 40, z: 41 }).refused).toMatch(/Command HQ/);
+    expect(place('wall_tier1', { x: 40, z: 41 }).refused).toBeUndefined();
+    expect(place('defense', { x: 8, z: 8 }).refused).toBeUndefined();
+    // Around a base it has built, too.
+    const built = orderEffects(v, 'blue', { type: 'PLACE_STRUCTURE', structureType: 'defense', at: { x: 40, z: 41 } },
+      { ...ctx, bases: { blue: [{ x: 4, z: 4 }, { x: 39, z: 39 }], red: { x: 74, z: 74 } } });
+    expect('reason' in built).toBe(false);
+  });
+
   it('refuses the HQ and Munitions', () => {
     expect(run(view(), { type: 'PLACE_STRUCTURE', structureType: 'hq', at: { x: 8, z: 8 } }).refused).toBeTruthy();
     expect(run(view(), { type: 'PLACE_STRUCTURE', structureType: 'ordnance', at: { x: 8, z: 8 } }).refused).toBeTruthy();

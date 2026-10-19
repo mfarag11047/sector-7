@@ -6,7 +6,7 @@ import { isInsideEnergyGrid } from './energy';
 import { applyOrderToStructures, orderEffects, OrdersContext, OrdersView } from './orders';
 import { advanceProduction, applyProduction, createUnit } from './production';
 import { inBaseBlock, repairTick } from './support';
-import { checkVictory, freshDominationClock } from './victory';
+import { checkVictory } from './victory';
 
 const bldg = (x: number, z: number, destroyed = false, type: BuildingData['type'] = 'residential'): BuildingData => ({
   id: `b-${x}-${z}`, gridX: x, gridZ: z, position: [0, 0, 0], scale: [1, 1, 1], color: '', type, height: 6, blockId: 'blk',
@@ -91,7 +91,7 @@ describe('a built base', () => {
 
   it('keeps its side in the match after the starting HQ falls', () => {
     const structures = [hq('hq-blue', 'blue', 4, 4, { health: 0 }), hq('hq-blue-2', 'blue', 15, 15), hq('hq-red', 'red', 74, 74)];
-    expect(checkVictory(structures, [], freshDominationClock(), 0).victory).toBeNull();
-    expect(checkVictory(structures.map(s => s.team === 'blue' ? { ...s, health: 0 } : s), [], freshDominationClock(), 0).victory).toMatchObject({ winner: 'red' });
+    expect(checkVictory(structures)).toBeNull();
+    expect(checkVictory(structures.map(s => s.team === 'blue' ? { ...s, health: 0 } : s))).toMatchObject({ winner: 'red' });
   });
 });

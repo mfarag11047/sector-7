@@ -51,7 +51,7 @@ import { UNIT_RULES, isAirType } from '../sim/units';
 import { airPath, fastestPath } from '../sim/pathfinding';
 import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
 import { applyFieldCloak, CLOAK_FIELD, fieldCloakedIds, generatorsReplacedBy, isCloakFieldUp, isHidden } from '../sim/cloak';
-import { Victory, checkVictory, dominationRemaining, freshDominationClock } from '../sim/victory';
+import { Victory, checkVictory } from '../sim/victory';
 import type { MatchSummary } from './MatchScreens';
 import { Economy, createEconomy, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
@@ -1224,8 +1224,6 @@ interface CityMapProps {
 
 export interface MatchInfo {
   elapsedMs: number;
-  // Milliseconds until each side wins by domination, or null when it isn't holding enough nodes.
-  domination: Record<'blue' | 'red', number | null>;
 }
 
 const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine, onNotice, onMatchEnd, onMatchInfo, commandRef, onArmyUpdate, armyControlsRef, pacingRef: pacingOut }) => {
@@ -2849,7 +2847,6 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
   // Match clock, losses and victory, once a second.
   const matchStartRef = useRef(Date.now());
-  const dominationRef = useRef(freshDominationClock());
   const matchOverRef = useRef(false);
   const tallyRef = useRef({ blue: { trained: 0, lost: 0 }, red: { trained: 0, lost: 0 } });
   const aliveRef = useRef(new Map<string, 'blue' | 'red'>());
@@ -2898,23 +2895,19 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           }
       }
 
-      const result = checkVictory(structuresRef.current, buildingsRef.current, dominationRef.current, now);
-      dominationRef.current = result.clock;
+      const victory = checkVictory(structuresRef.current);
       const elapsedMs = now - matchStartRef.current;
-      onMatchInfoRef.current?.({
-          elapsedMs,
-          domination: { blue: dominationRemaining(result.clock, 'blue', now), red: dominationRemaining(result.clock, 'red', now) },
-      });
-      if (!result.victory || matchOverRef.current || matchRef.current.mode === 'sandbox') return;
+      onMatchInfoRef.current?.({ elapsedMs });
+      if (!victory || matchOverRef.current || matchRef.current.mode === 'sandbox') return;
       matchOverRef.current = true;
-      if (pacingRef.current) recordVictory(pacingRef.current, result.victory.winner, result.victory.reason);
+      if (pacingRef.current) recordVictory(pacingRef.current, victory.winner);
       const side = (team: 'blue' | 'red') => ({
           ...tallyRef.current[team],
           earned: economyRef.current[team].lifetimeIncome,
           coreNodes: coreNodesHeld(buildingsRef.current, team),
           serverNodes: serverNodesHeld(buildingsRef.current, team),
       });
-      onMatchEndRef.current?.(result.victory, { durationMs: elapsedMs, teams: { blue: side('blue'), red: side('red') } });
+      onMatchEndRef.current?.(victory, { durationMs: elapsedMs, teams: { blue: side('blue'), red: side('red') } });
     }, 1000);
     return () => clearInterval(timer);
   }, []);

@@ -13,8 +13,9 @@ so tuning keeps the shape.
    The AI's doctrine comes from the seed.
 2. **Start.** Each side has its Command HQ, 3 Strike Troopers, a Mason, an Infiltrator Drone and
    1000 cores.
-3. **Win** by destroying every enemy HQ (its starting one and any it has built), or by **domination**: holding 4 of the 6 core nodes for
-   two minutes without interruption. The HUD shows the countdown for whoever is closest.
+3. **Win** by destroying every enemy Command HQ: its starting one and any it has built. That is
+   the only win condition. Core and server nodes bring income, population and tech, but holding
+   them never wins on its own.
 4. **End screen** with the result, match time and stats, and a button to play again.
 
 The intended arc:
@@ -226,6 +227,8 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 
 - **Depot:** Mason (120, pop 1, T1), plus Dragon's Teeth, Bulwark and two turrets:
   - **Sentry Turret** (400): anti-vehicle cannon, AP 40 / 1.5 s / 6, ground only, 900 HP.
+  - Both turrets are base defences: they can only be placed within 6 tiles of one of your
+    Command HQs (the starting one or one you built). Walls can go anywhere in your grid.
   - **CIWS Turret** (450, three Mason hauls): the Aegis rotary cannon on a fixed mount with its own
     tracking radar (`sim/ciws.ts`). Shoots aircraft and incoming ordnance within 10 tiles exactly as
     the Aegis does (32/s to aircraft, 60/s to ordnance, 3.5 s bursts, 6 s reload); with the sky
@@ -559,9 +562,9 @@ same kind of economy.
    The pacing report logs each plan and change.
 5. **Army**, one objective at a time, most urgent first:
    - defend its base or a node under attack;
-   - break your hold on a core node if you are close to a domination win;
    - take a server node (after 2–6 min, by difficulty);
-   - attack your nearest core node, then your HQ, once its army is worth enough;
+   - attack your nearest Command HQ once its army is worth 1.6× its attack threshold (1.2× at T3
+     or after 15 minutes), otherwise your nearest core node once it is worth the threshold;
    - escort a second capture;
    - otherwise gather at the edge of its grid nearest you.
    It retreats when the enemy near its target is worth 1.4× its army, and waits 30 s before trying
@@ -584,7 +587,8 @@ same kind of economy.
    - **Bombardment Drones** (T3) strike enemy production, never on top of its own units.
    - **Ballista** (T3) stays by the Ordnance Fab, which keeps two **warheads** coming (EMP against
      a heavy army, otherwise HE); it takes, loads and fires them at big enemy groups or structures.
-   - **Masons** put up 1 (Normal) or 2 (Hard) **Sentry Turrets** at the front of its grid.
+   - **Masons** put up 1 (Normal) or 2 (Hard) **Sentry Turrets** in its base, on the side facing
+     you.
    - At T3, rich, with a unit beside a cleared block, it builds a **new Command HQ** (up to 2 on
      Normal, 3 on Hard).
 7. **Powers:** Titan smoke when hurt. Doctrine powers on Normal (T2) and Hard (T2 and T3): Orbital

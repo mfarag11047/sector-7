@@ -31,7 +31,6 @@ import { isInsideEnergyGrid } from './energy';
 import type { Difficulty } from './match';
 import { isOperational, MAX_QUEUE, OrderCommand, popUsed, teamPopCap, teamTier } from './orders';
 import { ArmorClass, dps, Tier, UNIT_RULES, unitsProducedBy } from './units';
-import { DOMINATION_NODES } from './victory';
 import { abilitiesFor, abilityCooldownLeft } from './unitAbilities';
 import { artilleryRange, inArtilleryReach } from './artillery';
 import { baseMoves, ESCORTS, specialistAbilities, specialistMoves, specialistPick, SPECIALIST_MOVERS } from './aiSpecialists';
@@ -258,30 +257,31 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     ? now >= profile.firstTechMs * 0.75 && armyValue >= profile.attackValue * 0.4
     : now >= profile.firstTechMs && armyValue >= profile.attackValue * 0.6;
   const retreating = now - mem.retreatedAt < 30_000;
-  // The enemy is close to a domination win: break their hold on a node whatever it takes.
-  const enemyDominating = enemyCores.length >= DOMINATION_NODES && armyValue >= 400;
+  // The only way to win is to destroy every enemy Command HQ: the nearest one still standing.
+  const enemyHq = view.structures.filter(s => s.type === 'hq' && s.team === enemy && s.health > 0)
+    .sort((a, b) => dist(a.gridPos, home) - dist(b.gridPos, home))[0] ?? null;
+  // A big enough army goes for it rather than the enemy's nodes; late on it takes less.
+  const hqPush = profile.attackValue * (tier >= 3 || now > 15 * 60_000 ? 1.2 : 1.6);
   // Free core nodes the capture team isn't already on. The army escorts the nearest of them.
   const escort = captureTarget ? freeCores.slice(1) : freeCores;
   const ownCores = coreNodes.filter(b => b.owner === team).length;
   if (threat) {
     mode = 'defend'; objective = threat;
-  } else if (enemyDominating) {
-    mode = 'attack'; objective = posOf(enemyCores[0]); objectiveId = enemyCores[0].id;
   } else if (!retreating && escort.length > 0 && armyValue >= 400) {
     // Land first: income and population come from core nodes.
     mode = 'expand'; objective = posOf(escort[0]); objectiveId = escort[0].id;
   } else if (!retreating && tier < 3 && canTech && freeServers.length > 0 && (ownCores >= 2 || dist(posOf(freeServers[0]), home) < dist(posOf(freeServers[0]), enemyHome))) {
     // Compute: the server node in our own half early, the contested ones once we hold some land.
     mode = 'tech'; objective = posOf(freeServers[0]); objectiveId = freeServers[0].id;
+  } else if (!retreating && canAttack && enemyHq && armyValue >= hqPush) {
+    mode = 'attack'; objective = enemyHq.gridPos; objectiveId = enemyHq.id;
   } else if (!retreating && canAttack && enemyCores.length > 0) {
     mode = 'attack'; objective = posOf(enemyCores[0]); objectiveId = enemyCores[0].id;
-  } else if (!retreating && canAttack && armyValue >= profile.attackValue * 1.6) {
-    mode = 'attack'; objective = enemyHome; objectiveId = `hq-${enemy}`;
   } else if (!retreating && tier < 3 && canTech && freeServers.length > 0) {
     mode = 'tech'; objective = posOf(freeServers[0]); objectiveId = freeServers[0].id;
   }
-  // Outmatched where it's heading: fall back and try again later (unless the match is at stake).
-  if (mode !== 'defend' && mode !== 'gather' && !enemyDominating) {
+  // Outmatched where it's heading: fall back and try again later.
+  if (mode !== 'defend' && mode !== 'gather') {
     const front = armyUnits.length > 0 ? centroid(armyUnits.map(u => u.gridPos)) : gather;
     const opposition = enemyNear(objective, 7) + enemyNear(front, 6);
     if (opposition > armyValue * 1.4) {

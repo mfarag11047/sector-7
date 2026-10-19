@@ -24,7 +24,7 @@ import { GHOST_ABILITY_TIER } from './ghost';
 import { HELIOS } from './helios';
 import { isRemoteUnit, isTetherableDrone, MAX_TETHERS, tetheredIds } from './jamming';
 import type { OrderCommand } from './orders';
-import { isOperational } from './orders';
+import { inBaseArea, isOperational } from './orders';
 import { type Tier, UNIT_RULES } from './units';
 import type { AiStrategy } from './aiStrategy';
 
@@ -356,11 +356,19 @@ export function baseMoves(c: BaseContext): { actions: Action[]; spent: number } 
     }
   }
 
-  // A Sentry Turret or two at the front of the grid, built by the Masons.
+  // A Sentry Turret or two guarding the base, on the side facing the enemy, built by the Masons.
+  // Turrets only go up in the area around a Command HQ (sim/orders.ts).
   const depot = mineS.some(s => s.type === 'builder' && isOperational(s));
   const turrets = mineS.filter(s => s.type === 'defense').length;
   if (depot && turrets < c.maxTurrets && !mineS.some(s => s.isBlueprint) && c.cores - spent >= structureCost('defense') + 400) {
-    const spot = nearbyBuildSpot(c.gather, c);
+    const home = c.bases[c.team];
+    const enemyHome = c.bases[c.team === 'blue' ? 'red' : 'blue'];
+    const away = dist(home, enemyHome) || 1;
+    const front = {
+      x: Math.round(home.x + ((enemyHome.x - home.x) / away) * 3),
+      z: Math.round(home.z + ((enemyHome.z - home.z) / away) * 3),
+    };
+    const spot = nearbyBuildSpot(front, c, p => inBaseArea(p, home));
     if (spot) {
       actions.push({ kind: 'order', command: { type: 'PLACE_STRUCTURE', structureType: 'defense', at: spot } });
       spent += structureCost('defense');
@@ -380,7 +388,7 @@ export function baseMoves(c: BaseContext): { actions: Action[]; spent: number } 
   return { actions, spent };
 }
 
-function nearbyBuildSpot(around: GridPos, c: BaseContext): GridPos | null {
+function nearbyBuildSpot(around: GridPos, c: BaseContext, allowed: (p: GridPos) => boolean = () => true): GridPos | null {
   const taken = c.structures.map(s => s.gridPos);
   for (let r = 1; r <= 4; r++) {
     for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
@@ -389,6 +397,7 @@ function nearbyBuildSpot(around: GridPos, c: BaseContext): GridPos | null {
       if (!c.isOpenGround(p.x, p.z) || !c.canBuildOn(p.x, p.z)) continue;
       if (taken.some(t => Math.abs(t.x - p.x) <= 1 && Math.abs(t.z - p.z) <= 1)) continue;
       if (!isInsideEnergyGrid(p, c.team, c.buildings, c.bases.blue, c.bases.red)) continue;
+      if (!allowed(p)) continue;
       return p;
     }
   }

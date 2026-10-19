@@ -25,7 +25,6 @@ import {
   ArmorClass, COMPUTE_PER_SERVER_NODE, DAMAGE_MULTIPLIER, DamageType, dps, HQ_COMPUTE, POP_BASE, POP_MAX, POP_PER_CORE_NODE,
   STRUCTURE_RULES, Tier, TIER_RESEARCH_COST, UNIT_RULES, unitsProducedBy, Weapon,
 } from '../sim/units';
-import { DOMINATION_MS, DOMINATION_NODES } from '../sim/victory';
 import { ROLE_GLYPH, ROLE_LABEL, roleGlyphFilled, teamBadgeColor, UnitRole, UNIT_ROLE } from './unitIcons';
 
 type Tab = 'basics' | 'economy' | 'units' | 'structures' | 'combat' | 'doctrines' | 'interface' | 'winning';
@@ -530,8 +529,8 @@ const STRUCTURE_TEXT: Partial<Record<StructureType, string>> = {
   ordnance_fab: 'Builds EMP and HE warheads for Ballistas, and trains Field Fabricators.',
   wall_tier1: 'Cheap tank traps that block a lane. One Mason haul.',
   wall_tier2: 'A heavy wall. Three Mason hauls.',
-  defense: 'Anti-vehicle cannon: armour-piercing shells that crack tanks and light vehicles. Cannot shoot aircraft. Mason-built.',
-  aa_turret: 'CIWS turret: the Aegis rotary cannon on a fixed mount with its own tracking radar. Shoots down aircraft and incoming missiles within 10 tiles; with the sky clear it hoses ground units within 6 tiles at a fraction of the damage. Fires in bursts and reloads. Mason-built.',
+  defense: 'Anti-vehicle cannon: armour-piercing shells that crack tanks and light vehicles. Cannot shoot aircraft. Mason-built, only within 6 tiles of one of your Command HQs.',
+  aa_turret: 'CIWS turret: the Aegis rotary cannon on a fixed mount with its own tracking radar. Shoots down aircraft and incoming missiles within 10 tiles; with the sky clear it hoses ground units within 6 tiles at a fraction of the damage. Fires in bursts and reloads. Mason-built, only within 6 tiles of one of your Command HQs.',
   hq: 'Your headquarters. Builds structures, researches tiers and earns income. Lose it and you lose.',
 };
 
@@ -688,7 +687,7 @@ const InterfaceTab: React.FC<{ color: string }> = ({ color }) => (
       <Item label="Cores">Cores banked and income per second.</Item>
       <Item label="Grid / Cores / Tier / Pop">Buildings captured, core nodes held out of 6, researched tier, and population used of your cap.</Item>
       <H>Top of the screen</H>
-      <Item label="Clock and domination">The match clock, and a warning when either side holds {DOMINATION_NODES} core nodes, with the time left until it wins.</Item>
+      <Item label="Clock">The match clock.</Item>
       <Item label="System message">Your current objective, and notices such as finished structures or refused orders.</Item>
       <Item label="Active Protocols">Your doctrine's powers, with their cost and what unlocks them.</Item>
     </div>
@@ -715,8 +714,8 @@ const WinningTab: React.FC = () => (
       <p className="text-xs text-slate-300 leading-relaxed">Level every building in a city block and its rubble clears away, leaving a base site marked with a button in the middle. Click it to build a new Command HQ there: {BASE_SITE.cores} cores and {BASE_SITE.compute} compute, {BASE_SITE.buildMs / 1000}s to build, and one of your units must be within {BASE_SITE.reach} tiles. It extends your energy grid, repairs units in its block and has the HQ menu.</p>
     </div>
     <div>
-      <H>Domination</H>
-      <p className="text-xs text-slate-300 leading-relaxed">Hold {DOMINATION_NODES} of the 6 core nodes for {DOMINATION_MS / 60000} minutes without a break. The timer shows at the top of the screen for both sides; take one node back to stop it.</p>
+      <H>Territory</H>
+      <p className="text-xs text-slate-300 leading-relaxed">Core and server nodes never win the match on their own. They pay for it: income and population from core nodes, compute for the next tier from server nodes. Destroying every enemy Command HQ is the only way to win.</p>
     </div>
   </div>
 );
