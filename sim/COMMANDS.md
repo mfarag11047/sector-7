@@ -26,7 +26,7 @@ Swarm Host spawns and grid charging. They become simulation rules in step 2.
 | `TRAIN_UNIT` | Barracks, Factory, Airpad, etc. | structure id, unit type | `sim/orders.ts` (tier, population cap, queue of 5); `sim/production.ts` trains it over time |
 | `SET_RALLY` | Any production structure | structure id, tile | `sim/orders.ts` |
 | `BUILD_WARHEAD` | Ordnance Fab | structure id, warhead | `handleStructureAction` `BUILD_WARHEAD` (~2770) |
-| `TOGGLE_DAMPENER` | Ghost | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
+| `TOGGLE_DAMPENER` | Ghost (Tier 2) | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `TOGGLE_JAMMER` | Banshee | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `TOGGLE_ANCHOR` | Battery Mule, Swarm Host, Thunderhead (stationary only) | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `TOGGLE_CLOAK_FIELD` | Cloaking Field Generator | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |

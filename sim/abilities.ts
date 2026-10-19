@@ -19,6 +19,7 @@ import type { EmpRocket } from './empRocket';
 import type { MiniRocket } from './hornet';
 import { unitAbilityEffects } from './unitAbilities';
 import { isTetherableDrone, JAMMED_REASON, MAX_TETHERS, tetheredIds, unjammedIds } from './jamming';
+import { GHOST_ABILITY_TIER } from './ghost';
 
 export type AbilityCommand = Extract<PlayerCommand, { type:
   | 'TOGGLE_DAMPENER' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD' | 'SMOKE_SCREEN' | 'ACTIVATE_APS' | 'PHANTOM_DECOY'
@@ -114,7 +115,9 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
   }
   switch (command.type) {
     // --- Toggles: act on every listed unit of the right type that the sender owns ---
+    // The Ghost's abilities unlock with research (sim/ghost.ts): the Dampener at Tier 2.
     case 'TOGGLE_DAMPENER':
+      if (view.economy[team].tier < GHOST_ABILITY_TIER.dampener) return reject(`the Dampener needs Tier ${GHOST_ABILITY_TIER.dampener}`);
       return toggleEach(view, team, command.unitIds, ['ghost'], u => ({ ...u, isDampenerActive: !u.isDampenerActive }));
     case 'TOGGLE_JAMMER':
       return toggleEach(view, team, command.unitIds, ['banshee'], u => ({ ...u, jammerActive: !u.jammerActive }));
@@ -127,8 +130,12 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
       return titanCountermeasure(view, team, command.unitIds, 'smoke');
     case 'ACTIVATE_APS':
       return titanCountermeasure(view, team, command.unitIds, 'aps');
-    case 'PHANTOM_DECOY':
+    case 'PHANTOM_DECOY': {
+      // Tier 3 to switch on; a running decoy can always be called off.
+      const ghost = view.units.find(u => u.id === command.unitId);
+      if (!ghost?.decoyActive && view.economy[team].tier < GHOST_ABILITY_TIER.decoy) return reject(`Phantom Decoy needs Tier ${GHOST_ABILITY_TIER.decoy}`);
       return phantomDecoy(view, team, command.unitId, ctx);
+    }
 
     // --- Ordnance logistics ---
     case 'LOAD_AMMO': {

@@ -15,6 +15,7 @@ import type { UnitData, UnitType } from '../types';
 import type { GridPos } from './commands';
 import { isEmpDisabled } from './unitAbilities';
 import { UNIT_RULES } from './units';
+import { dampenedUnits } from './ghost';
 
 export const RADAR = {
   // Tiles. Far beyond the Aegis' own vision (6) and weapon range (5).
@@ -49,6 +50,12 @@ export const searchRadarSees = (u: UnitData) => UNIT_RULES[u.type].armor !== 'ai
 // The radar a unit carries, for drawing its sweep: its reach in tiles, or 0.
 export const radarRangeOf = (u: UnitData) => isRadarActive(u) ? RADAR.range : isSearchRadarActive(u) ? searchRadarRange(u) : 0;
 
+// Units a Ghost's Dampener hides from radar don't show at all (sim/ghost.ts).
+const unmasked = (units: readonly UnitData[]) => {
+  const masked = dampenedUnits(units);
+  return masked.size === 0 ? units : units.filter(u => !masked.has(u.id));
+};
+
 // Enemy units the radar holds that nothing of `team` can see: aircraft, and anything hidden by a
 // Cloaking Field (sim/cloak.ts), on the ground or in the air, under an Aegis; ground units and
 // large aircraft under an Infiltrator's search radar. The field beats eyes, not radar.
@@ -56,7 +63,7 @@ export const radarUnits = (
   units: readonly UnitData[], team: UnitData['team'], sources: readonly GridPos[], seen: (u: UnitData) => boolean,
   search: readonly SearchRadar[] = [],
 ) =>
-  sources.length === 0 && search.length === 0 ? [] : units.filter(u => {
+  sources.length === 0 && search.length === 0 ? [] : unmasked(units).filter(u => {
     if (u.team === team || u.team === 'neutral' || u.health <= 0 || seen(u)) return false;
     if ((UNIT_RULES[u.type].armor === 'air' || u.fieldCloaked) && onRadar(u.gridPos, sources)) return true;
     return searchRadarSees(u) && search.some(s => Math.hypot(u.gridPos.x - s.at.x, u.gridPos.z - s.at.z) <= s.range);

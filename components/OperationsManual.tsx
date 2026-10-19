@@ -70,10 +70,10 @@ interface UnitNote {
 const UNIT_NOTES: Record<UnitType, UnitNote> = {
   trooper: { use: 'Your bread-and-butter unit. Send squads to capture core nodes and buildings (which grows your energy grid), and keep some with the army to shoot down aircraft.' },
   ghost: {
-    use: 'Captures 1.5× faster than a Trooper. Sneaks in to steal nodes and hides from the enemy.',
+    use: 'Captures 1.5× faster than a Trooper. Sneaks in to steal nodes and hides from the enemy. Trained from Tier 1; its abilities unlock with research.',
     actions: [
-      { name: 'Toggle Dampener', text: `Hides friendly units within ${ABILITY_CONFIG.GHOST_DAMPENER_RADIUS} tiles from the enemy's minimap. Drains the Ghost's battery while on.` },
-      { name: 'Phantom Decoy', text: `Cloaks the Ghost and sends ${ABILITY_CONFIG.PHANTOM_DECOY_COUNT} holographic copies running in different directions for ${ABILITY_CONFIG.DECOY_DURATION / 1000}s. Drains battery while cloaked.` },
+      { name: 'Toggle Dampener (Tier 2)', text: `The Ghost and friendly units within ${ABILITY_CONFIG.GHOST_DAMPENER_RADIUS} tiles vanish from the enemy's minimap and radar. They can still be seen up close and shot. Slows the Ghost and drains its battery while on; shows as a wall of glitch bars.` },
+      { name: 'Phantom Decoy (Tier 3)', text: `Cloaks the Ghost and sends ${ABILITY_CONFIG.PHANTOM_DECOY_COUNT} holographic copies running in different directions for ${ABILITY_CONFIG.DECOY_DURATION / 1000}s. Drains battery while cloaked.` },
     ],
   },
   lancer: { use: 'Rocket team: bring them against tanks, Razorbacks and gunships. Keep them behind Troopers, as rifles shred them.' },

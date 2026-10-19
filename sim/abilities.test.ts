@@ -160,12 +160,15 @@ describe('links', () => {
 });
 
 describe('Ghost and Swarm Host', () => {
+  // The side at a given research tier.
+  const atTier = (tier: 1 | 2 | 3) => { const economy = createEconomy(); economy.blue = { ...economy.blue, tier }; return economy; };
+
   it('Phantom Decoy cloaks and scatters projections; ordering it again ends it', () => {
     const ghost = unit('g');
-    const on = run(view([ghost]), { type: 'PHANTOM_DECOY', unitId: 'g' });
+    const on = run(view([ghost], { economy: atTier(3) }), { type: 'PHANTOM_DECOY', unitId: 'g' });
     expect(after(on, 'g')).toMatchObject({ decoyActive: true, isStealthed: true });
     expect(on.fx!.spawnDecoys).toHaveLength(ABILITY_CONFIG.PHANTOM_DECOY_COUNT);
-    const off = run(view(on.units!), { type: 'PHANTOM_DECOY', unitId: 'g' });
+    const off = run(view(on.units!, { economy: atTier(3) }), { type: 'PHANTOM_DECOY', unitId: 'g' });
     expect(after(off, 'g')).toMatchObject({ decoyActive: false, isStealthed: false });
     expect(off.fx!.clearDecoysOf).toEqual(['g']);
   });
@@ -178,10 +181,17 @@ describe('Ghost and Swarm Host', () => {
   });
 
   it('toggles only the listed units the sender owns', () => {
-    const r = run(view([unit('g1'), unit('g2'), unit('enemy', { team: 'red' })]), { type: 'TOGGLE_DAMPENER', unitIds: ['g1', 'enemy'] });
+    const r = run(view([unit('g1'), unit('g2'), unit('enemy', { team: 'red' })], { economy: atTier(2) }), { type: 'TOGGLE_DAMPENER', unitIds: ['g1', 'enemy'] });
     expect(after(r, 'g1').isDampenerActive).toBe(true);
     expect(after(r, 'g2').isDampenerActive).toBeFalsy();
     expect(after(r, 'enemy').isDampenerActive).toBeFalsy();
+  });
+
+  it('unlocks the Dampener at Tier 2 and Phantom Decoy at Tier 3', () => {
+    expect(run(view([unit('g')], { economy: atTier(1) }), { type: 'TOGGLE_DAMPENER', unitIds: ['g'] }).refused).toMatch(/Tier 2/);
+    expect(run(view([unit('g')], { economy: atTier(2) }), { type: 'TOGGLE_DAMPENER', unitIds: ['g'] }).refused).toBeUndefined();
+    expect(run(view([unit('g')], { economy: atTier(2) }), { type: 'PHANTOM_DECOY', unitId: 'g' }).refused).toMatch(/Tier 3/);
+    expect(run(view([unit('g')], { economy: atTier(3) }), { type: 'PHANTOM_DECOY', unitId: 'g' }).refused).toBeUndefined();
   });
 });
 

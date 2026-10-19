@@ -42,7 +42,7 @@ export interface BuildWarheadCommand { type: 'BUILD_WARHEAD'; structureId: strin
 // These apply to every listed unit of the right type, matching how the
 // current menus act on the whole selection.
 
-export interface ToggleDampenerCommand { type: 'TOGGLE_DAMPENER'; unitIds: string[] } // Ghost
+export interface ToggleDampenerCommand { type: 'TOGGLE_DAMPENER'; unitIds: string[] } // Ghost, Tier 2
 export interface ToggleJammerCommand { type: 'TOGGLE_JAMMER'; unitIds: string[] } // Banshee
 export interface ToggleAnchorCommand { type: 'TOGGLE_ANCHOR'; unitIds: string[] } // Battery Mule, Swarm Host
 export interface ToggleCloakFieldCommand { type: 'TOGGLE_CLOAK_FIELD'; unitIds: string[] } // Cloaking Field Generator

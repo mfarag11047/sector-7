@@ -101,8 +101,8 @@ which stay unlocked for good.
 
 | Tier | Research cost | Unlocks |
 |---|---|---|
-| T1 | Start | Troopers, Razorbacks, Thunderheads, Battery Mules, Drones, Guardians, Helios, Masons |
-| T2 | 120 compute | Ghosts, Lancers, Titans, Aegis, Wasps, Hornets, Banshees, Field Fabricators, Swarm Hosts, T2 doctrine powers |
+| T1 | Start | Troopers, Ghosts, Razorbacks, Thunderheads, Battery Mules, Drones, Guardians, Helios, Masons |
+| T2 | 120 compute | Lancers, Titans, Aegis, Wasps, Hornets, Banshees, Field Fabricators, Swarm Hosts, T2 doctrine powers |
 | T3 | 360 compute | Bombardment Drones, Ballistas, T3 doctrine powers |
 
 Research from the button in your team panel or the HQ build menu.
@@ -183,7 +183,7 @@ listed as damage / cooldown / range.
 | Unit | Cost | Pop | Tier | HP | Armor | Weapon | Role |
 |---|---|---|---|---|---|---|---|
 | **Strike Trooper** (new) | 80 | 1 | T1 | 100 | Infantry | Rifle 10 / 1.0 s / 3, hits air | Backbone, capture, anti-air |
-| **Ghost** EW Specialist | 150 | 1 | T2 | 110 | Infantry | Rifle 12 / 0.8 s / 3, hits air | Fast capture (1.5×), Phantom Decoy, dampener |
+| **Ghost** EW Specialist | 150 | 1 | T1 | 110 | Infantry | Rifle 12 / 0.8 s / 3, hits air | Fast capture (1.5×); Dampener at T2, Phantom Decoy at T3 |
 | **Lancer** (new) | 150 | 1 | T2 | 100 | Infantry | AP 70 / 3.0 s / 4, hits air | Anti-vehicle rockets |
 
 ### Factory (vehicles)
@@ -329,6 +329,22 @@ radius (about a city block). One per side: a new drop removes the old generator.
   off inside knocks the dome down while it lasts. Its menu shows the shield and the reboot
   countdown.
 - The AI drops it over its own army in a big fight.
+
+## Ghost EW Specialist
+
+The Ghost is trained from Tier 1 and grows with research (`sim/ghost.ts`):
+
+- **Tier 1:** no abilities, just a fast capturer (1.5× a Trooper).
+- **Tier 2, Dampener (toggle):** the Ghost and every friendly unit within 3 tiles of it vanish from
+  the enemy's **minimap** and **radar** (Aegis air-search contacts and Infiltrator ground-search
+  blips). They are still seen in the world and can be shot when enemies are close. A hidden
+  attacker doesn't show as a red attack arrow on the enemy minimap either. The field shows as a
+  wall of flickering black and white vertical glitch bars at its edge. It slows the Ghost and
+  drains its battery, and switches off when the battery runs flat.
+- **Tier 3, Phantom Decoy:** cloaks the Ghost and sends four holographic copies running off in
+  different directions. A running decoy can always be called off.
+
+The Ghost's menu shows locked abilities with the tier they need.
 
 ## Banshee: jamming and hardline tethers
 

@@ -55,6 +55,7 @@ import { Victory, checkVictory, dominationRemaining, freshDominationClock } from
 import type { MatchSummary } from './MatchScreens';
 import { Economy, createEconomy, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
+import { dampenedUnits } from '../sim/ghost';
 
 
 // Helper to check if a grid position is inside any cloud of a specific type (optional)
@@ -1614,13 +1615,15 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 return s ? { team: s.team as UnitData['team'], x: s.gridPos.x, z: s.gridPos.z } : null;
             };
             const nowMs = Date.now();
+            const dampened = dampenedUnits(unitsRef.current);
             engagementsRef.current.forEach((e, attackerId) => {
                 if (nowMs - e.at > ENGAGEMENT_MS) { engagementsRef.current.delete(attackerId); return; }
                 const a = posOf(attackerId);
                 const t = posOf(e.targetId);
                 if (!a || !t || a.team === t.team) return;
                 if (a.team === playerTeam) engagements.push({ id: attackerId, fromX: a.x, fromZ: a.z, toX: t.x, toZ: t.z, hostile: false });
-                else if (t.team === playerTeam) engagements.push({ id: attackerId, fromX: a.x, fromZ: a.z, toX: t.x, toZ: t.z, hostile: true });
+                // An attacker hidden by a Ghost's Dampener doesn't give itself away on the minimap.
+                else if (t.team === playerTeam && !dampened.has(attackerId)) engagements.push({ id: attackerId, fromX: a.x, fromZ: a.z, toX: t.x, toZ: t.z, hostile: true });
             });
 
             onMinimapUpdate({ 

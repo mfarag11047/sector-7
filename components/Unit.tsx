@@ -19,6 +19,8 @@ import { BlackwallExposure, BlackwallInfection } from './BlackwallFx';
 import { follow, predictPosition, simClock, walkAlong } from './glide';
 import { MAX_TETHERS } from '../sim/jamming';
 import { JamRange, JamStatic } from './JamStatic';
+import { GlitchField } from './GlitchField';
+import { GHOST_ABILITY_TIER } from '../sim/ghost';
 
 // Helper component for spinning rotors
 const Rotor: React.FC = () => {
@@ -858,17 +860,9 @@ const Unit: React.FC<UnitProps> = ({
             <group scale={4.2} rotation={[0, Math.PI, 0]}>
                 <GhostModel />
             </group>
-            {isDampenerActive && (
-                <group>
-                    <mesh rotation={[0, Date.now() * 0.001, 0]} raycast={() => null}>
-                        <sphereGeometry args={[ABILITY_CONFIG.GHOST_DAMPENER_RADIUS * tileSize, 12, 12]} />
-                        <meshBasicMaterial color={teamColor} wireframe transparent opacity={0.1} />
-                    </mesh>
-                    <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.2, 0]} raycast={() => null}>
-                        <ringGeometry args={[ABILITY_CONFIG.GHOST_DAMPENER_RADIUS * tileSize - 0.5, ABILITY_CONFIG.GHOST_DAMPENER_RADIUS * tileSize, 16]} />
-                        <meshBasicMaterial color={teamColor} transparent opacity={0.3} />
-                    </mesh>
-                </group>
+            {/* Dampener running: a wall of black and white glitch bars at the field's edge. */}
+            {isDampenerActive && battery > 0 && health > 0 && (
+                <GlitchField radius={ABILITY_CONFIG.GHOST_DAMPENER_RADIUS * tileSize} height={12} y={-hoverHeight} />
             )}
             <mesh ref={flashRef} position={[0, 2.2, 0]} visible={false} raycast={() => null}><sphereGeometry args={[0.3, 8, 6]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.85} toneMapped={false} depthWrite={false} /></mesh>
         </group>
@@ -1424,8 +1418,17 @@ const Unit: React.FC<UnitProps> = ({
                   )}
                   {isGhost && (
                       <>
-                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TOGGLE DAMPENER'); }} className={`text-[10px] ${isDampenerActive ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>Toggle Dampener</button>
-                        <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); handleMenuAction('PHANTOM_DECOY_INIT'); }} className={`text-[10px] ${decoyActive ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>{decoyActive ? 'Phantom Decoy (On)' : 'Phantom Decoy'}</button>
+                        {/* Abilities unlock with research (sim/ghost.ts): locked ones show the tier they need. */}
+                        {teamCompute >= GHOST_ABILITY_TIER.dampener ? (
+                          <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TOGGLE DAMPENER'); }} className={`text-[10px] ${isDampenerActive ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>Toggle Dampener</button>
+                        ) : (
+                          <div className="text-[10px] bg-slate-900/60 text-slate-500 px-2 py-1 rounded">Dampener · Tier {GHOST_ABILITY_TIER.dampener}</div>
+                        )}
+                        {teamCompute >= GHOST_ABILITY_TIER.decoy || decoyActive ? (
+                          <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); handleMenuAction('PHANTOM_DECOY_INIT'); }} className={`text-[10px] ${decoyActive ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>{decoyActive ? 'Phantom Decoy (On)' : 'Phantom Decoy'}</button>
+                        ) : (
+                          <div className="text-[10px] bg-slate-900/60 text-slate-500 px-2 py-1 rounded">Phantom Decoy · Tier {GHOST_ABILITY_TIER.decoy}</div>
+                        )}
                       </>
                   )}
                   {isBanshee && (

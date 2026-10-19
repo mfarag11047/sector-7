@@ -12,6 +12,7 @@ import { DISTRICT_COLORS, districtBorders } from '../sim/districts';
 import type { MatchConfig } from '../sim/match';
 import type { MatchInfo } from './CityMap';
 import type { Notice } from '../App';
+import { dampenedUnits } from '../sim/ghost';
 
 const EditableStat: React.FC<{
   value: number;
@@ -572,30 +573,16 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
         return dist <= range;
     });
 
+    // Enemy units under a Ghost's Dampener never show on this minimap (sim/ghost.ts).
+    const dampened = dampenedUnits(minimapData.units);
     const visible = minimapData.units.filter(targetUnit => {
         if (targetUnit.team === playerTeam) return true;
         if (targetUnit.decoyActive || targetUnit.fieldCloaked) return false;
+        if (dampened.has(targetUnit.id)) return false;
         if (targetUnit.type === 'defense_drone' && known?.has(targetUnit.id)) return true;
 
-        // Check for Ghost protection on targetUnit
-        const protectingGhosts = minimapData.units.filter(g => 
-            g.team === targetUnit.team && 
-            g.type === 'ghost' && 
-            g.isDampenerActive
-        );
-        
-        const isProtected = protectingGhosts.some(g => {
-            const dx = g.gridPos.x - targetUnit.gridPos.x;
-            const dz = g.gridPos.z - targetUnit.gridPos.z;
-            return Math.hypot(dx, dz) <= ABILITY_CONFIG.GHOST_DAMPENER_RADIUS;
-        });
-
         // Enemy Unit Check against ALL friendly units using the specific vision range of the friendly
-        const isDetected = inFriendlyVision(
-            targetUnit.gridPos.x,
-            targetUnit.gridPos.z,
-            isProtected ? 2 : undefined
-        );
+        const isDetected = inFriendlyVision(targetUnit.gridPos.x, targetUnit.gridPos.z);
 
         if (isDetected && targetUnit.type === 'defense_drone' && known) known.add(targetUnit.id);
         return isDetected;

@@ -56,7 +56,7 @@ const shell = (damage: number, cooldownMs: number, range: number, splash = 1, sp
 export const UNIT_RULES: Record<UnitType, UnitRules> = {
   // --- Barracks: infantry. Cheap, captures ground, and the answer to aircraft. ---
   trooper: { armor: 'infantry', weapon: rifle(10, 1000, 3), pop: 1, tier: 1, producer: 'infantry', buildTimeMs: 12000, role: 'Line infantry. Captures nodes, shoots down aircraft.' },
-  ghost: { armor: 'infantry', weapon: rifle(12, 800, 3), pop: 1, tier: 2, producer: 'infantry', buildTimeMs: 18000, role: 'EW specialist. Captures fast, cloaks with Phantom Decoy.' },
+  ghost: { armor: 'infantry', weapon: rifle(12, 800, 3), pop: 1, tier: 1, producer: 'infantry', buildTimeMs: 18000, role: 'EW specialist. Captures fast; hides the squad from map and radar (Tier 2) and cloaks with Phantom Decoy (Tier 3).' },
   lancer: { armor: 'infantry', weapon: ap(70, 3000, 4, true), pop: 1, tier: 2, producer: 'infantry', buildTimeMs: 16000, role: 'Rocket team. Breaks vehicles and gunships.' },
 
   // --- Factory: vehicles. Tough, run on the grid, beat infantry. ---
