@@ -15,6 +15,7 @@ import type { BuildingData, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { CLOAK_FIELD } from './cloak';
 import { tetheredIds } from './jamming';
+import { HELIOS, heliosCharge, heliosMode } from './helios';
 
 // Where an EMP missile has knocked out the grid. `team` fired it: only the other side's grid
 // goes dark there.
@@ -113,6 +114,8 @@ export function chargeSources(units: readonly UnitData[]): ChargeSources {
 export function batteryDrain(u: UnitData, isMoving: boolean, onGrid: boolean): number {
   let drain = (u.unitClass === 'infantry' || onGrid) ? 0 : (isMoving ? ABILITY_CONFIG.BATTERY_DRAIN_MOVE : ABILITY_CONFIG.BATTERY_DRAIN_IDLE);
   if (u.type === 'banshee' && u.jammerActive) drain += ABILITY_CONFIG.DRAIN_STATIC_JAMMER;
+  // A Helios' microwave beam runs off its own battery.
+  if (u.type === 'helios' && heliosMode(u) === 'burn') drain += HELIOS.burnDrainPerTick;
   // The Cloaking Field runs off the generator's battery, on the grid or off it, while switched on.
   if (u.type === 'cloak_generator' && !u.cloakFieldOff) drain += CLOAK_FIELD.drainPerTick;
   // So does the Bulwark Force Field while its dome is up (not while it reboots).
@@ -231,12 +234,11 @@ export function powerTick(u: UnitData, draft: UnitData, ctx: PowerContext): bool
     status = Math.max(status, 1);
   }
   if (!ctx.inNanoCloud) {
-    for (const charger of ctx.helios) {
-      if (charger.team !== u.team) continue;
-      if (Math.hypot(u.gridPos.x - charger.gridPos.x, u.gridPos.z - charger.gridPos.z) <= ABILITY_CONFIG.HELIOS_RADIUS) {
-        chargeAmount += ABILITY_CONFIG.HELIOS_CHARGE_RATE;
-        status = Math.max(status, 1);
-      }
+    // Helios in Charge mode, including a Helios charging itself (sim/helios.ts).
+    const helios = heliosCharge(u, ctx.helios);
+    if (helios > 0) {
+      chargeAmount += helios;
+      status = Math.max(status, 1);
     }
   }
   if (chargeAmount > 0 && draft.battery < draft.maxBattery) {

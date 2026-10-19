@@ -20,6 +20,7 @@ import { follow, predictPosition, simClock, walkAlong } from './glide';
 import { MAX_TETHERS } from '../sim/jamming';
 import { JamRange, JamStatic } from './JamStatic';
 import { GlitchField } from './GlitchField';
+import { HeliosField } from './HeliosField';
 import { GHOST_ABILITY_TIER } from '../sim/ghost';
 
 // Helper component for spinning rotors
@@ -226,6 +227,7 @@ interface UnitProps {
   jammerActive?: boolean;
   tetherTargetIds?: string[];
   isJammed?: boolean;
+  heliosMode?: 'charge' | 'burn';
   // A Banshee on the player's side, which shows its jamming range.
   ownJammer?: boolean;
   isHacked?: boolean;
@@ -372,7 +374,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -1167,7 +1169,11 @@ const Unit: React.FC<UnitProps> = ({
           </group>
       )}
 
-      {isHelios && (<group position={[0, -hoverHeight + 0.3, 0]}> <mesh rotation={[-Math.PI/2, 0, 0]} raycast={() => null}><ringGeometry args={[ABILITY_CONFIG.HELIOS_RADIUS * tileSize - 0.5, ABILITY_CONFIG.HELIOS_RADIUS * tileSize, 16]} /><meshBasicMaterial color="#facc15" transparent opacity={0.5} side={THREE.DoubleSide} /></mesh><mesh rotation={[-Math.PI/2, 0, 0]} raycast={() => null}><circleGeometry args={[ABILITY_CONFIG.HELIOS_RADIUS * tileSize, 16]} /><meshBasicMaterial color="#facc15" transparent opacity={0.05} depthWrite={false} /></mesh></group>)}
+      {/* Helios: gold while charging friends, orange-red with a beam while microwaving enemies (HeliosField.tsx). */}
+      {isHelios && health > 0 && (
+        <HeliosField radius={ABILITY_CONFIG.HELIOS_RADIUS * tileSize} mode={heliosMode ?? 'charge'} groundY={-hoverHeight + 0.3}
+          working={!buffs?.some(b => b.kind === 'emp') && (heliosMode !== 'burn' || battery > 0)} />
+      )}
       {/* Your own Banshee: a blue ring always marks its jamming reach, and the field inside it
           shimmers with interference while the jammer is on (JamStatic.tsx). */}
       {isBanshee && ownJammer && health > 0 && <JamRange radius={ABILITY_CONFIG.BANSHEE_JAMMER_RADIUS * tileSize} active={!!jammerActive && battery > 0} y={-hoverHeight + 0.35} />}
@@ -1429,6 +1435,13 @@ const Unit: React.FC<UnitProps> = ({
                         ) : (
                           <div className="text-[10px] bg-slate-900/60 text-slate-500 px-2 py-1 rounded">Phantom Decoy · Tier {GHOST_ABILITY_TIER.decoy}</div>
                         )}
+                      </>
+                  )}
+                  {isHelios && (
+                      <>
+                        <div className="text-[9px] text-slate-400 uppercase font-mono mb-1">Mode</div>
+                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('HELIOS_CHARGE'); }} className={`text-[10px] ${heliosMode !== 'burn' ? 'bg-amber-900 text-amber-200' : 'bg-slate-800 text-white hover:bg-slate-700'} px-2 py-1 rounded text-left`}>Charge Friendlies{heliosMode !== 'burn' ? ' (On)' : ''}</button>
+                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('HELIOS_BURN'); }} className={`text-[10px] ${heliosMode === 'burn' ? 'bg-red-900 text-red-200' : 'bg-slate-800 text-white hover:bg-slate-700'} px-2 py-1 rounded text-left`}>Microwave Enemies{heliosMode === 'burn' ? ' (On)' : ''}</button>
                       </>
                   )}
                   {isBanshee && (

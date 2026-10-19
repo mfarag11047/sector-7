@@ -156,6 +156,8 @@ export interface UnitData {
   hackType?: 'recall' | 'drain' | null;
   hackedBy?: string | null;
   isJammed?: boolean;
+  // Helios mode (sim/helios.ts): charging friendly units, or microwaving enemies. Charge if unset.
+  heliosMode?: 'charge' | 'burn';
   ammoState?: 'empty' | 'loading' | 'armed' | 'awaiting_delivery';
   loadedAmmo?: 'emp' | 'he' | null;
   missileInventory?: { emp: number; he: number };

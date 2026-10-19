@@ -22,13 +22,13 @@ import { isTetherableDrone, JAMMED_REASON, MAX_TETHERS, tetheredIds, unjammedIds
 import { GHOST_ABILITY_TIER } from './ghost';
 
 export type AbilityCommand = Extract<PlayerCommand, { type:
-  | 'TOGGLE_DAMPENER' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD' | 'SMOKE_SCREEN' | 'ACTIVATE_APS' | 'PHANTOM_DECOY'
+  | 'TOGGLE_DAMPENER' | 'SET_HELIOS_MODE' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD' | 'SMOKE_SCREEN' | 'ACTIVATE_APS' | 'PHANTOM_DECOY'
   | 'LOAD_AMMO' | 'TAKE_WARHEAD' | 'FABRICATE' | 'RESUPPLY_MATERIAL' | 'TRANSFER_WARHEAD'
   | 'ARTILLERY_FIRE' | 'SURVEILLANCE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD'
   | 'HARDLINE_TETHER' | 'DISCONNECT_TETHER' | 'BATTERY_LINK' | 'DISCONNECT_BATTERY' | 'UNIT_ABILITY' }>;
 
 const ABILITY_TYPES: ReadonlySet<string> = new Set<AbilityCommand['type']>([
-  'TOGGLE_DAMPENER', 'TOGGLE_JAMMER', 'TOGGLE_ANCHOR', 'TOGGLE_CLOAK_FIELD', 'SMOKE_SCREEN', 'ACTIVATE_APS', 'PHANTOM_DECOY',
+  'TOGGLE_DAMPENER', 'SET_HELIOS_MODE', 'TOGGLE_JAMMER', 'TOGGLE_ANCHOR', 'TOGGLE_CLOAK_FIELD', 'SMOKE_SCREEN', 'ACTIVATE_APS', 'PHANTOM_DECOY',
   'LOAD_AMMO', 'TAKE_WARHEAD', 'FABRICATE', 'RESUPPLY_MATERIAL', 'TRANSFER_WARHEAD',
   'ARTILLERY_FIRE', 'SURVEILLANCE', 'FIRE_BALLISTA', 'FIRE_SWARM', 'BOMBARD',
   'HARDLINE_TETHER', 'DISCONNECT_TETHER', 'BATTERY_LINK', 'DISCONNECT_BATTERY', 'UNIT_ABILITY',
@@ -119,6 +119,11 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
     case 'TOGGLE_DAMPENER':
       if (view.economy[team].tier < GHOST_ABILITY_TIER.dampener) return reject(`the Dampener needs Tier ${GHOST_ABILITY_TIER.dampener}`);
       return toggleEach(view, team, command.unitIds, ['ghost'], u => ({ ...u, isDampenerActive: !u.isDampenerActive }));
+    // The Helios is in one mode at a time (sim/helios.ts).
+    case 'SET_HELIOS_MODE': {
+      const mode = command.mode;
+      return toggleEach(view, team, command.unitIds, ['helios'], u => ({ ...u, heliosMode: mode }));
+    }
     case 'TOGGLE_JAMMER':
       return toggleEach(view, team, command.unitIds, ['banshee'], u => ({ ...u, jammerActive: !u.jammerActive }));
     case 'TOGGLE_CLOAK_FIELD':

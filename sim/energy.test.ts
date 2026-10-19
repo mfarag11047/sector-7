@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ABILITY_CONFIG } from '../constants';
 import type { BuildingData, UnitData } from '../types';
 import { batteryDrain, chargeSources, isBlackedOut, isInsideEnergyGrid, PowerContext, powerTick } from './energy';
+import { HELIOS } from './helios';
 
 const BLUE_BASE = { x: 4, z: 4 };
 const RED_BASE = { x: 75, z: 75 };
@@ -64,7 +65,7 @@ describe('powerTick', () => {
     const helios = unit('h', { type: 'helios', unitClass: 'support', gridPos: { x: 41, z: 40 } });
     const idle = unit('t');
     const charged = tick(idle, ctx({ helios: [helios] })).draft.battery;
-    expect(charged).toBeCloseTo(50 - ABILITY_CONFIG.BATTERY_DRAIN_IDLE + ABILITY_CONFIG.HELIOS_CHARGE_RATE);
+    expect(charged).toBeCloseTo(50 - ABILITY_CONFIG.BATTERY_DRAIN_IDLE + HELIOS.chargePerTick);
     const blocked = tick(idle, ctx({ helios: [helios], inNanoCloud: true })).draft;
     expect(blocked.battery).toBeCloseTo(50 - ABILITY_CONFIG.BATTERY_DRAIN_IDLE);
     expect(blocked.isInNanoCloud).toBe(true);

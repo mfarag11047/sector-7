@@ -32,6 +32,7 @@ import { hasBuff } from './unitAbilities';
 import { checkVictory, DominationClock, freshDominationClock, Victory } from './victory';
 import { DOCTRINE_CONFIG } from '../constants';
 import { jammingUpdates } from './jamming';
+import { microwaveDamage } from './helios';
 
 export interface HeadlessOptions {
   seed: number;
@@ -233,6 +234,8 @@ export function stepMatch(m: HeadlessMatch): void {
   const power = chargeSources(m.units);
   const repair = repairTick(m.units, MOVE_TICK_MS, bases, team => (team === 'blue' || team === 'red') ? m.opts.doctrine[team] : null, team => m.economy[team].tier, now);
   const helios = m.units.filter(u => u.type === 'helios');
+  // Helios in Microwave mode cook the enemies around them (sim/helios.ts).
+  const microwave = microwaveDamage(m.units, MOVE_TICK_MS);
   const living = m.units;
   m.units = m.units.map(u => {
     const draft: UnitData = { ...u };
@@ -244,7 +247,7 @@ export function stepMatch(m: HeadlessMatch): void {
       if (hasBuff(draft, 'overcharge')) draft.buffs = draft.buffs!.filter(b => b.kind !== 'overcharge');
     }
     if (draft.buffs?.length) draft.buffs = draft.buffs.filter(b => b.until > now);
-    const hit = attacks.unitDamage.get(u.id) || 0;
+    const hit = (attacks.unitDamage.get(u.id) || 0) + (microwave.get(u.id) || 0);
     if (hit > 0) draft.lastDamageTime = now;
     draft.health = Math.max(0, draft.health - hit);
     const heal = repair.heal.get(u.id) || 0;

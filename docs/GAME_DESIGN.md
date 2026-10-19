@@ -330,6 +330,22 @@ radius (about a city block). One per side: a new drop removes the old generator.
   countdown.
 - The AI drops it over its own army in a big fight.
 
+## Helios microwave drone
+
+The Helios is a support drone with two modes, one at a time, picked from its menu (`sim/helios.ts`):
+
+- **Charge Friendlies** (default): every friendly unit within 3 tiles, the Helios included, gains
+  0.3 battery per tick (3 a second). That is a slow trickle, far below the energy grid. Because
+  it charges itself, a Helios in this mode never runs flat. Shown as a gold ring with pulses
+  drifting inward.
+- **Microwave Enemies:** every enemy unit within 3 tiles takes 4 damage a second. It charges
+  nothing (itself included), and the beam costs the Helios 1.5 battery a second; it stops when the
+  battery is flat. Enemy force fields block it. Shown as an orange-red ring with heat rippling
+  outward and a faint beam cone.
+
+An EMP'd or stunned Helios does neither. Switching several selected Helios sets them all to the
+chosen mode.
+
 ## Ghost EW Specialist
 
 The Ghost is trained from Tier 1 and grows with research (`sim/ghost.ts`):

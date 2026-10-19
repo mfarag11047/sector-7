@@ -181,7 +181,6 @@ export const ABILITY_CONFIG = {
   COST_ABILITY_HIGH: 25,   
   SYSTEM_OVERCLOCK_COST: 250,
 
-  HELIOS_CHARGE_RATE: 2, 
   HELIOS_RADIUS: 3,
   // Battery Mule. Roads are 6 tiles apart, so three city blocks is 18 tiles.
   BATTERY_MULE_MAX_BATTERY: 800,

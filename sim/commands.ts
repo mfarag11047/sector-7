@@ -43,6 +43,8 @@ export interface BuildWarheadCommand { type: 'BUILD_WARHEAD'; structureId: strin
 // current menus act on the whole selection.
 
 export interface ToggleDampenerCommand { type: 'TOGGLE_DAMPENER'; unitIds: string[] } // Ghost, Tier 2
+// Helios: charge friendly units, or microwave enemies.
+export interface SetHeliosModeCommand { type: 'SET_HELIOS_MODE'; unitIds: string[]; mode: 'charge' | 'burn' }
 export interface ToggleJammerCommand { type: 'TOGGLE_JAMMER'; unitIds: string[] } // Banshee
 export interface ToggleAnchorCommand { type: 'TOGGLE_ANCHOR'; unitIds: string[] } // Battery Mule, Swarm Host
 export interface ToggleCloakFieldCommand { type: 'TOGGLE_CLOAK_FIELD'; unitIds: string[] } // Cloaking Field Generator
@@ -98,6 +100,7 @@ export type PlayerCommand =
   | BuildBaseCommand
   | BuildWarheadCommand
   | ToggleDampenerCommand
+  | SetHeliosModeCommand
   | ToggleJammerCommand
   | ToggleAnchorCommand
   | ToggleCloakFieldCommand
@@ -182,6 +185,7 @@ const CHECKS: Record<CommandType, (c: Fields) => boolean> = {
   BUILD_BASE: c => isTile(c.at),
   BUILD_WARHEAD: c => isId(c.structureId) && oneOf(WARHEADS, c.warhead),
   TOGGLE_DAMPENER: unitList,
+  SET_HELIOS_MODE: c => isIdList(c.unitIds) && (c.mode === 'charge' || c.mode === 'burn'),
   TOGGLE_JAMMER: unitList,
   TOGGLE_ANCHOR: unitList,
   TOGGLE_CLOAK_FIELD: unitList,

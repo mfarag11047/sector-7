@@ -6,6 +6,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MAX_TETHERS } from '../sim/jamming';
+import { HELIOS } from '../sim/helios';
 import { ABILITY_CONFIG, BUILDING_VALUES, DOCTRINE_CONFIG, STRUCTURE_INFO, UNIT_STATS } from '../constants';
 import type { DoctrineType, StructureType, UnitType } from '../types';
 import { ARTILLERY } from '../sim/artillery';
@@ -129,7 +130,13 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
       { name: 'Trophy System', text: `Shoots down heavy shells and missiles near it. ${ABILITY_CONFIG.GUARDIAN_TROPHY_COOLDOWN / 1000}s between intercepts. Automatic.` },
     ],
   },
-  helios: { use: `Microwave drone that charges the batteries of friendly units within ${ABILITY_CONFIG.HELIOS_RADIUS} tiles, so vehicles last longer off the grid.` },
+  helios: {
+    use: `Support drone with a microwave emitter covering ${ABILITY_CONFIG.HELIOS_RADIUS} tiles. One mode at a time.`,
+    actions: [
+      { name: 'Charge Friendlies', text: `Slowly tops up the batteries of friendly units in range (${HELIOS.chargePerTick * 10}/s each), itself included, so it never runs flat in this mode.` },
+      { name: 'Microwave Enemies', text: `Slowly cooks enemy units in range (${HELIOS.burnDps} damage/s each). Charges nothing, drains the Helios' own battery and stops when it is flat. Blocked by enemy force fields.` },
+    ],
+  },
   banshee: {
     use: 'Electronic warfare vehicle.',
     actions: [

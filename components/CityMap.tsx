@@ -56,6 +56,7 @@ import type { MatchSummary } from './MatchScreens';
 import { Economy, createEconomy, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
 import { dampenedUnits } from '../sim/ghost';
+import { microwaveDamage } from '../sim/helios';
 
 
 // Helper to check if a grid position is inside any cloud of a specific type (optional)
@@ -2623,6 +2624,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           return;
       }
       if (action === 'PHANTOM_DECOY_INIT') { dispatchAbility({ type: 'PHANTOM_DECOY', unitId }); return; }
+      // Helios mode, for every selected Helios as well as this one (sim/helios.ts).
+      if (action === 'HELIOS_CHARGE' || action === 'HELIOS_BURN') {
+          const ids = unitsRef.current.filter(u => u.type === 'helios' && (u.id === unitId || selectedUnitIds.has(u.id))).map(u => u.id);
+          dispatchAbility({ type: 'SET_HELIOS_MODE', unitIds: ids, mode: action === 'HELIOS_BURN' ? 'burn' : 'charge' });
+          return;
+      }
 
       if (action === 'DISCONNECT_TETHER') { dispatchAbility({ type: 'DISCONNECT_TETHER', unitId }); clearTargeting(); return; }
       if (action === 'DISCONNECT_BATTERY') { dispatchAbility({ type: 'DISCONNECT_BATTERY', unitId }); clearTargeting(); return; }
@@ -3400,6 +3407,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   const bombardDamage = bombardUnitDamage(activeUnits, strikes, fields);
                   // Enemies standing inside a force field are shocked; spent generators burn out.
                   const shock = shockDamage(activeUnits, fields, TICK_RATE);
+                  // Helios in Microwave mode cook the enemies around them (sim/helios.ts).
+                  microwaveDamage(activeUnits, TICK_RATE, fields).forEach((amount, id) => shock.set(id, (shock.get(id) || 0) + amount));
                   let nextUnits = activeUnits.map(u => {
                       let newUnit = { ...u };
                       let uChanged = false;
