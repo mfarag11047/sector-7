@@ -330,6 +330,27 @@ radius (about a city block). One per side: a new drop removes the old generator.
   countdown.
 - The AI drops it over its own army in a big fight.
 
+## Banshee: jamming and hardline tethers
+
+The Banshee is the electronic-warfare vehicle (`sim/jamming.ts`).
+
+- **Jammer.** Switched on, it floods everything within 7 tiles with noise for as long as it has
+  battery (it drains while on). Enemy **remote-controlled units** inside the field lose their
+  link to their operator:
+  - they take **no new orders**: no moves, no attack-moves, no abilities. An order to a group
+    still reaches its unjammed units, and the player is told how many didn't hear it;
+  - they carry on with what they were last told, finishing a move, and still **fire on their
+    own** at anything in range;
+  - they fizz with a cloud of TV static and show a "no signal" glyph while jammed.
+  Remote-controlled means uncrewed machines: Recon Drones, Wasps, Helios, Bombardment Drones and
+  Crawler Drones. Crewed vehicles, aircraft with pilots and infantry are not affected. The jam lifts
+  the moment the unit leaves the field or the jammer goes quiet (switched off, flat, destroyed or
+  EMP'd).
+- **Hardline tether.** The Banshee can cable up to **3** friendly remote units at once. A tethered
+  drone is charged from the Banshee's hardline pack (which splits its charge across them), kept on
+  a leash within 8 tiles, and **cannot be jammed**. Pick a tethered drone again to let it go, or
+  Disconnect to drop them all. Another Banshee taking a drone takes it off the first one's line.
+
 ## Netrunner doctrine: Black Wall Infect
 
 `sim/blackwall.ts`. The Netrunner doctrine (formerly Skunkworks) keeps its Overclock passive (+10%

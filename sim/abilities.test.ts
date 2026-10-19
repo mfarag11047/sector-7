@@ -121,9 +121,26 @@ describe('links', () => {
   const drone = unit('d', { type: 'drone', unitClass: 'air', gridPos: { x: 7, z: 5 } });
 
   it('tethers a friendly drone in range and takes it from any other Banshee', () => {
-    const r = run(view([banshee('b1'), banshee('b2', { tetherTargetId: 'd' }), drone]), { type: 'HARDLINE_TETHER', unitId: 'b1', targetUnitId: 'd' });
-    expect(after(r, 'b1').tetherTargetId).toBe('d');
-    expect(after(r, 'b2').tetherTargetId).toBeNull();
+    const r = run(view([banshee('b1'), banshee('b2', { tetherTargetIds: ['d'] }), drone]), { type: 'HARDLINE_TETHER', unitId: 'b1', targetUnitId: 'd' });
+    expect(after(r, 'b1').tetherTargetIds).toEqual(['d']);
+    expect(after(r, 'b2').tetherTargetIds).toEqual([]);
+  });
+
+  it('holds up to three drones, and lets one go when it is picked again', () => {
+    const drones = ['d1', 'd2', 'd3', 'd4'].map((id, i) => unit(id, { type: i % 2 ? 'wasp' : 'drone', unitClass: 'air', gridPos: { x: 6 + i, z: 5 } }));
+    let units: UnitData[] = [banshee('b1'), ...drones];
+    for (const id of ['d1', 'd2', 'd3']) units = run(view(units), { type: 'HARDLINE_TETHER', unitId: 'b1', targetUnitId: id }).units!;
+    expect(units.find(u => u.id === 'b1')!.tetherTargetIds).toEqual(['d1', 'd2', 'd3']);
+    expect(run(view(units), { type: 'HARDLINE_TETHER', unitId: 'b1', targetUnitId: 'd4' }).refused).toMatch(/3 drones/);
+    units = run(view(units), { type: 'HARDLINE_TETHER', unitId: 'b1', targetUnitId: 'd2' }).units!;
+    expect(units.find(u => u.id === 'b1')!.tetherTargetIds).toEqual(['d1', 'd3']);
+    units = run(view(units), { type: 'DISCONNECT_TETHER', unitId: 'b1' }).units!;
+    expect(units.find(u => u.id === 'b1')!.tetherTargetIds).toEqual([]);
+  });
+
+  it('only tethers remote-controlled units', () => {
+    const tank = unit('t', { type: 'tank', unitClass: 'armor', gridPos: { x: 6, z: 5 } });
+    expect(run(view([banshee('b1'), tank]), { type: 'HARDLINE_TETHER', unitId: 'b1', targetUnitId: 't' }).refused).toMatch(/drone/);
   });
 
   it('will not tether out of range', () => {

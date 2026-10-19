@@ -77,7 +77,7 @@ export const UNIT_RULES: Record<UnitType, UnitRules> = {
   // --- Comm Link: support. ---
   guardian: { armor: 'light', weapon: null, pop: 2, tier: 1, producer: 'support', buildTimeMs: 18000, role: 'Repairs three allies and knocks down heavy shells.' },
   helios: { armor: 'air', weapon: null, pop: 1, tier: 1, producer: 'support', buildTimeMs: 12000, role: 'Charges friendly batteries wirelessly.' },
-  banshee: { armor: 'light', weapon: null, pop: 3, tier: 2, producer: 'support', buildTimeMs: 28000, role: 'Jams the area and tethers a drone to its battery.' },
+  banshee: { armor: 'light', weapon: null, pop: 3, tier: 2, producer: 'support', buildTimeMs: 28000, role: 'Jams enemy drones\' control links and hardlines up to three friendly drones to its battery.' },
   ballista: { armor: 'light', weapon: null, pop: 3, tier: 3, producer: 'support', buildTimeMs: 30000, role: 'Launches EMP and HE missiles anywhere.' },
 
   // --- Depot and Ordnance Fab ---

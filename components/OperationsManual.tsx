@@ -5,6 +5,7 @@
 // the prose (what a role is for, what a unit's menu buttons do) is written by hand here.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { MAX_TETHERS } from '../sim/jamming';
 import { ABILITY_CONFIG, BUILDING_VALUES, DOCTRINE_CONFIG, STRUCTURE_INFO, UNIT_STATS } from '../constants';
 import type { DoctrineType, StructureType, UnitType } from '../types';
 import { ARTILLERY } from '../sim/artillery';
@@ -132,8 +133,8 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
   banshee: {
     use: 'Electronic warfare vehicle.',
     actions: [
-      { name: 'Toggle Jammer', text: `Jams enemy units within ${ABILITY_CONFIG.BANSHEE_JAMMER_RADIUS} tiles, slowing them.` },
-      { name: 'Tether', text: 'Hardlines a friendly drone to the Banshee\'s battery, keeping it in the air (blue ring is the leash).' },
+      { name: 'Toggle Jammer', text: `Jams communications within ${ABILITY_CONFIG.BANSHEE_JAMMER_RADIUS} tiles. Enemy drones and other remote-controlled units inside lose their link: they finish their last order and still fire at anything in range on their own, but take no new orders (moves, attacks, abilities) until they leave the field. Jammed units fizz with static. Drones on a hardline can't be jammed.` },
+      { name: 'Tether Drones', text: `Hardlines up to ${MAX_TETHERS} friendly drones to the Banshee's battery: keeps them powered, leashed within the blue ring, and immune to enemy jamming. Click a tethered drone again to let it go.` },
     ],
   },
   ballista: {

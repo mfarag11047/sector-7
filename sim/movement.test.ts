@@ -34,7 +34,6 @@ describe('speed', () => {
     expect(speedMultiplier(unit({ path: ['0,1'] }), () => 'open')).toBe(0.5);
     expect(speedMultiplier(unit({ type: 'ghost', isDampenerActive: true }), () => 'street')).toBeCloseTo(UNIT_STATS.ghost.speedMod * ABILITY_CONFIG.GHOST_SPEED_PENALTY);
     expect(speedMultiplier(unit({ activeBuffs: ['speed'] }), () => 'street')).toBeCloseTo(1.2);
-    expect(speedMultiplier(unit({ isJammed: true }), () => 'main')).toBe(0.5);
   });
 
   it('gives air units a flat bonus regardless of road', () => {

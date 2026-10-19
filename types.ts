@@ -150,7 +150,8 @@ export interface UnitData {
   spawnedUnitIds?: string[]; // Added to track child units
   crawlerTargetId?: string | null; // Enemy a Crawler Drone is currently hunting
   jammerActive?: boolean;
-  tetherTargetId?: string | null;
+  // Drones on this Banshee's hardline tether (at most MAX_TETHERS, sim/jamming.ts).
+  tetherTargetIds?: string[];
   isHacked?: boolean;
   hackType?: 'recall' | 'drain' | null;
   hackedBy?: string | null;

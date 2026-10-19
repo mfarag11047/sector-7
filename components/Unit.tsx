@@ -17,6 +17,8 @@ import { CLOAK_FIELD } from '../sim/cloak';
 import { FORCE_FIELD } from '../sim/forcefield';
 import { BlackwallExposure, BlackwallInfection } from './BlackwallFx';
 import { follow, predictPosition, simClock, walkAlong } from './glide';
+import { MAX_TETHERS } from '../sim/jamming';
+import { JamStatic } from './JamStatic';
 
 // Helper component for spinning rotors
 const Rotor: React.FC = () => {
@@ -220,7 +222,7 @@ interface UnitProps {
   bombardReturning?: boolean;
   bombardRearmStartedAt?: number;
   jammerActive?: boolean;
-  tetherTargetId?: string | null;
+  tetherTargetIds?: string[];
   isJammed?: boolean;
   isHacked?: boolean;
   hackType?: 'recall' | 'drain' | null;
@@ -366,7 +368,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetId, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -375,7 +377,7 @@ const Unit: React.FC<UnitProps> = ({
     orient: new THREE.Object3D(),
   });
   const radarRef = useRef<THREE.Group>(null);
-  const tetherLineRef = useRef<THREE.BufferGeometry>(null);
+  const tetherLineRefs = useRef<(THREE.BufferGeometry | null)[]>([]);
   const batteryLineRefs = useRef<(THREE.BufferGeometry | null)[]>([]);
   const repairBeamRefs = useRef<(THREE.Mesh | null)[]>([]);
   const laserRef = useRef<THREE.BufferGeometry>(null);
@@ -579,24 +581,27 @@ const Unit: React.FC<UnitProps> = ({
         }
     }
 
-    if (tetherLineRef.current && meshRef.current) {
-        if (tetherTargetId) {
-            const targetObj = scene.getObjectByName(`unit-${tetherTargetId}`);
+    // One hardline cable to each tethered drone.
+    if (isBanshee && meshRef.current) {
+        for (let i = 0; i < MAX_TETHERS; i++) {
+            const geom = tetherLineRefs.current[i];
+            if (!geom) continue;
+            const targetId = tetherTargetIds?.[i];
+            const targetObj = targetId ? scene.getObjectByName(`unit-${targetId}`) : undefined;
             if (targetObj) {
-                const start = new THREE.Vector3(0, 1.5, 0); 
+                const start = new THREE.Vector3(0, 1.5, 0);
                 const targetWorld = new THREE.Vector3();
                 targetObj.getWorldPosition(targetWorld);
                 const sourceWorld = new THREE.Vector3();
                 meshRef.current.getWorldPosition(sourceWorld);
                 const diffWorld = new THREE.Vector3().subVectors(targetWorld, sourceWorld);
-                diffWorld.y += 0.5; 
+                diffWorld.y += 0.5;
                 const localEnd = diffWorld.applyQuaternion(meshRef.current.quaternion.clone().invert());
-                tetherLineRef.current.setFromPoints([start, localEnd]);
-                tetherLineRef.current.attributes.position.needsUpdate = true;
+                geom.setFromPoints([start, localEnd]);
+            } else {
+                geom.setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
             }
-        } else {
-            tetherLineRef.current.setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
-            tetherLineRef.current.attributes.position.needsUpdate = true;
+            geom.attributes.position.needsUpdate = true;
         }
     }
 
@@ -1117,7 +1122,12 @@ const Unit: React.FC<UnitProps> = ({
       )}
 
       {/* Lines, Effects, Html overlays */}
-      {tetherTargetId && (<line><bufferGeometry ref={tetherLineRef} /><lineBasicMaterial color="#38bdf8" linewidth={2} transparent opacity={0.6} /></line>)}
+      {isBanshee && Array.from({ length: MAX_TETHERS }, (_, i) => (
+          <line key={`tether-${i}`}>
+              <bufferGeometry ref={(node) => { tetherLineRefs.current[i] = node as THREE.BufferGeometry | null; }} />
+              <lineBasicMaterial color="#38bdf8" linewidth={2} transparent opacity={0.7} />
+          </line>
+      ))}
       {isSunPlate && Array.from({ length: ABILITY_CONFIG.BATTERY_MULE_SLOTS }, (_, i) => (
           <line key={`battery-link-${i}`}>
               <bufferGeometry ref={(node) => { batteryLineRefs.current[i] = node as THREE.BufferGeometry | null; }} />
@@ -1234,7 +1244,8 @@ const Unit: React.FC<UnitProps> = ({
       {blackwallInfectedAt === undefined && (blackwallExposureMs ?? 0) > 0 && <BlackwallExposure size={hoverHeight > 20 ? 5 : 3.2} exposureMs={blackwallExposureMs!} />}
       {/* Knocked out by an EMP: a shell of blue static flickering over the machine. */}
       {buffs?.some(b => b.kind === 'emp') && <EmpStatic size={hoverHeight > 20 ? 5 : 4} />}
-      {isJammed && (<mesh position={[0, 2, 0]} raycast={() => null}><sphereGeometry args={[1]} /><meshBasicMaterial color="#ffffff" wireframe transparent opacity={0.3} /></mesh>)}
+      {/* Signal jammed by an enemy Banshee: a cloud of TV static and a no-signal glyph. */}
+      {isJammed && health > 0 && <JamStatic size={hoverHeight > 20 ? 4.5 : 3} />}
       {isHacked && hackType === 'drain' && (<group><mesh position={[0, 1, 0]} rotation={[Math.random(), Math.random(), Math.random()]} raycast={() => null}><planeGeometry args={[0.5, 0.5]} /><meshBasicMaterial color="#3b82f6" side={THREE.DoubleSide} /></mesh></group>)}
       
       {/* Smoke Screen Effect */}
@@ -1416,8 +1427,8 @@ const Unit: React.FC<UnitProps> = ({
                   {isBanshee && (
                       <>
                         <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TOGGLE_JAMMER'); }} className={`text-[10px] ${jammerActive ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>Toggle Jammer</button>
-                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('HARDLINE_TETHER'); }} className={`text-[10px] ${tetherTargetId || isTargetingMode ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>{tetherTargetId ? 'Retether' : 'Tether'}</button>
-                        {tetherTargetId && (
+                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('HARDLINE_TETHER'); }} className={`text-[10px] ${(tetherTargetIds?.length ?? 0) > 0 || isTargetingMode ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>Tether Drones ({tetherTargetIds?.length ?? 0}/{MAX_TETHERS})</button>
+                        {(tetherTargetIds?.length ?? 0) > 0 && (
                           <button onClick={(e) => { e.stopPropagation(); handleMenuAction('DISCONNECT_TETHER'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left">Disconnect</button>
                         )}
                       </>

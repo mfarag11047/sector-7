@@ -18,6 +18,7 @@ import { teamTier } from './orders';
 import type { EmpRocket } from './empRocket';
 import type { MiniRocket } from './hornet';
 import { unitAbilityEffects } from './unitAbilities';
+import { isTetherableDrone, JAMMED_REASON, MAX_TETHERS, tetheredIds, unjammedIds } from './jamming';
 
 export type AbilityCommand = Extract<PlayerCommand, { type:
   | 'TOGGLE_DAMPENER' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD' | 'SMOKE_SCREEN' | 'ACTIVATE_APS' | 'PHANTOM_DECOY'
@@ -81,7 +82,7 @@ const effects = (partial: Partial<AbilityEffects>): AbilityOutcome => ({
 });
 
 const TANKS: readonly UnitType[] = ['tank', 'titan_dropped'];
-export const isTetherableDrone = (u: UnitData) => u.type === 'drone' || u.type === 'helios';
+export { isTetherableDrone } from './jamming';
 export const isBatteryLinkable = (u: UnitData) =>
   u.health > 0 && u.maxBattery > 0 && u.unitClass !== 'infantry' && u.type !== 'sun_plate' && u.type !== 'defense_drone' && u.type !== 'crawler_drone';
 
@@ -101,6 +102,16 @@ function ownUnit(view: AbilityView, team: Team, id: string, types: readonly Unit
 }
 
 export function abilityEffects(view: AbilityView, team: Team, command: AbilityCommand, ctx: AbilityContext): AbilityOutcome {
+  // A jammed unit can't be reached: it takes no ability orders (sim/jamming.ts). From a group,
+  // the rest still act.
+  if ('unitIds' in command) {
+    const reachable = unjammedIds(view.units, command.unitIds);
+    if ('reason' in reachable) return reject(reachable.reason);
+    command = { ...command, unitIds: reachable.ids };
+  } else if ('unitId' in command) {
+    const actor = (command as { unitId: string }).unitId;
+    if (view.units.some(u => u.id === actor && u.isJammed)) return reject(JAMMED_REASON);
+  }
   switch (command.type) {
     // --- Toggles: act on every listed unit of the right type that the sender owns ---
     case 'TOGGLE_DAMPENER':
@@ -273,18 +284,26 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
       if (typeof u === 'string') return reject(u);
       const target = view.units.find(t => t.id === command.targetUnitId);
       if (!target || !isTetherableDrone(target) || target.team !== u.team || target.id === u.id) return reject('can only tether a friendly drone');
+      const held = tetheredIds(u);
+      // Picking a drone already on the line lets it go.
+      if (held.includes(target.id)) {
+        return effects({ updates: new Map([[u.id, b => ({ ...b, tetherTargetIds: tetheredIds(b).filter(id => id !== target.id) })]]) });
+      }
+      if (held.length >= MAX_TETHERS) return reject(`the hardline already holds ${MAX_TETHERS} drones`);
       if (distance(u.gridPos, target.gridPos) > ABILITY_CONFIG.BANSHEE_TETHER_RANGE) return reject('out of tether range');
-      const updates = new Map<string, (x: UnitData) => UnitData>([[u.id, b => ({ ...b, tetherTargetId: target.id })]]);
+      const updates = new Map<string, (x: UnitData) => UnitData>([[u.id, b => ({ ...b, tetherTargetIds: [...tetheredIds(b).filter(id => id !== target.id), target.id] })]]);
       // One hardline per drone: any other Banshee holding it lets go.
       for (const other of view.units) {
-        if (other.id !== u.id && other.tetherTargetId === target.id) updates.set(other.id, b => ({ ...b, tetherTargetId: null }));
+        if (other.id !== u.id && tetheredIds(other).includes(target.id)) {
+          updates.set(other.id, b => ({ ...b, tetherTargetIds: tetheredIds(b).filter(id => id !== target.id) }));
+        }
       }
       return effects({ updates });
     }
     case 'DISCONNECT_TETHER': {
       const u = ownUnit(view, team, command.unitId, ['banshee']);
       if (typeof u === 'string') return reject(u);
-      return effects({ updates: new Map([[u.id, b => ({ ...b, tetherTargetId: null })]]) });
+      return effects({ updates: new Map([[u.id, b => ({ ...b, tetherTargetIds: [] })]]) });
     }
     case 'BATTERY_LINK': {
       const u = ownUnit(view, team, command.unitId, ['sun_plate']);

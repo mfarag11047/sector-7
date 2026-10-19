@@ -54,6 +54,7 @@ import { applyFieldCloak, CLOAK_FIELD, fieldCloakedIds, generatorsReplacedBy, is
 import { Victory, checkVictory, dominationRemaining, freshDominationClock } from '../sim/victory';
 import type { MatchSummary } from './MatchScreens';
 import { Economy, createEconomy, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
+import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
 
 
 // Helper to check if a grid position is inside any cloud of a specific type (optional)
@@ -2152,8 +2153,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           return;
       }
 
+      // Stays in tethering mode so up to three drones can be hooked up (or let go) in a row;
+      // it ends once the hardline is full.
       if (targetingSourceId && targetingAbility === 'TETHER') {
-          if (dispatchAbility({ type: 'HARDLINE_TETHER', unitId: targetingSourceId, targetUnitId: id })) clearTargeting();
+          dispatchAbility({ type: 'HARDLINE_TETHER', unitId: targetingSourceId, targetUnitId: id });
+          const host = unitsRef.current.find(u => u.id === targetingSourceId);
+          if ((host?.tetherTargetIds?.length ?? 0) >= MAX_TETHERS) clearTargeting();
           return;
       }
       // Stays in linking mode so several vehicles can be linked or unlinked in a row.
@@ -2283,6 +2288,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           const attackMove = attackMoveArmedRef.current || ctrlHeldRef.current;
           if (attackMoveArmedRef.current) { attackMoveArmedRef.current = false; setAttackMoveArmed(false); }
           dispatchOrder({ type: 'MOVE', unitIds: Array.from(selectedUnitIds), target: { x, z }, attackMove }, playerTeam, true);
+          // Say so when jammed units in the selection didn't hear it (sim/jamming.ts).
+          const mine = unitsRef.current.filter(u => selectedUnitIds.has(u.id) && u.team === playerTeam && u.health > 0);
+          const jammedCount = mine.filter(u => u.isJammed).length;
+          if (jammedCount > 0) {
+              onNotice?.(jammedCount === mine.length ? 'Signal jammed: no new orders get through' : `${jammedCount} jammed unit${jammedCount > 1 ? 's' : ''} didn't receive the order`, 'warn');
+          }
       } else {
           // Clicked on ground with no selection -> Deselect all (if any) or Close Menus
           setSelectedUnitIds(new Set());
@@ -3213,6 +3224,16 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   })]);
               }
           }
+          // Banshee jamming (sim/jamming.ts): enemy drones inside an active jammer lose their link
+          // and take no new orders until they are out of it; hardlined drones are immune.
+          {
+              const jam = jammingUpdates(unitsRef.current);
+              if (jam.size > 0) {
+                  const apply = (list: UnitData[]) => list.map(u => jam.get(u.id)?.(u) ?? u);
+                  unitsRef.current = apply(unitsRef.current);
+                  setUnits(apply);
+              }
+          }
           // Black Wall virus (sim/blackwall.ts): bombs that land infect the enemies under them; the
           // infected burn and pass it to friends who linger next to them.
           {
@@ -3672,7 +3693,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                  && lockers.some(l => Math.hypot(l.gridPos.x - u.gridPos.x, l.gridPos.z - u.gridPos.z) <= lockRange);
              const atOrdnanceFab = structuresState.some(s => s.type === 'ordnance_fab' && s.team === u.team && !s.isBlueprint && Math.hypot(s.gridPos.x - u.gridPos.x, s.gridPos.z - u.gridPos.z) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE);
              const ballistaInRange = u.type === 'mule' && units.some(b => b.type === 'ballista' && b.team === u.team && b.health > 0 && Math.hypot(b.gridPos.x - u.gridPos.x, b.gridPos.z - u.gridPos.z) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE);
-             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? economy[u.team].tier : 0} radarRange={u.team === playerTeam ? radarRangeOf(u) : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && (!!u.tetherTargetId || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} showBatteryRange={u.type === 'sun_plate' && !!u.isDeployed && (selectedUnitIds.has(u.id) || (targetingSourceId === u.id && targetingAbility === 'BATTERY_TETHER'))} isLockCandidate={isLockCandidate} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} isBatteryLinkCandidate={!!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE} warheadStock={u.team === playerTeam && (playerTeam === 'blue' || playerTeam === 'red') ? stockpile[playerTeam] : undefined} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={(u.team === 'blue' || u.team === 'red') ? teamResources[u.team] : 0} /> );
+             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? economy[u.team].tier : 0} radarRange={u.team === playerTeam ? radarRangeOf(u) : 0} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && ((u.tetherTargetIds?.length ?? 0) > 0 || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} showBatteryRange={u.type === 'sun_plate' && !!u.isDeployed && (selectedUnitIds.has(u.id) || (targetingSourceId === u.id && targetingAbility === 'BATTERY_TETHER'))} isLockCandidate={isLockCandidate} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} isBatteryLinkCandidate={!!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE} warheadStock={u.team === playerTeam && (playerTeam === 'blue' || playerTeam === 'red') ? stockpile[playerTeam] : undefined} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={(u.team === 'blue' || u.team === 'red') ? teamResources[u.team] : 0} /> );
         })}
         {decoys.map(d => {
             const seen = d.team === playerTeam || units.some(f => f.team === playerTeam && Math.hypot(f.gridPos.x - d.gridPos.x, f.gridPos.z - d.gridPos.z) <= (f.visionRange || 2));

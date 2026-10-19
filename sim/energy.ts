@@ -14,6 +14,7 @@ import { ABILITY_CONFIG } from '../constants';
 import type { BuildingData, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { CLOAK_FIELD } from './cloak';
+import { tetheredIds } from './jamming';
 
 // Where an EMP missile has knocked out the grid. `team` fired it: only the other side's grid
 // goes dark there.
@@ -65,20 +66,29 @@ export interface ChargeSources {
   muleDrain: Map<string, number>;
   // The Banshee holding each tethered drone.
   tetherHosts: Map<string, UnitData>;
+  // What each Banshee pays out of its hardline pack this tick, across all its drones.
+  tetherDrain: Map<string, number>;
 }
 
 // Who feeds whom this tick, worked out before any unit changes.
 export function chargeSources(units: readonly UnitData[]): ChargeSources {
-  const sources: ChargeSources = { tether: new Map(), mule: new Map(), muleDrain: new Map(), tetherHosts: new Map() };
+  const sources: ChargeSources = { tether: new Map(), mule: new Map(), muleDrain: new Map(), tetherHosts: new Map(), tetherDrain: new Map() };
 
+  // A Banshee's hardline pack feeds each of its drones in turn while it has charge left.
   for (const u of units) {
-    if (!u.tetherTargetId) continue;
-    sources.tetherHosts.set(u.tetherTargetId, u);
-    if (u.type !== 'banshee' || !(u.secondaryBattery && u.secondaryBattery > 0)) continue;
-    const tethered = units.find(t => t.id === u.tetherTargetId && t.health > 0);
-    if (!tethered || tethered.battery >= tethered.maxBattery) continue;
-    const amount = Math.min(ABILITY_CONFIG.BANSHEE_TETHER_CHARGE_RATE, u.secondaryBattery, tethered.maxBattery - tethered.battery);
-    if (amount > 0) sources.tether.set(tethered.id, { amount, sourceId: u.id });
+    if (u.type !== 'banshee') continue;
+    for (const id of tetheredIds(u)) sources.tetherHosts.set(id, u);
+    let remaining = u.secondaryBattery || 0;
+    for (const id of tetheredIds(u)) {
+      if (remaining <= 0) break;
+      const tethered = units.find(t => t.id === id && t.health > 0);
+      if (!tethered || tethered.battery >= tethered.maxBattery) continue;
+      const amount = Math.min(ABILITY_CONFIG.BANSHEE_TETHER_CHARGE_RATE, remaining, tethered.maxBattery - tethered.battery);
+      if (amount <= 0) continue;
+      remaining -= amount;
+      sources.tether.set(tethered.id, { amount, sourceId: u.id });
+      sources.tetherDrain.set(u.id, (sources.tetherDrain.get(u.id) || 0) + amount);
+    }
   }
 
   for (const mule of units) {
@@ -145,18 +155,17 @@ export function powerTick(u: UnitData, draft: UnitData, ctx: PowerContext): bool
     }
   }
 
-  // Banshee tether: let go of a drone that died, and pay for what the drone drew.
-  if (u.type === 'banshee' && u.tetherTargetId) {
-    const target = ctx.units.find(t => t.id === u.tetherTargetId);
-    if (!target) {
-      draft.tetherTargetId = null;
+  // Banshee tether: let go of drones that died, and pay for what the drones drew.
+  if (u.type === 'banshee' && tetheredIds(u).length > 0) {
+    const kept = tetheredIds(u).filter(id => ctx.units.some(t => t.id === id));
+    if (kept.length !== tetheredIds(u).length) {
+      draft.tetherTargetIds = kept;
       changed = true;
-    } else {
-      const siphon = ctx.sources.tether.get(u.tetherTargetId);
-      if (siphon && siphon.sourceId === u.id) {
-        draft.secondaryBattery = Math.max(0, (u.secondaryBattery || 0) - siphon.amount);
-        changed = true;
-      }
+    }
+    const paid = ctx.sources.tetherDrain.get(u.id) || 0;
+    if (paid > 0) {
+      draft.secondaryBattery = Math.max(0, (u.secondaryBattery || 0) - paid);
+      changed = true;
     }
   }
 

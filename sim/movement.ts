@@ -35,7 +35,6 @@ export interface Mover {
   isStunned?: boolean;
   isHacked?: boolean;
   hackType?: UnitData['hackType'];
-  isJammed?: boolean;
   isDampenerActive?: boolean;
   activeBuffs?: UnitData['activeBuffs'];
   buffs?: UnitData['buffs'];
@@ -70,7 +69,6 @@ export const isHeldInPlace = (u: Mover) =>
 // Speed relative to BASE_SPEED for the step toward path[0]. Zero means not moving.
 export function speedMultiplier(u: Mover, tileTypeOf: (key: string) => RoadType | undefined): number {
   if (u.path.length === 0 || isPoweredDown(u) || isHeldInPlace(u)) return 0;
-  if (u.isJammed) return 0.5;
 
   let speed = 1;
   if (isAirUnit(u.type)) {

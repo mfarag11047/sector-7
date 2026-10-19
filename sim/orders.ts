@@ -13,6 +13,7 @@ import { Economy, research, researchCost, spend, structureCost, unitCost } from 
 import { Blackout, isBlackedOut, isInsideEnergyGrid } from './energy';
 import { baseOrder } from './bases';
 import { isAirType, popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from './units';
+import { tetheredIds, unjammedIds } from './jamming';
 
 export { popUsed };
 
@@ -77,7 +78,12 @@ const effects = (partial: Partial<OrderEffects>): OrderOutcome => ({
 
 export function orderEffects(view: OrdersView, team: Team, command: OrderCommand, ctx: OrdersContext): OrderOutcome {
   switch (command.type) {
-    case 'MOVE': return moveOrder(view, team, command.unitIds, command.target, !!command.attackMove, ctx);
+    case 'MOVE': {
+      // Jammed units don't hear the order (sim/jamming.ts); the rest of the group still goes.
+      const reachable = unjammedIds(view.units, command.unitIds);
+      if ('reason' in reachable) return reject(reachable.reason);
+      return moveOrder(view, team, reachable.ids, command.target, !!command.attackMove, ctx);
+    }
     case 'TRAIN_UNIT': return trainOrder(view, team, command.structureId, command.unitType);
     case 'PLACE_STRUCTURE': return placeOrder(view, team, command.structureType, command.at, ctx);
     case 'SET_RALLY': return rallyOrder(view, team, command.structureId, command.at, ctx);
@@ -198,7 +204,7 @@ function moveOrder(view: OrdersView, team: Team, unitIds: readonly string[], tar
     }
     let dest = findFreeTile(target.x, target.z);
     // A drone on a Banshee hardline can't be sent beyond its leash.
-    const host = view.units.find(src => src.tetherTargetId === u.id);
+    const host = view.units.find(src => tetheredIds(src).includes(u.id));
     if (dest && host) {
       const leash = Math.hypot(dest.x - host.gridPos.x, dest.z - host.gridPos.z);
       if (leash > ABILITY_CONFIG.BANSHEE_TETHER_RANGE) {

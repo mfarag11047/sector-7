@@ -31,6 +31,7 @@ import { airPath, fastestPath } from './pathfinding';
 import { hasBuff } from './unitAbilities';
 import { checkVictory, DominationClock, freshDominationClock, Victory } from './victory';
 import { DOCTRINE_CONFIG } from '../constants';
+import { jammingUpdates } from './jamming';
 
 export interface HeadlessOptions {
   seed: number;
@@ -131,6 +132,10 @@ export function stepMatch(m: HeadlessMatch): void {
   const now = (m.now += MOVE_TICK_MS);
   const paths = pathfinder(m);
   const bases = { blue: TEAM_BASES.blue, red: TEAM_BASES.red };
+
+  // Banshee jamming: mark who can't take orders before anyone sends any (sim/jamming.ts).
+  const jam = jammingUpdates(m.units);
+  if (jam.size > 0) m.units = m.units.map(u => jam.get(u.id)?.(u) ?? u);
 
   // Computer players think and send their commands through the normal checks.
   for (const team of ['blue', 'red'] as const) {
