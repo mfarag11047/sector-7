@@ -520,5 +520,19 @@ Drop, or Masons.
   the **corporate core** (the 3×3 blocks around the centre), a **downtown** ring around it,
   **midtown** filling most of the map, **outskirts** just inside the edge and the **Blackwall
   fringe** along it. Two **industrial** patches sit on the flanks of each base. The zoning mirrors
-  like the rest of the map. For now the districts only tint the minimap, unnamed; they are the
-  groundwork for giving each district its own building layouts and density.
+  like the rest of the map, and the minimap tints each district in its own colour, unnamed.
+- Each district builds up its blocks in its own way (`DISTRICT_STYLES` in `sim/mapgen.ts`). Fill
+  is the share of a block's lot that is built on:
+
+  | District | Fill | Layout | Heights | Building type |
+  |---|---|---|---|---|
+  | Core / downtown | ~50% | megablocks of 2×2 to 3×3 tiles, some towers on low podiums | 30–70 | commercial |
+  | Midtown | ~38% | buildings along the street front around an open courtyard | 16–34 | high-tech |
+  | Industrial | ~33% | long low sheds (1×3 to 2×4) with yards | 7–14 | industrial |
+  | Outskirts | ~25% | scattered small housing | 10–22 | residential |
+  | Fringe | ~18% | sparse 1–2 tile shacks and sheds | 6–14 | residential / industrial |
+
+  Two rules hold everywhere: buildings never touch side to side, so there is always at least a
+  one-tile alley between them, and no open ground is ever sealed off from the streets. Overall
+  about 28% of lot tiles are built and about 80% of the map is walkable; the centre is the
+  tightest and the edges the most open. `CITY_CONFIG.buildingDensity` scales every district's fill.

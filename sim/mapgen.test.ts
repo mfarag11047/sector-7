@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { generateCity, seededRandom } from './mapgen';
+import { districtAt } from './districts';
 
 const SIZE = 79;
 const BLUE = { x: 4, z: 4 };
 const RED = { x: 74, z: 74 };
-const options = (seed: number) => ({ seed, gridSize: SIZE, tileSize: 14, buildingDensity: 0.15, blueBase: { x: 4, z: 4 }, redBase: { x: 74, z: 74 } });
+const options = (seed: number) => ({ seed, gridSize: SIZE, tileSize: 14, buildingDensity: 1, blueBase: { x: 4, z: 4 }, redBase: { x: 74, z: 74 } });
 const mirror = (x: number, z: number) => `${SIZE - 1 - x},${SIZE - 1 - z}`;
 
 describe('generateCity', () => {
@@ -66,6 +67,53 @@ describe('generateCity', () => {
     const c = generateCity(options(100));
     expect(a.buildings.map(x => x.id)).toEqual(b.buildings.map(x => x.id));
     expect(a.buildings.map(x => x.id)).not.toEqual(c.buildings.map(x => x.id));
+  });
+
+  it.each([1, 42])('never seals open ground off from the streets (seed %i)', seed => {
+    const city = generateCity(options(seed));
+    const seen = new Set(['4,5']);
+    const queue = ['4,5'];
+    while (queue.length) {
+      const [x, z] = queue.pop()!.split(',').map(Number);
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const k = `${x + dx},${z + dz}`;
+        if (city.roadTileSet.has(k) && !seen.has(k)) { seen.add(k); queue.push(k); }
+      }
+    }
+    expect(seen.size).toBe(city.roadTileSet.size);
+  });
+
+  it('keeps an alley between buildings', () => {
+    const city = generateCity(options(3));
+    const groupAt = new Map(city.buildings.filter(b => b.blockId.startsWith('block-')).map(b => [`${b.gridX},${b.gridZ}`, b.blockId]));
+    for (const [k, id] of groupAt) {
+      const [x, z] = k.split(',').map(Number);
+      for (const [dx, dz] of [[1, 0], [0, 1]]) {
+        const other = groupAt.get(`${x + dx},${z + dz}`);
+        if (other) expect(other).toBe(id);
+      }
+    }
+  });
+
+  it('builds up densest and tallest in the middle, thinning out to the edge', () => {
+    const city = generateCity(options(42));
+    const stats: Record<string, { lots: number; built: number; height: number }> = {};
+    const at = new Map(city.buildings.filter(b => b.blockId.startsWith('block-')).map(b => [`${b.gridX},${b.gridZ}`, b]));
+    for (let x = 0; x < SIZE; x++) for (let z = 0; z < SIZE; z++) {
+      const d = districtAt(x, z, SIZE);
+      if (!d) continue;
+      const s = stats[d] ??= { lots: 0, built: 0, height: 0 };
+      s.lots++;
+      const b = at.get(`${x},${z}`);
+      if (b) { s.built++; s.height += b.height; }
+    }
+    const fill = (d: string) => stats[d].built / stats[d].lots;
+    const height = (d: string) => stats[d].height / stats[d].built;
+    expect(fill('downtown')).toBeGreaterThan(fill('outskirts'));
+    expect(fill('midtown')).toBeGreaterThan(fill('outskirts'));
+    expect(fill('outskirts')).toBeGreaterThan(fill('fringe'));
+    expect(height('downtown')).toBeGreaterThan(height('midtown'));
+    expect(height('midtown')).toBeGreaterThan(height('industrial'));
   });
 
   it('lets both bases reach every node', () => {

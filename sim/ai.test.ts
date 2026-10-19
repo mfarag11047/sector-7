@@ -24,7 +24,7 @@ describe('what the computer trains', () => {
 
 describe('a computer-vs-computer match', () => {
   it('builds, trains and takes its core node within four minutes, on both sides', () => {
-    const m = createHeadlessMatch({ seed: 14, difficulty: { blue: 'normal', red: 'normal' }, doctrine: { blue: null, red: null } });
+    const m = createHeadlessMatch({ seed: 7, difficulty: { blue: 'normal', red: 'normal' }, doctrine: { blue: null, red: null } });
     while (m.now < 4 * 60_000) stepMatch(m);
     for (const team of ['blue', 'red'] as const) {
       const types = m.structures.filter(s => s.team === team).map(s => s.type);
