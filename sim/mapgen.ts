@@ -69,6 +69,11 @@ const LANDMARK_LOTS: { kind: LandmarkKind; dx: number; dz: number }[] = [
 
 const ROAD_STRIDE = 6;
 
+// The Corpo Plaza roundabout round the centre server node (components/CorpoPlaza.tsx): its lower
+// elevated deck reaches 59 world units out from the centre tile. Nothing is built on a tile that
+// comes within that reach, plus clearance for the deck's lamps and the towers' signs.
+export const PLAZA_CLEAR_RADIUS = 64;
+
 // How each district builds up its blocks.
 //   fill:       share of a block's lot that gets built on (scaled by CityOptions.buildingDensity)
 //   footprints: building sizes in tiles, picked at random and turned either way
@@ -212,6 +217,15 @@ export function generateCity(opts: CityOptions): City {
     }
     return { id, kind, center: { x: blockCenter(ix), z: blockCenter(iz) }, tiles };
   });
+
+  // --- Keep the ground under the Corpo Plaza decks clear ---
+  for (let x = 0; x < gridSize; x++) {
+    for (let z = 0; z < gridSize; z++) {
+      const dx = Math.max(0, Math.abs(x - center) - 0.5);
+      const dz = Math.max(0, Math.abs(z - center) - 0.5);
+      if (Math.hypot(dx, dz) * tileSize < PLAZA_CLEAR_RADIUS) occupied.add(key(x, z));
+    }
+  }
 
   // --- Ordinary buildings, laid out block by block in the style of the district the block is in
   // (DISTRICT_STYLES). Each block of a mirrored pair is laid out once and copied into its twin.

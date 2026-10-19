@@ -515,7 +515,8 @@ Drop, or Masons.
   everything else; only the towers' looks differ.
 - Between them the centre server node sits in a roundabout: painted ring lanes and a palm island at
   street level, and two stacked elevated ring roads above. It is scenery only and changes no
-  pathing; a deck fades out while any ground unit is beneath it.
+  pathing; a deck fades out while any ground unit is beneath it. No building is generated under
+  the decks (`PLAZA_CLEAR_RADIUS` in `sim/mapgen.ts`), so nothing pokes through them.
 - The city is zoned into districts by block (`sim/districts.ts`), in rings from the middle out:
   the **corporate core** (the 3×3 blocks around the centre), a **downtown** ring around it,
   **midtown** filling most of the map, **outskirts** just inside the edge and the **Blackwall

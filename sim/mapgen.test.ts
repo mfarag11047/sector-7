@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { generateCity, seededRandom } from './mapgen';
+import { PLAZA_CLEAR_RADIUS, generateCity, seededRandom } from './mapgen';
 import { districtAt } from './districts';
 
 const SIZE = 79;
@@ -166,4 +166,14 @@ it('records the whole building on each of its tiles, mirrored', () => {
     if (f.tower) expect(twin.footprint!.tower).toEqual({ x: 78 - f.tower.x, z: 78 - f.tower.z });
   }
   expect(city.buildings.some(b => b.footprint?.tower)).toBe(true);
+});
+
+it.each([1, 7, 42, 99])('builds nothing under the Corpo Plaza roundabout (seed %i)', seed => {
+  const city = generateCity({ seed, gridSize: 79, tileSize: 14, buildingDensity: 1, blueBase: { x: 4, z: 4 }, redBase: { x: 74, z: 74 } });
+  for (const b of city.buildings.filter(x => x.type !== 'server_node')) {
+    // The nearest point of the building's tile to the centre of the map, in world units.
+    const dx = Math.max(0, Math.abs(b.gridX - 39) - 0.5) * 14;
+    const dz = Math.max(0, Math.abs(b.gridZ - 39) - 0.5) * 14;
+    expect(Math.hypot(dx, dz), `${b.id}`).toBeGreaterThanOrEqual(PLAZA_CLEAR_RADIUS);
+  }
 });
