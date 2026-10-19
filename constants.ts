@@ -34,6 +34,8 @@ export const COMPUTE_GATES = {
 // Identity, cost, health and movement for every unit. Weapons, armor, pop cost, tier and
 // production live in sim/units.ts; the reasoning is in docs/GAME_DESIGN.md.
 export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: string, visionRange: number, speedMod: number, maxHealth: number, cost: number, unitClass: UnitClass }> = {
+  // Command HQ
+  scout_car: { unitClass: 'support', cost: 70, captureMultiplier: 0, label: '"Jackrabbit" Scout RC Car', visionRange: 9, speedMod: 2.2, maxHealth: 40 },
   // Barracks
   trooper: { unitClass: 'infantry', cost: 80, captureMultiplier: 1.0, label: 'Strike Trooper', visionRange: 4, speedMod: 1.0, maxHealth: 100 },
   ghost: { unitClass: 'infantry', cost: 150, captureMultiplier: 1.5, label: 'Ghost EW Specialist', visionRange: 5, speedMod: 1.1, maxHealth: 110 },
@@ -232,6 +234,7 @@ export const ABILITY_CONFIG = {
   
   // New Banshee Battery Stats
   BANSHEE_MAX_MAIN_BATTERY: 300,
+  SCOUT_CAR_BATTERY: 500, // Jackrabbit: ~90 s of off-grid driving
   BANSHEE_MAX_SEC_BATTERY: 200,
   BANSHEE_INTERNAL_CHARGE_RATE: 2.0, 
   BANSHEE_TETHER_CHARGE_RATE: 5.0,

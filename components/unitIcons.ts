@@ -20,7 +20,7 @@ export const UNIT_ROLE: Record<UnitType, UnitRole> = {
   tank: 'armor', titan_dropped: 'armor', sun_plate: 'support',
   aegis: 'anti_air',
   wasp: 'gunship', hornet: 'gunship',
-  drone: 'scout',
+  drone: 'scout', scout_car: 'scout',
   guardian: 'support', helios: 'support', banshee: 'support', cloak_generator: 'support', field_generator: 'support',
   ballista: 'artillery', bombard: 'artillery', mule: 'artillery', howitzer: 'artillery',
   mason: 'engineer',

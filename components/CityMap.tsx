@@ -3806,6 +3806,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             tier={economy.blue.tier}
             compute={economy.blue.compute}
             onResearch={playerTeam === 'blue' ? (tier: 2 | 3) => dispatchOrder({ type: 'RESEARCH_TIER', tier }) : undefined}
+            onTrain={playerTeam === 'blue' ? (unitType: UnitType) => dispatchOrder({ type: 'TRAIN_UNIT', structureId: 'hq-blue', unitType }) : undefined}
         />
         
         <Base 
@@ -3823,6 +3824,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             tier={economy.red.tier}
             compute={economy.red.compute}
             onResearch={playerTeam === 'red' ? (tier: 2 | 3) => dispatchOrder({ type: 'RESEARCH_TIER', tier }) : undefined}
+            onTrain={playerTeam === 'red' ? (unitType: UnitType) => dispatchOrder({ type: 'TRAIN_UNIT', structureId: 'hq-red', unitType }) : undefined}
         />
 
         {/* Command HQs built on cleared city blocks (sim/bases.ts). */}
@@ -3846,6 +3848,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                     tier={economy[team].tier}
                     compute={economy[team].compute}
                     onResearch={mine ? (tier: 2 | 3) => dispatchOrder({ type: 'RESEARCH_TIER', tier }) : undefined}
+                    onTrain={mine ? (unitType: UnitType) => dispatchOrder({ type: 'TRAIN_UNIT', structureId: s.id, unitType }) : undefined}
                     buildProgress={(s.buildTotalMs || 0) > 0 ? 1 - (s.buildRemainingMs || 0) / s.buildTotalMs! : 1}
                 />
             );

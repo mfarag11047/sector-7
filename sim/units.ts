@@ -54,6 +54,9 @@ const shell = (damage: number, cooldownMs: number, range: number, splash = 1, sp
   ({ damage, cooldownMs, range, type: 'explosive', hitsGround: true, hitsAir: false, splash, splashFactor });
 
 export const UNIT_RULES: Record<UnitType, UnitRules> = {
+  // --- Command HQ: the scout car. ---
+  scout_car: { armor: 'light', weapon: null, pop: 1, tier: 1, producer: 'hq', buildTimeMs: 8000, role: 'Remote-controlled scout car. Very fast, sees far, big battery; unarmed and fragile.' },
+
   // --- Barracks: infantry. Cheap, captures ground, and the answer to aircraft. ---
   trooper: { armor: 'infantry', weapon: rifle(10, 1000, 3), pop: 1, tier: 1, producer: 'infantry', buildTimeMs: 12000, role: 'Line infantry. Captures nodes, shoots down aircraft.' },
   ghost: { armor: 'infantry', weapon: rifle(12, 800, 3), pop: 1, tier: 1, producer: 'infantry', buildTimeMs: 18000, role: 'EW specialist. Captures fast; hides the squad from map and radar (Tier 2) and cloaks with Phantom Decoy (Tier 3).' },

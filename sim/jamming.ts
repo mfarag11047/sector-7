@@ -18,7 +18,7 @@ import type { UnitData, UnitType } from '../types';
 import { isEmpDisabled } from './unitAbilities';
 
 // Uncrewed units flown or driven over a radio link.
-const REMOTE: ReadonlySet<UnitType> = new Set<UnitType>(['drone', 'wasp', 'helios', 'bombard', 'crawler_drone']);
+const REMOTE: ReadonlySet<UnitType> = new Set<UnitType>(['drone', 'wasp', 'helios', 'bombard', 'crawler_drone', 'scout_car']);
 export const isRemoteUnit = (u: Pick<UnitData, 'type'>) => REMOTE.has(u.type);
 
 // Drones a Banshee can put on its hardline: any remote unit it can steer (Crawlers are

@@ -101,7 +101,7 @@ which stay unlocked for good.
 
 | Tier | Research cost | Unlocks |
 |---|---|---|
-| T1 | Start | Troopers, Ghosts, Razorbacks, Thunderheads, Battery Mules, Drones, Guardians, Helios, Masons |
+| T1 | Start | Scout RC Cars (from the HQ), Troopers, Ghosts, Razorbacks, Thunderheads, Battery Mules, Drones, Guardians, Helios, Masons |
 | T2 | 120 compute | Lancers, Titans, Aegis, Wasps, Hornets, Banshees, Field Fabricators, Swarm Hosts, T2 doctrine powers |
 | T3 | 360 compute | Bombardment Drones, Ballistas, T3 doctrine powers |
 
@@ -177,6 +177,14 @@ tiles, a damage type, and whether it can hit ground and/or air.
 
 `Pop` is population cost, `Tier` is the tech tier needed, and HP is in hit points. Weapons are
 listed as damage / cooldown / range.
+
+### Command HQ
+
+| Unit | Cost | Pop | Tier | HP | Class | Weapon | Notes |
+|---|---|---|---|---|---|---|---|
+| **"Jackrabbit"** Scout RC Car | 70 | 1 | T1 | 40 | Light | None | Fastest unit (2.2×), sees 9 tiles, 500 battery (~90 s off-grid driving); remote-controlled, so Banshees can jam it |
+
+Trained from the HQ's own menu (each Command HQ, including ones built later), 8 s each.
 
 ### Barracks (infantry, can capture)
 

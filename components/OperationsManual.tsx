@@ -69,6 +69,7 @@ interface UnitNote {
 }
 
 const UNIT_NOTES: Record<UnitType, UnitNote> = {
+  scout_car: { use: `Trained at your Command HQ. A remote-controlled scout car: the fastest unit in the game, sees ${UNIT_STATS.scout_car.visionRange} tiles (most units see 3 to 6) and carries a large ${ABILITY_CONFIG.SCOUT_CAR_BATTERY}-point battery for long runs off the grid. Unarmed and dies to almost anything, so scout and pull back. Being remote-controlled, a Banshee can jam it.` },
   trooper: { use: 'Your bread-and-butter unit. Send squads to capture core nodes and buildings (which grows your energy grid), and keep some with the army to shoot down aircraft.' },
   ghost: {
     use: 'Captures 1.5× faster than a Trooper. Sneaks in to steal nodes and hides from the enemy. Trained from Tier 1; its abilities unlock with research.',

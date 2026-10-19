@@ -21,6 +21,7 @@ import { MAX_TETHERS } from '../sim/jamming';
 import { JamRange, JamStatic } from './JamStatic';
 import { GlitchField } from './GlitchField';
 import { HeliosField } from './HeliosField';
+import { ScoutCarModel } from './ScoutCarModel';
 import { GHOST_ABILITY_TIER } from '../sim/ghost';
 
 // Helper component for spinning rotors
@@ -428,6 +429,7 @@ const Unit: React.FC<UnitProps> = ({
   const isTrooper = type === 'trooper';
   const isLancer = type === 'lancer';
   const isRazorback = type === 'razorback';
+  const isScoutCar = type === 'scout_car';
   const isHowitzer = type === 'howitzer';
   const isCloakGen = type === 'cloak_generator';
   const isFieldGen = type === 'field_generator';
@@ -446,7 +448,7 @@ const Unit: React.FC<UnitProps> = ({
 
   // Floating height difference
   // Raised ground units to 1.2 to clear the Base platform (height 1.0)
-  const hoverHeight = isBombard ? 42 : isDefenseDrone ? 12.0 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler || isTrooper || isLancer || isRazorback || isAegis || isHowitzer || isCloakGen || isFieldGen) ? 1.2 : (isAir ? 75.0 : 2.0);
+  const hoverHeight = isBombard ? 42 : isDefenseDrone ? 12.0 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler || isTrooper || isLancer || isRazorback || isScoutCar || isAegis || isHowitzer || isCloakGen || isFieldGen) ? 1.2 : (isAir ? 75.0 : 2.0);
   
   // Logical World Position
   const logicalWorldPos = useMemo(() => new THREE.Vector3(
@@ -751,6 +753,7 @@ const Unit: React.FC<UnitProps> = ({
         </group>
     );
     if (isRazorback) return <RazorbackModel teamColor={teamColor} />;
+    if (isScoutCar) return <ScoutCarModel teamColor={teamColor} />;
     if (isCloakGen) return <CloakGeneratorModel teamColor={teamColor} active={fieldUp} />;
     if (isFieldGen) return <FieldGeneratorModel teamColor={teamColor} active={health > 0 && battery > 0 && fieldDownUntil === undefined && !buffs?.some(b => b.kind === 'emp')} />;
     if (isHowitzer) return <ThunderheadModel teamColor={teamColor} deployed={!!isDeployed} aim={aimWorld} />;

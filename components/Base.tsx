@@ -3,10 +3,13 @@ import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges, Float, Html } from '@react-three/drei';
 import * as THREE from 'three';
-import { StructureData, StructureType, UnitClass } from '../types';
+import { StructureData, StructureType, UnitClass, UnitType } from '../types';
 import StructureStatus from './StructureStatus';
-import { STRUCTURE_INFO, UNIT_CLASSES } from '../constants';
-import { STRUCTURE_RULES, TIER_RESEARCH_COST } from '../sim/units';
+import { STRUCTURE_INFO, UNIT_CLASSES, UNIT_STATS } from '../constants';
+import { STRUCTURE_RULES, TIER_RESEARCH_COST, UNIT_RULES } from '../sim/units';
+
+// What the HQ itself trains.
+const HQ_UNITS = (Object.keys(UNIT_RULES) as UnitType[]).filter(t => UNIT_RULES[t].producer === 'hq');
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 
 interface BaseProps {
@@ -26,12 +29,14 @@ interface BaseProps {
   tier?: number;
   compute?: number;
   onResearch?: (tier: 2 | 3) => void;
+  // Units the HQ trains (the scout car), for the owner.
+  onTrain?: (unitType: UnitType) => void;
   // 0 to 1 while a newly ordered HQ goes up (sim/bases.ts); it rises out of the ground.
   buildProgress?: number;
 }
 
 const Base: React.FC<BaseProps> = ({ 
-  position, gridPos, teamColor, label, onMoveCommand, onRightClick, onDoubleClick, menuOpen, resources = 0, onBuild, hq, tier = 1, compute = 0, onResearch, buildProgress = 1
+  position, gridPos, teamColor, label, onMoveCommand, onRightClick, onDoubleClick, menuOpen, resources = 0, onBuild, hq, tier = 1, compute = 0, onResearch, onTrain, buildProgress = 1
 }) => {
   const radarRef = useRef<THREE.Group>(null);
   const baseGroupRef = useRef<THREE.Group>(null);
@@ -319,6 +324,28 @@ const Base: React.FC<BaseProps> = ({
                         </button>
                     );
                 })()}
+                {onTrain && HQ_UNITS.map(unitType => {
+                    const stats = UNIT_STATS[unitType];
+                    const canAfford = resources >= stats.cost;
+                    const queued = hq?.queue?.filter(q => q.unitType === unitType).length ?? 0;
+                    const head = hq?.queue?.[0];
+                    const progress = head && head.unitType === unitType ? 1 - head.remainingMs / head.totalMs : 0;
+                    return (
+                        <button
+                            key={unitType}
+                            disabled={!canAfford}
+                            onClick={(e) => { e.stopPropagation(); if (canAfford) onTrain(unitType); }}
+                            className={`relative overflow-hidden flex items-center justify-between px-3 py-2 text-left rounded border ${canAfford ? 'border-emerald-400/40 hover:bg-emerald-900/30 text-slate-200' : 'border-slate-700 opacity-50 text-slate-500 cursor-not-allowed'}`}
+                        >
+                            {queued > 0 && <div className="absolute left-0 bottom-0 h-0.5 bg-emerald-400" style={{ width: `${progress * 100}%` }} />}
+                            <div className="flex flex-col">
+                                <span className="text-xs font-mono font-bold">Train {stats.label}{queued > 0 ? ` ×${queued}` : ''}</span>
+                                <span className="text-[9px] font-mono text-slate-500">Fast unarmed scout · {UNIT_RULES[unitType].buildTimeMs / 1000}s</span>
+                            </div>
+                            <span className="text-[10px] font-mono text-emerald-400">{stats.cost}</span>
+                        </button>
+                    );
+                })}
                 {buildableStructures.map((type) => {
                     const info = STRUCTURE_INFO[type];
                     const canAfford = resources >= info.cost;
