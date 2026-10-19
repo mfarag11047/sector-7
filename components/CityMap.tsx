@@ -43,7 +43,7 @@ import { AirThreat, applyCiwsState, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY
 import { Blast, CombatStructure, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, resolveAttacks } from '../sim/combat';
 import { bombardTick } from '../sim/bombard';
 import { generateCity } from '../sim/mapgen';
-import { MatchConfig, STARTING_CORES, aiTeamOf, incomeMultipliers, sandboxStructures, startingRoster } from '../sim/match';
+import { MatchConfig, STARTING_CORES, aiTeamsOf, doctrineOf, incomeMultipliers, sandboxStructures, startingRoster } from '../sim/match';
 import { AI_PROFILES, aiThink, freshAiMemory } from '../sim/ai';
 import { OrderCommand, applyOrderToStructures, applyOrderToUnits, orderEffects, popUsed, coreNodesHeld, serverNodesHeld, teamPopCap, teamTier } from '../sim/orders';
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
@@ -56,7 +56,8 @@ import type { MatchSummary } from './MatchScreens';
 import { Economy, createEconomy, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
 import { dampenedUnits } from '../sim/ghost';
-import { microwaveDamage } from '../sim/helios';
+import { heliosBeams, microwaveDamage } from '../sim/helios';
+import { freshPacing, pacingTick, PacingRecord, recordArea, recordVictory, recordWeaponHits } from '../sim/pacing';
 
 
 // Helper to check if a grid position is inside any cloud of a specific type (optional)
@@ -1217,6 +1218,8 @@ interface CityMapProps {
   // armies go out through onArmyUpdate; the panel's buttons come in through armyControlsRef.
   onArmyUpdate?: (selection: SelectionSummary, armies: ArmyInfo[]) => void;
   armyControlsRef?: React.MutableRefObject<ArmyControls | null>;
+  // Filled in with this match's pacing report (sim/pacing.ts), for the HUD to show.
+  pacingRef?: React.MutableRefObject<PacingRecord | null>;
 }
 
 export interface MatchInfo {
@@ -1225,8 +1228,15 @@ export interface MatchInfo {
   domination: Record<'blue' | 'red', number | null>;
 }
 
-const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine, onNotice, onMatchEnd, onMatchInfo, commandRef, onArmyUpdate, armyControlsRef }) => {
+const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine, onNotice, onMatchEnd, onMatchInfo, commandRef, onArmyUpdate, armyControlsRef, pacingRef: pacingOut }) => {
   const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
+  // The pacing report: milestones and unit stats, recorded in every match but the sandbox.
+  const pacingRef = useRef<PacingRecord | null>(match.mode === 'sandbox' ? null : freshPacing());
+  if (pacingOut) pacingOut.current = pacingRef.current;
+  // AI vs AI: the computer plays both sides and the viewer only watches.
+  const spectating = match.mode === 'spectate';
+  // Set while a computer player (or a test cheat) is giving orders, which spectating allows.
+  const aiActingRef = useRef(false);
   const offset = (gridSize * tileSize) / 2;
   const baseA_Coord = TEAM_BASES.blue;
   const baseB_Coord = TEAM_BASES.red;
@@ -1323,6 +1333,17 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
   }, []);
   // The latest dispatchOrder, for timers and the AI, which capture their closure once.
+  // Spectating: refuses the viewer's own orders.
+  const spectatorLocked = (quiet: boolean) => {
+      if (!spectating || aiActingRef.current) return false;
+      if (!quiet) onNotice?.('Spectating: the computer is playing both sides', 'warn');
+      return true;
+  };
+  const asComputer = <T,>(fn: () => T): T => {
+      const was = aiActingRef.current;
+      aiActingRef.current = true;
+      try { return fn(); } finally { aiActingRef.current = was; }
+  };
   const dispatchOrderRef = useRef<(command: OrderCommand, team?: 'blue' | 'red', quiet?: boolean) => boolean>(() => false);
   const pointerStartRef = useRef<THREE.Vector3 | null>(null);
   // The tile under the cursor lives in a small store, not in this component's state: moving
@@ -1408,6 +1429,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               });
           } else if (event.kind === 'damage') {
               damages.push(event);
+              if (pacingRef.current && event.ownerId) {
+                  const at = { x: (event.position.x + offset) / tileSize, z: (event.position.z + offset) / tileSize };
+                  recordArea(pacingRef.current, event.ownerId, event.team, at, Math.max(0.75, event.radius / tileSize), unitsRef.current, structuresRef.current);
+              }
           } else if (event.kind === 'shieldHit') {
               addShieldHit(shieldHitsRef.current, event.fieldId, event.damage);
           } else if (event.kind === 'decoy') {
@@ -1514,8 +1539,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         setEconomy(prev => setCompute(prev, team, amount));
       },
       // For tests and debugging: issue a checked order for either side, and read the state.
-      order: (command: OrderCommand, team: 'blue' | 'red') => dispatchOrderRef.current(command, team),
-      ability: (command: AbilityCommand, team: 'blue' | 'red') => aiCallsRef.current.dispatchAbility(command, team),
+      order: (command: OrderCommand, team: 'blue' | 'red') => asComputer(() => dispatchOrderRef.current(command, team)),
+      ability: (command: AbilityCommand, team: 'blue' | 'red') => asComputer(() => aiCallsRef.current.dispatchAbility(command, team)),
+      // The pacing report so far (sim/pacing.ts).
+      pacing: () => pacingRef.current,
       spawn: (type: UnitType, team: 'blue' | 'red', at: { x: number; z: number }) => {
           const unit = createUnit(type, team, `cheat-${type}-${Date.now()}-${++spawnCounterRef.current}`, at);
           unitsRef.current = [...unitsRef.current, unit];
@@ -1737,7 +1764,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
     const teamKey = playerTeam === 'blue' || playerTeam === 'red' ? playerTeam : null;
     const friendlies = units.filter(f => f.team === playerTeam);
     units.forEach(u => {
-        if (u.team === playerTeam) { visible.add(u.id); return; }
+        if (u.team === playerTeam || spectating) { visible.add(u.id); return; }
         // Phantom Decoy cloaks the real Ghost from the other team entirely, and a Cloaking
         // Field anything inside it (sim/cloak.ts).
         if (isHidden(u)) return;
@@ -1764,7 +1791,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         }
     });
     return visible;
-  }, [units, playerTeam, clouds]);
+  }, [units, playerTeam, clouds, spectating]);
   const visibleUnitIdsRef = useRef(visibleUnitIds);
   visibleUnitIdsRef.current = visibleUnitIds;
   const canSeeGun = useCallback((u: UnitData) => u.team === playerTeam || visibleUnitIdsRef.current.has(u.id), [playerTeam]);
@@ -2115,7 +2142,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
   useEffect(() => {
       if (pendingDoctrineAction) {
-          runDoctrinePower(pendingDoctrineAction);
+          // Spectating, the viewer has no doctrine powers to call in.
+          if (!spectating) runDoctrinePower(pendingDoctrineAction);
 
           if (onActionComplete) onActionComplete();
       }
@@ -2343,6 +2371,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   };
 
   const dispatchOrder = (command: OrderCommand, team: 'blue' | 'red' = playerTeam, quiet = false): boolean => {
+      if (spectatorLocked(quiet)) return false;
       const outcome = orderEffects(
           { units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, blackouts: activeBlackouts(), unlimitedPop: matchRef.current.mode === 'sandbox' },
           team,
@@ -2377,6 +2406,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   if (commandRef) commandRef.current = command => dispatchOrder(command);
 
   const dispatchAbility = (command: AbilityCommand, team: 'blue' | 'red' = playerTeam, quiet = false): boolean => {
+      if (spectatorLocked(quiet)) return false;
       const outcome = abilityEffects(
           { units: unitsRef.current, structures: structuresRef.current, economy: economyRef.current },
           team,
@@ -2511,24 +2541,26 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       return () => window.removeEventListener('keydown', onKey);
   }, [armyControlsRef]);
 
-  const aiRef = useRef({ memory: freshAiMemory() });
+  // Each computer player's memory (two of them in AI vs AI).
+  const aiRef = useRef({ memory: { blue: freshAiMemory(), red: freshAiMemory() } });
   const aiCallsRef = useRef({ dispatchOrder, dispatchAbility, canBuildOnTile });
   aiCallsRef.current = { dispatchOrder, dispatchAbility, canBuildOnTile };
   useEffect(() => {
-      const aiTeam = aiTeamOf(match);
-      if (!aiTeam) return;
+      const aiTeams = aiTeamsOf(match);
+      if (aiTeams.length === 0) return;
       const profile = AI_PROFILES[match.difficulty];
-      const timer = setInterval(() => {
+      const timer = setInterval(() => aiTeams.forEach(aiTeam => {
           const now = Date.now();
+          const doctrine = doctrineOf(match, aiTeam);
           const { isWalkable } = aiHelpersRef.current;
           const ready = doctrineReadyAtRef.current[aiTeam];
           const { actions, memory } = aiThink(
               { units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, elapsedMs: now - matchStartRef.current },
               aiTeam,
-              aiRef.current.memory,
+              aiRef.current.memory[aiTeam],
               {
                   gridSize, bases: { blue: baseA_Coord, red: baseB_Coord },
-                  difficulty: match.difficulty, doctrine: match.aiDoctrine,
+                  difficulty: match.difficulty, doctrine,
                   canBuildOn: aiCallsRef.current.canBuildOnTile,
                   isOpenGround: (x, z) => tileTypeMap[`${x},${z}`] === 'open',
                   isWalkable,
@@ -2536,16 +2568,18 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   random: Math.random,
               },
           );
-          aiRef.current.memory = memory;
-          for (const action of actions) {
-              if (action.kind === 'order') aiCallsRef.current.dispatchOrder(action.command, aiTeam, true);
-              else if (action.kind === 'ability') aiCallsRef.current.dispatchAbility(action.command, aiTeam);
-              else {
-                  const doctrine = match.aiDoctrine;
-                  if (doctrine) runDoctrinePowerRef.current({ type: `${doctrine.toUpperCase()}_TIER${action.tier}`, target: action.target, team: aiTeam });
+          aiRef.current.memory[aiTeam] = memory;
+          aiActingRef.current = true;
+          try {
+              for (const action of actions) {
+                  if (action.kind === 'order') aiCallsRef.current.dispatchOrder(action.command, aiTeam, true);
+                  else if (action.kind === 'ability') aiCallsRef.current.dispatchAbility(action.command, aiTeam);
+                  else if (doctrine) runDoctrinePowerRef.current({ type: `${doctrine.toUpperCase()}_TIER${action.tier}`, target: action.target, team: aiTeam });
               }
+          } finally {
+              aiActingRef.current = false;
           }
-      }, profile.thinkMs);
+      }), profile.thinkMs);
       return () => clearInterval(timer);
   }, [match, gridSize, baseA_Coord, baseB_Coord, tileTypeMap]);
 
@@ -2870,6 +2904,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       });
       if (!result.victory || matchOverRef.current || matchRef.current.mode === 'sandbox') return;
       matchOverRef.current = true;
+      if (pacingRef.current) recordVictory(pacingRef.current, result.victory.winner, result.victory.reason);
       const side = (team: 'blue' | 'red') => ({
           ...tallyRef.current[team],
           earned: economyRef.current[team].lifetimeIncome,
@@ -2947,6 +2982,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           }
           let newExplosions: Explosion[] = [];
           const currentUnitsRef = unitsRef.current;
+          // The pacing report's bookkeeping (sim/pacing.ts): what changed since the last tick.
+          const pacing = pacingRef.current;
+          if (pacing) {
+              pacingTick(pacing, now - matchStartRef.current, { units: currentUnitsRef, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current });
+          }
+          const toGrid = (p: { x: number; z: number }) => ({ x: (p.x + offset) / tileSize, z: (p.z + offset) / tileSize });
           // Heavy Metal force fields up this tick (sim/forcefield.ts): every weapon below checks them.
           const fields = activeFields(currentUnitsRef, now);
           fieldsRef.current = fields;
@@ -2987,6 +3028,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           const damageEvents: Blast[] = detonations.map(d => d.blast);
           for (const d of detonations) {
               detonatedCrawlersRef.current.add(d.crawlerId);
+              if (pacing) recordArea(pacing, d.crawlerId, d.blast.team, toGrid(d.blast.position), d.blast.radius / tileSize, currentUnitsRef, structuresRef.current);
               newExplosions.push({
                   id: `exp-crawler-${d.crawlerId}-${now}`,
                   position: d.blast.position,
@@ -3014,6 +3056,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               return false;
           });
           if (strikes.length > 0) {
+              if (pacing) for (const s of strikes) recordArea(pacing, s.droneId, s.team, s.at, ABILITY_CONFIG.BOMBARD_RADIUS, currentUnitsRef, structuresRef.current);
               setBuildings(prev => bombardBuildings(prev, strikes.map(s => s.at)));
               const radius = ABILITY_CONFIG.BOMBARD_RADIUS;
               strikes.forEach(strike => {
@@ -3101,6 +3144,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               salvo.absorbed.forEach(r => absorbHit(r.team, r.at, FORCE_FIELD.absorb.mini, r.from));
               if (salvo.absorbed.length > 0) setExplosions(prev => [...prev, ...salvo.absorbed.map(r => shieldFlash(`mini-${r.id}`, r.at))]);
               salvo.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+              if (pacing) recordWeaponHits(pacing, { blasts: salvo.landed.map(r => ({ attackerId: r.attackerId, team: r.team, at: r.at, radius: 2 })) }, currentUnitsRef, structuresRef.current);
               salvo.structureDamage.forEach((n, id) => attacks.structureDamage.set(id, (attacks.structureDamage.get(id) || 0) + n));
               if (salvo.landed.length > 0 || salvo.absorbed.length > 0) {
                   miniRocketsRef.current = salvo.flying;
@@ -3131,6 +3175,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               setStructuresState(prev => applyCiwsState(prev, ciws.structureUpdates));
           }
           ciwsLinksRef.current = ciws.links;
+          if (pacing) {
+              recordWeaponHits(pacing, {
+                  fired: attacks.fired, shots: [...(attacks.splashed ?? []), ...rail.shots, ...hornetVolley.shots], ciws: ciws.links,
+                  beams: heliosBeams(currentUnitsRef),
+              }, currentUnitsRef, structuresRef.current);
+          }
           // Who is fighting whom, for the minimap's engagement arrows: every direct-fire shot this
           // tick, rail guns, Hornet rockets and the CIWS guns.
           const engage = (attackerId: string, targetId: string) => engagementsRef.current.set(attackerId, { targetId, at: now });
@@ -3178,6 +3228,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               impact.absorbed.forEach(s => absorbHit(s.team, s.at, FORCE_FIELD.absorb.shell, s.from));
               if (impact.absorbed.length > 0) setExplosions(prev => [...prev, ...impact.absorbed.map(s => shieldFlash(`shell-${s.id}`, s.at, 8))]);
               impact.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+              if (pacing) recordWeaponHits(pacing, { blasts: impact.landed.map(s => ({ attackerId: s.attackerId, team: s.team, at: s.at, radius: 2 })) }, currentUnitsRef, structuresRef.current);
               impact.structureDamage.forEach((n, id) => attacks.structureDamage.set(id, (attacks.structureDamage.get(id) || 0) + n));
               if (impact.landed.length > 0) {
                   setExplosions(prev => [...prev, ...impact.landed.map(s => ({

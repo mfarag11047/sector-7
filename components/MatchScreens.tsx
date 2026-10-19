@@ -35,14 +35,17 @@ export const MatchSetup: React.FC<{ initial?: Partial<MatchConfig>; onStart: (co
   const [playerTeam, setPlayerTeam] = useState<Team>(initial?.playerTeam ?? 'blue');
   const [doctrine, setDoctrine] = useState<DoctrineType | null>(initial?.playerDoctrine ?? 'heavy_metal');
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 1e6));
+  // AI vs AI: red's doctrine, or null to take it from the seed like a normal computer opponent.
+  const [redDoctrine, setRedDoctrine] = useState<DoctrineType | null>(null);
+  const spectate = mode === 'spectate';
 
   const start = () => {
     const doctrines = Object.keys(DOCTRINE_CONFIG) as DoctrineType[];
     onStart({
-      mode, seed, playerTeam, difficulty,
+      mode, seed, playerTeam: spectate ? 'blue' : playerTeam, difficulty,
       playerDoctrine: doctrine,
       // The computer picks its own doctrine from the map seed, so a replay of a seed is the same match.
-      aiDoctrine: doctrines[seed % doctrines.length],
+      aiDoctrine: (spectate && redDoctrine) || doctrines[seed % doctrines.length],
     });
   };
 
@@ -61,18 +64,23 @@ export const MatchSetup: React.FC<{ initial?: Partial<MatchConfig>; onStart: (co
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <section className="flex flex-col gap-2">
             <h2 className="hud-label text-[10px] uppercase">Opponent</h2>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <Choice active={mode === 'ai'} onClick={() => setMode('ai')}>Computer</Choice>
               <Choice active={mode === 'sandbox'} onClick={() => setMode('sandbox')}>Sandbox (control both)</Choice>
+              <Choice active={spectate} onClick={() => setMode('spectate')}>AI vs AI (pacing test)</Choice>
             </div>
-            {mode === 'ai' ? (
+            {mode !== 'sandbox' ? (
               <>
                 <div className="grid grid-cols-3 gap-2">
                   {(['easy', 'normal', 'hard'] as Difficulty[]).map(d => (
                     <Choice key={d} active={difficulty === d} onClick={() => setDifficulty(d)}>{d.toUpperCase()}</Choice>
                   ))}
                 </div>
-                <p className="text-[11px] text-slate-500 font-mono">{DIFFICULTY_NOTE[difficulty]}</p>
+                <p className="text-[11px] text-slate-500 font-mono">
+                  {spectate
+                    ? 'Two computer players fight each other at this level while you watch with full vision. A pacing report logs milestones, army sizes and unit stats: open it from the Pacing button.'
+                    : DIFFICULTY_NOTE[difficulty]}
+                </p>
               </>
             ) : (
               <p className="text-[11px] text-slate-500 font-mono">The old test bed: a unit of nearly every kind on both sides, 5000 cores, and a team switch. No opponent.</p>
@@ -80,12 +88,16 @@ export const MatchSetup: React.FC<{ initial?: Partial<MatchConfig>; onStart: (co
           </section>
 
           <section className="flex flex-col gap-2">
-            <h2 className="hud-label text-[10px] uppercase">Side</h2>
-            <div className="grid grid-cols-2 gap-2">
-              <Choice active={playerTeam === 'blue'} onClick={() => setPlayerTeam('blue')}><span className="text-blue-400">■</span> Blue (north-west)</Choice>
-              <Choice active={playerTeam === 'red'} onClick={() => setPlayerTeam('red')}><span className="text-red-400">■</span> Red (south-east)</Choice>
-            </div>
-            <h2 className="hud-label text-[10px] uppercase mt-2">Map</h2>
+            {!spectate && (
+              <>
+                <h2 className="hud-label text-[10px] uppercase">Side</h2>
+                <div className="grid grid-cols-2 gap-2">
+                  <Choice active={playerTeam === 'blue'} onClick={() => setPlayerTeam('blue')}><span className="text-blue-400">■</span> Blue (north-west)</Choice>
+                  <Choice active={playerTeam === 'red'} onClick={() => setPlayerTeam('red')}><span className="text-red-400">■</span> Red (south-east)</Choice>
+                </div>
+              </>
+            )}
+            <h2 className={`hud-label text-[10px] uppercase ${spectate ? '' : 'mt-2'}`}>Map</h2>
             <div className="flex gap-2 items-center">
               <input
                 type="number"
@@ -101,7 +113,7 @@ export const MatchSetup: React.FC<{ initial?: Partial<MatchConfig>; onStart: (co
         </div>
 
         <section className="flex flex-col gap-2">
-          <h2 className="hud-label text-[10px] uppercase">Doctrine</h2>
+          <h2 className="hud-label text-[10px] uppercase">{spectate ? <><span className="text-blue-400">■</span> Blue doctrine</> : 'Doctrine'}</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             {(Object.keys(DOCTRINE_CONFIG) as DoctrineType[]).map(d => {
               const c = DOCTRINE_CONFIG[d];
@@ -114,6 +126,17 @@ export const MatchSetup: React.FC<{ initial?: Partial<MatchConfig>; onStart: (co
               );
             })}
           </div>
+          {spectate && (
+            <>
+              <h2 className="hud-label text-[10px] uppercase mt-2"><span className="text-red-400">■</span> Red doctrine</h2>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <Choice active={redDoctrine === null} onClick={() => setRedDoctrine(null)}>From seed</Choice>
+                {(Object.keys(DOCTRINE_CONFIG) as DoctrineType[]).map(d => (
+                  <Choice key={d} active={redDoctrine === d} onClick={() => setRedDoctrine(d)}>{DOCTRINE_CONFIG[d].label}</Choice>
+                ))}
+              </div>
+            </>
+          )}
         </section>
 
         <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between border-t border-slate-700 pt-4">
@@ -135,11 +158,16 @@ const clock = (ms: number) => {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 };
 
-export const MatchEnd: React.FC<{ victory: Victory; playerTeam: Team; summary: MatchSummary; onRematch: () => void; onSetup: () => void; onContinue: () => void }> = ({ victory, playerTeam, summary, onRematch, onSetup, onContinue }) => {
-  const won = victory.winner === playerTeam;
-  const reason = victory.reason === 'destruction'
-    ? (won ? 'The enemy Command HQ is destroyed.' : 'Your Command HQ has fallen.')
-    : (won ? 'You held the city’s core nodes for two minutes.' : 'The enemy held the city’s core nodes for two minutes.');
+export const MatchEnd: React.FC<{ victory: Victory; playerTeam: Team; summary: MatchSummary; onRematch: () => void; onSetup: () => void; onContinue: () => void; spectate?: boolean; onReport?: () => void }> = ({ victory, playerTeam, summary, onRematch, onSetup, onContinue, spectate, onReport }) => {
+  const won = spectate ? victory.winner === 'blue' : victory.winner === playerTeam;
+  const side = victory.winner === 'blue' ? 'Blue' : 'Red';
+  const reason = spectate
+    ? (victory.reason === 'destruction' ? `${side} destroyed the enemy Command HQ.` : `${side} held the city’s core nodes for two minutes.`)
+    : victory.reason === 'destruction'
+      ? (won ? 'The enemy Command HQ is destroyed.' : 'Your Command HQ has fallen.')
+      : (won ? 'You held the city’s core nodes for two minutes.' : 'The enemy held the city’s core nodes for two minutes.');
+  const heading = spectate ? `${side.toUpperCase()} WINS` : won ? 'VICTORY' : 'DEFEAT';
+  const headingTone = spectate ? (victory.winner === 'blue' ? 'text-blue-300' : 'text-red-300') : won ? 'text-cyan-300 hud-glow-cyan' : 'text-rose-400 hud-glow-red';
   const rows: [string, keyof MatchSummary['teams']['blue']][] = [
     ['Units trained', 'trained'], ['Units lost', 'lost'], ['Cores earned', 'earned'], ['Core nodes held', 'coreNodes'], ['Server nodes held', 'serverNodes'],
   ];
@@ -147,7 +175,7 @@ export const MatchEnd: React.FC<{ victory: Victory; playerTeam: Team; summary: M
     <div className="absolute inset-0 z-[200] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
       <div className="hud-plate hud-corners w-full max-w-lg p-6 md:p-8 text-slate-200 flex flex-col gap-5">
         <div className="text-center">
-          <h1 className={`text-4xl font-bold font-mono tracking-[0.3em] ${won ? 'text-cyan-300 hud-glow-cyan' : 'text-rose-400 hud-glow-red'}`}>{won ? 'VICTORY' : 'DEFEAT'}</h1>
+          <h1 className={`text-4xl font-bold font-mono tracking-[0.3em] ${headingTone}`}>{heading}</h1>
           <p className="text-sm text-slate-400 mt-2">{reason}</p>
           <p className="text-[11px] text-slate-500 font-mono mt-1">Match time {clock(summary.durationMs)}</p>
         </div>
@@ -165,6 +193,9 @@ export const MatchEnd: React.FC<{ victory: Victory; playerTeam: Team; summary: M
             ))}
           </tbody>
         </table>
+        {onReport && (
+          <button onClick={onReport} className="px-3 py-2 border border-cyan-500/60 rounded font-mono text-xs text-cyan-200 hover:border-cyan-300 hover:text-white">Pacing report: milestones, armies, unit stats</button>
+        )}
         <div className="grid grid-cols-3 gap-2">
           <button onClick={onContinue} className="px-3 py-2 border border-slate-700 rounded font-mono text-xs hover:border-cyan-400">Keep watching</button>
           <button onClick={onSetup} className="px-3 py-2 border border-slate-700 rounded font-mono text-xs hover:border-cyan-400">New match</button>

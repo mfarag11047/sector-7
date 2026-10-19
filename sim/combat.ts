@@ -109,6 +109,8 @@ export interface AttackResult {
   // Every armed unit's current target in range, or null. Attack-move holds while it has one.
   aiming: Map<string, string | null>;
   shots: Shot[];
+  // Units caught in another target's splash, and who fired it (for the pacing report).
+  splashed?: { attackerId: string; targetId: string }[];
 }
 
 // A shot stopped by a force field: which generator's dome, and where it hits.
@@ -198,6 +200,7 @@ export function resolveAttacks(
         const armor = UNIT_RULES[t.type].armor;
         if ((armor === 'air') !== target.isAir || tiles(t.gridPos, target.gridPos) > weapon.splash || blocked(team, from, t.gridPos)) continue;
         hitUnit(t.id, shotDamage(weapon, armor) * (weapon.splashFactor ?? 0.5));
+        (result.splashed ??= []).push({ attackerId, targetId: t.id });
       }
     }
     result.fired.set(attackerId, target.id);

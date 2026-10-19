@@ -11,9 +11,11 @@ import Atmosphere from './components/Atmosphere';
 import UIOverlay from './components/UIOverlay';
 import { GameStats, UnitData, BuildingData, RoadTileData, MinimapData, StructureData, DoctrineState, DoctrineType } from './types';
 import { DOCTRINE_CONFIG, CAMERA_FAR, CITY_CONFIG, TEAM_BASES } from './constants';
-import { MatchConfig, STARTING_CORES, aiTeamOf } from './sim/match';
+import { MatchConfig, MatchMode, STARTING_CORES, doctrineOf } from './sim/match';
 import type { OrderCommand } from './sim/orders';
 import type { Victory } from './sim/victory';
+import type { PacingRecord } from './sim/pacing';
+import { PacingReport } from './components/PacingReport';
 
 const INITIAL_STATS: GameStats = {
   blue: { 
@@ -48,7 +50,8 @@ const SlowRender: React.FC = () => {
 };
 
 // ?autostart=1 skips the setup screen with default settings (for automated tests);
-// &doctrine=shadow_ops picks the player's doctrine, &mode=sandbox starts the sandbox.
+// &doctrine=shadow_ops picks the player's doctrine, &mode=sandbox starts the sandbox and
+// &mode=spectate an AI vs AI match.
 const PARAMS = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
 const AUTOSTART = !!PARAMS?.has('autostart');
 const AUTOSTART_DOCTRINE = (['heavy_metal', 'shadow_ops', 'netrunner'] as DoctrineType[]).find(d => d === PARAMS?.get('doctrine')) ?? 'heavy_metal';
@@ -60,7 +63,7 @@ const NO_DOCTRINE: DoctrineState = { selected: null, unlockedTiers: 0, cooldowns
 function App() {
   // The setup screen fills this in. Each new match bumps `round`, which remounts the map.
   const [match, setMatch] = useState<MatchConfig | null>(() => AUTOSTART
-      ? { mode: PARAMS?.get('mode') === 'sandbox' ? 'sandbox' : 'ai', seed: Math.floor(Math.random() * 1e6), playerTeam: 'blue', difficulty: 'normal', playerDoctrine: AUTOSTART_DOCTRINE, aiDoctrine: 'netrunner' }
+      ? { mode: (['sandbox', 'spectate'] as MatchMode[]).find(m => m === PARAMS?.get('mode')) ?? 'ai', seed: Math.floor(Math.random() * 1e6), playerTeam: 'blue', difficulty: 'normal', playerDoctrine: AUTOSTART_DOCTRINE, aiDoctrine: 'netrunner' }
       : null);
   const [round, setRound] = useState(0);
   const [result, setResult] = useState<{ victory: Victory, summary: MatchSummary } | null>(null);
@@ -69,6 +72,9 @@ function App() {
   const [notices, setNotices] = useState<Notice[]>([]);
   // Orders from the HUD (research) go through CityMap's checks.
   const commandRef = useRef<((command: OrderCommand) => boolean) | null>(null);
+  // This match's pacing report (sim/pacing.ts), filled in by CityMap.
+  const pacingRef = useRef<PacingRecord | null>(null);
+  const [showPacing, setShowPacing] = useState(false);
   // Selection and army panel: CityMap reports, the panel's buttons call back in.
   const armyControlsRef = useRef<ArmyControls | null>(null);
   const [armyState, setArmyState] = useState<{ selection: SelectionSummary; armies: ArmyInfo[] }>({ selection: { types: [], focused: null, total: 0 }, armies: [] });
@@ -87,8 +93,7 @@ function App() {
 
   // Doctrine & Interaction State
   const doctrinesFor = (config: MatchConfig | null) => {
-      const ai = config ? aiTeamOf(config) : null;
-      const pick = (team: 'blue' | 'red') => !config ? null : team === config.playerTeam ? config.playerDoctrine : team === ai ? config.aiDoctrine : null;
+      const pick = (team: 'blue' | 'red') => (config ? doctrineOf(config, team) : null);
       return { blue: { ...NO_DOCTRINE, selected: pick('blue') }, red: { ...NO_DOCTRINE, selected: pick('red') } };
   };
   const [doctrines, setDoctrines] = useState<{ blue: DoctrineState, red: DoctrineState }>(() => doctrinesFor(match));
@@ -102,6 +107,7 @@ function App() {
       setShowResult(false);
       setMatchInfo(null);
       setNotices([]);
+      setShowPacing(false);
       setInteractionMode('select');
       setTargetingDoctrine(null);
       setRound(r => r + 1);
@@ -286,6 +292,7 @@ function App() {
           {match && <CityMap 
               key={round}
               commandRef={commandRef}
+              pacingRef={pacingRef}
               onArmyUpdate={handleArmyUpdate}
               armyControlsRef={armyControlsRef}
               match={match}
@@ -321,18 +328,22 @@ function App() {
         onResearch={handleResearch}
         armyState={armyState}
         armyControlsRef={armyControlsRef}
+        onPacing={match.mode !== 'sandbox' ? () => setShowPacing(true) : undefined}
       />}
       {!match && <MatchSetup onStart={startMatch} />}
       {match && result && showResult && (
         <MatchEnd
             victory={result.victory}
             playerTeam={match.playerTeam}
+            spectate={match.mode === 'spectate'}
+            onReport={() => { setShowResult(false); setShowPacing(true); }}
             summary={result.summary}
             onContinue={() => setShowResult(false)}
             onSetup={() => { setMatch(null); setResult(null); }}
             onRematch={() => startMatch({ ...match })}
         />
       )}
+      {match && showPacing && <PacingReport pacingRef={pacingRef} onClose={() => setShowPacing(false)} />}
       <Loader 
         containerStyles={{ backgroundColor: '#050505' }}
         innerStyles={{ width: '50vw', height: '4px', backgroundColor: '#1e293b' }}

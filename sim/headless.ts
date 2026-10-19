@@ -32,7 +32,8 @@ import { hasBuff } from './unitAbilities';
 import { checkVictory, DominationClock, freshDominationClock, Victory } from './victory';
 import { DOCTRINE_CONFIG } from '../constants';
 import { jammingUpdates } from './jamming';
-import { microwaveDamage } from './helios';
+import { heliosBeams, microwaveDamage } from './helios';
+import { freshPacing, pacingTick, PacingRecord, recordVictory, recordWeaponHits } from './pacing';
 
 export interface HeadlessOptions {
   seed: number;
@@ -55,6 +56,8 @@ export interface HeadlessMatch {
   doctrineReadyAt: Record<Team, { tier2: number; tier3: number }>;
   domination: DominationClock;
   victory: Victory | null;
+  // Milestones and unit stats for the pacing report (sim/pacing.ts).
+  pacing: PacingRecord;
   lastShot: Map<string, number>;
   // Thunderhead shells in the air.
   shells: ArtilleryShell[];
@@ -95,6 +98,7 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     doctrineReadyAt: { blue: { tier2: 0, tier3: 0 }, red: { tier2: 0, tier3: 0 } },
     domination: freshDominationClock(),
     victory: null,
+    pacing: freshPacing(),
     lastShot: new Map(),
     shells: [],
     shellHits: new Map(),
@@ -207,6 +211,15 @@ export function stepMatch(m: HeadlessMatch): void {
     if (pulse.size > 0) m.units = m.units.map(u => pulse.get(u.id)?.(u) ?? u);
   }
   if (impact.structureDamage.size > 0) m.structures = applyStructureCombat(m.structures, { structureDamage: impact.structureDamage, fired: new Map(), aiming: new Map() }, now);
+  // Who hit whom, for the pacing report's damage tally.
+  recordWeaponHits(m.pacing, {
+    fired: attacks.fired, shots: [...(attacks.splashed ?? []), ...rail.shots, ...hornets.shots], ciws: ciws.links,
+    blasts: [
+      ...impact.landed.map(s => ({ attackerId: s.attackerId, team: s.team, at: s.at, radius: 2 })),
+      ...salvo.landed.map(s => ({ attackerId: s.attackerId, team: s.team, at: s.at, radius: 2 })),
+    ],
+    beams: heliosBeams(m.units),
+  }, m.units, m.structures);
 
   // Capture.
   m.buildings = captureTick(m.buildings, m.units);
@@ -271,8 +284,12 @@ export function stepMatch(m: HeadlessMatch): void {
     m.economy = payIncome(m.economy, m.buildings, m.opts.income ?? {});
     const result = checkVictory(m.structures, m.buildings, m.domination, now);
     m.domination = result.clock;
-    if (result.victory && !m.victory) m.victory = result.victory;
+    if (result.victory && !m.victory) {
+      m.victory = result.victory;
+      recordVictory(m.pacing, result.victory.winner, result.victory.reason);
+    }
   }
+  pacingTick(m.pacing, now, { units: m.units, structures: m.structures, buildings: m.buildings, economy: m.economy });
 }
 
 function think(m: HeadlessMatch, team: Team, paths: ReturnType<typeof pathfinder>, bases: Record<Team, GridPos>) {

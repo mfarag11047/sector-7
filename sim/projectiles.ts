@@ -43,7 +43,8 @@ export type LiveFlight = { shot: Projectile; impacted: boolean };
 
 export type FlightEvent =
     | { kind: 'explosion'; position: { x: number; y: number; z: number }; radius: number; duration: number; style?: Explosion['style'] }
-    | { kind: 'damage'; position: { x: number; y: number; z: number }; radius: number; damage: number; team: UnitData['team'] }
+    // ownerId: the unit that fired it, for the pacing report's damage tally.
+    | { kind: 'damage'; position: { x: number; y: number; z: number }; radius: number; damage: number; team: UnitData['team']; ownerId?: string }
     | { kind: 'decoy'; id: string }
     | { kind: 'cloud'; cloudType: 'nano' | 'emp'; position: { x: number; y: number; z: number }; team: CloudData['team'] }
     | { kind: 'titan'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' }
@@ -117,7 +118,7 @@ export const advanceFlight = (
             duration: p.payload === 'nano_canister' ? 500 : 1200,
         });
         if ((p.payload || 'he') === 'he') {
-            events.push({ kind: 'damage', position: p.targetPos, damage: 150, radius: 4 * tileSize, team: p.team });
+            events.push({ kind: 'damage', position: p.targetPos, damage: 150, radius: 4 * tileSize, team: p.team, ownerId: p.ownerId });
         }
         if (p.payload === 'nano_cloud_master') events.push({ kind: 'cloud', cloudType: 'nano', position: p.targetPos, team: p.team });
         return events;
@@ -219,7 +220,7 @@ export const advanceFlight = (
         });
         return [
             { kind: 'explosion', position: { ...p.position }, radius: 1.5, duration: 300 },
-            { kind: 'damage', position: { ...p.position }, damage: p.damage, radius: 1.5, team: p.team },
+            { kind: 'damage', position: { ...p.position }, damage: p.damage, radius: 1.5, team: p.team, ownerId: p.ownerId },
             ...(struckDecoy ? [{ kind: 'decoy' as const, id: struckDecoy.id }] : []),
         ];
     }
@@ -288,9 +289,9 @@ export const advanceFlight = (
         events.push({ kind: 'field', position: p.targetPos, team: p.team as 'blue' | 'red' });
     } else if (p.payload === 'nano_cloud_master') {
         events.push({ kind: 'cloud', cloudType: 'nano', position: { ...p.position }, team: p.team });
-        events.push({ kind: 'damage', position: { ...p.position }, damage: p.damage, radius: 3, team: p.team });
+        events.push({ kind: 'damage', position: { ...p.position }, damage: p.damage, radius: 3, team: p.team, ownerId: p.ownerId });
     } else {
-        events.push({ kind: 'damage', position: struck ?? { ...p.position }, damage: p.damage, radius: 3, team: p.team });
+        events.push({ kind: 'damage', position: struck ?? { ...p.position }, damage: p.damage, radius: 3, team: p.team, ownerId: p.ownerId });
     }
     const struckDecoy = decoys.find(d => {
         if (d.team === p.team) return false;

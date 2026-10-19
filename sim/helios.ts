@@ -62,3 +62,7 @@ export function microwaveDamage(units: readonly UnitData[], dtMs: number, fields
   }
   return damage;
 }
+
+// Each burning Helios and the area it cooks, for the pacing report's damage tally.
+export const heliosBeams = (units: readonly UnitData[]) =>
+  units.filter(isBurningHelios).map(h => ({ attackerId: h.id, team: h.team, at: h.gridPos, radius: HELIOS.radius }));

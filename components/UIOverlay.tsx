@@ -519,6 +519,8 @@ interface UIOverlayProps {
     onResearch?: (tier: 2 | 3) => void;
     armyState?: { selection: SelectionSummary; armies: ArmyInfo[] };
     armyControlsRef?: React.MutableRefObject<ArmyControls | null>;
+    // Opens the pacing report (components/PacingReport.tsx).
+    onPacing?: () => void;
 }
 
 // What the player should be doing next, from where they stand.
@@ -537,8 +539,10 @@ const clockText = (ms: number) => {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 };
 
-const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef, onSelectDoctrine, onTriggerDoctrine, interactionMode, match, matchInfo, notices = [], onResearch, armyState, armyControlsRef }) => {
+const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef, onSelectDoctrine, onTriggerDoctrine, interactionMode, match, matchInfo, notices = [], onResearch, armyState, armyControlsRef, onPacing }) => {
   const sandbox = match?.mode === 'sandbox';
+  // AI vs AI: the viewer sees the whole map.
+  const spectate = match?.mode === 'spectate';
   const [isIntelOpen, setIsIntelOpen] = useState(false);
   const [isDoctrineOpen, setIsDoctrineOpen] = useState(false);
   const [minimapExpanded, setMinimapExpanded] = useState(false);
@@ -576,7 +580,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
     // Enemy units under a Ghost's Dampener never show on this minimap (sim/ghost.ts).
     const dampened = dampenedUnits(minimapData.units);
     const visible = minimapData.units.filter(targetUnit => {
-        if (targetUnit.team === playerTeam) return true;
+        if (targetUnit.team === playerTeam || spectate) return true;
         if (targetUnit.decoyActive || targetUnit.fieldCloaked) return false;
         if (dampened.has(targetUnit.id)) return false;
         if (targetUnit.type === 'defense_drone' && known?.has(targetUnit.id)) return true;
@@ -592,11 +596,11 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
     minimapData.buildings.forEach(b => {
         if (b.type !== 'server_node') return;
         const guard = minimapData.units.find(u => u.type === 'defense_drone' && u.gridPos.x === b.gridX && u.gridPos.z === b.gridZ);
-        if ((guard && known?.has(guard.id)) || inFriendlyVision(b.gridX, b.gridZ)) revealed.push(b.id);
+        if (spectate || (guard && known?.has(guard.id)) || inFriendlyVision(b.gridX, b.gridZ)) revealed.push(b.id);
     });
 
     return { visibleUnits: visible, revealedServerKey: revealed.sort().join('|') };
-  }, [minimapData.units, minimapData.buildings, playerTeam]);
+  }, [minimapData.units, minimapData.buildings, playerTeam, spectate]);
 
   const revealedServerIds = useMemo(
     () => new Set(revealedServerKey ? revealedServerKey.split('|') : []),
@@ -651,13 +655,16 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
         {/* Match clock and domination timers; the team switch in the sandbox only. */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-2 pointer-events-auto z-50 flex flex-col items-center gap-1">
              {matchInfo && (
-                <div className="hud-plate hud-corners px-3 py-1 text-[11px] text-cyan-100 font-mono tracking-widest">{clockText(matchInfo.elapsedMs)}</div>
+                <div className="hud-plate hud-corners px-3 py-1 text-[11px] text-cyan-100 font-mono tracking-widest">
+                    {clockText(matchInfo.elapsedMs)}{spectate && <span className="text-amber-200"> · AI VS AI</span>}
+                </div>
              )}
              {matchInfo && (['blue', 'red'] as const).map(team => matchInfo.domination[team] !== null && (
-                <div key={team} className={`hud-alert hud-corners px-3 py-1 text-[11px] font-mono font-bold tracking-wider ${team === playerTeam ? 'text-cyan-200' : 'text-rose-300'}`}>
-                    {team === playerTeam ? 'YOU HOLD' : 'ENEMY HOLDS'} {DOMINATION_NODES} CORE NODES · {clockText(matchInfo.domination[team]!)}
+                <div key={team} className={`hud-alert hud-corners px-3 py-1 text-[11px] font-mono font-bold tracking-wider ${spectate ? (team === 'blue' ? 'text-blue-300' : 'text-red-300') : team === playerTeam ? 'text-cyan-200' : 'text-rose-300'}`}>
+                    {spectate ? `${team.toUpperCase()} HOLDS` : team === playerTeam ? 'YOU HOLD' : 'ENEMY HOLDS'} {DOMINATION_NODES} CORE NODES · {clockText(matchInfo.domination[team]!)}
                 </div>
              ))}
+
              {sandbox && <button 
                 onClick={toggleTeam}
                 className="hud-plate hud-corners px-3 py-1 text-[10px] text-cyan-200 font-mono uppercase tracking-widest transition-colors hover:text-white"
@@ -667,7 +674,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
              </button>}
         </div>
 
-        <TeamPanel team="blue" stats={stats.blue} align="left" isVisible={playerTeam === 'blue'} cheats={sandbox} onResearch={playerTeam === 'blue' ? onResearch : undefined} />
+        <TeamPanel team="blue" stats={stats.blue} align="left" isVisible={spectate || playerTeam === 'blue'} cheats={sandbox} onResearch={!spectate && playerTeam === 'blue' ? onResearch : undefined} />
         
         <div className="mt-8 flex flex-col items-center gap-2 pointer-events-auto">
             <h1 className="hud-label font-mono text-[10px] uppercase mt-6">Sector 7 Conflict</h1>
@@ -683,7 +690,16 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                 >
                     <span className="font-mono font-bold text-sm">?</span>
                 </button>
-                <button 
+                {onPacing && (
+                    <button
+                        onClick={onPacing}
+                        className="h-8 px-2 flex items-center justify-center border transition-all pointer-events-auto hud-corners hud-plate text-cyan-200 hover:text-white font-mono text-[10px] uppercase tracking-widest"
+                        title="Match pacing report: milestones, army sizes over time, and unit stats"
+                    >
+                        Pacing
+                    </button>
+                )}
+                {!spectate && <button 
                     onClick={() => setIsDoctrineOpen(!isDoctrineOpen)}
                     className={`w-8 h-8 flex items-center justify-center border transition-all pointer-events-auto hud-corners ${
                     isDoctrineOpen 
@@ -693,11 +709,11 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                     title="Doctrine Protocols"
                 >
                     <span className="font-mono font-bold text-lg">★</span>
-                </button>
+                </button>}
             </div>
         </div>
 
-        <TeamPanel team="red" stats={stats.red} align="right" isVisible={playerTeam === 'red'} cheats={sandbox} onResearch={playerTeam === 'red' ? onResearch : undefined} />
+        <TeamPanel team="red" stats={stats.red} align="right" isVisible={spectate || playerTeam === 'red'} cheats={sandbox} onResearch={!spectate && playerTeam === 'red' ? onResearch : undefined} />
       </div>
 
       {/* Operations Manual */}
@@ -751,7 +767,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                 System Message
               </h3>
               <p className="relative text-xs text-cyan-200 font-mono leading-relaxed hud-glow-cyan">
-                &gt; {objective(activeStats)}
+                &gt; {spectate ? 'Spectating: the computer plays both sides. Watch the match flow and open the pacing report for the timeline.' : objective(activeStats)}
               </p>
               {notices.length > 0 && (
                 <div className="relative mt-2 flex flex-col gap-0.5">

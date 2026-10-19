@@ -8,9 +8,9 @@ so tuning keeps the shape.
 
 ## The match
 
-1. **Setup screen.** Choose your side, the opponent (AI Easy, Normal or Hard, or Sandbox where you
-   control both sides with the old showcase roster), your doctrine and the map seed. The AI's
-   doctrine comes from the seed.
+1. **Setup screen.** Choose your side, the opponent (AI Easy, Normal or Hard, Sandbox where you
+   control both sides with the old showcase roster, or AI vs AI), your doctrine and the map seed.
+   The AI's doctrine comes from the seed.
 2. **Start.** Each side has its Command HQ, 3 Strike Troopers, a Mason, an Infiltrator Drone and
    1000 cores.
 3. **Win** by destroying every enemy HQ (its starting one and any it has built), or by **domination**: holding 4 of the 6 core nodes for
@@ -579,6 +579,29 @@ buildings, get round to research and notice raids late, and don't always pick th
 A finished unit leaves its structure idle until the next production round, as it would for a
 person busy elsewhere. In computer-vs-computer tests Normal fields about 15 units by 8 minutes,
 against 24 for the old, perfectly efficient Normal; Hard still beats Normal and Normal beats Easy.
+
+### AI vs AI and the pacing report
+
+**AI vs AI (pacing test)** on the setup screen has the computer play both sides at the chosen
+level while you watch with full vision: blue plays the doctrine picked for it, red its own or
+the seed's. The viewer can't give orders. `?autostart=1&mode=spectate` starts one directly.
+
+Every match except the sandbox keeps a pacing report (`sim/pacing.ts`, the **Pacing report**
+button under the match clock and on the end screen; `GAME_CHEATS.pacing()` in the console):
+
+- **Milestones** with their match time: first structure of each type, core and server nodes
+  captured and lost, tiers researched, first combat between the sides, each side's first loss
+  and first kill, structures destroyed, new Command HQs, and the result.
+- **Snapshots** every 30 seconds per side: units, army value (cost scaled by health), cores,
+  compute, tier, core and server nodes held. Charted and tabled.
+- **Units** per side and type: how many started, were trained and died, and the damage they
+  dealt to enemy units and to enemy structures.
+
+Damage is credited from health lost, split among whoever hit the target in the last 300 ms, or
+else its last hitter within 3 seconds. Damage nobody can be named for (doctrine powers,
+force-field shocks, the Black Wall virus) is listed as Other; the neutral server-node guards
+are tallied apart. The report copies out as text or downloads as JSON. Headless matches keep the
+same report (`m.pacing`), so pacing can be checked over many seeds in seconds.
 
 ### Headless matches
 

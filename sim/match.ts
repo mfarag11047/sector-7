@@ -4,11 +4,13 @@ import { ABILITY_CONFIG, STRUCTURE_INFO, UNIT_STATS } from '../constants';
 import type { DoctrineType, StructureData, StructureType, UnitData, UnitType } from '../types';
 import type { GridPos, Team } from './commands';
 
-export type MatchMode = 'ai' | 'sandbox';
+export type MatchMode = 'ai' | 'sandbox' | 'spectate';
 export type Difficulty = 'easy' | 'normal' | 'hard';
 
 export interface MatchConfig {
   // ai: you against the computer. sandbox: the old test bed, both sides under your control.
+  // spectate: the computer against itself, for checking match pacing (sim/pacing.ts); blue
+  // plays playerDoctrine and red aiDoctrine, both at `difficulty`.
   mode: MatchMode;
   seed: number;
   playerTeam: Team;
@@ -17,19 +19,25 @@ export interface MatchConfig {
   aiDoctrine: DoctrineType | null;
 }
 
-export const STARTING_CORES: Record<MatchMode, number> = { ai: 1000, sandbox: 5000 };
+export const STARTING_CORES: Record<MatchMode, number> = { ai: 1000, sandbox: 5000, spectate: 1000 };
 
 // The computer plays by the same rules at every level; harder levels think faster and earn more.
 export const AI_INCOME_MULTIPLIER: Record<Difficulty, number> = { easy: 0.7, normal: 1.0, hard: 1.35 };
 
 export const opponentOf = (team: Team): Team => (team === 'blue' ? 'red' : 'blue');
 export const aiTeamOf = (config: MatchConfig): Team | null => (config.mode === 'ai' ? opponentOf(config.playerTeam) : null);
+// Every side the computer plays.
+export const aiTeamsOf = (config: MatchConfig): Team[] =>
+  config.mode === 'spectate' ? ['blue', 'red'] : config.mode === 'ai' ? [opponentOf(config.playerTeam)] : [];
+
+// Each side's doctrine: in AI vs AI, blue takes playerDoctrine and red aiDoctrine.
+export const doctrineOf = (config: MatchConfig, team: Team): DoctrineType | null =>
+  config.mode === 'spectate' ? (team === 'blue' ? config.playerDoctrine : config.aiDoctrine)
+    : team === config.playerTeam ? config.playerDoctrine : team === aiTeamOf(config) ? config.aiDoctrine : null;
 
 // Income multipliers for payIncome.
-export const incomeMultipliers = (config: MatchConfig): Partial<Record<Team, number>> => {
-  const ai = aiTeamOf(config);
-  return ai ? { [ai]: AI_INCOME_MULTIPLIER[config.difficulty] } : {};
-};
+export const incomeMultipliers = (config: MatchConfig): Partial<Record<Team, number>> =>
+  Object.fromEntries(aiTeamsOf(config).map(t => [t, AI_INCOME_MULTIPLIER[config.difficulty]]));
 
 const fresh = (id: string, type: UnitType, team: Team, gridPos: GridPos): UnitData => ({
   id, type, unitClass: UNIT_STATS[type].unitClass, team, gridPos, path: [],
