@@ -14,6 +14,9 @@
 //   4. When strong enough it takes a server node (for Tier 2 and 3), then enemy core nodes,
 //      then the enemy HQ. It pulls back if outmatched, defends its base and nodes, and sends
 //      vehicles low on battery home to recharge.
+//   5. Alongside the army it fields the specialists a player would (sim/aiSpecialists.ts):
+//      scouts, Ghosts, support and EW vehicles, Battery Mules, Swarm Hosts, Bombardment Drones,
+//      Ballistas with warheads, turrets from its Masons and, late on, new Command HQs.
 
 import { ABILITY_CONFIG, DOCTRINE_CONFIG, UNIT_STATS } from '../constants';
 import type { BuildingData, DoctrineType, StructureData, StructureType, UnitData, UnitType } from '../types';
@@ -27,6 +30,7 @@ import { ArmorClass, dps, Tier, UNIT_RULES, unitsProducedBy } from './units';
 import { DOMINATION_NODES } from './victory';
 import { abilitiesFor, abilityCooldownLeft } from './unitAbilities';
 import { artilleryRange, inArtilleryReach } from './artillery';
+import { baseMoves, ESCORTS, specialistAbilities, specialistMoves, specialistPick, SPECIALIST_MOVERS } from './aiSpecialists';
 
 export interface AiView {
   units: readonly UnitData[];
@@ -108,27 +112,30 @@ export interface AiProfile {
   doctrineTiers: (2 | 3)[];
   secondBarracks: boolean;
   capturers: number;
+  // Sentry Turrets its Masons put up, and Command HQs it will hold.
+  turrets: number;
+  bases: number;
 }
 
 export const AI_PROFILES: Record<Difficulty, AiProfile> = {
   easy: {
     thinkMs: 6000, attackValue: 2600, firstAttackMs: 10 * 60_000, firstTechMs: 7 * 60_000, counterAccuracy: 0,
     queueDepth: 1, productionCycleMs: 30_000, attention: 0.5, buildGapMs: 90_000, researchDelayMs: 60_000, reactionMs: 15_000,
-    doctrineTiers: [], secondBarracks: false, capturers: 3,
+    doctrineTiers: [], secondBarracks: false, capturers: 3, turrets: 0, bases: 1,
   },
   normal: {
     thinkMs: 3500, attackValue: 2200, firstAttackMs: 7 * 60_000, firstTechMs: 4 * 60_000, counterAccuracy: 0.55,
     queueDepth: 1, productionCycleMs: 15_000, attention: 0.7, buildGapMs: 45_000, researchDelayMs: 25_000, reactionMs: 6_000,
-    doctrineTiers: [2], secondBarracks: false, capturers: 3,
+    doctrineTiers: [2], secondBarracks: false, capturers: 3, turrets: 1, bases: 2,
   },
   hard: {
     thinkMs: 1500, attackValue: 1500, firstAttackMs: 3.5 * 60_000, firstTechMs: 2.5 * 60_000, counterAccuracy: 0.9,
     queueDepth: 2, productionCycleMs: 0, attention: 0.95, buildGapMs: 10_000, researchDelayMs: 3_000, reactionMs: 0,
-    doctrineTiers: [2, 3], secondBarracks: true, capturers: 4,
+    doctrineTiers: [2, 3], secondBarracks: true, capturers: 4, turrets: 2, bases: 3,
   },
 };
 
-// Units the computer fields. The rest (Ballistas, Banshees, Battery Mules...) need a player's hand.
+// The line army. Specialists are in sim/aiSpecialists.ts.
 const FIGHTERS: UnitType[] = ['trooper', 'lancer', 'razorback', 'tank', 'aegis', 'hornet', 'wasp', 'guardian'];
 const CAPTURERS: UnitType[] = ['trooper', 'ghost'];
 const ARMORS: ArmorClass[] = ['infantry', 'light', 'heavy', 'air'];
@@ -173,7 +180,9 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const have = (type: StructureType) => myStructures.filter(s => s.type === type).length;
   const building = myStructures.some(s => (s.buildRemainingMs || 0) > 0);
   const wants: StructureType[] = ['infantry', 'armor'];
-  if (tier >= 2) wants.push('air', 'support');
+  if (tier >= 2) wants.push('air', 'support', 'ordnance_fab');
+  // A Depot, so the Masons can put up turrets.
+  if (tier >= 2 && profile.turrets > 0) wants.push('builder');
   if (profile.secondBarracks && now > 6 * 60_000) wants.push('infantry');
   const counts: Partial<Record<StructureType, number>> = {};
   const nextBuild = wants.find(type => {
@@ -311,8 +320,9 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
       send(u, standoff, false);
       continue;
     }
-    // Fighters and capturers take orders; Masons, scouts and drones look after themselves.
-    if (!FIGHTERS.includes(u.type) && !CAPTURERS.includes(u.type) && u.type !== 'titan_dropped') continue;
+    // Specialists move by their own rules (sim/aiSpecialists.ts); support vehicles keep with the army.
+    if (SPECIALIST_MOVERS.includes(u.type)) continue;
+    if (!FIGHTERS.includes(u.type) && !CAPTURERS.includes(u.type) && !ESCORTS.includes(u.type) && u.type !== 'titan_dropped') continue;
     const onGrid = isInsideEnergyGrid(u.gridPos, team, view.buildings, ctx.bases.blue, ctx.bases.red);
     // Vehicles low on battery off the grid go back to recharge.
     if (needsGrid(u) && u.battery < u.maxBattery * 0.3 && !onGrid) {
@@ -339,6 +349,10 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
       send(u, stone ?? objective, true);
     }
   }
+  actions.push(...specialistMoves({
+    team, tier, mode, objective, staging, gather, home, mine, theirs, structures: view.structures, buildings: view.buildings,
+    bases: ctx.bases, send,
+  }));
   for (const g of groups.values()) {
     actions.push({ kind: 'order', command: { type: 'MOVE', unitIds: g.ids, target: g.target, attackMove: g.attackMove } });
   }
@@ -367,7 +381,10 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     if (!s.rallyPoint || s.rallyPoint.x !== gather.x || s.rallyPoint.z !== gather.z) {
       actions.push({ kind: 'order', command: { type: 'SET_RALLY', structureId: s.id, at: gather } });
     }
-    const pick = chooseUnit(s.type, tier, enemyMix, {
+    const pick = specialistPick(s.type, {
+      tier, mine, structures: myStructures, army: armyUnits.length, needInfantry: infantryCount < 6,
+      hard: ctx.difficulty === 'hard', random: ctx.random,
+    }) ?? chooseUnit(s.type, tier, enemyMix, {
       counterAccuracy: profile.counterAccuracy, random: ctx.random,
       needInfantry: infantryCount < 6, guardians, howitzers, army: armyUnits.length,
     });
@@ -388,6 +405,18 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     }
   }
   actions.push(...unitAbilityMoves(mine, theirs, tier, mode, now, profile, ctx.random));
+  actions.push(...specialistAbilities({
+    team, tier, mode, objective, home, mine, theirs, structures: view.structures, economy: view.economy,
+    attention: profile.attention, random: ctx.random,
+  }));
+  // Warheads, turrets and new Command HQs.
+  const base = baseMoves({
+    team, tier, cores, mine, theirs, structures: view.structures, buildings: view.buildings, economy: view.economy,
+    bases: ctx.bases, gather, canBuildOn: ctx.canBuildOn, isOpenGround: ctx.isOpenGround,
+    maxTurrets: profile.turrets, maxBases: profile.bases,
+  });
+  actions.push(...base.actions);
+  cores -= base.spent;
   const power = ctx.doctrine ? doctrineMove(ctx.doctrine, profile, tier, cores, ctx.doctrineCooldowns, mode, objective, armyUnits, theirs) : null;
   if (power) actions.push(power);
 

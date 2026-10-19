@@ -523,8 +523,8 @@ The AI (`sim/ai.ts`) plays by the same rules as you. It returns commands; the ga
 through the same checks as yours (`sim/orders.ts`, `sim/abilities.ts`, doctrine powers), from the
 same kind of economy.
 
-1. **Build order:** Barracks → Factory; then Airpad and Comm Link once it reaches T2; a second
-   Barracks on Hard. Placed on open ground inside its grid, never on a road or touching another
+1. **Build order:** Barracks → Factory; then Airpad, Comm Link and Ordnance Fab once it reaches
+   T2, and a Depot on Normal and Hard; a second Barracks on Hard. Placed on open ground inside its grid, never on a road or touching another
    structure, so lanes stay open.
 2. **Production:** for each structure, the unit with the best damage per core against the armor mix
    of your army (weighted by value), with a floor of 6 infantry for capturing and a Guardian per 8
@@ -541,7 +541,28 @@ same kind of economy.
    - otherwise gather at the edge of its grid nearest you.
    It retreats when the enemy near its target is worth 1.4× its army, and waits 30 s before trying
    again. Vehicles low on battery outside the grid drive home to recharge.
-5. **Powers:** Titan smoke when hurt. Doctrine powers on Normal (T2) and Hard (T2 and T3): Orbital
+5. **Specialists** (`sim/aiSpecialists.ts`), fielded in modest numbers alongside the army as a
+   player would:
+   - **Scout RC Car** from the HQ (2 on Hard) runs ahead to the objective and backs off from enemies.
+   - **Ghosts** join the capture team; the **Dampener** runs while the army pushes (from T2) and
+     **Phantom Decoy** gets a caught Ghost out (T3).
+   - **Infiltrator Drone** keeps over the army and loiters on **Surveillance** over the objective.
+   - **Helios** (one per 6 army, up to 2) charges the army and switches to **microwave** when enemies
+     come in reach, back to charging when they leave or its battery is low.
+   - **Banshee** (T2) keeps with the army, **jams** whenever enemy drones come in reach and
+     **hardlines** its own drones so they can't be jammed.
+   - **Battery Mule** (T2, with 5+ vehicles) plants at the staging point and **links** vehicles
+     low on charge; it packs up to follow when the army moves on.
+   - **Swarm Host** (T2) anchors to release Crawlers when a fight is close.
+   - **Wasps** fire **swarm volleys** into enemy groups; **Titans** use **APS** against enemy
+     artillery and Ballistas.
+   - **Bombardment Drones** (T3) strike enemy production, never on top of its own units.
+   - **Ballista** (T3) stays by the Ordnance Fab, which keeps two **warheads** coming (EMP against
+     a heavy army, otherwise HE); it takes, loads and fires them at big enemy groups or structures.
+   - **Masons** put up 1 (Normal) or 2 (Hard) **Sentry Turrets** at the front of its grid.
+   - At T3, rich, with a unit beside a cleared block, it builds a **new Command HQ** (up to 2 on
+     Normal, 3 on Hard).
+6. **Powers:** Titan smoke when hurt. Doctrine powers on Normal (T2) and Hard (T2 and T3): Orbital
    Drop into a fight, a Force Field over its army in a big fight, Decoys on an attack, EMP in a big fight, a Nano Cloud
    over a retreat, a Black Wall Infect bomb on a big enemy cluster.
 

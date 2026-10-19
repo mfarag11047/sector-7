@@ -3,7 +3,7 @@
 //
 // Used to run computer-vs-computer matches in tests (sim/ai.test.ts) and for balance work.
 // It is also a first draft of the authoritative game server: everything here runs on the
-// sim/ modules alone. Not yet included: projectiles and unit abilities other than Titan
+// sim/ modules alone, including warhead production and Ballista loading. Not yet included: projectiles and unit abilities other than Titan
 // smoke, clouds, doctrine powers other than Orbital Drop, Masons and walls, and breaching.
 
 import { CITY_CONFIG, STRUCTURE_INFO, TEAM_BASES } from '../constants';
@@ -18,14 +18,14 @@ import { captureTick } from './capture';
 import { applyCiwsState, ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
 import type { GridPos, Team } from './commands';
 import { applyStructureCombat, resolveAttacks } from './combat';
-import { createEconomy, Economy, payIncome } from './economy';
+import { addWarheads, advanceWarheadProduction, createEconomy, Economy, payIncome } from './economy';
 import { chargeSources, isInsideEnergyGrid, powerTick } from './energy';
 import { generateCity, seededRandom } from './mapgen';
 import { Difficulty, MatchConfig, startingRoster } from './match';
 import { advanceMover, arriveAtNextTile, MovementEnv, MOVE_TICK_MS } from './movement';
 import { applyOrderToStructures, applyOrderToUnits, OrderCommand, orderEffects, OrdersContext } from './orders';
 import { advanceProduction, applyProduction, createUnit } from './production';
-import { repairTick } from './support';
+import { ballistaLoadStep, repairTick } from './support';
 import { isAirType } from './units';
 import { airPath, fastestPath } from './pathfinding';
 import { hasBuff } from './unitAbilities';
@@ -214,6 +214,10 @@ export function stepMatch(m: HeadlessMatch): void {
   // Production.
   const build = advanceProduction(m.structures, team => m.opts.doctrine[team]);
   m.structures = applyProduction(m.structures, build);
+  // Ordnance Fabs finish warheads into the stockpile.
+  const fab = advanceWarheadProduction(m.structures, team => m.opts.doctrine[team]);
+  if (fab.updates.size > 0) m.structures = m.structures.map(s => fab.updates.has(s.id) ? { ...s, production: fab.updates.get(s.id) } : s);
+  for (const { team, warhead } of fab.finished) m.economy = addWarheads(m.economy, team, warhead);
   for (const { structure, unitType } of build.trained) {
     const taken = new Set(m.units.map(u => key(u.gridPos.x, u.gridPos.z)));
     let spawn = { ...structure.gridPos };
@@ -253,6 +257,7 @@ export function stepMatch(m: HeadlessMatch): void {
     const heal = repair.heal.get(u.id) || 0;
     if (heal > 0 && draft.health > 0) draft.health = Math.min(draft.maxHealth, draft.health + heal);
     if (draft.health > 0) {
+      ballistaLoadStep(u, draft, MOVE_TICK_MS);
       powerTick(u, draft, {
         units: living, sources: power, helios, inNanoCloud: false,
         onGrid: isInsideEnergyGrid(u.gridPos, u.team, m.buildings, bases.blue, bases.red),

@@ -25,7 +25,7 @@ Swarm Host spawns and grid charging. They become simulation rules in step 2.
 | `BUILD_BASE` | Base site menu on a levelled city block | tile (the block's centre) | `sim/orders.ts` via `sim/bases.ts` (site cleared and free, a unit of yours within 6 tiles, cores and compute) |
 | `TRAIN_UNIT` | Barracks, Factory, Airpad, etc. | structure id, unit type | `sim/orders.ts` (tier, population cap, queue of 5); `sim/production.ts` trains it over time |
 | `SET_RALLY` | Any production structure | structure id, tile | `sim/orders.ts` |
-| `BUILD_WARHEAD` | Ordnance Fab | structure id, warhead | `handleStructureAction` `BUILD_WARHEAD` (~2770) |
+| `BUILD_WARHEAD` | Ordnance Fab | structure id, warhead | `sim/orders.ts` (checked, then applied by `dispatchOrder` in `CityMap.tsx`) |
 | `SET_HELIOS_MODE` | Helios | unit ids, mode | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `TOGGLE_DAMPENER` | Ghost (Tier 2) | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |
 | `TOGGLE_JAMMER` | Banshee | unit ids | `sim/abilities.ts` (checked, then applied by `dispatchAbility` in `CityMap.tsx`) |

@@ -2680,15 +2680,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (action === 'BUILD_WARHEAD' && struct.type === 'ordnance_fab' && !struct.isBlueprint) {
           const item = payload as 'emp' | 'he';
           if (item !== 'emp' && item !== 'he') return;
-          if (struct.production?.active) return;
-          const cost = warheadCost(item);
-          const totalTime = warheadBuildTime(item);
-          if (!canAfford(economy, playerTeam, cost)) return;
-          setEconomy(prev => spend(prev, playerTeam, cost) ?? prev);
-          setStructuresState(prev => prev.map(s => s.id === struct.id ? {
-              ...s,
-              production: { active: true, item, progress: 0, totalTime },
-          } : s));
+          // Checked and paid for in sim/orders.ts, like the computer's.
+          dispatchOrder({ type: 'BUILD_WARHEAD', structureId: struct.id, warhead: item });
           return;
       }
 

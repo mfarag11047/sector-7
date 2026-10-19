@@ -8,8 +8,8 @@
 
 import { ABILITY_CONFIG, BUILDING_VALUES, STRUCTURE_INFO } from '../constants';
 import type { BuildingData, StructureData, StructureType, UnitData } from '../types';
-import type { GridPos, PlayerCommand, Team } from './commands';
-import { Economy, research, researchCost, spend, structureCost, unitCost } from './economy';
+import type { GridPos, PlayerCommand, Team, Warhead } from './commands';
+import { Economy, research, researchCost, spend, structureCost, unitCost, warheadBuildTime, warheadCost } from './economy';
 import { Blackout, isBlackedOut, isInsideEnergyGrid } from './energy';
 import { baseOrder } from './bases';
 import { isAirType, popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from './units';
@@ -34,9 +34,9 @@ export const isOperational = (s: StructureData) => !s.isBlueprint && !((s.buildR
 
 // --- Commands ---
 
-export type OrderCommand = Extract<PlayerCommand, { type: 'MOVE' | 'TRAIN_UNIT' | 'PLACE_STRUCTURE' | 'SET_RALLY' | 'RESEARCH_TIER' | 'BUILD_BASE' }>;
+export type OrderCommand = Extract<PlayerCommand, { type: 'MOVE' | 'TRAIN_UNIT' | 'PLACE_STRUCTURE' | 'SET_RALLY' | 'RESEARCH_TIER' | 'BUILD_BASE' | 'BUILD_WARHEAD' }>;
 export const isOrderCommand = (c: PlayerCommand): c is OrderCommand =>
-  c.type === 'MOVE' || c.type === 'TRAIN_UNIT' || c.type === 'PLACE_STRUCTURE' || c.type === 'SET_RALLY' || c.type === 'RESEARCH_TIER' || c.type === 'BUILD_BASE';
+  c.type === 'MOVE' || c.type === 'TRAIN_UNIT' || c.type === 'PLACE_STRUCTURE' || c.type === 'SET_RALLY' || c.type === 'RESEARCH_TIER' || c.type === 'BUILD_BASE' || c.type === 'BUILD_WARHEAD';
 
 export interface OrdersView {
   units: readonly UnitData[];
@@ -88,12 +88,28 @@ export function orderEffects(view: OrdersView, team: Team, command: OrderCommand
     case 'PLACE_STRUCTURE': return placeOrder(view, team, command.structureType, command.at, ctx);
     case 'SET_RALLY': return rallyOrder(view, team, command.structureId, command.at, ctx);
     case 'RESEARCH_TIER': return researchOrder(view, team, command.tier);
+    case 'BUILD_WARHEAD': return warheadOrder(view, team, command.structureId, command.warhead);
     case 'BUILD_BASE': {
       const outcome = baseOrder(view, team, command.at, ctx.newId);
       if ('reason' in outcome) return reject(outcome.reason);
       return effects({ economy: outcome.pay, newStructures: [outcome.structure] });
     }
   }
+}
+
+// An Ordnance Fab starts building one warhead for the stockpile.
+function warheadOrder(view: OrdersView, team: Team, structureId: string, warhead: Warhead): OrderOutcome {
+  const s = view.structures.find(x => x.id === structureId);
+  if (!s || s.team !== team || s.type !== 'ordnance_fab') return reject('not your Ordnance Fab');
+  if (!isOperational(s)) return reject('the Ordnance Fab is not finished');
+  if (s.production?.active) return reject('already building a warhead');
+  const cost = warheadCost(warhead);
+  if (!spend(view.economy, team, cost)) return reject('not enough cores');
+  const totalTime = warheadBuildTime(warhead);
+  return effects({
+    economy: e => spend(e, team, cost),
+    structureUpdates: new Map([[s.id, x => ({ ...x, production: { active: true, item: warhead, progress: 0, totalTime } })]]),
+  });
 }
 
 function researchOrder(view: OrdersView, team: Team, tier: 2 | 3): OrderOutcome {
