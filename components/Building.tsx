@@ -4,6 +4,7 @@ import { BuildingData } from '../types';
 import { Edges } from '@react-three/drei';
 import * as THREE from 'three';
 import { TEAM_COLORS, CITY_CONFIG } from '../constants';
+import { FootprintSegment, isFootprintSegment } from './FootprintBuilding';
 import { useFrame } from '@react-three/fiber';
 import { globalFrustum } from '../frustum';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
@@ -719,7 +720,7 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
       {/* Foundation/Base Glow. Core nodes draw their own one-block pad. */}
       {data.type !== 'core_node' && (
       <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <planeGeometry args={[data.scale[0] * 1.2, data.scale[2] * 1.2]} />
+        <planeGeometry args={isFootprintSegment(data) ? [CITY_CONFIG.tileSize, CITY_CONFIG.tileSize] : [data.scale[0] * 1.2, data.scale[2] * 1.2]} />
         <meshBasicMaterial 
           color={data.owner ? TEAM_COLORS[data.owner] : data.color} 
           transparent 
@@ -749,7 +750,15 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
       )}
 
       {/* Main Building Body */}
-      {data.type === 'commercial' ? (
+      {isFootprintSegment(data) ? (
+          <FootprintSegment
+              data={data}
+              tileSize={CITY_CONFIG.tileSize}
+              materialRef={materialRef}
+              onBeforeCompile={onBeforeCompile}
+              hovered={hovered}
+          />
+      ) : data.type === 'commercial' ? (
           <CommercialTower 
               data={data}
               materialRef={materialRef}

@@ -285,6 +285,11 @@ export function generateCity(opts: CityOptions): City {
         // Multi-tile buildings fill their tiles so they read as one mass; single tiles stand alone.
         const width = tileSize * (tiles.length > 1 ? 0.96 : 0.7);
         const mirrorId = `${blockId}-m`;
+        const footprint: NonNullable<BuildingData['footprint']> = { x: x0 + lx, z: z0 + lz, w, d };
+        if (tower >= 0) footprint.tower = { ...tiles[tower] };
+        const corner = mirror({ x: footprint.x + w - 1, z: footprint.z + d - 1 });
+        const mirroredFootprint: NonNullable<BuildingData['footprint']> = { x: corner.x, z: corner.z, w, d };
+        if (footprint.tower) mirroredFootprint.tower = mirror(footprint.tower);
         const original: BuildingData[] = [];
         const mirrored: BuildingData[] = [];
         tiles.forEach((t, i) => {
@@ -293,8 +298,8 @@ export function generateCity(opts: CityOptions): City {
           occupied.add(key(t.x, t.z));
           occupied.add(key(m.x, m.z));
           buildingMap.set(key(m.x, m.z), mirrorId);
-          original.push(building(`b-${t.x}-${t.z}`, t.x, t.z, type, h, blockId, [width, h, width]));
-          mirrored.push(building(`b-${m.x}-${m.z}`, m.x, m.z, type, h, mirrorId, [width, h, width]));
+          original.push({ ...building(`b-${t.x}-${t.z}`, t.x, t.z, type, h, blockId, [width, h, width]), footprint });
+          mirrored.push({ ...building(`b-${m.x}-${m.z}`, m.x, m.z, type, h, mirrorId, [width, h, width]), footprint: mirroredFootprint });
         });
         buildings.push(...original, ...mirrored);
         blocks.push({ id: blockId, type, buildingIds: original.map(b => b.id), owner: null });

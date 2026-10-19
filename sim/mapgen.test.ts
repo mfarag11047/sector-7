@@ -150,3 +150,20 @@ it('seededRandom is deterministic and in range', () => {
     expect(v).toBeLessThan(1);
   }
 });
+
+it('records the whole building on each of its tiles, mirrored', () => {
+  const city = generateCity({ seed: 5, gridSize: 79, tileSize: 14, buildingDensity: 1, blueBase: { x: 4, z: 4 }, redBase: { x: 74, z: 74 } });
+  const at = new Map(city.buildings.map(b => [`${b.gridX},${b.gridZ}`, b]));
+  for (const b of city.buildings.filter(x => x.footprint)) {
+    const f = b.footprint!;
+    expect(b.gridX).toBeGreaterThanOrEqual(f.x);
+    expect(b.gridX).toBeLessThan(f.x + f.w);
+    expect(b.gridZ).toBeGreaterThanOrEqual(f.z);
+    expect(b.gridZ).toBeLessThan(f.z + f.d);
+    for (let x = f.x; x < f.x + f.w; x++) for (let z = f.z; z < f.z + f.d; z++) expect(at.get(`${x},${z}`)?.blockId).toBe(b.blockId);
+    const twin = at.get(`${78 - b.gridX},${78 - b.gridZ}`)!;
+    expect(twin.footprint).toMatchObject({ x: 78 - (f.x + f.w - 1), z: 78 - (f.z + f.d - 1), w: f.w, d: f.d });
+    if (f.tower) expect(twin.footprint!.tower).toEqual({ x: 78 - f.tower.x, z: 78 - f.tower.z });
+  }
+  expect(city.buildings.some(b => b.footprint?.tower)).toBe(true);
+});

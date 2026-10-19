@@ -536,3 +536,9 @@ Drop, or Masons.
   one-tile alley between them, and no open ground is ever sealed off from the streets. Overall
   about 28% of lot tiles are built and about 80% of the map is walkable; the centre is the
   tightest and the edges the most open. `CITY_CONFIG.buildingDensity` scales every district's fill.
+- A building bigger than one tile is drawn as one building (`components/FootprintBuilding.tsx`),
+  though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
+  run along its outside faces only, a dark roof slab with a lit rim covers it (in the owner's
+  colour once taken), and one tile carries its rooftop pieces: a crown and spire on commercial
+  towers, plant and an antenna on high-tech blocks, a smokestack on industrial sheds (which also
+  get sawtooth roofs) and a water tank on housing. Towers on podiums stand slim on a low base.

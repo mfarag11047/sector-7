@@ -70,6 +70,9 @@ export interface BuildingData {
   health: number;
   maxHealth: number;
   destroyed?: boolean;
+  // The whole building this tile is part of, for city buildings: its first tile and size in
+  // tiles, and on a tower-on-podium building, the tile the tower rises from.
+  footprint?: { x: number; z: number; w: number; d: number; tower?: { x: number; z: number } };
 }
 
 export interface BuildingBlock {
