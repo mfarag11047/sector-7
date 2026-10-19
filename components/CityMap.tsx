@@ -57,7 +57,7 @@ import { Economy, createEconomy, canAfford, spend, setCores, setCompute, researc
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
 import { dampenedUnits } from '../sim/ghost';
 import { heliosBeams, microwaveDamage } from '../sim/helios';
-import { freshPacing, pacingTick, PacingRecord, recordArea, recordVictory, recordWeaponHits } from '../sim/pacing';
+import { freshPacing, pacingTick, PacingRecord, recordArea, recordStrategies, recordVictory, recordWeaponHits } from '../sim/pacing';
 
 
 // Helper to check if a grid position is inside any cloud of a specific type (optional)
@@ -2543,6 +2543,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
   // Each computer player's memory (two of them in AI vs AI).
   const aiRef = useRef({ memory: { blue: freshAiMemory(), red: freshAiMemory() } });
+  // How much of each computer player's strategy log is in the pacing report.
+  const strategiesLoggedRef = useRef({ blue: 0, red: 0 });
   const aiCallsRef = useRef({ dispatchOrder, dispatchAbility, canBuildOnTile });
   aiCallsRef.current = { dispatchOrder, dispatchAbility, canBuildOnTile };
   useEffect(() => {
@@ -2569,6 +2571,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               },
           );
           aiRef.current.memory[aiTeam] = memory;
+          if (pacingRef.current) strategiesLoggedRef.current[aiTeam] = recordStrategies(pacingRef.current, aiTeam, memory.plan.log, strategiesLoggedRef.current[aiTeam]);
           aiActingRef.current = true;
           try {
               for (const action of actions) {

@@ -33,7 +33,7 @@ import { checkVictory, DominationClock, freshDominationClock, Victory } from './
 import { DOCTRINE_CONFIG } from '../constants';
 import { jammingUpdates } from './jamming';
 import { heliosBeams, microwaveDamage } from './helios';
-import { freshPacing, pacingTick, PacingRecord, recordVictory, recordWeaponHits } from './pacing';
+import { freshPacing, pacingTick, PacingRecord, recordStrategies, recordVictory, recordWeaponHits } from './pacing';
 
 export interface HeadlessOptions {
   seed: number;
@@ -58,6 +58,8 @@ export interface HeadlessMatch {
   victory: Victory | null;
   // Milestones and unit stats for the pacing report (sim/pacing.ts).
   pacing: PacingRecord;
+  // How much of each side's strategy log the pacing report has.
+  strategiesLogged: Record<Team, number>;
   lastShot: Map<string, number>;
   // Thunderhead shells in the air.
   shells: ArtilleryShell[];
@@ -99,6 +101,7 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     domination: freshDominationClock(),
     victory: null,
     pacing: freshPacing(),
+    strategiesLogged: { blue: 0, red: 0 },
     lastShot: new Map(),
     shells: [],
     shellHits: new Map(),
@@ -318,6 +321,7 @@ function think(m: HeadlessMatch, team: Team, paths: ReturnType<typeof pathfinder
     },
   );
   m.memory[team] = memory;
+  m.strategiesLogged[team] = recordStrategies(m.pacing, team, memory.plan.log, m.strategiesLogged[team]);
   for (const action of actions) {
     if (action.kind === 'order') applyOrder(m, team, action.command, ctx);
     else if (action.kind === 'ability') {

@@ -8,7 +8,9 @@
 //
 // How it plays, in the spirit of the design:
 //   1. Builds a Barracks and Factory, then an Airpad and Comm Link once it reaches Tier 2.
-//   2. Sends a capture team of infantry to the nearest free core node, then the next.
+//   2. Sends a capture team of infantry to the nearest free core node, then the next. Only
+//      infantry capture, so every push on a node takes infantry along to stand on it, and the
+//      vehicles wait for them rather than go in alone.
 //   3. Gathers its army at the front of its energy grid and trains units that counter what
 //      it sees the enemy fielding.
 //   4. When strong enough it takes a server node (for Tier 2 and 3), then enemy core nodes,
@@ -17,6 +19,8 @@
 //   5. Alongside the army it fields the specialists a player would (sim/aiSpecialists.ts):
 //      scouts, Ghosts, support and EW vehicles, Battery Mules, Swarm Hosts, Bombardment Drones,
 //      Ballistas with warheads, turrets from its Masons and, late on, new Command HQs.
+//   6. Plays to an army strategy (infantry, armour, air or drones; sim/aiStrategy.ts) picked at
+//      the start, and changes it when it keeps losing units to one kind of enemy.
 
 import { ABILITY_CONFIG, DOCTRINE_CONFIG, UNIT_STATS } from '../constants';
 import type { BuildingData, DoctrineType, StructureData, StructureType, UnitData, UnitType } from '../types';
@@ -31,6 +35,7 @@ import { DOMINATION_NODES } from './victory';
 import { abilitiesFor, abilityCooldownLeft } from './unitAbilities';
 import { artilleryRange, inArtilleryReach } from './artillery';
 import { baseMoves, ESCORTS, specialistAbilities, specialistMoves, specialistPick, SPECIALIST_MOVERS } from './aiSpecialists';
+import { freshStrategyMemory, lossMix, STRATEGY_PLANS, StrategyMemory, updateStrategy } from './aiStrategy';
 
 export interface AiView {
   units: readonly UnitData[];
@@ -76,11 +81,14 @@ export interface AiMemory {
   lastProductionAt: number;
   researchReadySince: number | null;
   threatSince: number | null;
+  // The army strategy and the losses that may change it (sim/aiStrategy.ts).
+  plan: StrategyMemory;
 }
 
 export const freshAiMemory = (): AiMemory => ({
   lastOrder: {}, mode: 'gather', objective: null, objectiveId: null, retreatedAt: -Infinity,
   lastBuildAt: -Infinity, lastProductionAt: -Infinity, researchReadySince: null, threatSince: null,
+  plan: freshStrategyMemory(),
 });
 
 // How each difficulty plays.
@@ -115,29 +123,36 @@ export interface AiProfile {
   // Sentry Turrets its Masons put up, and Command HQs it will hold.
   turrets: number;
   bases: number;
+  // How long it sticks with an army strategy before heavy losses can change it, or null to
+  // never change.
+  adaptMs: number | null;
 }
 
 export const AI_PROFILES: Record<Difficulty, AiProfile> = {
   easy: {
     thinkMs: 6000, attackValue: 2600, firstAttackMs: 10 * 60_000, firstTechMs: 7 * 60_000, counterAccuracy: 0,
     queueDepth: 1, productionCycleMs: 30_000, attention: 0.5, buildGapMs: 90_000, researchDelayMs: 60_000, reactionMs: 15_000,
-    doctrineTiers: [], secondBarracks: false, capturers: 3, turrets: 0, bases: 1,
+    doctrineTiers: [], secondBarracks: false, capturers: 3, turrets: 0, bases: 1, adaptMs: null,
   },
   normal: {
     thinkMs: 3500, attackValue: 2200, firstAttackMs: 7 * 60_000, firstTechMs: 4 * 60_000, counterAccuracy: 0.55,
     queueDepth: 1, productionCycleMs: 15_000, attention: 0.7, buildGapMs: 45_000, researchDelayMs: 25_000, reactionMs: 6_000,
-    doctrineTiers: [2], secondBarracks: false, capturers: 3, turrets: 1, bases: 2,
+    doctrineTiers: [2], secondBarracks: false, capturers: 3, turrets: 1, bases: 2, adaptMs: 120_000,
   },
   hard: {
     thinkMs: 1500, attackValue: 1500, firstAttackMs: 3.5 * 60_000, firstTechMs: 2.5 * 60_000, counterAccuracy: 0.9,
     queueDepth: 2, productionCycleMs: 0, attention: 0.95, buildGapMs: 10_000, researchDelayMs: 3_000, reactionMs: 0,
-    doctrineTiers: [2, 3], secondBarracks: true, capturers: 4, turrets: 2, bases: 3,
+    doctrineTiers: [2, 3], secondBarracks: true, capturers: 4, turrets: 2, bases: 3, adaptMs: 60_000,
   },
 };
 
 // The line army. Specialists are in sim/aiSpecialists.ts.
 const FIGHTERS: UnitType[] = ['trooper', 'lancer', 'razorback', 'tank', 'aegis', 'hornet', 'wasp', 'guardian'];
-const CAPTURERS: UnitType[] = ['trooper', 'ghost'];
+// Infantry: the only units that capture.
+const CAPTURERS: UnitType[] = ['trooper', 'ghost', 'lancer'];
+const canCapture = (u: UnitData) => CAPTURERS.includes(u.type);
+// Infantry that go with the army onto a node it is taking.
+const NODE_SQUAD = 2;
 const ARMORS: ArmorClass[] = ['infantry', 'light', 'heavy', 'air'];
 
 const dist = (a: GridPos, b: GridPos) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -161,6 +176,13 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const theirs = view.units.filter(u => u.team === enemy && alive(u));
   const myStructures = view.structures.filter(s => s.team === team);
   const tier = teamTier(view.economy, team);
+  const armyUnits = mine.filter(u => isFighter(u) && u.type !== 'defense_drone');
+  const armyValue = armyUnits.reduce((sum, u) => sum + valueOf(u), 0);
+  // The army strategy: picked at the start, changed when losses call for it.
+  mem.plan = updateStrategy(memory.plan ?? freshStrategyMemory(), {
+    nowMs: now, tier, mine, theirs, armyValue, random: ctx.random, commitMs: profile.adaptMs,
+  });
+  const plan = STRATEGY_PLANS[mem.plan.strategy!];
   // Research the next tier a while after there's compute for it.
   if (tier < 3) {
     const next = (tier + 1) as 2 | 3;
@@ -184,6 +206,8 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   // A Depot, so the Masons can put up turrets.
   if (tier >= 2 && profile.turrets > 0) wants.push('builder');
   if (profile.secondBarracks && now > 6 * 60_000) wants.push('infantry');
+  // The strategy's own extra production structure.
+  if (tier >= plan.extra.tier && now > 4 * 60_000) wants.push(plan.extra.type);
   const counts: Partial<Record<StructureType, number>> = {};
   const nextBuild = wants.find(type => {
     counts[type] = (counts[type] || 0) + 1;
@@ -209,9 +233,6 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const seenThreat = threatNear(view, team, enemy, home, ctx.difficulty === 'easy' ? 0 : 250);
   if (seenThreat) mem.threatSince ??= now; else mem.threatSince = null;
   const threat = seenThreat && now - (mem.threatSince ?? now) >= profile.reactionMs ? seenThreat : null;
-  const armyUnits = mine.filter(u => isFighter(u) && u.type !== 'defense_drone');
-  const armyValue = armyUnits.reduce((sum, u) => sum + valueOf(u), 0);
-
   // Free core nodes (and server nodes once the army can take a Sentinel) to capture.
   const coreNodes = view.buildings.filter(b => b.type === 'core_node' && !b.destroyed);
   const serverNodes = view.buildings.filter(b => b.type === 'server_node' && !b.destroyed);
@@ -223,10 +244,8 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const freeServers = serverNodes.filter(b => b.owner !== team).sort((a, b) => lean(a) - lean(b));
 
   // Capture team: a few infantry that go after free core nodes while the army does its job.
-  const infantry = mine.filter(u => CAPTURERS.includes(u.type)).sort((a, b) => a.id.localeCompare(b.id));
+  const infantry = mine.filter(canCapture).sort((a, b) => a.id.localeCompare(b.id));
   const captureTarget = freeCores[0] ?? null;
-  const capturers = captureTarget ? infantry.slice(0, profile.capturers) : [];
-  const capturerIds = new Set(capturers.map(u => u.id));
 
   // The army's objective, most urgent first.
   const enemyNear = (at: GridPos, r: number) => theirs.filter(u => dist(u.gridPos, at) <= r).reduce((s, u) => s + valueOf(u), 0);
@@ -234,7 +253,10 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   let objective: GridPos = gather;
   let objectiveId: string | null = null;
   const canAttack = now >= profile.firstAttackMs && armyValue >= profile.attackValue;
-  const canTech = now >= profile.firstTechMs && armyValue >= profile.attackValue * 0.6;
+  // Air and drone strategies need Tier 2 for most of their units, so push for compute sooner.
+  const canTech = plan.techRush
+    ? now >= profile.firstTechMs * 0.75 && armyValue >= profile.attackValue * 0.4
+    : now >= profile.firstTechMs && armyValue >= profile.attackValue * 0.6;
   const retreating = now - mem.retreatedAt < 30_000;
   // The enemy is close to a domination win: break their hold on a node whatever it takes.
   const enemyDominating = enemyCores.length >= DOMINATION_NODES && armyValue >= 400;
@@ -268,6 +290,23 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     }
   }
   mem.mode = mode; mem.objective = objective; mem.objectiveId = objectiveId;
+
+  // Only infantry capture. When the army is going for a node it takes a squad of infantry along
+  // to stand on it, so the capture team gives up members if that leaves the army without.
+  const nodeObjective = mode !== 'defend' && mode !== 'retreat' && mode !== 'gather' &&
+    view.buildings.some(b => b.id === objectiveId && (b.type === 'core_node' || b.type === 'server_node'));
+  const teamSize = !captureTarget ? 0
+    : nodeObjective ? Math.min(profile.capturers, Math.max(0, infantry.length - NODE_SQUAD)) : profile.capturers;
+  const capturers = infantry.slice(0, teamSize);
+  const capturerIds = new Set(capturers.map(u => u.id));
+  // The node squad: the army's infantry nearest the objective.
+  const nodeSquad = nodeObjective
+    ? infantry.filter(u => !capturerIds.has(u.id)).sort((a, b) => dist(a.gridPos, objective) - dist(b.gridPos, objective)).slice(0, NODE_SQUAD)
+    : [];
+  const squadIds = new Set(nodeSquad.map(u => u.id));
+  // No infantry to take the node: the vehicles hold back until some arrive, rather than clear
+  // a node nobody can capture.
+  const waitingForInfantry = nodeObjective && nodeSquad.length === 0;
 
   // --- 3. Movement ---
   const groups = new Map<string, { target: GridPos; attackMove: boolean; ids: string[] }>();
@@ -341,11 +380,15 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
       send(u, staging, true);
       continue;
     }
-    if (needsGrid(u)) {
-      // Out of reach on battery: hold at the staging point while infantry move the grid up.
-      send(u, gap > VEHICLE_REACH ? staging : objective, true);
+    if (!canCapture(u)) {
+      // Out of reach on battery, or no infantry yet to take the node: hold at the staging point
+      // while infantry move the grid up or come forward.
+      send(u, gap > VEHICLE_REACH || (waitingForInfantry && needsGrid(u)) ? staging : objective, true);
+    } else if (squadIds.has(u.id) && (gap <= VEHICLE_REACH || !stone)) {
+      // The node squad goes onto the node itself, with the vehicles.
+      send(u, objective, true);
     } else {
-      // Infantry capture the building that brings the grid closest to the objective, then go on.
+      // Other infantry capture the building that brings the grid closest to the objective, then go on.
       send(u, stone ?? objective, true);
     }
   }
@@ -365,8 +408,14 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const spendable = () => cores - (threat ? 0 : reserve);
   let pop = popUsed(view.units, view.structures, team);
   const cap = teamPopCap(view.buildings, team);
+  // What to counter: the enemy army, leaning toward whatever has been killing our units.
   const enemyMix = armorMix(theirs);
-  const infantryCount = mine.filter(u => UNIT_RULES[u.type].armor === 'infantry').length;
+  const recent = lossMix(mem.plan.losses);
+  const threatMix = Object.keys(recent).length === 0 ? enemyMix
+    : Object.fromEntries(ARMORS.map(a => [a, 0.5 * enemyMix[a] + 0.5 * (recent[a] ?? 0)])) as Record<ArmorClass, number>;
+  // Enough infantry for the capture team and a node squad, and more for an infantry army.
+  const infantryWanted = profile.capturers + NODE_SQUAD + (mem.plan.strategy === 'infantry' ? 3 : 0);
+  const needInfantry = infantry.length < infantryWanted;
   const guardians = mine.filter(u => u.type === 'guardian').length;
   const howitzers = mine.filter(u => u.type === 'howitzer').length;
   // Under attack it gets around to production more often.
@@ -377,16 +426,21 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     if ((s.queue?.length || 0) >= Math.min(MAX_QUEUE, profile.queueDepth)) continue;
     // Not every structure gets looked at every time, so production has idle gaps.
     if (ctx.random() > profile.attention) continue;
+    // The strategy leans on some structures more than others; Barracks always keep the
+    // infantry up.
+    // Air and drone armies play a normal mixed army until Tier 2 unlocks their units.
+    const share = plan.techRush && tier < 2 ? 1 : plan.producers[s.type] ?? 1;
+    if (share < 1 && !(s.type === 'infantry' && needInfantry) && ctx.random() > share) continue;
     // New units head for the gather point.
     if (!s.rallyPoint || s.rallyPoint.x !== gather.x || s.rallyPoint.z !== gather.z) {
       actions.push({ kind: 'order', command: { type: 'SET_RALLY', structureId: s.id, at: gather } });
     }
     const pick = specialistPick(s.type, {
-      tier, mine, structures: myStructures, army: armyUnits.length, needInfantry: infantryCount < 6,
-      hard: ctx.difficulty === 'hard', random: ctx.random,
-    }) ?? chooseUnit(s.type, tier, enemyMix, {
+      tier, mine, structures: myStructures, army: armyUnits.length, needInfantry,
+      hard: ctx.difficulty === 'hard', random: ctx.random, strategy: mem.plan.strategy!,
+    }) ?? chooseUnit(s.type, tier, threatMix, {
       counterAccuracy: profile.counterAccuracy, random: ctx.random,
-      needInfantry: infantryCount < 6, guardians, howitzers, army: armyUnits.length,
+      needInfantry, guardians, howitzers, army: armyUnits.length, weights: plan.units,
     });
     if (!pick) continue;
     const cost = unitCost(pick);
@@ -500,7 +554,11 @@ export function chooseUnit(
   producer: StructureType,
   tier: Tier,
   enemyMix: Record<ArmorClass, number>,
-  opts: { counterAccuracy: number; random: () => number; needInfantry: boolean; guardians: number; army: number; howitzers?: number },
+  opts: {
+    counterAccuracy: number; random: () => number; needInfantry: boolean; guardians: number; army: number; howitzers?: number;
+    // How much the army strategy favours each unit (sim/aiStrategy.ts).
+    weights?: Partial<Record<UnitType, number>>;
+  },
 ): UnitType | null {
   const options = unitsProducedBy(producer).filter(t => FIGHTERS.includes(t) && UNIT_RULES[t].tier <= tier);
   if (options.length === 0) return null;
@@ -509,12 +567,19 @@ export function chooseUnit(
   // A Thunderhead for every six or so in the army, once there's an army to screen it.
   if (producer === 'armor' && (opts.howitzers ?? 0) < Math.floor(opts.army / 6) && opts.random() < 0.5) return 'howitzer';
   const fighters = options.filter(t => t !== 'guardian');
-  if (opts.random() >= opts.counterAccuracy) return fighters[Math.floor(opts.random() * fighters.length)] ?? null;
+  const weight = (t: UnitType) => opts.weights?.[t] ?? 1;
+  if (opts.random() >= opts.counterAccuracy) {
+    // Not the best counter: a pick weighted toward the strategy's units.
+    const total = fighters.reduce((s, t) => s + weight(t), 0);
+    let roll = opts.random() * total;
+    for (const t of fighters) if ((roll -= weight(t)) < 0) return t;
+    return fighters[fighters.length - 1] ?? null;
+  }
   const score = (t: UnitType) => {
     const rules = UNIT_RULES[t];
     let damage = 0;
     for (const a of ARMORS) damage += enemyMix[a] * dps(rules.weapon, a);
-    return (damage * Math.sqrt(UNIT_STATS[t].maxHealth)) / unitCost(t);
+    return (damage * Math.sqrt(UNIT_STATS[t].maxHealth) * weight(t)) / unitCost(t);
   };
   const ranked = fighters.sort((a, b) => score(b) - score(a));
   return ranked[0] ?? null;

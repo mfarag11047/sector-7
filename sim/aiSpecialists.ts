@@ -26,6 +26,7 @@ import { isRemoteUnit, isTetherableDrone, MAX_TETHERS, tetheredIds } from './jam
 import type { OrderCommand } from './orders';
 import { isOperational } from './orders';
 import { type Tier, UNIT_RULES } from './units';
+import type { AiStrategy } from './aiStrategy';
 
 type Action = { kind: 'order'; command: OrderCommand } | { kind: 'ability'; command: AbilityCommand };
 type Mode = 'gather' | 'expand' | 'tech' | 'attack' | 'defend' | 'retreat';
@@ -50,6 +51,9 @@ export interface SupportNeeds {
   needInfantry: boolean;
   hard: boolean;
   random: () => number;
+  // The army strategy (sim/aiStrategy.ts): a drone army fields many more Helios, Banshees and
+  // Swarm Hosts, an air army more Bombardment Drones.
+  strategy?: AiStrategy;
 }
 
 // A specialist worth training at this structure now, or null to train the usual fighter.
@@ -58,6 +62,8 @@ export function specialistPick(producer: StructureType, n: SupportNeeds): UnitTy
   const have = (t: UnitType) => count(mine, t);
   const vehicles = mine.filter(u => u.unitClass === 'armor').length;
   const hasFab = n.structures.some(s => s.type === 'ordnance_fab' && isOperational(s));
+  const drones = n.strategy === 'drones';
+  const air = n.strategy === 'air';
   switch (producer) {
     case 'hq':
       return have('scout_car') < (n.hard ? 2 : 1) ? 'scout_car' : null;
@@ -68,15 +74,15 @@ export function specialistPick(producer: StructureType, n: SupportNeeds): UnitTy
       return tier >= 2 && vehicles >= 5 && have('sun_plate') < 1 ? 'sun_plate' : null;
     case 'air':
       if (have('drone') < 1) return 'drone';
-      if (tier >= 3 && have('bombard') < (n.hard ? 2 : 1) && random() < 0.5) return 'bombard';
+      if (tier >= 3 && have('bombard') < (n.hard ? 2 : 1) + (air || drones ? 1 : 0) && random() < 0.5) return 'bombard';
       return null;
     case 'support':
-      if (have('helios') < Math.min(2, Math.floor(army / 6))) return 'helios';
-      if (tier >= 2 && army >= 6 && have('banshee') < 1) return 'banshee';
+      if (drones ? have('helios') < Math.max(2, Math.floor(army / 3)) : have('helios') < Math.min(2, Math.floor(army / 6))) return 'helios';
+      if (tier >= 2 && army >= (drones ? 3 : 6) && have('banshee') < (drones ? 2 : 1)) return 'banshee';
       if (tier >= 3 && hasFab && have('ballista') < 1) return 'ballista';
       return null;
     case 'ordnance_fab':
-      return tier >= 2 && army >= 6 && have('swarm_host') < 1 ? 'swarm_host' : null;
+      return tier >= 2 && army >= (drones ? 3 : 6) && have('swarm_host') < (drones ? 3 : 1) ? 'swarm_host' : null;
     case 'builder':
       return have('mason') < 1 ? 'mason' : null;
     default:

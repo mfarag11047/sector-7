@@ -3,7 +3,8 @@
 // (CityMap.tsx, and headless matches); nothing here changes the match.
 //
 //   - Milestones: core and server nodes captured and lost, tiers researched, structures finished
-//     and destroyed, first combat, first unit lost, Command HQs built and lost, the result.
+//     and destroyed, first combat, first unit lost, Command HQs built and lost, the computer
+//     players' army strategies and changes of strategy, the result.
 //   - Snapshots every SAMPLE_MS: units, army value, cores, compute, tier, nodes held, per side.
 //   - Unit stats, per side and unit type: how many started, were trained, died, and the damage
 //     they dealt to enemy units and to enemy structures.
@@ -19,6 +20,7 @@ import type { BuildingData, StructureData, UnitData } from '../types';
 import type { GridPos, Team } from './commands';
 import type { Economy } from './economy';
 import { UNIT_STATS } from '../constants';
+import { type AiStrategy, strategyArmy } from './aiStrategy';
 
 export const SAMPLE_MS = 30_000;
 const ATTRIBUTION_MS = 3_000;
@@ -31,7 +33,7 @@ export interface PacingEvent {
   atMs: number;
   team: Team | null;
   kind: 'core_captured' | 'core_lost' | 'server_captured' | 'server_lost' | 'tier' | 'structure_built' | 'structure_destroyed'
-    | 'first_combat' | 'first_loss' | 'first_kill' | 'base_built' | 'victory' | 'note';
+    | 'first_combat' | 'first_loss' | 'first_kill' | 'base_built' | 'victory' | 'strategy' | 'note';
   text: string;
 }
 
@@ -305,6 +307,18 @@ export function recordWeaponHits(r: PacingRecord, hits: WeaponHits, units: reado
   for (const s of hits.shots ?? []) recordHit(r, s.attackerId, s.targetId);
   for (const l of hits.ciws ?? []) if (!l.ordnance) recordHit(r, l.gunId, l.targetId);
   for (const b of [...(hits.blasts ?? []), ...(hits.beams ?? [])]) recordArea(r, b.attackerId, b.team, b.at, b.radius, units, structures);
+}
+
+// A computer player's army strategy, newly picked or changed (sim/aiStrategy.ts). `logged` is the
+// strategy log in its memory; entries past `seen` are new. Returns how many there are now.
+export function recordStrategies(r: PacingRecord, team: Team, logged: readonly { strategy: AiStrategy; reason: string }[], seen: number): number {
+  for (const e of logged.slice(seen)) {
+    const army = strategyArmy(e.strategy);
+    recordEvent(r, team, 'strategy', e.reason === 'opening plan'
+      ? `${sideName(team)} plans ${army}`
+      : `${sideName(team)} switches to ${army}: ${e.reason}`);
+  }
+  return logged.length;
 }
 
 // The match result, as the closing milestone.

@@ -527,12 +527,37 @@ same kind of economy.
    T2, and a Depot on Normal and Hard; a second Barracks on Hard. Placed on open ground inside its grid, never on a road or touching another
    structure, so lanes stay open.
 2. **Production:** for each structure, the unit with the best damage per core against the armor mix
-   of your army (weighted by value), with a floor of 6 infantry for capturing and a Guardian per 8
-   units. Easy picks at random.
-3. **Territory:** a capture team of 3–4 Troopers goes for the free core node that is nearest to its
-   base and farthest from yours, then the next. Infantry capture the buildings they pass, which
-   grows its grid.
-4. **Army**, one objective at a time, most urgent first:
+   of your army (weighted by value, and by its army strategy below), leaning toward whatever has
+   been killing its units lately. It keeps enough infantry for a capture team plus a node squad
+   (two more), three more again for an infantry army, and a Guardian per 8 units. Easy picks at
+   random, weighted by its strategy.
+3. **Territory:** only infantry capture, and the AI plans around it. A capture team of 3–4
+   infantry (Troopers, Ghosts, Lancers) goes for the free core node that is nearest to its base
+   and farthest from yours, then the next. Whenever the army goes for a node (escorting a capture,
+   a server node, or one of yours) a **node squad** of two infantry goes onto the node with the
+   vehicles. The capture team gives up members to make one. With no infantry to hand, the
+   vehicles hold at the staging point instead of clearing a node nobody can take, and the
+   Barracks trains more. Other infantry capture the buildings that push the grid toward the
+   objective.
+4. **Army strategy** (`sim/aiStrategy.ts`). Each side opens with a plan picked at random:
+   - **Infantry army:** Troopers, Ghosts, Lancers, Guardians; a second Barracks.
+   - **Armoured army:** Razorbacks, Tanks, Thunderheads, Aegis; a second Factory.
+   - **Air force:** Hornets, Wasps, Bombardment Drones; a second Airpad at T2. It pushes for T2
+     sooner.
+   - **Drone swarm:** Wasps, many Helios, Banshees, Swarm Hosts; a second Comm Link. It pushes
+     for T2 sooner.
+
+   The plan weights what it trains and how often each production structure is used. Air and
+   drone plans play a normal mixed army until T2 unlocks their units.
+
+   It keeps count of the units it loses and blames the enemy units around each one when it died,
+   by how hard they hit that unit. Suppose that in the last two minutes it has lost at least 700
+   cores' worth, or half its army's worth, and at least 45% of it to one kind of enemy (infantry,
+   light vehicles, heavy armour or aircraft). It then switches to the plan that counters that
+   kind best: armour against infantry and aircraft, infantry against vehicles. It only switches
+   once it has stuck with a plan for 2 minutes (Normal) or 1 minute (Hard); Easy never changes.
+   The pacing report logs each plan and change.
+5. **Army**, one objective at a time, most urgent first:
    - defend its base or a node under attack;
    - break your hold on a core node if you are close to a domination win;
    - take a server node (after 2–6 min, by difficulty);
@@ -541,8 +566,8 @@ same kind of economy.
    - otherwise gather at the edge of its grid nearest you.
    It retreats when the enemy near its target is worth 1.4× its army, and waits 30 s before trying
    again. Vehicles low on battery outside the grid drive home to recharge.
-5. **Specialists** (`sim/aiSpecialists.ts`), fielded in modest numbers alongside the army as a
-   player would:
+6. **Specialists** (`sim/aiSpecialists.ts`), fielded in modest numbers alongside the army as a
+   player would (a drone swarm fields many more Helios, Banshees and Swarm Hosts):
    - **Scout RC Car** from the HQ (2 on Hard) runs ahead to the objective and backs off from enemies.
    - **Ghosts** join the capture team; the **Dampener** runs while the army pushes (from T2) and
      **Phantom Decoy** gets a caught Ghost out (T3).
@@ -562,7 +587,7 @@ same kind of economy.
    - **Masons** put up 1 (Normal) or 2 (Hard) **Sentry Turrets** at the front of its grid.
    - At T3, rich, with a unit beside a cleared block, it builds a **new Command HQ** (up to 2 on
      Normal, 3 on Hard).
-6. **Powers:** Titan smoke when hurt. Doctrine powers on Normal (T2) and Hard (T2 and T3): Orbital
+7. **Powers:** Titan smoke when hurt. Doctrine powers on Normal (T2) and Hard (T2 and T3): Orbital
    Drop into a fight, a Force Field over its army in a big fight, Decoys on an attack, EMP in a big fight, a Nano Cloud
    over a retreat, a Black Wall Infect bomb on a big enemy cluster.
 
@@ -591,7 +616,8 @@ button under the match clock and on the end screen; `GAME_CHEATS.pacing()` in th
 
 - **Milestones** with their match time: first structure of each type, core and server nodes
   captured and lost, tiers researched, first combat between the sides, each side's first loss
-  and first kill, structures destroyed, new Command HQs, and the result.
+  and first kill, structures destroyed, new Command HQs, the computer's army plans and changes
+  of plan, and the result.
 - **Snapshots** every 30 seconds per side: units, army value (cost scaled by health), cores,
   compute, tier, core and server nodes held. Charted and tabled.
 - **Units** per side and type: how many started, were trained and died, and the damage they

@@ -33,7 +33,7 @@ const eventTone = (e: PacingEvent) =>
 const KIND_TAG: Record<PacingEvent['kind'], string> = {
   core_captured: 'CORE', core_lost: 'CORE', server_captured: 'SERVER', server_lost: 'SERVER', tier: 'TIER',
   structure_built: 'BUILD', structure_destroyed: 'LOSS', first_combat: 'COMBAT', first_loss: 'COMBAT',
-  first_kill: 'COMBAT', base_built: 'BASE', victory: 'END', note: 'NOTE',
+  first_kill: 'COMBAT', base_built: 'BASE', victory: 'END', strategy: 'PLAN', note: 'NOTE',
 };
 
 // A small line chart of one snapshot value over the match, a line per side.
