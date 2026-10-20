@@ -16,12 +16,13 @@ import { BOMBARD } from '../sim/bombard';
 import { CLOAK_FIELD } from '../sim/cloak';
 import { FORCE_FIELD } from '../sim/forcefield';
 import { BlackwallExposure, BlackwallInfection } from './BlackwallFx';
-import { follow, predictPosition, simClock, walkAlong } from './glide';
+import { follow, motionOf, positionKey, predictPosition, stampedAt, walkAlong } from './glide';
 import { MAX_TETHERS } from '../sim/jamming';
 import { JamRange, JamStatic } from './JamStatic';
 import { GlitchField } from './GlitchField';
 import { HeliosField } from './HeliosField';
 import { ScoutCarModel } from './ScoutCarModel';
+import { Meter, METER_COLORS, UnitBars } from './UnitBars';
 import { GHOST_ABILITY_TIER } from '../sim/ghost';
 
 // Helper component for spinning rotors
@@ -461,17 +462,29 @@ const Unit: React.FC<UnitProps> = ({
   // Where the simulation last said the unit was (sim/movement.ts), and when. Between
   // ticks the model keeps moving along its route at the reported speed, so motion stays
   // smooth however irregularly React delivers updates. See components/glide.ts.
-  const simTile = currentTilePosition({ gridPos, path, moveProgress, moveTarget });
-  const simX = (simTile.x * tileSize) - offset;
-  const simZ = (simTile.z * tileSize) - offset;
-  const route = useMemo(() => path.map(key => {
-    const t = parseTile(key);
-    return { x: (t.x * tileSize) - offset, z: (t.z * tileSize) - offset };
-  }), [path, tileSize, offset]);
-  const lastReport = useRef({ x: simX, z: simZ, at: 0 });
-  useLayoutEffect(() => {
-    lastReport.current = { x: simX, z: simZ, at: simClock.lastTickAt || performance.now() };
-  }, [simX, simZ]);
+  //
+  // Read each frame from the motion registry (motionOf), not from props, so that moving part of
+  // the way along a tile doesn't re-render the unit; decoys, which aren't units, use their props.
+  const tracked = useRef<{ key: string; path: readonly string[]; route: { x: number; z: number }[]; speed: number; report: { x: number; z: number; at: number } } | null>(null);
+  const trackMotion = () => {
+    const m = motionOf(id) ?? { gridPos, path, moveProgress, moveTarget, moveSpeed };
+    const key = positionKey(m);
+    let t = tracked.current;
+    if (!t || t.key !== key || t.path !== m.path) {
+      const tile = currentTilePosition({ gridPos: m.gridPos, path: m.path as string[], moveProgress: m.moveProgress, moveTarget: m.moveTarget });
+      const route = t && t.path === m.path ? t.route : m.path.map(k => {
+        const p = parseTile(k);
+        return { x: (p.x * tileSize) - offset, z: (p.z * tileSize) - offset };
+      });
+      // The tick that put the unit here, which can be well before the latest one when the screen
+      // is behind; a position no tick stamped (a spawn, a decoy) counts as fresh.
+      const report = { x: (tile.x * tileSize) - offset, z: (tile.z * tileSize) - offset, at: stampedAt(id, key) ?? performance.now() };
+      t = { key, path: m.path, route, speed: 0, report };
+      tracked.current = t;
+    }
+    t.speed = m.moveSpeed || 0;
+    return t;
+  };
 
   // The model unmounts while hidden by fog. A fresh one starts on the sim position, not the origin.
   const placedMesh = useRef<THREE.Group | null>(null);
@@ -695,8 +708,7 @@ const Unit: React.FC<UnitProps> = ({
         }
 
         const meshPos = meshRef.current.position;
-        const report = lastReport.current;
-        const speed = moveSpeed || 0;
+        const { report, route, speed } = trackMotion();
         const predicted = predictPosition(report, route, speed, (performance.now() - report.at) / 1000);
         if (placedMesh.current !== meshRef.current) {
             placedMesh.current = meshRef.current;
@@ -743,6 +755,15 @@ const Unit: React.FC<UnitProps> = ({
   };
 
   // Model rendering based on unit type
+  // The 3D model is built only when something it shows changes, not on every render. A moving
+  // unit re-renders every game tick; rebuilding dozens of meshes for each one, then having React
+  // compare them part by part, was a large share of the frame time with many units on the move.
+  // The values below are what the model reads, reduced to what changes its look.
+  const powered = battery > 0 && health > 0;
+  const fieldGenActive = health > 0 && battery > 0 && fieldDownUntil === undefined && !buffs?.some(b => b.kind === 'emp');
+  const trophyCooling = cooldowns.trophySystem !== undefined && cooldowns.trophySystem > 0;
+  const carrying = !!cargo && cargo > 0;
+  const radarShown = radarRange > 0 || !!surveillance;
   const renderModel = () => {
     if (isTrooper || isLancer) return (
         <group>
@@ -756,7 +777,7 @@ const Unit: React.FC<UnitProps> = ({
     if (isRazorback) return <RazorbackModel teamColor={teamColor} />;
     if (isScoutCar) return <ScoutCarModel teamColor={teamColor} />;
     if (isCloakGen) return <CloakGeneratorModel teamColor={teamColor} active={fieldUp} />;
-    if (isFieldGen) return <FieldGeneratorModel teamColor={teamColor} active={health > 0 && battery > 0 && fieldDownUntil === undefined && !buffs?.some(b => b.kind === 'emp')} />;
+    if (isFieldGen) return <FieldGeneratorModel teamColor={teamColor} active={fieldGenActive} />;
     if (isHowitzer) return <ThunderheadModel teamColor={teamColor} deployed={!!isDeployed} aim={aimWorld} />;
     if (isAegis) return <AegisModel teamColor={teamColor} firing={!!ciwsTargetId} />;
     if (isHornet) return <HornetModel teamColor={teamColor} />;
@@ -858,16 +879,16 @@ const Unit: React.FC<UnitProps> = ({
             </group>
         );
     }
-    if (isMason) { const wheelRadius = 0.25; const wheelWidth = 0.2; const wheelZ = [0.6, 0, -0.6]; return ( <group scale={[2.8, 2.8, 2.8]}> <group position={[0, 0.45, 0]}> <mesh position={[0, 0, 0]}><boxGeometry args={[1.0, 0.5, 2.0]} /><meshStandardMaterial color="#f97316" metalness={0.4} roughness={0.3} /> <Edges color="#7c2d12" /></mesh> <mesh position={[0.55, -0.15, 0]}><boxGeometry args={[0.2, 0.3, 1.8]} /><meshStandardMaterial color="#334155" /></mesh> <mesh position={[-0.55, -0.15, 0]}><boxGeometry args={[0.2, 0.3, 1.8]} /><meshStandardMaterial color="#334155" /></mesh> <group position={[0, 0.35, 0.5]}> <mesh><boxGeometry args={[0.9, 0.5, 0.8]} /><meshStandardMaterial color="#f97316" /></mesh> <mesh position={[0, 0.1, 0.41]}><planeGeometry args={[0.7, 0.25]} /><meshStandardMaterial color="#1e293b" metalness={0.9} roughness={0.1} /></mesh> <mesh position={[0.3, 0.26, 0.2]}><boxGeometry args={[0.15, 0.05, 0.1]} /><meshBasicMaterial color="#fbbf24" /></mesh> <mesh position={[-0.3, 0.26, 0.2]}><boxGeometry args={[0.15, 0.05, 0.1]} /><meshBasicMaterial color="#fbbf24" /></mesh> </group> <mesh position={[0, 0.26, 0.6]} rotation={[-Math.PI/2, 0, 0]}><circleGeometry args={[0.15, 8]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.8} /></mesh> <group position={[0, 0.1, -0.6]}> <mesh><boxGeometry args={[0.9, 0.1, 0.8]} /><meshStandardMaterial color="#475569" /></mesh> <mesh position={[0.4, 0.15, 0]}><boxGeometry args={[0.05, 0.2, 0.8]} /><meshStandardMaterial color="#64748b" /></mesh> <mesh position={[-0.4, 0.15, 0]}><boxGeometry args={[0.05, 0.2, 0.8]} /><meshStandardMaterial color="#64748b" /></mesh> {cargo && cargo > 0 && ( <group> <mesh position={[0.2, 0.2, 0.2]}><boxGeometry args={[0.3, 0.3, 0.3]} /><meshStandardMaterial color="#78350f" /> <Edges color="#000000" /></mesh> <mesh position={[-0.15, 0.2, -0.1]}><boxGeometry args={[0.4, 0.3, 0.4]} /><meshStandardMaterial color="#334155" /> <Edges color="#ffffff" /></mesh> </group> )} </group> <group position={[0, -0.1, 1.05]}> <mesh><boxGeometry args={[1.0, 0.3, 0.2]} /><meshStandardMaterial color="#1e293b" /></mesh> <mesh position={[0.35, 0, 0.11]}><planeGeometry args={[0.1, 0.15]} /><meshBasicMaterial color="#3b82f6" toneMapped={false} /></mesh> <mesh position={[-0.35, 0, 0.11]}><planeGeometry args={[0.1, 0.15]} /><meshBasicMaterial color="#3b82f6" toneMapped={false} /></mesh> </group> </group> {[-1, 1].map((side) => ( <group key={`wheels-${side}`}> {wheelZ.map((z, i) => ( <group key={i} position={[side * 0.65, 0.25, z]}> <mesh rotation={[0, 0, Math.PI/2]}><cylinderGeometry args={[wheelRadius, wheelRadius, wheelWidth, 8]} /><meshStandardMaterial color="#0f172a" roughness={0.8} /></mesh> <mesh rotation={[0, 0, side * Math.PI/2]} position={[side * 0.11, 0, 0]}><cylinderGeometry args={[wheelRadius * 0.5, wheelRadius * 0.5, 0.05, 8]} /><meshStandardMaterial color="#f97316" /><mesh position={[0, 0.03, 0]}><cylinderGeometry args={[wheelRadius * 0.2, wheelRadius * 0.2, 0.02, 6]} /><meshStandardMaterial color="#1e293b" /></mesh></mesh> </group> ))} </group> ))} <group position={[0, 0.8, -0.4]}> <mesh><cylinderGeometry args={[0.3, 0.35, 0.3, 8]} /><meshStandardMaterial color="#334155" /></mesh> <group position={[0, 0.1, 0]} rotation={[Math.PI/6, 0, 0]}> <mesh position={[0, 0.6, 0]}><boxGeometry args={[0.25, 1.2, 0.25]} /><meshStandardMaterial color="#f97316" /><Edges color="#7c2d12" /></mesh> <mesh position={[0, 0.4, -0.2]}><cylinderGeometry args={[0.06, 0.06, 0.8]} /><meshStandardMaterial color="#cbd5e1" /></mesh> <group position={[0, 1.1, 0]} rotation={[-Math.PI/1.8, 0, 0]}> <mesh rotation={[0, 0, Math.PI/2]}><cylinderGeometry args={[0.18, 0.18, 0.3]} /><meshStandardMaterial color="#334155" /></mesh> <mesh position={[0, 0.5, 0]}><boxGeometry args={[0.2, 1.0, 0.2]} /><meshStandardMaterial color="#f97316" /><Edges color="#7c2d12" /></mesh> <group position={[0, 1.0, 0]} rotation={[Math.PI/2, 0, 0]}> <mesh><boxGeometry args={[0.25, 0.3, 0.25]} /><meshStandardMaterial color="#1e293b" /></mesh> <mesh position={[0, 0.25, 0]}><coneGeometry args={[0.02, 0.3, 8]} /><meshBasicMaterial color={constructionTargetId ? "#facc15" : "#ffffff"} /></mesh> </group> </group> </group> </group> </group> ); }
+    if (isMason) { const wheelRadius = 0.25; const wheelWidth = 0.2; const wheelZ = [0.6, 0, -0.6]; return ( <group scale={[2.8, 2.8, 2.8]}> <group position={[0, 0.45, 0]}> <mesh position={[0, 0, 0]}><boxGeometry args={[1.0, 0.5, 2.0]} /><meshStandardMaterial color="#f97316" metalness={0.4} roughness={0.3} /> <Edges color="#7c2d12" /></mesh> <mesh position={[0.55, -0.15, 0]}><boxGeometry args={[0.2, 0.3, 1.8]} /><meshStandardMaterial color="#334155" /></mesh> <mesh position={[-0.55, -0.15, 0]}><boxGeometry args={[0.2, 0.3, 1.8]} /><meshStandardMaterial color="#334155" /></mesh> <group position={[0, 0.35, 0.5]}> <mesh><boxGeometry args={[0.9, 0.5, 0.8]} /><meshStandardMaterial color="#f97316" /></mesh> <mesh position={[0, 0.1, 0.41]}><planeGeometry args={[0.7, 0.25]} /><meshStandardMaterial color="#1e293b" metalness={0.9} roughness={0.1} /></mesh> <mesh position={[0.3, 0.26, 0.2]}><boxGeometry args={[0.15, 0.05, 0.1]} /><meshBasicMaterial color="#fbbf24" /></mesh> <mesh position={[-0.3, 0.26, 0.2]}><boxGeometry args={[0.15, 0.05, 0.1]} /><meshBasicMaterial color="#fbbf24" /></mesh> </group> <mesh position={[0, 0.26, 0.6]} rotation={[-Math.PI/2, 0, 0]}><circleGeometry args={[0.15, 8]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.8} /></mesh> <group position={[0, 0.1, -0.6]}> <mesh><boxGeometry args={[0.9, 0.1, 0.8]} /><meshStandardMaterial color="#475569" /></mesh> <mesh position={[0.4, 0.15, 0]}><boxGeometry args={[0.05, 0.2, 0.8]} /><meshStandardMaterial color="#64748b" /></mesh> <mesh position={[-0.4, 0.15, 0]}><boxGeometry args={[0.05, 0.2, 0.8]} /><meshStandardMaterial color="#64748b" /></mesh> {carrying && ( <group> <mesh position={[0.2, 0.2, 0.2]}><boxGeometry args={[0.3, 0.3, 0.3]} /><meshStandardMaterial color="#78350f" /> <Edges color="#000000" /></mesh> <mesh position={[-0.15, 0.2, -0.1]}><boxGeometry args={[0.4, 0.3, 0.4]} /><meshStandardMaterial color="#334155" /> <Edges color="#ffffff" /></mesh> </group> )} </group> <group position={[0, -0.1, 1.05]}> <mesh><boxGeometry args={[1.0, 0.3, 0.2]} /><meshStandardMaterial color="#1e293b" /></mesh> <mesh position={[0.35, 0, 0.11]}><planeGeometry args={[0.1, 0.15]} /><meshBasicMaterial color="#3b82f6" toneMapped={false} /></mesh> <mesh position={[-0.35, 0, 0.11]}><planeGeometry args={[0.1, 0.15]} /><meshBasicMaterial color="#3b82f6" toneMapped={false} /></mesh> </group> </group> {[-1, 1].map((side) => ( <group key={`wheels-${side}`}> {wheelZ.map((z, i) => ( <group key={i} position={[side * 0.65, 0.25, z]}> <mesh rotation={[0, 0, Math.PI/2]}><cylinderGeometry args={[wheelRadius, wheelRadius, wheelWidth, 8]} /><meshStandardMaterial color="#0f172a" roughness={0.8} /></mesh> <mesh rotation={[0, 0, side * Math.PI/2]} position={[side * 0.11, 0, 0]}><cylinderGeometry args={[wheelRadius * 0.5, wheelRadius * 0.5, 0.05, 8]} /><meshStandardMaterial color="#f97316" /><mesh position={[0, 0.03, 0]}><cylinderGeometry args={[wheelRadius * 0.2, wheelRadius * 0.2, 0.02, 6]} /><meshStandardMaterial color="#1e293b" /></mesh></mesh> </group> ))} </group> ))} <group position={[0, 0.8, -0.4]}> <mesh><cylinderGeometry args={[0.3, 0.35, 0.3, 8]} /><meshStandardMaterial color="#334155" /></mesh> <group position={[0, 0.1, 0]} rotation={[Math.PI/6, 0, 0]}> <mesh position={[0, 0.6, 0]}><boxGeometry args={[0.25, 1.2, 0.25]} /><meshStandardMaterial color="#f97316" /><Edges color="#7c2d12" /></mesh> <mesh position={[0, 0.4, -0.2]}><cylinderGeometry args={[0.06, 0.06, 0.8]} /><meshStandardMaterial color="#cbd5e1" /></mesh> <group position={[0, 1.1, 0]} rotation={[-Math.PI/1.8, 0, 0]}> <mesh rotation={[0, 0, Math.PI/2]}><cylinderGeometry args={[0.18, 0.18, 0.3]} /><meshStandardMaterial color="#334155" /></mesh> <mesh position={[0, 0.5, 0]}><boxGeometry args={[0.2, 1.0, 0.2]} /><meshStandardMaterial color="#f97316" /><Edges color="#7c2d12" /></mesh> <group position={[0, 1.0, 0]} rotation={[Math.PI/2, 0, 0]}> <mesh><boxGeometry args={[0.25, 0.3, 0.25]} /><meshStandardMaterial color="#1e293b" /></mesh> <mesh position={[0, 0.25, 0]}><coneGeometry args={[0.02, 0.3, 8]} /><meshBasicMaterial color={constructionTargetId ? "#facc15" : "#ffffff"} /></mesh> </group> </group> </group> </group> </group> ); }
     if (isMule) { return ( <group scale={[2.6, 2.6, 2.6]}> <group position={[0, 0.5, 0]}> <mesh><boxGeometry args={[1.0, 0.25, 2.4]} /><meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.2} /></mesh> <mesh position={[0.6, -0.1, 0]}><boxGeometry args={[0.2, 0.3, 1.0]} /><meshStandardMaterial color="#334155" /></mesh> <mesh position={[-0.6, -0.1, 0]}><boxGeometry args={[0.2, 0.3, 1.0]} /><meshStandardMaterial color="#334155" /></mesh> </group> {[ { x: 0.65, z: 0.8 }, { x: -0.65, z: 0.8 }, { x: 0.65, z: -0.8 }, { x: -0.65, z: -0.8 } ].map((pos, i) => ( <group key={i} position={[pos.x, 0.35, pos.z]}> <mesh rotation={[0, 0, Math.PI/2]}><cylinderGeometry args={[0.35, 0.35, 0.3, 8]} /><meshStandardMaterial color="#0f172a" roughness={0.9} /></mesh> <mesh rotation={[0, 0, pos.x > 0 ? Math.PI/2 : -Math.PI/2]} position={[pos.x > 0 ? 0.16 : -0.16, 0, 0]}><cylinderGeometry args={[0.15, 0.15, 0.05, 8]} /><meshStandardMaterial color="#475569" metalness={0.6} /></mesh> </group> ))} <group position={[0, 0.9, 0.7]}> <mesh><boxGeometry args={[1.0, 0.8, 0.9]} /><meshStandardMaterial color="#334155" metalness={0.5} roughness={0.4} /><Edges color="#64748b" threshold={15} /></mesh> <mesh position={[0, 0.1, 0.46]}><planeGeometry args={[0.9, 0.35]} /><meshStandardMaterial color="#020617" metalness={0.9} roughness={0.1} /></mesh> <mesh position={[0.4, 0.4, -0.3]}><cylinderGeometry args={[0.02, 0.02, 0.8]} /><meshStandardMaterial color="#94a3b8" /></mesh> <mesh position={[0.3, 0.4, -0.3]}><cylinderGeometry args={[0.02, 0.02, 0.5]} /><meshStandardMaterial color="#94a3b8" /></mesh> <mesh position={[0.35, -0.2, 0.46]}><planeGeometry args={[0.15, 0.1]} /><meshBasicMaterial color="#22d3ee" toneMapped={false} /></mesh> <mesh position={[-0.35, -0.2, 0.46]}><planeGeometry args={[0.15, 0.1]} /><meshBasicMaterial color="#22d3ee" toneMapped={false} /></mesh> <mesh position={[0.4, 0.41, 0.3]}><boxGeometry args={[0.1, 0.05, 0.1]} /><meshBasicMaterial color="#f97316" toneMapped={false} /></mesh> <mesh position={[-0.4, 0.41, 0.3]}><boxGeometry args={[0.1, 0.05, 0.1]} /><meshBasicMaterial color="#f97316" toneMapped={false} /></mesh> </group> <group position={[0, 1.0, -0.6]}> <mesh><boxGeometry args={[1.0, 0.9, 1.3]} /><meshStandardMaterial color="#475569" metalness={0.6} roughness={0.3} /><Edges color="#1e293b" /></mesh> {[-1, 1].map((dir) => ( <group key={dir} position={[dir * 0.51, 0, 0]} rotation={[0, dir * Math.PI/2, 0]}> <mesh><planeGeometry args={[0.8, 0.5]} /><meshStandardMaterial color="#1e293b" /></mesh> {[0.1, 0, -0.1].map((y, i) => ( <mesh key={i} position={[0, y, 0.01]}><planeGeometry args={[0.6, 0.05]} /><meshBasicMaterial color="#f97316" toneMapped={false} /></mesh> ))} </group> ))} <mesh position={[0.2, 0.5, 0]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.1, 0.1, 1.3]} /><meshStandardMaterial color="#94a3b8" /></mesh> <mesh position={[-0.2, 0.5, 0]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.1, 0.1, 1.3]} /><meshStandardMaterial color="#94a3b8" /></mesh> <mesh position={[0, 0, -0.66]}><boxGeometry args={[0.6, 0.1, 0.05]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> </group> <mesh position={[0, 0.7, 0.1]}><boxGeometry args={[0.8, 0.6, 0.4]} /><meshStandardMaterial color="#1e293b" /></mesh> </group> ); }
-    if (isGuardian) return (<group scale={[2.6, 2.6, 2.6]}> <group position={[0, 0.6, 0]}> <mesh><boxGeometry args={[1.1, 0.5, 2.4]} /><meshStandardMaterial color="#475569" metalness={0.6} roughness={0.3} /><Edges color="#1e293b" /></mesh> <mesh position={[0, 0.5, -0.4]}><boxGeometry args={[1.1, 0.7, 1.6]} /><meshStandardMaterial color="#475569" metalness={0.6} roughness={0.3} /><Edges color="#1e293b" /></mesh> <group position={[0, 0.35, 0.7]}> <mesh><boxGeometry args={[1.0, 0.6, 0.9]} /><meshStandardMaterial color="#475569" /></mesh> <mesh position={[0, 0.1, 0.46]}><planeGeometry args={[0.9, 0.3]} /><meshStandardMaterial color="#0f172a" metalness={0.9} roughness={0.1} /></mesh> <mesh position={[0.35, -0.1, 0.46]}><boxGeometry args={[0.2, 0.1, 0.05]} /><meshBasicMaterial color="#4ade80" toneMapped={false} /></mesh> <mesh position={[-0.35, -0.1, 0.46]}><boxGeometry args={[0.2, 0.1, 0.05]} /><meshBasicMaterial color="#4ade80" toneMapped={false} /></mesh> <mesh position={[0, -0.1, 0.46]}><boxGeometry args={[0.4, 0.15, 0.02]} /><meshStandardMaterial color="#1e293b" /></mesh> </group> {[-1, 1].map((side) => ( <group key={side} position={[side * 0.56, 0.5, -0.4]} rotation={[0, side * Math.PI/2, 0]}> <mesh position={[0, 0, 0]}><planeGeometry args={[0.4, 0.15]} /><meshBasicMaterial color="#4ade80" toneMapped={false} side={THREE.DoubleSide} /></mesh> <mesh position={[0, 0, 0]}><planeGeometry args={[0.15, 0.4]} /><meshBasicMaterial color="#4ade80" toneMapped={false} side={THREE.DoubleSide} /></mesh> </group> ))} <mesh position={[0.56, -0.1, 0]}><boxGeometry args={[0.05, 0.05, 1.8]} /><meshBasicMaterial color="#4ade80" toneMapped={false} /></mesh> <mesh position={[-0.56, -0.1, 0]}><boxGeometry args={[0.05, 0.05, 1.8]} /><meshBasicMaterial color="#4ade80" toneMapped={false} /></mesh> </group> {[ { x: 0.65, z: 0.7 }, { x: -0.65, z: 0.7 }, { x: 0.65, z: -0.7 }, { x: -0.65, z: -0.7 } ].map((pos, i) => ( <group key={i} position={[pos.x, 0.35, pos.z]}> <mesh rotation={[0, 0, Math.PI/2]}><cylinderGeometry args={[0.35, 0.35, 0.3, 8]} /><meshStandardMaterial color="#0f172a" roughness={0.9} /></mesh> <mesh rotation={[0, 0, pos.x > 0 ? Math.PI/2 : -Math.PI/2]} position={[pos.x > 0 ? 0.16 : -0.16, 0, 0]}><cylinderGeometry args={[0.18, 0.18, 0.05, 8]} /><meshStandardMaterial color="#64748b" metalness={0.5} /><mesh position={[0, 0.03, 0]}><cylinderGeometry args={[0.08, 0.08, 0.02, 6]} /><meshStandardMaterial color="#334155" /></mesh></mesh> </group> ))} <group position={[0, 1.45, -0.4]}> <group position={[0, 0, 0]}> <mesh position={[0, 0, 0]}><cylinderGeometry args={[0.35, 0.45, 0.2, 8]} /><meshStandardMaterial color="#334155" /></mesh> <mesh position={[0, 0.6, 0]}><cylinderGeometry args={[0.22, 0.22, 1.2, 8]} /><meshBasicMaterial color="#4ade80" transparent opacity={0.9} /></mesh> {[0.2, 0.5, 0.8, 1.1].map((y, i) => ( <group key={i} position={[0, y, 0]}> <mesh><torusGeometry args={[0.28, 0.06, 6, 8]} /><meshStandardMaterial color="#475569" metalness={0.8} /></mesh> {[0, Math.PI/2, Math.PI, -Math.PI/2].map((rot, j) => ( <mesh key={j} rotation={[0, rot, 0]}><boxGeometry args={[0.6, 0.08, 0.08]} /><meshStandardMaterial color="#1e293b" /></mesh> ))} {[0, Math.PI/2, Math.PI, -Math.PI/2].map((rot, j) => ( <mesh key={j} rotation={[0, rot, 0]} position={[0.3, 0, 0]}><boxGeometry args={[0.05, 0.12, 0.15]} /><meshBasicMaterial color="#4ade80" /></mesh> ))} </group> ))} <mesh position={[0, 1.25, 0]}><cylinderGeometry args={[0.35, 0.35, 0.15, 8]} /><meshStandardMaterial color="#334155" /></mesh> <mesh position={[0, 1.35, 0]}><sphereGeometry args={[0.18]} /><meshBasicMaterial color="#4ade80" /></mesh> </group> <group ref={radarRef} position={[0.6, 0.2, 0.2]} rotation={[0, 0, 0]}> <mesh position={[0, 0.3, 0]}><cylinderGeometry args={[0.05, 0.08, 0.6]} /><meshStandardMaterial color="#475569" /></mesh> <group position={[0, 0.6, 0]} rotation={[0.4, 0, 0]}> <mesh><cylinderGeometry args={[0.35, 0.05, 0.15, 8]} /><meshStandardMaterial color="#334155" metalness={0.7} /></mesh> <mesh position={[0, 0.08, 0]}><cylinderGeometry args={[0.05, 0.05, 0.2]} /><meshStandardMaterial color="#94a3b8" /></mesh> </group> </group> <group position={[-0.6, 0.1, 0]}> <mesh><boxGeometry args={[0.4, 0.3, 0.5]} /><meshStandardMaterial color="#334155" /><Edges color="#000000" /></mesh> <mesh position={[0, 0.16, 0]}><boxGeometry args={[0.3, 0.05, 0.4]} /><meshStandardMaterial color="#475569" /></mesh> </group> </group> {cooldowns.trophySystem !== undefined && cooldowns.trophySystem > 0 && ( <mesh position={[0, 2.5, -0.4]}><sphereGeometry args={[0.2]} /><meshBasicMaterial color="#ef4444" wireframe /></mesh> )} </group>);
+    if (isGuardian) return (<group scale={[2.6, 2.6, 2.6]}> <group position={[0, 0.6, 0]}> <mesh><boxGeometry args={[1.1, 0.5, 2.4]} /><meshStandardMaterial color="#475569" metalness={0.6} roughness={0.3} /><Edges color="#1e293b" /></mesh> <mesh position={[0, 0.5, -0.4]}><boxGeometry args={[1.1, 0.7, 1.6]} /><meshStandardMaterial color="#475569" metalness={0.6} roughness={0.3} /><Edges color="#1e293b" /></mesh> <group position={[0, 0.35, 0.7]}> <mesh><boxGeometry args={[1.0, 0.6, 0.9]} /><meshStandardMaterial color="#475569" /></mesh> <mesh position={[0, 0.1, 0.46]}><planeGeometry args={[0.9, 0.3]} /><meshStandardMaterial color="#0f172a" metalness={0.9} roughness={0.1} /></mesh> <mesh position={[0.35, -0.1, 0.46]}><boxGeometry args={[0.2, 0.1, 0.05]} /><meshBasicMaterial color="#4ade80" toneMapped={false} /></mesh> <mesh position={[-0.35, -0.1, 0.46]}><boxGeometry args={[0.2, 0.1, 0.05]} /><meshBasicMaterial color="#4ade80" toneMapped={false} /></mesh> <mesh position={[0, -0.1, 0.46]}><boxGeometry args={[0.4, 0.15, 0.02]} /><meshStandardMaterial color="#1e293b" /></mesh> </group> {[-1, 1].map((side) => ( <group key={side} position={[side * 0.56, 0.5, -0.4]} rotation={[0, side * Math.PI/2, 0]}> <mesh position={[0, 0, 0]}><planeGeometry args={[0.4, 0.15]} /><meshBasicMaterial color="#4ade80" toneMapped={false} side={THREE.DoubleSide} /></mesh> <mesh position={[0, 0, 0]}><planeGeometry args={[0.15, 0.4]} /><meshBasicMaterial color="#4ade80" toneMapped={false} side={THREE.DoubleSide} /></mesh> </group> ))} <mesh position={[0.56, -0.1, 0]}><boxGeometry args={[0.05, 0.05, 1.8]} /><meshBasicMaterial color="#4ade80" toneMapped={false} /></mesh> <mesh position={[-0.56, -0.1, 0]}><boxGeometry args={[0.05, 0.05, 1.8]} /><meshBasicMaterial color="#4ade80" toneMapped={false} /></mesh> </group> {[ { x: 0.65, z: 0.7 }, { x: -0.65, z: 0.7 }, { x: 0.65, z: -0.7 }, { x: -0.65, z: -0.7 } ].map((pos, i) => ( <group key={i} position={[pos.x, 0.35, pos.z]}> <mesh rotation={[0, 0, Math.PI/2]}><cylinderGeometry args={[0.35, 0.35, 0.3, 8]} /><meshStandardMaterial color="#0f172a" roughness={0.9} /></mesh> <mesh rotation={[0, 0, pos.x > 0 ? Math.PI/2 : -Math.PI/2]} position={[pos.x > 0 ? 0.16 : -0.16, 0, 0]}><cylinderGeometry args={[0.18, 0.18, 0.05, 8]} /><meshStandardMaterial color="#64748b" metalness={0.5} /><mesh position={[0, 0.03, 0]}><cylinderGeometry args={[0.08, 0.08, 0.02, 6]} /><meshStandardMaterial color="#334155" /></mesh></mesh> </group> ))} <group position={[0, 1.45, -0.4]}> <group position={[0, 0, 0]}> <mesh position={[0, 0, 0]}><cylinderGeometry args={[0.35, 0.45, 0.2, 8]} /><meshStandardMaterial color="#334155" /></mesh> <mesh position={[0, 0.6, 0]}><cylinderGeometry args={[0.22, 0.22, 1.2, 8]} /><meshBasicMaterial color="#4ade80" transparent opacity={0.9} /></mesh> {[0.2, 0.5, 0.8, 1.1].map((y, i) => ( <group key={i} position={[0, y, 0]}> <mesh><torusGeometry args={[0.28, 0.06, 6, 8]} /><meshStandardMaterial color="#475569" metalness={0.8} /></mesh> {[0, Math.PI/2, Math.PI, -Math.PI/2].map((rot, j) => ( <mesh key={j} rotation={[0, rot, 0]}><boxGeometry args={[0.6, 0.08, 0.08]} /><meshStandardMaterial color="#1e293b" /></mesh> ))} {[0, Math.PI/2, Math.PI, -Math.PI/2].map((rot, j) => ( <mesh key={j} rotation={[0, rot, 0]} position={[0.3, 0, 0]}><boxGeometry args={[0.05, 0.12, 0.15]} /><meshBasicMaterial color="#4ade80" /></mesh> ))} </group> ))} <mesh position={[0, 1.25, 0]}><cylinderGeometry args={[0.35, 0.35, 0.15, 8]} /><meshStandardMaterial color="#334155" /></mesh> <mesh position={[0, 1.35, 0]}><sphereGeometry args={[0.18]} /><meshBasicMaterial color="#4ade80" /></mesh> </group> <group ref={radarRef} position={[0.6, 0.2, 0.2]} rotation={[0, 0, 0]}> <mesh position={[0, 0.3, 0]}><cylinderGeometry args={[0.05, 0.08, 0.6]} /><meshStandardMaterial color="#475569" /></mesh> <group position={[0, 0.6, 0]} rotation={[0.4, 0, 0]}> <mesh><cylinderGeometry args={[0.35, 0.05, 0.15, 8]} /><meshStandardMaterial color="#334155" metalness={0.7} /></mesh> <mesh position={[0, 0.08, 0]}><cylinderGeometry args={[0.05, 0.05, 0.2]} /><meshStandardMaterial color="#94a3b8" /></mesh> </group> </group> <group position={[-0.6, 0.1, 0]}> <mesh><boxGeometry args={[0.4, 0.3, 0.5]} /><meshStandardMaterial color="#334155" /><Edges color="#000000" /></mesh> <mesh position={[0, 0.16, 0]}><boxGeometry args={[0.3, 0.05, 0.4]} /><meshStandardMaterial color="#475569" /></mesh> </group> </group> {trophyCooling && ( <mesh position={[0, 2.5, -0.4]}><sphereGeometry args={[0.2]} /><meshBasicMaterial color="#ef4444" wireframe /></mesh> )} </group>);
     if (isGhost) return (
         <group>
             <group scale={4.2} rotation={[0, Math.PI, 0]}>
                 <GhostModel />
             </group>
             {/* Dampener running: a wall of black and white glitch bars at the field's edge. */}
-            {isDampenerActive && battery > 0 && health > 0 && (
+            {isDampenerActive && powered && (
                 <GlitchField radius={ABILITY_CONFIG.GHOST_DAMPENER_RADIUS * tileSize} height={12} y={-hoverHeight} />
             )}
             <mesh ref={flashRef} position={[0, 2.2, 0]} visible={false} raycast={() => null}><sphereGeometry args={[0.3, 8, 6]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.85} toneMapped={false} depthWrite={false} /></mesh>
@@ -912,7 +933,7 @@ const Unit: React.FC<UnitProps> = ({
         </group>
     );
     if (isWasp) return (<Float speed={2} rotationIntensity={0.2} floatIntensity={0.5} floatingRange={[0, 0.5]}> <group scale={[2.4, 2.4, 2.4]}> <mesh position={[0, 0, 0]}><boxGeometry args={[0.5, 0.4, 1.0]} /><meshStandardMaterial color="#475569" metalness={0.7} roughness={0.4} /><Edges color="#1e293b" /></mesh> <mesh position={[0, 0, 0.55]}><boxGeometry args={[0.4, 0.3, 0.2]} /><meshStandardMaterial color="#334155" metalness={0.8} /></mesh> <mesh position={[-0.1, 0.05, 0.66]}><planeGeometry args={[0.1, 0.05]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> <mesh position={[0.1, 0.05, 0.66]}><planeGeometry args={[0.1, 0.05]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> <mesh position={[0, 0.1, -0.55]}><boxGeometry args={[0.4, 0.2, 0.2]} /><meshStandardMaterial color="#1e293b" /></mesh> <mesh position={[0, 0.4, -0.3]}><boxGeometry args={[0.05, 0.4, 0.6]} /><meshStandardMaterial color="#64748b" /><Edges color="#334155" /></mesh> {[-1, 1].map((dir) => ( <group key={dir} position={[dir * 0.6, 0, 0.1]}> <mesh position={[dir * -0.2, 0, 0]}><boxGeometry args={[0.4, 0.1, 0.4]} /><meshStandardMaterial color="#475569" /></mesh> <mesh rotation={[Math.PI/2, 0, Math.PI/2]}><cylinderGeometry args={[0.3, 0.3, 1.2, 6]} /><meshStandardMaterial color="#334155" metalness={0.6} roughness={0.3} /><Edges color="#1e293b" threshold={15} /></mesh> <mesh position={[0, 0, 0.61]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.25, 0.25, 0.05, 6]} /><meshStandardMaterial color="#1e293b" /></mesh> {[0, 60, 120, 180, 240, 300].map((angle, i) => { const rad = (angle * Math.PI) / 180; const r = 0.15; const x = Math.cos(rad) * r; const y = Math.sin(rad) * r; return ( <mesh key={i} position={[x, y, 0.65]} rotation={[Math.PI/2, 0, 0]}> <cylinderGeometry args={[0.04, 0.04, 0.1, 8]} /><meshStandardMaterial color="#b91c1c" /> <mesh position={[0, 0.06, 0]}><sphereGeometry args={[0.04]} /><meshBasicMaterial color="#ef4444" /> </mesh> </mesh> ) })} <mesh position={[0, 0.31, 0]} rotation={[-Math.PI/2, 0, 0]}><planeGeometry args={[0.4, 0.8]} /><meshBasicMaterial color={teamColor} transparent opacity={0.5} /></mesh> <mesh position={[0, 0, -0.61]} rotation={[Math.PI/2, 0, 0]}><circleGeometry args={[0.2, 8]} /><meshBasicMaterial color={teamColor} transparent opacity={0.8} /></mesh> </group> ))} {[0.3, -0.3].map((x, i) => ( <group key={`vtol-${i}`} position={[x, -0.25, 0]}> <mesh rotation={[Math.PI, 0, 0]}><coneGeometry args={[0.1, 0.4, 8, 1, true]} /><meshBasicMaterial color={teamColor} transparent opacity={0.4} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh> </group> ))} <mesh ref={flashRef} position={[0, 0, 0.8]} visible={false} raycast={() => null}><sphereGeometry args={[0.3, 8, 6]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.85} toneMapped={false} depthWrite={false} /></mesh> </group> </Float>);
-    if (isDrone) return <InfiltratorModel teamColor={teamColor} radarOn={radarRange > 0 || !!surveillance} />;
+    if (isDrone) return <InfiltratorModel teamColor={teamColor} radarOn={radarShown} />;
     if (isAttackDrone) return <AttackDroneModel teamColor={teamColor} flashRef={flashRef} />;
     
     if (isSwarmHost) {
@@ -1001,6 +1022,10 @@ const Unit: React.FC<UnitProps> = ({
         </Float>
     );
   };
+  const model = useMemo(renderModel, [
+    type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
+    isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, firingLaserAt, courierPayload, constructionTargetId, ciwsTargetId,
+  ]);
 
   useFrame(() => {
     const anchor = radarAnchorRef.current;
@@ -1067,7 +1092,7 @@ const Unit: React.FC<UnitProps> = ({
       </mesh>
 
       <group ref={bodyRef} key={decoyActive ? 'cloaked' : fieldCloaked ? 'field' : 'solid'}>
-        {renderModel()}
+        {model}
       </group>
 
       {decoyActive && (
@@ -1299,37 +1324,19 @@ const Unit: React.FC<UnitProps> = ({
       )}
 
       {/* Bars stay hidden until the unit is selected, or that meter drops below full.
-          The action menu occupies this same anchor, so its own copy of the bars is shown instead. */}
-      {!isDecoy && !actionMenuOpen && (isSelected || health < maxHealth || (maxBattery > 0 && battery < maxBattery) || (secondaryBattery !== undefined && maxSecondaryBattery !== undefined && secondaryBattery < maxSecondaryBattery) || (chargingStatus !== undefined && chargingStatus > 0 && !isInNanoCloud)) && (
-        <Html position={[0, 4, 0]} center zIndexRange={[50, 0]}>
-            <div className="flex flex-col items-center pointer-events-none" style={{ width: '32px' }}>
-                {/* Health */}
-                {(isSelected || health < maxHealth) && (
-                <div className="hud-meter w-full h-1 mb-0.5">
-                    <div className="hud-meter-hp h-full transition-all duration-300" style={{ width: `${(health / maxHealth) * 100}%` }} />
-                </div>
-                )}
-                {/* Battery */}
-                {maxBattery > 0 && (isSelected || battery < maxBattery) && (
-                    <div className="hud-meter w-full h-1">
-                        <div className="hud-meter-cell h-full transition-all duration-300" style={{ width: `${(battery / maxBattery) * 100}%` }} />
-                    </div>
-                )}
-                {/* Secondary Battery (Banshee) */}
-                {secondaryBattery !== undefined && maxSecondaryBattery !== undefined && (isSelected || secondaryBattery < maxSecondaryBattery) && (
-                    <div className="hud-meter w-full h-1 mt-0.5">
-                        <div className="hud-meter-sec h-full transition-all duration-300" style={{ width: `${(secondaryBattery / maxSecondaryBattery) * 100}%` }} />
-                    </div>
-                )}
-                {/* Charging Icon */}
-                {chargingStatus !== undefined && chargingStatus > 0 && !isInNanoCloud && (
-                    <div className="absolute -right-3 -top-2 text-yellow-400 text-[10px] animate-pulse font-bold shadow-black drop-shadow-md">
-                        ⚡
-                    </div>
-                )}
-            </div>
-        </Html>
-      )}
+          The action menu occupies this same anchor, so its own copy of the bars is shown instead.
+          Drawn as screen-sized sprites (components/UnitBars.tsx), not HTML: one HTML element per
+          damaged unit, moved every frame, was a heavy cost in a big fight. */}
+      {!isDecoy && !actionMenuOpen && (() => {
+          const meters: Meter[] = [];
+          if (isSelected || health < maxHealth) meters.push({ ratio: health / maxHealth, color: METER_COLORS.hp });
+          if (maxBattery > 0 && (isSelected || battery < maxBattery)) meters.push({ ratio: battery / maxBattery, color: METER_COLORS.battery });
+          if (secondaryBattery !== undefined && maxSecondaryBattery !== undefined && (isSelected || secondaryBattery < maxSecondaryBattery)) {
+              meters.push({ ratio: secondaryBattery / maxSecondaryBattery, color: METER_COLORS.secondary });
+          }
+          const charging = chargingStatus !== undefined && chargingStatus > 0 && !isInNanoCloud;
+          return meters.length > 0 || charging ? <UnitBars y={4} meters={meters} charging={charging} /> : null;
+      })()}
 
       {/* Action Menu (Over unit) */}
       {actionMenuOpen && (

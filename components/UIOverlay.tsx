@@ -238,38 +238,46 @@ const MinimapBackground = React.memo(({
     gridSize: number
 }) => {
     const districtEdges = useMemo(() => districtBorders(gridSize), [gridSize]);
+    // The road network and district outlines never change: drawn once.
+    const roads = useMemo(() => roadTiles.map((t, i) => (
+        <rect key={`road-${i}`} x={t.x} y={t.z} width={1} height={1} fill={t.type === 'main' ? '#1e293b' : '#0f172a'} />
+    )), [roadTiles]);
+    const districts = useMemo(() => districtEdges.map((e, i) => (
+        <line key={`district-${i}`} x1={e.x1} y1={e.z1} x2={e.x2} y2={e.z2}
+            stroke={DISTRICT_COLORS[e.district]} strokeWidth={1.25} vectorEffect="non-scaling-stroke"
+            strokeLinecap="square" opacity={0.8} />
+    )), [districtEdges]);
+    // Thousands of building tiles, a few of which change most ticks while infantry capture: each
+    // tile's element is kept with its building and remade only when that building changes, so
+    // React skips the rest at once.
+    const tileCache = useRef(new WeakMap<object, { revealed: boolean; el: React.ReactElement }>());
+    const buildingTiles = buildings.map((b) => {
+        const revealed = !!revealedServerIds?.has(b.id);
+        const hit = tileCache.current.get(b);
+        if (hit && hit.revealed === revealed) return hit.el;
+        const el = (
+            <rect
+                key={b.id}
+                x={b.gridX}
+                y={b.gridZ}
+                width={1}
+                height={1}
+                fill={b.owner ? TEAM_COLORS[b.owner] : (b.type === 'core_node' ? BUILDING_COLORS.core_node : (b.type === 'server_node' && revealed ? '#1e3a8a' : '#64748b'))}
+                opacity={0.8}
+            />
+        );
+        tileCache.current.set(b, { revealed, el });
+        return el;
+    });
     return (
         <g>
             {/* Road Network */}
-            {roadTiles.map((t, i) => (
-                <rect 
-                    key={`road-${i}`}
-                    x={t.x}
-                    y={t.z}
-                    width={1}
-                    height={1}
-                    fill={t.type === 'main' ? '#1e293b' : '#0f172a'}
-                />
-            ))}
+            {roads}
             {/* Districts: a faint outline round each part of the city, in its colour. */}
-            {districtEdges.map((e, i) => (
-                <line key={`district-${i}`} x1={e.x1} y1={e.z1} x2={e.x2} y2={e.z2}
-                    stroke={DISTRICT_COLORS[e.district]} strokeWidth={1.25} vectorEffect="non-scaling-stroke"
-                    strokeLinecap="square" opacity={0.8} />
-            ))}
+            {districts}
             {/* Buildings Layer. Unscouted server nodes use the generic building color so
                 their tiles don't give away the sentinel standing on them. */}
-            {buildings.map((b) => (
-                <rect 
-                    key={b.id}
-                    x={b.gridX}
-                    y={b.gridZ}
-                    width={1}
-                    height={1}
-                    fill={b.owner ? TEAM_COLORS[b.owner] : (b.type === 'core_node' ? BUILDING_COLORS.core_node : (b.type === 'server_node' && revealedServerIds?.has(b.id) ? '#1e3a8a' : '#64748b'))}
-                    opacity={0.8}
-                />
-            ))}
+            {buildingTiles}
             {/* Structures Layer */}
             {structures?.map((s) => s.type === 'hq' ? (
                 // Each Command HQ as a 3x3 block in its team's colour.

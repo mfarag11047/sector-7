@@ -19,7 +19,7 @@ import { Zap, Ban, Building2 } from 'lucide-react';
 import { freezeContainer } from '../perf';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from '../sim/movement';
-import { simClock } from './glide';
+import { positionKey, publishMotion, simClock, stampPosition } from './glide';
 import { ArmyControls, ArmyInfo, MAX_ARMIES, SelectionSummary } from './ArmyPanel';
 import { cameraFocus } from './DroneCamera';
 import { AbilityCommand, abilityEffects, applyUnitEffects, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
@@ -788,7 +788,8 @@ const CiwsTracers: React.FC<{
 // Radar blips on the map. A fixed pool of dots placed every frame, so contacts that come and go
 // never cause a re-render. Pulsing, the same size on screen at any zoom, drawn over buildings.
 const BLIP_POOL = 48;
-const RadarBlips: React.FC<{
+// Memoised: everything it shows moves through refs, so the map re-rendering needs no re-render here.
+const RadarBlips = React.memo<{
     team: 'blue' | 'red';
     unitsRef: React.MutableRefObject<UnitData[]>;
     visibleRef: React.MutableRefObject<Set<string>>;
@@ -796,7 +797,7 @@ const RadarBlips: React.FC<{
     shellsRef: React.MutableRefObject<ArtilleryShell[]>;
     tileSize: number;
     offset: number;
-}> = ({ team, unitsRef, visibleRef, flightRef, shellsRef, tileSize, offset }) => {
+}>(({ team, unitsRef, visibleRef, flightRef, shellsRef, tileSize, offset }) => {
     const group = useRef<THREE.Group>(null);
     useFrame(state => {
         const g = group.current;
@@ -822,7 +823,7 @@ const RadarBlips: React.FC<{
             ))}
         </group>
     );
-};
+});
 
 // Where a selected battery's fire mission is landing: a red reticle on the ground.
 const FireMissionMarker: React.FC<{ at: { x: number; z: number }; tileSize: number; offset: number }> = ({ at, tileSize, offset }) => (
@@ -1016,6 +1017,39 @@ const HoverTile: React.FC<{ store: HoverStore; children: (tile: Tile | null) => 
 
 // A building that outlines itself while hovered. Only the buildings entering or leaving the
 // hover re-render.
+// Whether two versions of a unit look the same on screen: every field equal, apart from those the
+// unit model reads each frame itself (its motion, components/glide.ts) and battery decimals.
+const MOTION_KEYS: ReadonlySet<string> = new Set(['moveProgress', 'moveTarget', 'moveSpeed', 'battery']);
+function sameUnitForRender(a: UnitData, b: UnitData): boolean {
+    if (a === b) return true;
+    if (Math.round(a.battery) !== Math.round(b.battery)) return false;
+    const ka = Object.keys(a);
+    if (ka.length !== Object.keys(b).length) return false;
+    for (const k of ka) if (!MOTION_KEYS.has(k) && (a as unknown as Record<string, unknown>)[k] !== (b as unknown as Record<string, unknown>)[k]) return false;
+    return true;
+}
+
+// A moving unit's route on the ground: a dashed line and a marker where it ends. Memoised so a line
+// whose route is unchanged keeps its geometry between ticks.
+type MovePathData = { id: string; destination: { x: number; z: number }; pathPoints: THREE.Vector3[] };
+const MovePath: React.FC<{ data: MovePathData; tileSize: number; offset: number }> = React.memo(({ data, tileSize, offset }) => (
+    <group>
+        <DestinationMarker x={data.destination.x} z={data.destination.z} tileSize={tileSize} offset={offset} />
+        {data.pathPoints.length > 1 && (
+            <Line
+                points={data.pathPoints}
+                color="#22d3ee"
+                lineWidth={2}
+                dashed
+                dashScale={2}
+                gapSize={1}
+                opacity={0.5}
+                transparent
+            />
+        )}
+    </group>
+));
+
 const HoverBuilding: React.FC<{ data: BuildingData; store: HoverStore }> = React.memo(({ data, store }) => {
     const hovered = useSyncExternalStore(store.subscribe, () => {
         const t = store.get();
@@ -1228,6 +1262,11 @@ export interface MatchInfo {
 
 const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine, onNotice, onMatchEnd, onMatchInfo, commandRef, onArmyUpdate, armyControlsRef, pacingRef: pacingOut }) => {
   const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
+  const { gl, scene } = useThree();
+  const glRef = useRef(gl);
+  glRef.current = gl;
+  const sceneRef = useRef(scene);
+  sceneRef.current = scene;
   // The pacing report: milestones and unit stats, recorded in every match but the sandbox.
   const pacingRef = useRef<PacingRecord | null>(match.mode === 'sandbox' ? null : freshPacing());
   if (pacingOut) pacingOut.current = pacingRef.current;
@@ -1252,6 +1291,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const [buildings, setBuildings] = useState<BuildingData[]>(initialBuildings);
   const [blocks, setBlocks] = useState<BuildingBlock[]>(initialBlocks);
   const [units, setUnits] = useState<UnitData[]>(() => [...startingRoster(match, gridSize, baseA_Coord), ...initialDrones]);
+  // Every unit's movement fields, for the unit models to read each frame (components/glide.ts).
+  useLayoutEffect(() => publishMotion(units), [units]);
   
   // Each side's Command HQ is a structure with health: it can be attacked, fires back, and
   // losing it loses the match. Base.tsx draws it.
@@ -1541,6 +1582,16 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       ability: (command: AbilityCommand, team: 'blue' | 'red') => asComputer(() => aiCallsRef.current.dispatchAbility(command, team)),
       // The pacing report so far (sim/pacing.ts).
       pacing: () => pacingRef.current,
+      // What the last frame cost the GPU: draw calls, triangles, and live geometries and textures.
+      renderStats: () => ({ ...glRef.current.info.render, ...glRef.current.info.memory }),
+      // Where a unit's model is drawn, in tiles (to check the smoothing against the game's position).
+      drawnAt: (id: string) => {
+          const obj = sceneRef.current.getObjectByName(`unit-${id}`);
+          if (!obj) return null;
+          const p = new THREE.Vector3();
+          obj.getWorldPosition(p);
+          return { x: (p.x + offset) / tileSize, z: (p.z + offset) / tileSize };
+      },
       spawn: (type: UnitType, team: 'blue' | 'red', at: { x: number; z: number }) => {
           const unit = createUnit(type, team, `cheat-${type}-${Date.now()}-${++spawnCounterRef.current}`, at);
           unitsRef.current = [...unitsRef.current, unit];
@@ -1663,7 +1714,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 radars,
                 missileWarnings,
             });
-        }, 100); 
+        // Four times a second is plenty for the minimap, and each update re-renders the HUD.
+        }, 250); 
         
         return () => clearInterval(interval);
     }
@@ -1821,6 +1873,19 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   teamBasesRef.current = teamBases;
   const clearedLots = useMemo(() => clearedBlocks(buildings), [buildings]);
   const sites = useMemo(() => baseSites(buildings, structuresState), [buildings, structuresState]);
+  // The city's thousands of building elements. CityMap renders on every game tick while units
+  // move, and capturing changes a few buildings most ticks, so each element is kept with the
+  // building it shows and only remade when that building changes. Given the same element object,
+  // React skips an unchanged building at once instead of comparing its props.
+  const buildingElementCache = useRef(new WeakMap<BuildingData, React.ReactElement>());
+  const buildingElements = useMemo(() => buildings.filter(b => !rubbleCleared(b, clearedLots)).map(b => {
+      let el = buildingElementCache.current.get(b);
+      if (!el) {
+          el = <HoverBuilding key={b.id} data={b} store={hoverStore} />;
+          buildingElementCache.current.set(b, el);
+      }
+      return el;
+  }), [buildings, clearedLots, hoverStore]);
   const [siteMenuId, setSiteMenuId] = useState<string | null>(null);
   // On an HQ's pad (the starting ones or any built since): nothing else goes there.
   const onHqPad = (x: number, z: number, structures: readonly StructureData[]) =>
@@ -2964,12 +3029,17 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           // Movement. Same task as the rest of the tick, so React renders it all in one pass.
           const moveEnv = movementEnvRef.current;
           if (moveEnv) {
-              simClock.lastTickAt = performance.now();
+              const tickAt = performance.now();
+              simClock.lastTickAt = tickAt;
               setUnits(prev => {
                   let moved = false;
                   const next = prev.map(u => {
                       const after = advanceMover(u, MOVE_TICK_MS, moveEnv);
-                      if (after !== u) moved = true;
+                      if (after !== u) {
+                          moved = true;
+                          // When this tick put the unit here, for smooth drawing (components/glide.ts).
+                          stampPosition(after.id, positionKey(after), tickAt);
+                      }
                       return after;
                   });
                   return moved ? next : prev;
@@ -3599,22 +3669,54 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
   const hasMason = useMemo(() => units.some(u => u.type === 'mason' && u.team === playerTeam), [units, playerTeam]);
 
+  // Each moving unit's route line, kept until the unit reaches a new tile or gets a new route.
+  // Rebuilt every tick, every line re-made its geometry on every tick, for every unit on the move.
+  const moveLineCache = useRef(new Map<string, { path: string[]; gx: number; gz: number; data: MovePathData }>());
   const movingUnitsData = useMemo(() => {
-    return units
+    const cache = moveLineCache.current;
+    const live = new Set<string>();
+    const out = units
         .filter(u => u.team === playerTeam && u.path.length > 0)
         .map(u => {
+             live.add(u.id);
+             const hit = cache.get(u.id);
+             if (hit && hit.path === u.path && hit.gx === u.gridPos.x && hit.gz === u.gridPos.z) return hit.data;
              const destKey = u.path[u.path.length - 1];
              const [dx, dz] = destKey.split(',').map(Number);
              const points: THREE.Vector3[] = [];
              points.push(new THREE.Vector3((u.gridPos.x * tileSize) - offset, 2, (u.gridPos.z * tileSize) - offset));
              u.path.forEach(p => { const [px, pz] = p.split(',').map(Number); points.push(new THREE.Vector3((px * tileSize) - offset, 2, (pz * tileSize) - offset)); });
-             return { id: u.id, destination: { x: dx, z: dz }, pathPoints: points };
+             const data = { id: u.id, destination: { x: dx, z: dz }, pathPoints: points };
+             cache.set(u.id, { path: u.path, gx: u.gridPos.x, gz: u.gridPos.z, data });
+             return data;
         });
+    for (const id of cache.keys()) if (!live.has(id)) cache.delete(id);
+    return out;
   }, [units, playerTeam, tileSize, offset]);
+
+  // One element per route line, made once per line's data: reused as-is while a unit walks a tile.
+  const movePathElementCache = useRef(new WeakMap<MovePathData, React.ReactElement>());
+  const movePathElements = movingUnitsData.map(data => {
+      let el = movePathElementCache.current.get(data);
+      if (!el) {
+          el = <MovePath key={`move-viz-${data.id}`} data={data} tileSize={tileSize} offset={offset} />;
+          movePathElementCache.current.set(data, el);
+      }
+      return el;
+  });
 
   // Primary Action Menu Visibility
   // If multiple units are selected, only show menu for the first one for now (or improve to group commands later)
   const primarySelectionId = selectedUnitIds.size > 0 ? Array.from(selectedUnitIds)[0] : null;
+  // Each unit's <Unit> element from the last render, reused while nothing it shows has changed.
+  // The map re-renders on every game tick; building a fresh element (some eighty props) for every
+  // unit each time, only for Unit's memo to throw most of them away, was a large part of a tick's work.
+  const unitElementCache = useRef(new Map<string, { u: UnitData; deps: unknown[]; el: React.ReactElement }>());
+  const liveUnitIds = new Set<string>();
+  const pruneUnitElements = (elements: React.ReactElement[]) => {
+      for (const id of unitElementCache.current.keys()) if (!liveUnitIds.has(id)) unitElementCache.current.delete(id);
+      return elements;
+  };
   const tetherTargetingSource = targetingAbility === 'TETHER' && targetingSourceId
       ? units.find(src => src.id === targetingSourceId)
       : undefined;
@@ -3706,9 +3808,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             offset={offset}
         />
         {/* A levelled city block's rubble is cleared away (sim/bases.ts). */}
-        {buildings.filter(b => !rubbleCleared(b, clearedLots)).map(b => ( 
-            <HoverBuilding key={b.id} data={b} store={hoverStore} />
-        ))}
+        {buildingElements}
         {sites.map(site => (
             <BaseSiteMarker
                 key={site.id}
@@ -3746,17 +3846,40 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 popCap={supply.cap}
             /> 
         ))}
-        {blocks.map(block => (
+        {/* Only a fully held block shows a status; the rest drew nothing but still re-rendered every tick. */}
+        {blocks.filter(block => block.owner).map(block => (
             <BlockStatus key={block.id} block={block} buildings={buildings} />
         ))}
-        {units.map(u => {
+        {pruneUnitElements(units.map(u => {
              const isVisible = visibleUnitIds.has(u.id);
              const isLockCandidate = lockers.length > 0 && isVisible && u.team !== playerTeam && isEmpTarget(u)
                  && lockers.some(l => Math.hypot(l.gridPos.x - u.gridPos.x, l.gridPos.z - u.gridPos.z) <= lockRange);
              const atOrdnanceFab = structuresState.some(s => s.type === 'ordnance_fab' && s.team === u.team && !s.isBlueprint && Math.hypot(s.gridPos.x - u.gridPos.x, s.gridPos.z - u.gridPos.z) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE);
              const ballistaInRange = u.type === 'mule' && units.some(b => b.type === 'ballista' && b.team === u.team && b.health > 0 && Math.hypot(b.gridPos.x - u.gridPos.x, b.gridPos.z - u.gridPos.z) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE);
-             return ( <Unit key={u.id} {...u} teamCompute={(u.team === 'blue' || u.team === 'red') ? economy[u.team].tier : 0} radarRange={u.team === playerTeam ? radarRangeOf(u) : 0} ownJammer={u.type === 'banshee' && u.team === playerTeam} isSelected={selectedUnitIds.has(u.id)} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id)} onAction={stableUnitAction} isTargetingMode={!!targetingSourceId} showTetherRange={u.type === 'banshee' && ((u.tetherTargetIds?.length ?? 0) > 0 || (targetingSourceId === u.id && targetingAbility === 'TETHER'))} showBatteryRange={u.type === 'sun_plate' && !!u.isDeployed && (selectedUnitIds.has(u.id) || (targetingSourceId === u.id && targetingAbility === 'BATTERY_TETHER'))} isLockCandidate={isLockCandidate} isTetherCandidate={targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id} isBatteryLinkCandidate={!!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE} warheadStock={u.team === playerTeam && (playerTeam === 'blue' || playerTeam === 'red') ? stockpile[playerTeam] : undefined} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={(u.team === 'blue' || u.team === 'red') ? teamResources[u.team] : 0} /> );
-        })}
+             // Cores matter only in an open menu: given to every unit, the income tick re-rendered them all.
+             const menuOpen = primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id);
+             const teamCompute = (u.team === 'blue' || u.team === 'red') ? economy[u.team].tier : 0;
+             const radarRange = u.team === playerTeam ? radarRangeOf(u) : 0;
+             const ownJammer = u.type === 'banshee' && u.team === playerTeam;
+             const selected = selectedUnitIds.has(u.id);
+             const isTargetingMode = !!targetingSourceId;
+             const showTetherRange = u.type === 'banshee' && ((u.tetherTargetIds?.length ?? 0) > 0 || (targetingSourceId === u.id && targetingAbility === 'TETHER'));
+             const showBatteryRange = u.type === 'sun_plate' && !!u.isDeployed && (selectedUnitIds.has(u.id) || (targetingSourceId === u.id && targetingAbility === 'BATTERY_TETHER'));
+             const isTetherCandidate = targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id;
+             const isBatteryLinkCandidate = !!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE;
+             const warheadStock = u.team === playerTeam && (playerTeam === 'blue' || playerTeam === 'red') ? stockpile[playerTeam] : undefined;
+             const cores = menuOpen && (u.team === 'blue' || u.team === 'red') ? teamResources[u.team] : 0;
+             const deps = [teamCompute, radarRange, ownJammer, selected, isVisible, menuOpen, isTargetingMode, showTetherRange, showBatteryRange, isLockCandidate, isTetherCandidate, isBatteryLinkCandidate, warheadStock, atOrdnanceFab, ballistaInRange, cores];
+             // The same element as last render when nothing it shows changed (see unitElementCache).
+             const hit = unitElementCache.current.get(u.id);
+             if (hit && sameUnitForRender(hit.u, u) && hit.deps.every((d, i) => d === deps[i])) { liveUnitIds.add(u.id); return hit.el; }
+             // Motion (moveProgress and friends) goes through the motion registry, not props, and the
+             // battery to whole points: both change every tick, and either re-rendered every moving unit.
+             const el = ( <Unit key={u.id} {...u} moveProgress={undefined} moveTarget={undefined} moveSpeed={undefined} battery={Math.round(u.battery)} teamCompute={teamCompute} radarRange={radarRange} ownJammer={ownJammer} isSelected={selected} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={menuOpen} onAction={stableUnitAction} isTargetingMode={isTargetingMode} showTetherRange={showTetherRange} showBatteryRange={showBatteryRange} isLockCandidate={isLockCandidate} isTetherCandidate={isTetherCandidate} isBatteryLinkCandidate={isBatteryLinkCandidate} warheadStock={warheadStock} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={cores} /> );
+             unitElementCache.current.set(u.id, { u, deps, el });
+             liveUnitIds.add(u.id);
+             return el;
+        }))}
         {decoys.map(d => {
             const seen = d.team === playerTeam || units.some(f => f.team === playerTeam && Math.hypot(f.gridPos.x - d.gridPos.x, f.gridPos.z - d.gridPos.z) <= (f.visionRange || 2));
             return (
@@ -3905,23 +4028,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         })}
 
         {/* Movement Visualization for Friendly Moving Units */}
-        {movingUnitsData.map((data) => (
-            <group key={`move-viz-${data.id}`}>
-                <DestinationMarker x={data.destination.x} z={data.destination.z} tileSize={tileSize} offset={offset} />
-                {data.pathPoints.length > 1 && (
-                    <Line 
-                        points={data.pathPoints} 
-                        color="#22d3ee" 
-                        lineWidth={2} 
-                        dashed 
-                        dashScale={2} 
-                        gapSize={1}
-                        opacity={0.5}
-                        transparent
-                    />
-                )}
-            </group>
-        ))}
+        {movePathElements}
 
         {/* Targeting Cursor (Red for Cannon, Green for Surveillance, Orange for Missile, Cyan for Doctrine) */}
         <HoverTile store={hoverStore}>{hoverGridPos => hoverGridPos && (targetingAbility || interactionMode === 'target') && (

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { follow, MAX_EXTRAPOLATION_S, predictPosition, walkAlong } from './glide';
+import { follow, MAX_EXTRAPOLATION_S, motionOf, positionKey, predictPosition, publishMotion, stampedAt, stampPosition, walkAlong } from './glide';
 
 describe('walkAlong', () => {
   const route = [{ x: 10, z: 0 }, { x: 10, z: 10 }];
@@ -80,5 +80,47 @@ describe('motion under uneven updates', () => {
 
     expect(Math.min(...speeds)).toBeGreaterThan(0.8);
     expect(Math.max(...speeds)).toBeLessThan(1.2);
+  });
+});
+
+describe('tick stamps', () => {
+  it('remembers which tick put a unit where, so a position shown late is not taken for fresh', () => {
+    const at = (p: number) => positionKey({ gridPos: { x: 3, z: 4 }, moveTarget: '4,4', moveProgress: p });
+    stampPosition('u1', at(0.2), 1000);
+    stampPosition('u1', at(0.4), 1100);
+    stampPosition('u1', at(0.6), 1200);
+    // The screen is two ticks behind and shows the 0.2 position: it dates from 1000, not 1200.
+    expect(stampedAt('u1', at(0.2))).toBe(1000);
+    expect(stampedAt('u1', at(0.6))).toBe(1200);
+    expect(stampedAt('u1', at(0.9))).toBeUndefined();
+    expect(stampedAt('nobody', at(0.2))).toBeUndefined();
+  });
+
+  it('predicting from the right tick keeps a late position moving forward, never pulled back', () => {
+    // A unit moving 10 units a second; positions from ticks at 0, 100 and 200 ms reach the screen
+    // only at 300 ms. Dated by their own ticks, each predicted point lies further on than the last.
+    const route = [{ x: 100, z: 0 }];
+    const shownAt = 300;
+    const predicted = [0, 100, 200].map(tick => predictPosition({ x: tick / 100, z: 0 }, route, 10, (shownAt - tick) / 1000).x);
+    expect(predicted[1]).toBeGreaterThanOrEqual(predicted[0]);
+    expect(predicted[2]).toBeGreaterThanOrEqual(predicted[1]);
+    // Dated by the latest tick instead (the old way), the oldest position was drawn 2 units behind.
+    const stale = predictPosition({ x: 0, z: 0 }, route, 10, (shownAt - 200) / 1000).x;
+    expect(predicted[2] - stale).toBeGreaterThan(1.5);
+  });
+
+  it('keeps only recent stamps per unit', () => {
+    for (let i = 0; i < 30; i++) stampPosition('u2', `k${i}`, i);
+    expect(stampedAt('u2', 'k0')).toBeUndefined();
+    expect(stampedAt('u2', 'k29')).toBe(29);
+  });
+});
+
+describe('motion registry', () => {
+  it('serves each unit its latest movement fields', () => {
+    publishMotion([{ id: 'a', gridPos: { x: 1, z: 2 }, path: ['2,2'], moveProgress: 0.5, moveTarget: '2,2', moveSpeed: 1 }]);
+    expect(motionOf('a')).toMatchObject({ moveProgress: 0.5, moveSpeed: 1 });
+    publishMotion([]);
+    expect(motionOf('a')).toBeUndefined();
   });
 });

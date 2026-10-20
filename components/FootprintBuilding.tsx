@@ -208,7 +208,7 @@ const PODIUM_HEIGHT = 10;
 
 type Side = 'west' | 'east' | 'north' | 'south';
 
-export const FootprintSegment: React.FC<{
+const FootprintSegmentView: React.FC<{
   data: BuildingData & { footprint: NonNullable<BuildingData['footprint']> };
   tileSize: number;
   materialRef: React.Ref<THREE.MeshStandardMaterial>;
@@ -422,6 +422,16 @@ export const FootprintSegment: React.FC<{
     </group>
   );
 };
+
+// Capturing changes a building's capture progress every tick while infantry stand next to it, and
+// a column of infantry crossing the city stands next to dozens. The segment's model only shows
+// where it is, its kind and size and who owns it, so it re-renders only when one of those changes.
+type SegmentProps = React.ComponentProps<typeof FootprintSegmentView>;
+const sameSegment = (a: SegmentProps, b: SegmentProps) =>
+  a.hovered === b.hovered && a.tileSize === b.tileSize && a.materialRef === b.materialRef && a.onBeforeCompile === b.onBeforeCompile &&
+  a.data.gridX === b.data.gridX && a.data.gridZ === b.data.gridZ && a.data.type === b.data.type && a.data.owner === b.data.owner &&
+  a.data.scale === b.data.scale && a.data.footprint === b.data.footprint;
+export const FootprintSegment = React.memo(FootprintSegmentView, sameSegment);
 
 // Whether a building draws with this kit: every city building laid out by district, whatever
 // its size (core and server nodes keep their own models).

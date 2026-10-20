@@ -340,4 +340,6 @@ export const CorpoPlaza: React.FC<{ center: { x: number; z: number }; tileSize: 
   );
 };
 
-export default CorpoPlaza;
+// Memoised so the map re-rendering on every game tick doesn't re-render the plaza (its traffic
+// animates in useFrame, reading units through getUnits).
+export default React.memo(CorpoPlaza);

@@ -681,4 +681,5 @@ export const Landmarks: React.FC<{ landmarks: Landmark[]; tileSize: number; offs
   );
 };
 
-export default Landmarks;
+// Static scenery: memoised so the map re-rendering on every game tick doesn't re-render it.
+export default React.memo(Landmarks);
