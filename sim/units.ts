@@ -6,7 +6,7 @@ import { STRUCTURE_INFO, UNIT_STATS } from '../constants';
 import type { StructureData, StructureType, UnitData, UnitType } from '../types';
 
 export type ArmorClass = 'infantry' | 'light' | 'heavy' | 'air' | 'structure';
-export type DamageType = 'rifle' | 'ap' | 'flak' | 'explosive';
+export type DamageType = 'rifle' | 'ap' | 'flak' | 'explosive' | 'mg';
 export type Tier = 1 | 2 | 3;
 
 export interface Weapon {
@@ -28,11 +28,14 @@ export interface Weapon {
 
 // How hard each damage type hits each armor class.
 //   Rifles shred infantry, AP cracks vehicles, flak swats aircraft, explosives level buildings.
+//   Machine guns (the Kestrel attack drone) are a generalist: decent against everything, the best
+//   counter to nothing.
 export const DAMAGE_MULTIPLIER: Record<DamageType, Record<ArmorClass, number>> = {
   rifle:     { infantry: 1.0,  light: 0.6, heavy: 0.25, air: 0.5,  structure: 0.2 },
   ap:        { infantry: 0.5,  light: 1.0, heavy: 2.0,  air: 0.4,  structure: 0.75 },
   flak:      { infantry: 0.4,  light: 0.4, heavy: 0.2,  air: 2.0,  structure: 0.1 },
   explosive: { infantry: 1.25, light: 1.0, heavy: 0.75, air: 0,    structure: 1.5 },
+  mg:        { infantry: 0.9,  light: 0.8, heavy: 0.55, air: 0.8,  structure: 0.35 },
 };
 
 export interface UnitRules {
@@ -73,6 +76,7 @@ export const UNIT_RULES: Record<UnitType, UnitRules> = {
 
   // --- Airpad: aircraft. Ignore walls and terrain, beat vehicles. ---
   drone: { armor: 'air', weapon: null, pop: 1, tier: 1, producer: 'air', buildTimeMs: 10000, role: 'Radar scout. Picks up ground units and large aircraft.' },
+  attack_drone: { armor: 'air', weapon: { damage: 6, cooldownMs: 400, range: 3, type: 'mg', hitsGround: true, hitsAir: true }, pop: 1, tier: 1, producer: 'air', buildTimeMs: 12000, role: 'Cheap armed drone. Machine gun that does decent damage to everything, ground and air.' },
   wasp: { armor: 'air', weapon: rifle(6, 600, 3), pop: 2, tier: 2, producer: 'air', buildTimeMs: 22000, role: 'Harasser. Fires homing swarm volleys.' },
   hornet: { armor: 'air', weapon: ap(32, 1600, 4), pop: 3, tier: 2, producer: 'air', buildTimeMs: 26000, role: 'Gunship. AP rounds hunt vehicles; rockets at Tier 3.' },
   bombard: { armor: 'air', weapon: null, pop: 4, tier: 3, producer: 'air', buildTimeMs: 35000, role: 'Levels a 5x5 patch of city, opening new lanes.' },

@@ -82,7 +82,7 @@ export interface BuildingBlock {
   owner: 'blue' | 'red' | null;
 }
 
-export type UnitType = 'drone' | 'tank' | 'ghost' | 'guardian' | 'mule' | 'wasp' | 'mason' | 'helios' | 'sun_plate' | 'ballista' | 'courier' | 'banshee' | 'defense_drone' | 'titan_dropped' | 'swarm_host' | 'crawler_drone' | 'bombard' | 'trooper' | 'lancer' | 'razorback' | 'aegis' | 'hornet' | 'howitzer' | 'cloak_generator' | 'field_generator' | 'scout_car';
+export type UnitType = 'drone' | 'tank' | 'ghost' | 'guardian' | 'mule' | 'wasp' | 'mason' | 'helios' | 'sun_plate' | 'ballista' | 'courier' | 'banshee' | 'defense_drone' | 'titan_dropped' | 'swarm_host' | 'crawler_drone' | 'bombard' | 'trooper' | 'lancer' | 'razorback' | 'aegis' | 'hornet' | 'howitzer' | 'cloak_generator' | 'field_generator' | 'scout_car' | 'attack_drone';
 export type UnitClass = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'defense';
 
 export interface UnitData {

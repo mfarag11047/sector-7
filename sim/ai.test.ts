@@ -17,7 +17,8 @@ describe('what the computer trains', () => {
 
   it('never trains above its tier, and keeps a floor of infantry for capturing', () => {
     expect(chooseUnit('infantry', 1, { infantry: 0, light: 0, heavy: 1, air: 0, structure: 0 }, opts)).toBe('trooper');
-    expect(chooseUnit('air', 1, { infantry: 1, light: 0, heavy: 0, air: 0, structure: 0 }, opts)).toBeNull();
+    // At Tier 1 the Airpad's only fighter is the Kestrel attack drone, never the Tier 2 gunships.
+    expect(chooseUnit('air', 1, { infantry: 1, light: 0, heavy: 0, air: 0, structure: 0 }, opts)).toBe('attack_drone');
     expect(chooseUnit('infantry', 3, { infantry: 0, light: 0, heavy: 1, air: 0, structure: 0 }, { ...opts, needInfantry: true })).toBe('trooper');
   });
 });
@@ -29,7 +30,8 @@ describe('a computer-vs-computer match', () => {
     for (const team of ['blue', 'red'] as const) {
       const types = m.structures.filter(s => s.team === team).map(s => s.type);
       expect(types).toEqual(expect.arrayContaining(['hq', 'infantry', 'armor']));
-      expect(m.units.filter(u => u.team === team).length).toBeGreaterThan(6);
+      // Trained beyond its starting five (an armoured army fields fewer, dearer units).
+      expect(m.units.filter(u => u.team === team).length).toBeGreaterThan(5);
       expect(m.buildings.some(b => b.type === 'core_node' && b.owner === team)).toBe(true);
     }
   }, 60_000);

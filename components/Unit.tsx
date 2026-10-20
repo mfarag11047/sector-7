@@ -9,7 +9,7 @@ import { abilitiesFor } from '../sim/unitAbilities';
 import { roleBadgeTexture, UNIT_ROLE } from './unitIcons';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
-import { AegisModel, CloakGeneratorModel, FieldGeneratorModel, HornetModel, InfiltratorModel, LancerLauncher, RazorbackModel, ThunderheadModel, TrooperKit } from './unitModels';
+import { AegisModel, AttackDroneModel, CloakGeneratorModel, FieldGeneratorModel, HornetModel, InfiltratorModel, LancerLauncher, RazorbackModel, ThunderheadModel, TrooperKit } from './unitModels';
 import { ARTILLERY, artilleryRange } from '../sim/artillery';
 import { CIWS } from '../sim/ciws';
 import { BOMBARD } from '../sim/bombard';
@@ -422,6 +422,7 @@ const Unit: React.FC<UnitProps> = ({
   const isCourier = type === 'courier';
   const isBanshee = type === 'banshee';
   const isDrone = type === 'drone';
+  const isAttackDrone = type === 'attack_drone';
   const isDefenseDrone = type === 'defense_drone';
   const isSwarmHost = type === 'swarm_host';
   const isCrawler = type === 'crawler_drone';
@@ -436,7 +437,7 @@ const Unit: React.FC<UnitProps> = ({
   const fieldUp = isCloakGen && !cloakFieldOff && health > 0 && battery > 0 && !buffs?.some(b => b.kind === 'emp');
   const isAegis = type === 'aegis';
   const isHornet = type === 'hornet';
-  const isAir = isWasp || isDrone || isHelios || isBombard || isHornet;
+  const isAir = isWasp || isDrone || isAttackDrone || isHelios || isBombard || isHornet;
   
   const classConfig = UNIT_CLASSES[unitClass];
   const unitStats = UNIT_STATS[type];
@@ -912,6 +913,7 @@ const Unit: React.FC<UnitProps> = ({
     );
     if (isWasp) return (<Float speed={2} rotationIntensity={0.2} floatIntensity={0.5} floatingRange={[0, 0.5]}> <group scale={[2.4, 2.4, 2.4]}> <mesh position={[0, 0, 0]}><boxGeometry args={[0.5, 0.4, 1.0]} /><meshStandardMaterial color="#475569" metalness={0.7} roughness={0.4} /><Edges color="#1e293b" /></mesh> <mesh position={[0, 0, 0.55]}><boxGeometry args={[0.4, 0.3, 0.2]} /><meshStandardMaterial color="#334155" metalness={0.8} /></mesh> <mesh position={[-0.1, 0.05, 0.66]}><planeGeometry args={[0.1, 0.05]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> <mesh position={[0.1, 0.05, 0.66]}><planeGeometry args={[0.1, 0.05]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> <mesh position={[0, 0.1, -0.55]}><boxGeometry args={[0.4, 0.2, 0.2]} /><meshStandardMaterial color="#1e293b" /></mesh> <mesh position={[0, 0.4, -0.3]}><boxGeometry args={[0.05, 0.4, 0.6]} /><meshStandardMaterial color="#64748b" /><Edges color="#334155" /></mesh> {[-1, 1].map((dir) => ( <group key={dir} position={[dir * 0.6, 0, 0.1]}> <mesh position={[dir * -0.2, 0, 0]}><boxGeometry args={[0.4, 0.1, 0.4]} /><meshStandardMaterial color="#475569" /></mesh> <mesh rotation={[Math.PI/2, 0, Math.PI/2]}><cylinderGeometry args={[0.3, 0.3, 1.2, 6]} /><meshStandardMaterial color="#334155" metalness={0.6} roughness={0.3} /><Edges color="#1e293b" threshold={15} /></mesh> <mesh position={[0, 0, 0.61]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.25, 0.25, 0.05, 6]} /><meshStandardMaterial color="#1e293b" /></mesh> {[0, 60, 120, 180, 240, 300].map((angle, i) => { const rad = (angle * Math.PI) / 180; const r = 0.15; const x = Math.cos(rad) * r; const y = Math.sin(rad) * r; return ( <mesh key={i} position={[x, y, 0.65]} rotation={[Math.PI/2, 0, 0]}> <cylinderGeometry args={[0.04, 0.04, 0.1, 8]} /><meshStandardMaterial color="#b91c1c" /> <mesh position={[0, 0.06, 0]}><sphereGeometry args={[0.04]} /><meshBasicMaterial color="#ef4444" /> </mesh> </mesh> ) })} <mesh position={[0, 0.31, 0]} rotation={[-Math.PI/2, 0, 0]}><planeGeometry args={[0.4, 0.8]} /><meshBasicMaterial color={teamColor} transparent opacity={0.5} /></mesh> <mesh position={[0, 0, -0.61]} rotation={[Math.PI/2, 0, 0]}><circleGeometry args={[0.2, 8]} /><meshBasicMaterial color={teamColor} transparent opacity={0.8} /></mesh> </group> ))} {[0.3, -0.3].map((x, i) => ( <group key={`vtol-${i}`} position={[x, -0.25, 0]}> <mesh rotation={[Math.PI, 0, 0]}><coneGeometry args={[0.1, 0.4, 8, 1, true]} /><meshBasicMaterial color={teamColor} transparent opacity={0.4} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh> </group> ))} <mesh ref={flashRef} position={[0, 0, 0.8]} visible={false} raycast={() => null}><sphereGeometry args={[0.3, 8, 6]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.85} toneMapped={false} depthWrite={false} /></mesh> </group> </Float>);
     if (isDrone) return <InfiltratorModel teamColor={teamColor} radarOn={radarRange > 0 || !!surveillance} />;
+    if (isAttackDrone) return <AttackDroneModel teamColor={teamColor} flashRef={flashRef} />;
     
     if (isSwarmHost) {
         return (

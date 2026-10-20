@@ -150,7 +150,7 @@ uses the same badge. A unit's badge hides while that unit is selected. Roles com
 | Wedge | Light vehicle | Razorback, Courier |
 | Track | Heavy armour | Tank, Titan |
 | Dome | Anti-air | Aegis |
-| Wings | Aircraft | Wasp, Hornet |
+| Wings | Aircraft | Wasp, Hornet, Kestrel |
 | Eye | Scout | Drone |
 | + | Support | Guardian, Helios, Banshee, Sun Plate |
 | Shell | Artillery / ordnance | Thunderhead, Ballista, Bombard, Mule |
@@ -171,6 +171,7 @@ tiles, a damage type, and whether it can hit ground and/or air.
 | AP (anti-armor) | 0.5 | 1.0 | 2.0 | 0.4 | 0.75 |
 | Flak | 0.4 | 0.4 | 0.2 | 2.0 | 0.1 |
 | Explosive | 1.25 | 1.0 | 0.75 | 0 | 1.5 |
+| Machine gun | 0.9 | 0.8 | 0.55 | 0.8 | 0.35 |
 
 **The counter triangle**, Halo Wars style, holds at equal cost (tested in `sim/balance.test.ts`):
 - Infantry beat air
@@ -178,6 +179,8 @@ tiles, a damage type, and whether it can hit ground and/or air.
 - Vehicles beat infantry
 - Specialists counter each corner: Lancers beat vehicles, Aegis beat air, and Titans' high-explosive
   shells (splash 1 tile at 30%) break clumped infantry and structures.
+- The Kestrel's machine gun sits outside the triangle: decent against every armour class, the
+  best counter per core to none of them (also tested in `sim/attackDrone.test.ts`).
 
 **Engagement rules:**
 - Units fire automatically at the nearest enemy their weapon can hit, including while moving.
@@ -223,6 +226,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 | Unit | Cost | Pop | Tier | HP | Armor | Weapon | Role |
 |---|---|---|---|---|---|---|---|
 | **Infiltrator Drone** | 60 | 1 | T1 | 60 | Air | None | Scout, surveillance |
+| **"Kestrel" Attack Drone** (new) | 130 | 1 | T1 | 110 | Air | Machine gun 6 / 0.4 s / 3, hits ground and air | Cheap generalist; fast (1.5×), sees 5, remote-controlled |
 | **Wasp** | 240 | 2 | T2 | 160 | Air | Rifle 6 / 0.6 s / 3, hits air | Harasser, swarm volley |
 | **Hornet Gunship** (new) | 320 | 3 | T2 | 320 | Air | AP 32 / 1.6 s / 4; T3 rocket AP 60 / 6 s | Anti-vehicle air |
 | **Bombardment Drone** | 480 | 4 | T3 | 260 | Air | None | Levels city blocks; 5 drops, rearms at base |
@@ -568,13 +572,13 @@ same kind of economy.
 4. **Army strategy** (`sim/aiStrategy.ts`). Each side opens with a plan picked at random:
    - **Infantry army:** Troopers, Ghosts, Lancers, Guardians; a second Barracks.
    - **Armoured army:** Razorbacks, Tanks, Thunderheads, Aegis; a second Factory.
-   - **Air force:** Hornets, Wasps, Bombardment Drones; a second Airpad at T2. It pushes for T2
-     sooner.
-   - **Drone swarm:** Wasps, many Helios, Banshees, Swarm Hosts; a second Comm Link. It pushes
-     for T2 sooner.
+   - **Air force:** Hornets, Wasps, Bombardment Drones, Kestrels at T1 (Airpad straight after
+     the Factory); a second Airpad at T2. It pushes for T2 sooner.
+   - **Drone swarm:** Kestrel attack drones from T1 (an Airpad straight after the Factory and
+     a second one later), then Wasps, many Helios, Banshees, Swarm Hosts.
 
-   The plan weights what it trains and how often each production structure is used. Air and
-   drone plans play a normal mixed army until T2 unlocks their units.
+   The plan weights what it trains and how often each production structure is used. An air
+   force plays a normal mixed army, plus Kestrels, until T2 unlocks its gunships.
 
    It keeps count of the units it loses and blames the enemy units around each one when it died,
    by how hard they hit that unit. Suppose that in the last two minutes it has lost at least 400

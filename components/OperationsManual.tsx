@@ -107,6 +107,7 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
       { name: 'Tether', text: `Links up to ${ABILITY_CONFIG.BATTERY_MULE_SLOTS} vehicles within ${ABILITY_CONFIG.BATTERY_MULE_RANGE} tiles (yellow ring) and charges them.` },
     ],
   },
+  attack_drone: { use: 'A cheap armed drone from the Airpad at Tier 1. Its machine gun does decent damage to everything, infantry, vehicles, armour and aircraft, without being the best answer to any of them: mass a few to back up any army, or as the core of a drone force. Fragile, needs the energy grid like other aircraft, and remote-controlled, so a Banshee can jam it or hardline it.' },
   drone: {
     use: `Loitering radar scout. Its ground-search radar (${SEARCH_RADAR.range} tiles) shows enemy ground units, cloaked ones included, and large aircraft (the Bombardment Drone) as red blips; small and medium aircraft slip under it. Spots for Thunderheads.`,
     actions: [{ name: 'Surveillance', text: `Flies to a spot and circles it for ${ABILITY_CONFIG.SURVEILLANCE_DURATION / 60000} minutes, its radar reaching ${SEARCH_RADAR.surveillanceRange} tiles from the centre.` }],
@@ -179,7 +180,7 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
 };
 
 const ARMOR_LABEL: Record<ArmorClass, string> = { infantry: 'Infantry', light: 'Light vehicles', heavy: 'Heavy armour', air: 'Aircraft', structure: 'Structures' };
-const DAMAGE_LABEL: Record<DamageType, string> = { rifle: 'Rifle', ap: 'Anti-vehicle (AP)', flak: 'Flak', explosive: 'High explosive' };
+const DAMAGE_LABEL: Record<DamageType, string> = { rifle: 'Rifle', ap: 'Anti-vehicle (AP)', flak: 'Flak', explosive: 'High explosive', mg: 'Machine gun' };
 const ARMORS: ArmorClass[] = ['infantry', 'light', 'heavy', 'air', 'structure'];
 
 // --- Small pieces ---
@@ -259,7 +260,7 @@ const Bar: React.FC<{ label: React.ReactNode; fraction: number; value: string; c
 
 // Short names for the bar labels.
 const ARMOR_SHORT: Record<ArmorClass, string> = { infantry: 'Infantry', light: 'Light veh.', heavy: 'Heavy armour', air: 'Aircraft', structure: 'Buildings' };
-const DAMAGE_SHORT: Record<DamageType, string> = { rifle: 'Rifles', ap: 'AP rockets', flak: 'Flak', explosive: 'Explosives' };
+const DAMAGE_SHORT: Record<DamageType, string> = { rifle: 'Rifles', ap: 'AP rockets', flak: 'Flak', explosive: 'Explosives', mg: 'Machine guns' };
 
 const ATTACK_COLOR = '#fb923c';
 const DEFENSE_COLOR = '#38bdf8';

@@ -48,6 +48,7 @@ export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: st
   sun_plate: { unitClass: 'armor', cost: 250, captureMultiplier: 0, label: 'Battery Mule', visionRange: 3, speedMod: 0.55, maxHealth: 500 },
   // Airpad
   drone: { unitClass: 'air', cost: 60, captureMultiplier: 0, label: 'Infiltrator Drone', visionRange: 6, speedMod: 1.3, maxHealth: 60 },
+  attack_drone: { unitClass: 'air', cost: 130, captureMultiplier: 0, label: '"Kestrel" Attack Drone', visionRange: 5, speedMod: 1.5, maxHealth: 110 },
   wasp: { unitClass: 'air', cost: 240, captureMultiplier: 0, label: '"Wasp" Swarm Launcher', visionRange: 5, speedMod: 1.4, maxHealth: 160 },
   hornet: { unitClass: 'air', cost: 320, captureMultiplier: 0, label: 'Hornet Gunship', visionRange: 5, speedMod: 1.25, maxHealth: 320 },
   bombard: { unitClass: 'air', cost: 480, captureMultiplier: 0, label: 'Bombardment Drone', visionRange: 4, speedMod: 0.35, maxHealth: 260 },

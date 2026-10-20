@@ -162,7 +162,7 @@ export const AI_PROFILES: Record<Difficulty, AiProfile> = {
 };
 
 // The line army. Specialists are in sim/aiSpecialists.ts.
-const FIGHTERS: UnitType[] = ['trooper', 'lancer', 'razorback', 'tank', 'aegis', 'hornet', 'wasp', 'guardian'];
+const FIGHTERS: UnitType[] = ['trooper', 'lancer', 'razorback', 'tank', 'aegis', 'hornet', 'wasp', 'attack_drone', 'guardian'];
 // Infantry: the only units that capture.
 const CAPTURERS: UnitType[] = ['trooper', 'ghost', 'lancer'];
 const canCapture = (u: UnitData) => CAPTURERS.includes(u.type);
@@ -219,7 +219,9 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const have = (type: StructureType) => myStructures.filter(s => s.type === type).length;
   const building = myStructures.some(s => (s.buildRemainingMs || 0) > 0);
   const wants: StructureType[] = ['infantry', 'armor'];
-  if (tier >= 2) wants.push('air', 'support', 'ordnance_fab');
+  // Air and drone plans want an Airpad at Tier 1 for Kestrel attack drones.
+  if (tier >= 2 || plan.earlyAirpad) wants.push('air');
+  if (tier >= 2) wants.push('support', 'ordnance_fab');
   // A Depot, so the Masons can put up turrets.
   if (tier >= 2 && profile.turrets > 0) wants.push('builder');
   if (profile.secondBarracks && now > 6 * 60_000) wants.push('infantry');
@@ -456,7 +458,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     if (ctx.random() > profile.attention) continue;
     // The strategy leans on some structures more than others; Barracks always keep the
     // infantry up.
-    // Air and drone armies play a normal mixed army until Tier 2 unlocks their units.
+    // An air force waits on Tier 2 gunships, so it plays a normal mixed army until then.
     const share = plan.techRush && tier < 2 ? 1 : plan.producers[s.type] ?? 1;
     if (share < 1 && !(s.type === 'infantry' && needInfantry) && ctx.random() > share) continue;
     // New units head for the gather point.

@@ -34,6 +34,8 @@ export interface StrategyPlan {
   extra: { type: StructureType; tier: Tier };
   // Pushes for a server node early, to reach the units it is waiting on.
   techRush: boolean;
+  // Builds an Airpad at Tier 1, for Kestrel attack drones, rather than waiting for Tier 2.
+  earlyAirpad: boolean;
 }
 
 export const STRATEGY_PLANS: Record<AiStrategy, StrategyPlan> = {
@@ -43,6 +45,7 @@ export const STRATEGY_PLANS: Record<AiStrategy, StrategyPlan> = {
     producers: { armor: 0.35, air: 0.3, ordnance_fab: 0.3 },
     extra: { type: 'infantry', tier: 1 },
     techRush: false,
+    earlyAirpad: false,
   },
   armor: {
     label: 'Armour', army: 'an armoured army',
@@ -50,20 +53,24 @@ export const STRATEGY_PLANS: Record<AiStrategy, StrategyPlan> = {
     producers: { infantry: 0.5, air: 0.3, ordnance_fab: 0.3 },
     extra: { type: 'armor', tier: 1 },
     techRush: false,
+    earlyAirpad: false,
   },
   air: {
     label: 'Air', army: 'an air force',
-    units: { hornet: 1.8, wasp: 1.4, bombard: 1.5, drone: 1.2, razorback: 0.7, tank: 0.6, trooper: 0.8 },
+    units: { hornet: 1.8, wasp: 1.4, bombard: 1.5, attack_drone: 1.4, drone: 1.2, razorback: 0.7, tank: 0.6, trooper: 0.8 },
     producers: { armor: 0.4, infantry: 0.6, ordnance_fab: 0.3 },
     extra: { type: 'air', tier: 2 },
     techRush: true,
+    earlyAirpad: true,
   },
   drones: {
     label: 'Drones', army: 'a drone swarm',
-    units: { wasp: 1.8, helios: 1.8, banshee: 1.5, swarm_host: 1.7, bombard: 1.4, hornet: 0.7, tank: 0.6, trooper: 0.8 },
+    // Kestrel attack drones from Tier 1 are the backbone; Wasps, Helios, Banshees and Swarm Hosts join later.
+    units: { attack_drone: 2.0, wasp: 1.8, helios: 1.8, banshee: 1.5, swarm_host: 1.7, bombard: 1.4, hornet: 0.7, tank: 0.6, trooper: 0.8 },
     producers: { armor: 0.4, infantry: 0.6 },
-    extra: { type: 'support', tier: 1 },
-    techRush: true,
+    extra: { type: 'air', tier: 1 },
+    techRush: false,
+    earlyAirpad: true,
   },
 };
 
@@ -71,8 +78,8 @@ export const STRATEGY_PLANS: Record<AiStrategy, StrategyPlan> = {
 const ROSTER: Record<AiStrategy, UnitType[]> = {
   infantry: ['trooper', 'ghost', 'lancer'],
   armor: ['razorback', 'tank', 'howitzer', 'aegis'],
-  air: ['wasp', 'hornet'],
-  drones: ['wasp', 'swarm_host', 'helios'],
+  air: ['attack_drone', 'wasp', 'hornet'],
+  drones: ['attack_drone', 'wasp', 'swarm_host', 'helios'],
 };
 
 // Damage per second Crawler Drones and Helios beams do in practice, for the units that have no

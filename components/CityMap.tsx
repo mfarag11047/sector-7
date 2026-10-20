@@ -3336,7 +3336,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   if (shooter?.type === 'defense_drone') return;
                   const structure = !shooter;
                   const infantry = shooter ? UNIT_RULES[shooter.type].armor === 'infantry' : false;
-                  const kind: ShotKind = shot.type === 'rifle' || shot.type === 'flak' ? 'flash'
+                  const kind: ShotKind = shot.type === 'rifle' || shot.type === 'flak' || shot.type === 'mg' ? 'flash'
                       : shot.type === 'ap' ? (shooter?.type === 'lancer' ? 'missile' : 'round')
                       : 'shell';
                   const targetIsStructure = !currentUnitsRef.some(u => u.id === shot.targetId);
