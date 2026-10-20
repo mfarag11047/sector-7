@@ -84,6 +84,22 @@ export interface AiMemory {
   plan: StrategyMemory;
 }
 
+// When each computer player first thinks in a match with two of them. They think on staggered
+// timers, half a think apart, rather than on the same tick, and which goes first is picked per
+// match: if one always went first it would always act on the fresher picture, a built-in edge
+// for one colour.
+export function thinkOffsets(firstTeam: Team, thinkMs: number): Record<Team, number> {
+  const second = Math.round(thinkMs / 2);
+  return firstTeam === 'blue' ? { blue: 0, red: second } : { blue: second, red: 0 };
+}
+
+// The wait until a computer player's next think: its profile's interval, give or take up to
+// THINK_JITTER of it at random each time. Two players' timers drift past each other through the
+// match, so neither stays the one that acts first.
+export const THINK_JITTER = 0.1;
+export const nextThinkDelay = (thinkMs: number, random: () => number) =>
+  Math.round(thinkMs * (1 + THINK_JITTER * (2 * random() - 1)));
+
 export const freshAiMemory = (): AiMemory => ({
   lastOrder: {}, mode: 'gather', objective: null, objectiveId: null, retreatedAt: -Infinity,
   lastBuildAt: -Infinity, lastProductionAt: -Infinity, researchReadySince: null, threatSince: null,

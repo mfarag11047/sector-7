@@ -655,7 +655,7 @@ button under the match clock and on the end screen; `GAME_CHEATS.pacing()` in th
 - **Units** per side and type: how many started, were trained and died, and the damage they
   dealt to enemy units and to enemy structures.
 
-Damage is credited from health lost, split among whoever hit the target in the last 300 ms, or
+Damage is credited from health lost, split among whoever hit the target in the last second, or
 else its last hitter within 3 seconds. Damage nobody can be named for (doctrine powers,
 force-field shocks, the Black Wall virus) is listed as Other; the neutral server-node guards
 are tallied apart. The report copies out as text or downloads as JSON. Headless matches keep the

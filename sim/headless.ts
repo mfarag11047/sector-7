@@ -9,7 +9,7 @@
 import { CITY_CONFIG, STRUCTURE_INFO, TEAM_BASES } from '../constants';
 import type { BuildingData, DoctrineType, RoadType, StructureData, UnitData } from '../types';
 import { abilityEffects, applyUnitEffects } from './abilities';
-import { AiMemory, AI_PROFILES, aiThink, freshAiMemory } from './ai';
+import { AiMemory, AI_PROFILES, aiThink, freshAiMemory, nextThinkDelay, thinkOffsets } from './ai';
 import { afterRailShot, fireRailguns } from './railgun';
 import { fireHornetRockets, landSalvo, MiniRocket } from './hornet';
 import { EmpRocket, empRocketImpact, empRocketTick, mergeUnitUpdates } from './empRocket';
@@ -42,6 +42,8 @@ export interface HeadlessOptions {
   // Income multiplier per side (the AI difficulty bonus in a real match).
   income?: Partial<Record<Team, number>>;
   startingCores?: number;
+  // Which computer player thinks first (sim/ai.ts thinkOffsets); by default picked from the seed.
+  firstThinker?: Team;
 }
 
 export interface HeadlessMatch {
@@ -53,6 +55,8 @@ export interface HeadlessMatch {
   economy: Economy;
   memory: Record<Team, AiMemory>;
   nextThink: Record<Team, number>;
+  // Varies each think interval a little (sim/ai.ts nextThinkDelay), apart from the match's own dice.
+  thinkRandom: () => number;
   doctrineReadyAt: Record<Team, { tier2: number; tier3: number }>;
   victory: Victory | null;
   // Milestones and unit stats for the pacing report (sim/pacing.ts).
@@ -95,7 +99,8 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     buildings: city.buildings,
     economy: createEconomy(opts.startingCores ?? 1000),
     memory: { blue: freshAiMemory(), red: freshAiMemory() },
-    nextThink: { blue: 0, red: 500 },
+    nextThink: thinkOffsets(opts.firstThinker ?? (seededRandom(opts.seed ^ 0xf1257)() < 0.5 ? 'blue' : 'red'),
+      Math.min(AI_PROFILES[opts.difficulty.blue].thinkMs, AI_PROFILES[opts.difficulty.red].thinkMs)),
     doctrineReadyAt: { blue: { tier2: 0, tier3: 0 }, red: { tier2: 0, tier3: 0 } },
     victory: null,
     pacing: freshPacing(),
@@ -107,6 +112,7 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     salvo: [],
     nextId: 0,
     random: seededRandom(opts.seed ^ 0x5eed),
+    thinkRandom: seededRandom(opts.seed ^ 0x7a1c),
     gridSize,
     roads: new Set([...city.roadTileSet]),
     tileType: city.tileTypeMap,
@@ -146,7 +152,7 @@ export function stepMatch(m: HeadlessMatch): void {
   // Computer players think and send their commands through the normal checks.
   for (const team of ['blue', 'red'] as const) {
     if (now < m.nextThink[team]) continue;
-    m.nextThink[team] = now + AI_PROFILES[m.opts.difficulty[team]].thinkMs;
+    m.nextThink[team] = now + nextThinkDelay(AI_PROFILES[m.opts.difficulty[team]].thinkMs, m.thinkRandom);
     think(m, team, paths, bases);
   }
 

@@ -24,7 +24,7 @@ import { type AiStrategy, strategyArmy } from './aiStrategy';
 
 export const SAMPLE_MS = 30_000;
 const ATTRIBUTION_MS = 3_000;
-const HIT_WINDOW_MS = 300;
+const HIT_WINDOW_MS = 1_000;
 // Units on the map in the first moments of the match (from the first tick that has any, since
 // the live game takes a moment to set the map up) count as the starting force.
 const START_WINDOW_MS = 1_500;
@@ -64,6 +64,8 @@ export interface PacingRecord {
   // Target id -> attacker id -> when it last hit.
   recentHits: Map<string, Map<string, number>>;
   lastHit: Map<string, { attackerId: string; atMs: number }>;
+  // When each unit or structure last lost health, by any means.
+  hurtAt: Map<string, number>;
   owners: Map<string, BuildingData['owner']>;
   tiers: Record<Team, number>;
   builtTypes: Record<Team, Set<string>>;
@@ -79,7 +81,7 @@ const emptyTally = (): UnitTally => ({ started: 0, trained: 0, died: 0, damageTo
 
 export const freshPacing = (): PacingRecord => ({
   events: [], samples: [], tallies: { blue: {}, red: {} }, neutral: emptyTally(), lastSampleMs: -Infinity,
-  seen: new Map(), health: new Map(), recentHits: new Map(), lastHit: new Map(), owners: new Map(),
+  seen: new Map(), health: new Map(), recentHits: new Map(), lastHit: new Map(), hurtAt: new Map(), owners: new Map(),
   tiers: { blue: 1, red: 1 }, builtTypes: { blue: new Set(), red: new Set() }, firsts: new Set(), nowMs: 0, startMs: null,
 });
 
@@ -98,6 +100,8 @@ export function recordHit(r: PacingRecord, attackerId: string, targetId: string)
   const hits = r.recentHits.get(targetId) ?? new Map<string, number>();
   hits.set(attackerId, r.nowMs);
   r.recentHits.set(targetId, hits);
+  // Also the fallback for damage that only shows up later (the live game's state can trail).
+  r.lastHit.set(targetId, { attackerId, atMs: r.nowMs });
 }
 
 // Everything of the other side within `radius` tiles of `at` was hit by `attackerId`.
@@ -149,7 +153,10 @@ export function pacingTick(r: PacingRecord, nowMs: number, s: PacingState) {
       }
     }
     const before = r.health.get(c.id);
-    if (before !== undefined && c.health < before) attribute(r, c.id, before - c.health);
+    if (before !== undefined && c.health < before) {
+      attribute(r, c.id, before - c.health);
+      r.hurtAt.set(c.id, nowMs);
+    }
     r.health.set(c.id, c.health);
   }
   // Gone since last tick: the killing blow is the health it had left.
@@ -158,6 +165,11 @@ export function pacingTick(r: PacingRecord, nowMs: number, s: PacingState) {
     const info = r.seen.get(id);
     r.health.delete(id);
     if (!info) continue;
+    // A structure nobody has hit lately didn't fall. The live game's copy of the structure list
+    // can drop a just-placed one for a tick, and it comes straight back.
+    const hitLately = r.recentHits.has(id) || nowMs - (r.hurtAt.get(id) ?? -Infinity) <= ATTRIBUTION_MS;
+    r.hurtAt.delete(id);
+    if (info.kind === 'structure' && !hitLately) continue;
     // Only a kill if someone hit it; units also leave by detonating or being replaced.
     const killers = hp > 0 ? attribute(r, id, hp, true) : [];
     if (info.team === 'neutral') r.neutral.died++;
@@ -219,7 +231,7 @@ function attribute(r: PacingRecord, targetId: string, amount: number, needsHitte
   if (attackers.length > 0) r.lastHit.set(targetId, { attackerId: attackers[attackers.length - 1], atMs: r.nowMs });
   else {
     const last = r.lastHit.get(targetId);
-    if (last && r.nowMs - last.atMs <= ATTRIBUTION_MS) attackers = [last.attackerId];
+    if (last && r.nowMs - last.atMs <= ATTRIBUTION_MS && r.seen.get(last.attackerId) && r.seen.get(last.attackerId)!.team !== target.team) attackers = [last.attackerId];
   }
   if (needsHitter && attackers.length === 0) return [];
   const enemy: Team = target.team === 'blue' ? 'red' : 'blue';

@@ -44,7 +44,7 @@ import { Blast, CombatStructure, applyDamage, applyStructureCombat, blastDamage,
 import { bombardTick } from '../sim/bombard';
 import { generateCity } from '../sim/mapgen';
 import { MatchConfig, STARTING_CORES, aiTeamsOf, doctrineOf, incomeMultipliers, sandboxStructures, startingRoster } from '../sim/match';
-import { AI_PROFILES, aiThink, freshAiMemory } from '../sim/ai';
+import { AI_PROFILES, aiThink, freshAiMemory, nextThinkDelay, thinkOffsets } from '../sim/ai';
 import { OrderCommand, applyOrderToStructures, applyOrderToUnits, orderEffects, popUsed, coreNodesHeld, serverNodesHeld, teamPopCap, teamTier } from '../sim/orders';
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
 import { UNIT_RULES, isAirType } from '../sim/units';
@@ -2549,7 +2549,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       const aiTeams = aiTeamsOf(match);
       if (aiTeams.length === 0) return;
       const profile = AI_PROFILES[match.difficulty];
-      const timer = setInterval(() => aiTeams.forEach(aiTeam => {
+      // Each computer player thinks on its own timer. With two, they're staggered half a think
+      // apart, which goes first is a coin flip, and every interval varies a little
+      // (nextThinkDelay), so the timers cross back and forth and neither colour stays first.
+      const offsets = thinkOffsets(Math.random() < 0.5 ? 'blue' : 'red', profile.thinkMs);
+      const think = (aiTeam: 'blue' | 'red') => {
           const now = Date.now();
           const doctrine = doctrineOf(match, aiTeam);
           const { isWalkable } = aiHelpersRef.current;
@@ -2580,8 +2584,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           } finally {
               aiActingRef.current = false;
           }
-      }), profile.thinkMs);
-      return () => clearInterval(timer);
+      };
+      const timers: Partial<Record<'blue' | 'red', ReturnType<typeof setTimeout>>> = {};
+      const loop = (aiTeam: 'blue' | 'red') => {
+          think(aiTeam);
+          timers[aiTeam] = setTimeout(() => loop(aiTeam), nextThinkDelay(profile.thinkMs, Math.random));
+      };
+      for (const aiTeam of aiTeams) timers[aiTeam] = setTimeout(() => loop(aiTeam), aiTeams.length > 1 ? offsets[aiTeam] : 0);
+      return () => Object.values(timers).forEach(t => clearTimeout(t));
   }, [match, gridSize, baseA_Coord, baseB_Coord, tileTypeMap]);
 
   const clearTargeting = () => {

@@ -114,3 +114,25 @@ describe('taking nodes with infantry', () => {
     expect(movesOf(out, 'r1')).toContainEqual(objective);
   });
 });
+
+describe('think timing', () => {
+  it('staggers two computer players and varies every interval a little, so their order keeps changing', async () => {
+    const { nextThinkDelay, thinkOffsets, THINK_JITTER } = await import('./ai');
+    expect(thinkOffsets('red', 3500)).toEqual({ blue: 1750, red: 0 });
+    let seq = 1;
+    const random = () => ((seq = (seq * 16807) % 2147483647) / 2147483647);
+    const delays = Array.from({ length: 200 }, () => nextThinkDelay(3500, random));
+    expect(Math.min(...delays)).toBeGreaterThanOrEqual(3500 * (1 - THINK_JITTER));
+    expect(Math.max(...delays)).toBeLessThanOrEqual(3500 * (1 + THINK_JITTER));
+    // Two timers that start on the same tick: which is ahead keeps swapping as they drift.
+    let blue = 0, red = 0, swaps = 0, ahead = 0;
+    for (let i = 0; i < 300; i++) {
+      blue += nextThinkDelay(3500, random);
+      red += nextThinkDelay(3500, random);
+      const now = Math.sign(blue - red);
+      if (now !== 0 && ahead !== 0 && now !== ahead) swaps++;
+      if (now !== 0) ahead = now;
+    }
+    expect(swaps).toBeGreaterThan(5);
+  });
+});

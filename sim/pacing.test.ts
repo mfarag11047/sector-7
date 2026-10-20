@@ -122,3 +122,22 @@ describe('pacing recorder start', () => {
     expect(r.tallies.blue.trooper).toMatchObject({ started: 1, trained: 1 });
   });
 });
+
+describe('structures that only flicker out', () => {
+  it('are not logged as lost unless something hurt them', () => {
+    const r = freshPacing();
+    const economy = createEconomy();
+    const factory = { id: 'f', type: 'armor', team: 'red', gridPos: { x: 5, z: 5 }, isBlueprint: false, constructionProgress: 100, maxProgress: 100, health: 1200, maxHealth: 1200 } as const;
+    pacingTick(r, 100, { units: [], structures: [factory], buildings: [], economy });
+    // Gone for a tick with no hit on it, then back.
+    pacingTick(r, 200, { units: [], structures: [], buildings: [], economy });
+    pacingTick(r, 300, { units: [], structures: [factory], buildings: [], economy });
+    expect(r.events.some(e => e.kind === 'structure_destroyed')).toBe(false);
+    // Shot down for real.
+    const tank = unit('t', 'tank', 'blue');
+    pacingTick(r, 400, { units: [tank], structures: [factory], buildings: [], economy });
+    recordHit(r, 't', 'f');
+    pacingTick(r, 500, { units: [tank], structures: [], buildings: [], economy });
+    expect(r.events.filter(e => e.kind === 'structure_destroyed').map(e => e.team)).toEqual(['red']);
+  });
+});
