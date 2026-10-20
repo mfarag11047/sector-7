@@ -14,6 +14,7 @@ import type { StructureData, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { isHidden } from './cloak';
 import { damageTakenMultiplier, isEmpDisabled } from './unitAbilities';
+import { airHitMultiplier } from './titan';
 import { shotDamage, Tier, UNIT_RULES, Weapon } from './units';
 
 export const HORNET = {
@@ -59,7 +60,7 @@ export function fireHornetRockets(
         shots.push({ attackerId: h.id, targetId: t.id, team: h.team, from: h.gridPos, to: shield.at, structure: false });
         continue;
       }
-      add(unitDamage, t.id, shotDamage(ROCKET, armor) * damageTakenMultiplier(t));
+      add(unitDamage, t.id, shotDamage(ROCKET, armor) * damageTakenMultiplier(t) * airHitMultiplier(t));
       shots.push({ attackerId: h.id, targetId: t.id, team: h.team, from: h.gridPos, to: t.gridPos, structure: false });
       continue;
     }
@@ -136,7 +137,7 @@ export function landSalvo(rockets: readonly MiniRocket[], now: number, units: re
       const armor = UNIT_RULES[u.type].armor;
       const d = tiles(u.gridPos, r.at);
       if (armor === 'air' || d > HORNET.salvo.blast || shotBlocked(fields, r.team, r.at, u.gridPos)) continue;
-      add(unitDamage, u.id, shotDamage(MINI, armor) * falloff(d) * damageTakenMultiplier(u));
+      add(unitDamage, u.id, shotDamage(MINI, armor) * falloff(d) * damageTakenMultiplier(u) * airHitMultiplier(u));
     }
     for (const s of structures) {
       if (s.team === r.team || s.health <= 0) continue;

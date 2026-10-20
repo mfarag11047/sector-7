@@ -51,8 +51,6 @@ export interface SetHeliosModeCommand { type: 'SET_HELIOS_MODE'; unitIds: string
 export interface ToggleJammerCommand { type: 'TOGGLE_JAMMER'; unitIds: string[] } // Banshee
 export interface ToggleAnchorCommand { type: 'TOGGLE_ANCHOR'; unitIds: string[] } // Battery Mule, Swarm Host
 export interface ToggleCloakFieldCommand { type: 'TOGGLE_CLOAK_FIELD'; unitIds: string[] } // Cloaking Field Generator
-export interface SmokeScreenCommand { type: 'SMOKE_SCREEN'; unitIds: string[] } // Titan
-export interface ActivateApsCommand { type: 'ACTIVATE_APS'; unitIds: string[] } // Titan
 
 // Ghost. Toggles the cloak and its scattering projections on or off.
 export interface PhantomDecoyCommand { type: 'PHANTOM_DECOY'; unitId: string }
@@ -108,8 +106,6 @@ export type PlayerCommand =
   | ToggleJammerCommand
   | ToggleAnchorCommand
   | ToggleCloakFieldCommand
-  | SmokeScreenCommand
-  | ActivateApsCommand
   | PhantomDecoyCommand
   | LoadAmmoCommand
   | TakeWarheadCommand
@@ -159,7 +155,7 @@ const UNIT_TYPES = Object.keys({
 const DOCTRINES = Object.keys({ heavy_metal: 1, shadow_ops: 1, netrunner: 1 } satisfies Record<DoctrineType, 1>);
 const WARHEADS = Object.keys({ emp: 1, he: 1 } satisfies Record<Warhead, 1>);
 const UPGRADE_IDS = Object.keys({
-  nanoweave: 1, dampener: 1, phantom_decoy: 1, emp_rocket: 1, overclock: 1, radar: 1, long_range_shells: 1, guided_shells: 1, hellfire: 1, hunter_rockets: 1, regen_shield: 1,
+  nanoweave: 1, dampener: 1, phantom_decoy: 1, emp_rocket: 1, overclock: 1, radar: 1, long_range_shells: 1, guided_shells: 1, hellfire: 1, hunter_rockets: 1, regen_shield: 1, piercing_round: 1,
 } satisfies Record<UpgradeId, 1>);
 
 // Large enough for any real selection, small enough to stop a flood.
@@ -197,8 +193,6 @@ const CHECKS: Record<CommandType, (c: Fields) => boolean> = {
   TOGGLE_JAMMER: unitList,
   TOGGLE_ANCHOR: unitList,
   TOGGLE_CLOAK_FIELD: unitList,
-  SMOKE_SCREEN: unitList,
-  ACTIVATE_APS: unitList,
   PHANTOM_DECOY: unit,
   LOAD_AMMO: unitWarhead,
   TAKE_WARHEAD: unitWarhead,

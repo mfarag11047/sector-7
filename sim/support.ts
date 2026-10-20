@@ -1,7 +1,7 @@
 // Health is never regained for free. It comes back only from Guardians and from standing in
 // your own base's city block (repairTick). Abilities that run on their own: Guardian repairs, couriers, surveillance flights,
 // Banshee leashes, Field Fabricator production, the Swarm Host and its Crawlers,
-// doctrine passives, and the timers behind stuns, cooldowns, smoke and APS.
+// doctrine passives, and the timers behind stuns and cooldowns.
 //
 // Moved out of CityMap.tsx unchanged except where a comment says otherwise. Anything that
 // needs the map (pathfinding, walkable tiles) is passed in, so these stay pure.
@@ -300,16 +300,6 @@ export function slowTick(prevUnits: UnitData[], ctx: SlowTickContext): UnitData[
         unit = { ...unit, cooldowns: next };
         changed = true;
       }
-    }
-
-    // Titan smoke and APS run out. Before this nothing counted them down, so both stayed on
-    // for the rest of the match once used.
-    for (const effect of ['smoke', 'aps'] as const) {
-      const state = unit[effect];
-      if (!state?.active) continue;
-      const remainingTime = state.remainingTime - SLOW_TICK_MS;
-      unit = { ...unit, [effect]: remainingTime > 0 ? { active: true, remainingTime } : { active: false, remainingTime: 0 } };
-      changed = true;
     }
 
     if (changed) unitsChanged = true;

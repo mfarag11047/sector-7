@@ -10,7 +10,7 @@ const unit = (id: string, patch: Partial<UnitData> = {}): UnitData => ({
   health: 100, maxHealth: 100, battery: 100, maxBattery: 100, cooldowns: {}, ...patch,
 });
 const titan = (patch: Partial<UnitData> = {}) =>
-  unit('t', { type: 'tank', unitClass: 'armor', charges: { smoke: 2, aps: 1 }, ...patch });
+  unit('t', { type: 'tank', unitClass: 'armor', ...patch });
 const fab = (patch: Partial<StructureData> = {}): StructureData => ({
   id: 'fab', type: 'ordnance_fab', team: 'blue', gridPos: { x: 5, z: 6 }, isBlueprint: false, constructionProgress: 0,
   maxProgress: 0, health: 400, maxHealth: 400, ...patch,
@@ -37,40 +37,27 @@ function run(v: AbilityView, command: AbilityCommand, team: 'blue' | 'red' = 'bl
 const after = (r: { units?: UnitData[] }, id: string) => r.units!.find(u => u.id === id)!;
 
 describe('who may give an order', () => {
+  const smoke = (unitIds: string[]) => ({ type: 'UNIT_ABILITY' as const, unitIds, ability: 'smoke_screen' });
+  const tier2 = { economy: { ...createEconomy(), blue: { ...createEconomy().blue, tier: 2 as const }, red: { ...createEconomy().red, tier: 2 as const } } };
   it("refuses the other team's units", () => {
-    expect(run(view([titan()]), { type: 'SMOKE_SCREEN', unitIds: ['t'] }, 'red').refused).toBeTruthy();
+    expect(run(view([titan()], tier2), smoke(['t']), 'red').refused).toBeTruthy();
   });
 
   it('refuses the wrong unit type', () => {
-    expect(run(view([unit('g')]), { type: 'SMOKE_SCREEN', unitIds: ['g'] }).refused).toBeTruthy();
+    expect(run(view([unit('g')], tier2), smoke(['g'])).refused).toBeTruthy();
   });
 
   it('refuses dead units', () => {
-    expect(run(view([titan({ health: 0 })]), { type: 'SMOKE_SCREEN', unitIds: ['t'] }).refused).toBeTruthy();
+    expect(run(view([titan({ health: 0 })], tier2), smoke(['t'])).refused).toBeTruthy();
+  });
+
+  it('lays a Smoke Screen where the tank stands, for orbital-drop Titans too', () => {
+    for (const type of ['tank', 'titan_dropped'] as const) {
+      const r = abilityEffects(view([titan({ type })], tier2), 'blue', smoke(['t']), { now: 1000 } as AbilityContext);
+      expect('effects' in r && r.effects.smoke).toEqual([expect.objectContaining({ team: 'blue', at: { x: 5, z: 5 }, laidAt: 1000 })]);
+    }
   });
 });
-
-describe('Titan countermeasures', () => {
-  it('spend a charge, start the cooldown and switch on', () => {
-    const r = run(view([titan()]), { type: 'SMOKE_SCREEN', unitIds: ['t'] });
-    expect(after(r, 't')).toMatchObject({
-      charges: { smoke: 1, aps: 1 },
-      cooldowns: { titanSmoke: ABILITY_CONFIG.TITAN_SMOKE_COOLDOWN },
-      smoke: { active: true, remainingTime: ABILITY_CONFIG.TITAN_SMOKE_DURATION },
-    });
-  });
-
-  it('are refused while cooling down or out of charges', () => {
-    expect(run(view([titan({ cooldowns: { titanSmoke: 1000 } })]), { type: 'SMOKE_SCREEN', unitIds: ['t'] }).refused).toMatch(/recharging/);
-    expect(run(view([titan({ charges: { smoke: 0, aps: 1 } })]), { type: 'SMOKE_SCREEN', unitIds: ['t'] }).refused).toMatch(/charges/);
-  });
-
-  it('work for orbital-drop Titans too', () => {
-    const dropped = titan({ type: 'titan_dropped', charges: { smoke: 3, aps: 2 } });
-    expect(after(run(view([dropped]), { type: 'ACTIVATE_APS', unitIds: ['t'] }), 't').aps?.active).toBe(true);
-  });
-});
-
 
 describe('Ballista and Field Fabricator', () => {
   const ballista = (patch: Partial<UnitData> = {}) => unit('b', { type: 'ballista', unitClass: 'support', missileInventory: { emp: 1, he: 1 }, ammoState: 'empty', ...patch });

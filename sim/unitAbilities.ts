@@ -1,5 +1,5 @@
 // Abilities for the playable build's new units: Strike Troopers, Lancers, Razorbacks, Aegis
-// and Hornets.
+// and Hornets, and the main battle tank (with the orbital-drop Titan; sim/titan.ts).
 //
 // Each unit has two. The first comes with the unit; the second, more powerful one needs the next
 // tier and then research at an Advanced Research building (sim/upgrades.ts), so a unit grows
@@ -20,11 +20,14 @@ import type { EmpRocket } from './empRocket';
 import { MiniRocket, salvoFrom } from './hornet';
 import { shotDamage, Tier, UNIT_RULES } from './units';
 import { abilityUnlocked, type UpgradeId } from './upgrades';
+import type { SmokeScreen } from './titan';
 
-export type BuffKind = 'stim' | 'nanoweave' | 'overcharge' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'emp';
+// 'smoke': standing in a friendly Smoke Screen (sim/titan.ts). 'piercing_round': a tank's next rail
+// gun slug goes down the whole lane (sim/railgun.ts).
+export type BuffKind = 'stim' | 'nanoweave' | 'overcharge' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'emp' | 'smoke' | 'piercing_round';
 export interface Buff { kind: BuffKind; until: number }
 
-export type UnitAbilityId = 'stim' | 'nanoweave' | 'overcharge' | 'emp_rocket' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'hellfire';
+export type UnitAbilityId = 'stim' | 'nanoweave' | 'overcharge' | 'emp_rocket' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'hellfire' | 'smoke_screen' | 'piercing_round';
 
 export interface UnitAbilityDef {
   id: UnitAbilityId;
@@ -60,13 +63,20 @@ export const UNIT_ABILITIES: readonly UnitAbilityDef[] = [
   { id: 'radar', unit: 'aegis', name: 'Sky-Net Radar Sweep', tier: 3, cooldownMs: 40_000, durationMs: 10_000,
     description: 'Phased-array sweep: vision 14 and +2 weapon range for 10s.' },
 
+  { id: 'smoke_screen', unit: 'tank', name: 'Smoke Screen', tier: 2, cooldownMs: 35_000, durationMs: 8_000,
+    description: 'Fires a ring of smoke canisters: a cloud 1.5 tiles round the tank for 8s. Friendly units inside can\'t be targeted by enemy ground units, and take half damage from aircraft.' },
+  { id: 'piercing_round', unit: 'tank', name: 'Piercing Rail Round', tier: 3, cooldownMs: 30_000, durationMs: 20_000,
+    description: 'Loads a piercing slug: the next rail gun shot carries on down the whole lane, hitting every enemy in its path.' },
+
   { id: 'afterburner', unit: 'hornet', name: 'Afterburners', tier: 2, cooldownMs: 25_000, durationMs: 5_000,
     description: '+70% speed for 5s. Get out of flak range.' },
   { id: 'hellfire', unit: 'hornet', name: 'Hellfire Salvo', tier: 3, cooldownMs: 40_000, durationMs: 0, targeted: { range: 8, radius: 3 },
     description: 'Ripple-fires the rocket pods: a burst of small unguided rockets blankets the area, each with a small blast. Built for area damage: shreds infantry and light vehicles in the open.' },
 ];
 
-export const abilitiesFor = (type: UnitType) => UNIT_ABILITIES.filter(a => a.unit === type);
+// The orbital-drop Titan is a main battle tank, with the tank's abilities.
+const abilityUnit = (type: UnitType): UnitType => (type === 'titan_dropped' ? 'tank' : type);
+export const abilitiesFor = (type: UnitType) => UNIT_ABILITIES.filter(a => a.unit === abilityUnit(type));
 export const abilityDef = (id: string) => UNIT_ABILITIES.find(a => a.id === id);
 
 export const STIM_HEALTH_COST = 15;
@@ -114,7 +124,7 @@ export const abilityCooldownLeft = (u: UnitData, id: UnitAbilityId, now: number)
 // --- The order ---
 
 export type UnitAbilityOutcome =
-  | { ok: true; updates: Map<string, (u: UnitData) => UnitData>; strike?: { at: GridPos; radius: number; kind: 'emp' | 'hellfire' }; rockets?: EmpRocket[]; salvo?: MiniRocket[] }
+  | { ok: true; updates: Map<string, (u: UnitData) => UnitData>; strike?: { at: GridPos; radius: number; kind: 'emp' | 'hellfire' }; rockets?: EmpRocket[]; salvo?: MiniRocket[]; smoke?: SmokeScreen[] }
   | { ok: false; reason: string };
 
 export function unitAbilityEffects(
@@ -134,7 +144,7 @@ export function unitAbilityEffects(
     return { ok: false, reason: `${def.name} needs research at Advanced Research` };
   }
   const ids = new Set(command.unitIds);
-  let casters = units.filter(u => ids.has(u.id) && u.team === team && u.type === def.unit && u.health > 0 && !isEmpDisabled(u));
+  let casters = units.filter(u => ids.has(u.id) && u.team === team && abilityUnit(u.type) === def.unit && u.health > 0 && !isEmpDisabled(u));
   if (casters.length === 0) return { ok: false, reason: `no ${UNIT_STATS[def.unit].label} of yours selected` };
   casters = casters.filter(u => abilityCooldownLeft(u, def.id, now) === 0);
   if (casters.length === 0) return { ok: false, reason: `${def.name} is recharging` };
@@ -142,6 +152,12 @@ export function unitAbilityEffects(
   const updates = new Map<string, (u: UnitData) => UnitData>();
   const ready = (u: UnitData): UnitData => ({ ...u, abilityReadyAt: { ...(u.abilityReadyAt || {}), [def.id]: now + def.cooldownMs } });
 
+  // Smoke Screen: each tank lays a cloud where it stands (sim/titan.ts).
+  if (def.id === 'smoke_screen') {
+    for (const c of casters) updates.set(c.id, ready);
+    const smoke = casters.map((c): SmokeScreen => ({ id: `smoke-${c.id}-${now}`, team, at: { ...c.gridPos }, laidAt: now, until: now + def.durationMs }));
+    return { ok: true, updates, smoke };
+  }
   if (!def.targeted) {
     for (const c of casters) {
       updates.set(c.id, u => {

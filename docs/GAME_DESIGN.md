@@ -161,6 +161,7 @@ everything, so what you research commits you to the units you mean to build.
 | Hornet | Hellfire Salvo | T3 | 400 | 45 s | Unlocks the ability |
 | | Hunter-Killer Rockets | T3 | 400 | 45 s | Its passive anti-vehicle rocket |
 | Kestrel | Regenerative Shield | T2 | 250 | 30 s | Shield worth 25% of its health (see Kestrel abilities) |
+| Titan MBT | Piercing Rail Round | T3 | 400 | 45 s | Unlocks the ability (see Tank rail gun) |
 
 **Why research and not "hold N nodes":** in the first version, your tier was however many server
 nodes you held right now. All four sat in the centre, so whoever won the middle got every tier and
@@ -266,7 +267,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 | **Razorback** (new) | 200 | 2 | T1 | 300 | Light | Rifle 10 / 0.5 s / 3, hits air | Fast raider, anti-infantry |
 | **Thunderhead** (new) | 320 | 3 | T1 | 240 | Light | Explosive 70 / 5 s / 12–20, splash 1.6, ground only | Mobile artillery; fires only when anchored |
 | **Battery Mule** | 250 | 2 | T1 | 500 | Heavy | None | Mobile power for vehicles |
-| **Titan MBT** | 420 | 3 | T2 | 600 | Heavy | Explosive 50 / 2.2 s / 4, splash 1 (10%); rail gun AP 120 / 5 s / 14 | Main battle tank, automatic rail gun, smoke, APS |
+| **Titan MBT** | 420 | 3 | T2 | 600 | Heavy | Explosive 50 / 2.2 s / 4, splash 1 (10%); rail gun AP 120 / 5 s / 14 | Main battle tank, automatic rail gun; Smoke Screen, Piercing Rail Round (T3, researched) |
 | **Aegis** (new) | 240 | 2 | T2 | 300 | Light | Flak 30 / 1.2 s / 5, air only | Anti-air escort |
 
 ### Airpad (aircraft)
@@ -376,6 +377,27 @@ replaced the old manually aimed Main Cannon:
   cloaked units.
 - Drawn as a white-hot core in a cyan glow from muzzle to target, with a flash where it strikes.
 
+
+## Tank abilities
+
+`sim/titan.ts`. The main battle tank (and the orbital-drop Titan) has two abilities. They replaced
+the old Smoke (which only hid the tank on the minimap) and APS, both on limited charges:
+
+- **Smoke Screen (comes with the tank, T2; 35 s cooldown):** the tank fires a ring of eight smoke
+  canisters that arc out and burst into a grey cloud 1.5 tiles round where it stood, after 0.6 s.
+  For 8 s every friendly unit inside the cloud is **screened**:
+  - Enemy ground units, turrets, HQs and rail guns can't pick it as a target, and Thunderheads
+    can't aim at it.
+  - Enemy aircraft do half damage to it: guns, Hornet rockets and Hellfire, and Kestrel
+    flechettes.
+  - The cloud stays where it was laid, so units can drive into or out of it. It doesn't stop
+    splash from shells or blasts aimed elsewhere, or a fire mission on the tile.
+- **Piercing Rail Round (T3, researched at Advanced Research; 30 s cooldown):** loads a slug for
+  the next rail gun shot (good for 20 s). That shot doesn't stop at its target: it carries on down
+  the lane to the end of the street, up to 30 tiles, and hits every enemy ground unit and structure
+  within 0.75 tiles of its path for full rail gun damage. It's drawn as a thicker magenta beam.
+- The AI lays smoke when a tank is hurt or swarmed, and loads a piercing round when three or more
+  enemy ground units are in rail gun range.
 ## Kestrel abilities
 
 `sim/kestrel.ts`. The Kestrel attack drone has two abilities on top of its machine gun:
@@ -700,8 +722,7 @@ same kind of economy.
    - **Battery Mule** (T2, with 5+ vehicles) plants at the staging point and **links** vehicles
      low on charge; it packs up to follow when the army moves on.
    - **Swarm Host** (T2) anchors to release Crawlers when a fight is close.
-   - **Wasps** fire **swarm volleys** into enemy groups; **Titans** use **APS** against enemy
-     artillery and Ballistas.
+   - **Wasps** fire **swarm volleys** into enemy groups.
    - **Bombardment Drones** (T3) strike enemy production, never on top of its own units.
    - **Ballista** (T3) stays by the Ordnance Fab, which keeps two **warheads** coming (EMP against
      a heavy army, otherwise HE); it takes, loads and fires them at big enemy groups or structures.
@@ -709,7 +730,7 @@ same kind of economy.
      you.
    - When rich, with a unit beside a cleared block, it builds a **new Command HQ** (up to 2 on
      Normal, 3 on Hard). This happens at T3, or at T2 once its building pads are all taken.
-7. **Powers:** Titan smoke when hurt. Doctrine powers on Normal (T2) and Hard (T2 and T3): Orbital
+7. **Powers:** Doctrine powers on Normal (T2) and Hard (T2 and T3): Orbital
    Drop into a fight, a Force Field over its army in a big fight, Decoys on an attack, EMP in a big fight, a Nano Cloud
    over a retreat, a Black Wall Infect bomb on a big enemy cluster.
 

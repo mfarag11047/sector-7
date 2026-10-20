@@ -87,7 +87,7 @@ export type UnitClass = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 
 
 export interface UnitData {
   // Timed effects from unit abilities (sim/unitAbilities.ts), and when each ability is ready again.
-  buffs?: { kind: 'stim' | 'nanoweave' | 'overcharge' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'emp'; until: number }[];
+  buffs?: { kind: 'stim' | 'nanoweave' | 'overcharge' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'emp' | 'smoke' | 'piercing_round'; until: number }[];
   abilityReadyAt?: Record<string, number>;
   id: string;
   type: UnitType;
@@ -192,22 +192,10 @@ export interface UnitData {
   // Attack-move: stop to fight anything in range, then carry on along the path.
   attackMove?: boolean;
   charges?: {
-    smoke?: number;
-    aps?: number;
     swarm?: number;
-  };
-  smoke?: {
-    active: boolean;
-    remainingTime: number;
-  };
-  aps?: {
-    active: boolean;
-    remainingTime: number;
   };
   cooldowns: {
     trophySystem?: number;
-    titanAps?: number;
-    titanSmoke?: number;
     combatPrint?: number;
     swarmLaunch?: number;
     smogShell?: number;

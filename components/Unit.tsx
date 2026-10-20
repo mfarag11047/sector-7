@@ -50,7 +50,7 @@ const Rotor: React.FC = () => {
 // Ring colour while an ability's buff runs.
 const BUFF_COLORS: Record<NonNullable<UnitData['buffs']>[number]['kind'], string> = {
   stim: '#f43f5e', nanoweave: '#a3e635', overcharge: '#facc15', nitro: '#fb923c', overclock: '#f97316',
-  barrage: '#38bdf8', radar: '#22d3ee', afterburner: '#fb923c', emp: '#818cf8',
+  barrage: '#38bdf8', radar: '#22d3ee', afterburner: '#fb923c', emp: '#818cf8', smoke: '#94a3b8', piercing_round: '#e879f9',
 };
 // Aegis air-search radar: a wide green circle. Selected, it also shows range rings and a sweeping
 // beam that leaves a fading trail. Flat on the ground under the vehicle.
@@ -175,8 +175,6 @@ interface UnitProps {
   chargingStatus?: number; // 0, 1, or 2
   cooldowns: {
       trophySystem?: number;
-      titanAps?: number;
-      titanSmoke?: number;
       combatPrint?: number;
       swarmLaunch?: number;
       smogShell?: number;
@@ -186,17 +184,7 @@ interface UnitProps {
   repairTargetIds?: string[];
   repairTargetPos?: THREE.Vector3;
   hackerPos?: THREE.Vector3;
-  smoke?: {
-      active: boolean;
-      remainingTime: number;
-  };
-  aps?: {
-      active: boolean;
-      remainingTime: number;
-  };
   charges?: {
-      smoke?: number;
-      aps?: number;
       swarm?: number;
   };
   cargo?: number;
@@ -383,7 +371,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -399,8 +387,6 @@ const Unit: React.FC<UnitProps> = ({
   const constructionLineRef = useRef<THREE.BufferGeometry>(null);
   const scene = useThree((state) => state.scene); // Access scene for lookups
   const flashRef = useRef<THREE.Mesh>(null);
-  const smokeRef = useRef<THREE.Group>(null);
-  const apsRef = useRef<THREE.Group>(null);
 
   const teamColor = TEAM_COLORS[team];
   // Thunderhead: its range follows the side's shell upgrades; the gun turns to where it last fired.
@@ -549,14 +535,6 @@ const Unit: React.FC<UnitProps> = ({
             flashRef.current.visible = !!lastAttackTime && Date.now() - lastAttackTime < 100;
         }
 
-        // Ability Animations
-        if (smokeRef.current) {
-            smokeRef.current.rotation.y += delta * 0.2;
-        }
-        if (apsRef.current) {
-            apsRef.current.rotation.y -= delta * 1.5;
-            apsRef.current.rotation.z += delta * 0.5;
-        }
 
         // Rotation for Banshee/Guardian Radar
         if (radarRef.current && jammerActive) {
@@ -1289,38 +1267,6 @@ const Unit: React.FC<UnitProps> = ({
       {isJammed && health > 0 && <JamStatic size={hoverHeight > 20 ? 4.5 : 3} />}
       {isHacked && hackType === 'drain' && (<group><mesh position={[0, 1, 0]} rotation={[Math.random(), Math.random(), Math.random()]} raycast={() => null}><planeGeometry args={[0.5, 0.5]} /><meshBasicMaterial color="#3b82f6" side={THREE.DoubleSide} /></mesh></group>)}
       
-      {/* Smoke Screen Effect */}
-      {isTank && smoke?.active && (
-          <group position={[0, 1.5, 0]} ref={smokeRef}>
-                {/* Core Cloud */}
-                <mesh rotation={[0, Date.now() * 0.001, 0]}>
-                    <dodecahedronGeometry args={[tileSize * 0.8, 0]} />
-                    <meshStandardMaterial color="#475569" transparent opacity={0.9} depthWrite={false} />
-                </mesh>
-                {/* Outer Puffs */}
-                {[0, 2, 4].map(i => (
-                    <mesh key={i} position={[Math.sin(i)*1.5, 0.5, Math.cos(i)*1.5]} scale={[0.6, 0.6, 0.6]}>
-                        <dodecahedronGeometry args={[tileSize * 0.5, 0]} />
-                        <meshStandardMaterial color="#64748b" transparent opacity={0.6} depthWrite={false} />
-                    </mesh>
-                ))}
-          </group>
-      )}
-
-      {/* APS Shield Effect */}
-      {isTank && aps?.active && (
-          <group position={[0, 1, 0]} ref={apsRef}>
-               <mesh rotation={[0, Date.now()*0.005, 0]}>
-                   <sphereGeometry args={[tileSize * 0.9, 16, 16]} />
-                   <meshBasicMaterial color={teamColor} wireframe transparent opacity={0.3} />
-               </mesh>
-               <mesh rotation={[0, -Date.now()*0.005, Math.PI/4]}>
-                   <sphereGeometry args={[tileSize * 0.8, 4, 8]} /> 
-                   <meshBasicMaterial color="#ffffff" wireframe transparent opacity={0.1} />
-               </mesh>
-          </group>
-      )}
-
       {/* Guardian Repair Beam fallback when only a world position is known */}
       {isGuardian && !repairTargetIds?.length && repairTargetPos && (
           <Line
@@ -1422,12 +1368,6 @@ const Unit: React.FC<UnitProps> = ({
                   })}
 
                   {/* Actions based on unit type */}
-                  {isTank && (
-                      <>
-                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('SMOKE SCREEN'); }} disabled={charges?.smoke === 0} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left flex justify-between"><span>Smoke</span><span>{charges?.smoke}</span></button>
-                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('ACTIVATE APS'); }} disabled={charges?.aps === 0} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left flex justify-between"><span>APS</span><span>{charges?.aps}</span></button>
-                      </>
-                  )}
                   {isFieldGen && (() => {
                       // The dome's shield, or the reboot countdown once it has been battered down.
                       const rebootLeft = fieldDownUntil !== undefined ? Math.max(0, Math.ceil((fieldDownUntil - Date.now()) / 1000)) : 0;

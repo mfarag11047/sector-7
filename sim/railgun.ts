@@ -7,6 +7,10 @@
 // soldier does far less than one through a hull, so Lancers can still close on tanks. Each shot
 // costs battery and the gun recharges between shots.
 //
+// It can't pick out a unit in an enemy Smoke Screen (sim/titan.ts). With a Piercing Rail Round
+// loaded (the tank's researched ability), the next slug doesn't stop at its target: it carries on
+// down the lane to the end of the street, hitting every enemy within PIERCE.width of its path.
+//
 // Pure: it reads the state it is given and reports the shots. CityMap and the headless runner
 // apply the damage and the gun's state.
 
@@ -15,7 +19,8 @@ import type { StructureData, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { spottedBy } from './artillery';
 import { isHidden } from './cloak';
-import { damageTakenMultiplier, isEmpDisabled } from './unitAbilities';
+import { damageTakenMultiplier, hasBuff, isEmpDisabled } from './unitAbilities';
+import { isScreened, PIERCE } from './titan';
 import { ArmorClass, shotDamage, UNIT_RULES, Weapon } from './units';
 
 export const RAILGUN = {
@@ -32,7 +37,7 @@ const WEAPON: Weapon = { damage: RAILGUN.damage, cooldownMs: RAILGUN.cooldownMs,
 export const hasRailgun = (u: Pick<UnitData, 'type'>) => u.type === 'tank' || u.type === 'titan_dropped';
 export const railgunReady = (u: UnitData, now: number) => now - (u.railgunFiredAt ?? -Infinity) >= RAILGUN.cooldownMs;
 
-export interface RailShot { attackerId: string; targetId: string; team: UnitData['team']; from: GridPos; to: GridPos; structure: boolean }
+export interface RailShot { attackerId: string; targetId: string; team: UnitData['team']; from: GridPos; to: GridPos; structure: boolean; pierced?: boolean }
 
 const tiles = (a: GridPos, b: GridPos) => Math.hypot(a.x - b.x, a.z - b.z);
 // Heavy armour, then light, then infantry; nearer first within each.
@@ -48,7 +53,10 @@ export function fireRailguns(
   // An enemy force field in the way (sim/forcefield.ts): targets behind one come last, and a shot
   // at one hits the dome instead.
   shieldOf: (team: UnitData['team'], from: GridPos, to: GridPos) => ShieldBlock | null = () => null,
-): { shots: RailShot[]; unitDamage: Map<string, number>; structureDamage: Map<string, number>; shieldDamage: Map<string, number> } {
+  // Open ground a piercing slug carries on down; it stops at the first tile that isn't.
+  laneOpen: (x: number, z: number) => boolean = () => true,
+): { shots: RailShot[]; unitDamage: Map<string, number>; structureDamage: Map<string, number>; shieldDamage: Map<string, number>; pierceHits: { attackerId: string; targetId: string }[] } {
+  const pierceHits: { attackerId: string; targetId: string }[] = [];
   const shieldDamage = new Map<string, number>();
   const shots: RailShot[] = [];
   const unitDamage = new Map<string, number>();
@@ -60,7 +68,7 @@ export function fireRailguns(
     if (!railgunReady(u, now) || inNanoCloud(u.gridPos)) continue;
     let best: { t: UnitData; key: number } | null = null;
     for (const t of units) {
-      if (t.team === u.team || t.health <= 0 || isHidden(t) || inNanoCloud(t.gridPos)) continue;
+      if (t.team === u.team || t.health <= 0 || isHidden(t) || isScreened(t) || inNanoCloud(t.gridPos)) continue;
       const armor = UNIT_RULES[t.type].armor;
       if (armor === 'air') continue;
       const d = tiles(u.gridPos, t.gridPos);
@@ -75,6 +83,23 @@ export function fireRailguns(
       if (shield) {
         add(shieldDamage, shield.fieldId, RAILGUN.damage);
         shots.push({ attackerId: u.id, targetId: best.t.id, team: u.team, from: u.gridPos, to: shield.at, structure: false });
+        continue;
+      }
+      if (hasBuff(u, 'piercing_round')) {
+        // Down the whole lane: everything in the slug's path, the target first.
+        const end = laneEnd(u.gridPos, best.t.gridPos, laneOpen);
+        for (const t of units) {
+          if (t.team === u.team || t.team === 'neutral' || t.health <= 0 || UNIT_RULES[t.type].armor === 'air') continue;
+          if (t !== best.t && offPath(u.gridPos, end, t.gridPos) > PIERCE.width) continue;
+          add(unitDamage, t.id, railDamage(UNIT_RULES[t.type].armor) * damageTakenMultiplier(t));
+          pierceHits.push({ attackerId: u.id, targetId: t.id });
+        }
+        for (const s of structures) {
+          if (s.team === u.team || u.team === 'neutral' || s.health <= 0 || offPath(u.gridPos, end, s.gridPos) > PIERCE.width) continue;
+          add(structureDamage, s.id, shotDamage(WEAPON, 'structure'));
+          pierceHits.push({ attackerId: u.id, targetId: s.id });
+        }
+        shots.push({ attackerId: u.id, targetId: best.t.id, team: u.team, from: u.gridPos, to: end, structure: false, pierced: true });
         continue;
       }
       const armor = UNIT_RULES[best.t.type].armor;
@@ -95,9 +120,32 @@ export function fireRailguns(
       shots.push({ attackerId: u.id, targetId: wall.s.id, team: u.team, from: u.gridPos, to: wall.s.gridPos, structure: true });
     }
   }
-  return { shots, unitDamage, structureDamage, shieldDamage };
+  return { shots, unitDamage, structureDamage, shieldDamage, pierceHits };
+}
+
+// Where a piercing slug fired from `from` through `through` stops: the last open tile along the
+// line before the street ends, at most PIERCE.length tiles out, and never short of its target.
+export function laneEnd(from: GridPos, through: GridPos, open: (x: number, z: number) => boolean): GridPos {
+  const d = tiles(from, through) || 1;
+  const dir = { x: (through.x - from.x) / d, z: (through.z - from.z) / d };
+  let end = { ...through };
+  for (let step = Math.ceil(d); step <= PIERCE.length; step++) {
+    const p = { x: Math.round(from.x + dir.x * step), z: Math.round(from.z + dir.z * step) };
+    if (!open(p.x, p.z)) break;
+    end = p;
+  }
+  return end;
+}
+
+// How far a point is from the segment a slug flew along.
+function offPath(a: GridPos, b: GridPos, p: GridPos): number {
+  const lx = b.x - a.x, lz = b.z - a.z;
+  const len2 = lx * lx + lz * lz || 1;
+  const t = Math.max(0, Math.min(1, ((p.x - a.x) * lx + (p.z - a.z) * lz) / len2));
+  return Math.hypot(p.x - (a.x + t * lx), p.z - (a.z + t * lz));
 }
 
 // A gun that fired: recharging, and the battery it spent.
+// A Piercing Rail Round is spent with the shot.
 export const afterRailShot = (u: UnitData, now: number): UnitData =>
-  ({ ...u, railgunFiredAt: now, battery: Math.max(0, u.battery - RAILGUN.batteryCost) });
+  ({ ...u, railgunFiredAt: now, battery: Math.max(0, u.battery - RAILGUN.batteryCost), buffs: u.buffs?.filter(b => b.kind !== 'piercing_round') });

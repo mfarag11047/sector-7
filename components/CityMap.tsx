@@ -50,6 +50,7 @@ import { advanceProduction, applyProduction, createUnit } from '../sim/productio
 import { UNIT_RULES, isAirType } from '../sim/units';
 import { airPath, fastestPath, sentinelHazardOf } from '../sim/pathfinding';
 import { fireFlechettes, regenerateShield, shieldedHit } from '../sim/kestrel';
+import { markScreened, pruneSmoke, SMOKE, SmokeScreen } from '../sim/titan';
 import { addUpgrades, advanceResearch, applyResearch, artilleryTierOf, hasUpgrade, upgradeDef, type UpgradeId } from '../sim/upgrades';
 import { BUILDING_PADS, freePadsFor, isPad, padKindOf, teamPads, TURRET_PADS } from '../sim/baseLayout';
 import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
@@ -497,6 +498,8 @@ type RailBeamData = RailShot & { id: string; createdAt: number; kind?: 'rail' | 
 const BEAM_COLORS = {
     rail: { glow: '#22d3ee', core: '#f0fdff', flash: '#a5f3fc' },
     rocket: { glow: '#f97316', core: '#fef3c7', flash: '#fdba74' },
+    // A Piercing Rail Round (sim/titan.ts): magenta, thicker, down the whole lane.
+    pierce: { glow: '#e879f9', core: '#fdf4ff', flash: '#f0abfc' },
 };
 const RAIL_BEAM_MS = 450;
 const RailBeam: React.FC<{ beam: RailBeamData; tileSize: number; offset: number }> = ({ beam, tileSize, offset }) => {
@@ -518,15 +521,73 @@ const RailBeam: React.FC<{ beam: RailBeamData; tileSize: number; offset: number 
             (flash.material as THREE.MeshBasicMaterial).opacity = 0.9 * fade;
         }
     });
-    const colors = BEAM_COLORS[beam.kind ?? 'rail'];
+    const colors = BEAM_COLORS[beam.pierced ? 'pierce' : beam.kind ?? 'rail'];
     return (
         <group>
-            <Line ref={glowRef} points={points} color={colors.glow} lineWidth={7} transparent opacity={0.7} toneMapped={false} />
-            <Line ref={coreRef} points={points} color={colors.core} lineWidth={2} transparent opacity={1} toneMapped={false} />
+            <Line ref={glowRef} points={points} color={colors.glow} lineWidth={beam.pierced ? 12 : 7} transparent opacity={0.7} toneMapped={false} />
+            <Line ref={coreRef} points={points} color={colors.core} lineWidth={beam.pierced ? 3.5 : 2} transparent opacity={1} toneMapped={false} />
             <mesh ref={flashRef} position={points[1]} raycast={() => null}>
                 <sphereGeometry args={[1, 12, 10]} />
                 <meshBasicMaterial color={colors.flash} transparent opacity={0.9} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
             </mesh>
+        </group>
+    );
+};
+
+// A tank's Smoke Screen (sim/titan.ts): canisters arc out from the tank in a ring, burst, and a
+// grey cloud billows over the circle, thinning out as it ends.
+const SMOKE_PUFFS = Array.from({ length: 14 }, (_, i) => {
+    const a = (i / 14) * Math.PI * 2 + (i % 2) * 0.3;
+    const r = i < 8 ? 0.75 : 0.35;
+    return { x: Math.cos(a) * r, z: Math.sin(a) * r, size: 0.55 + ((i * 37) % 10) / 25, rise: (i % 3) * 0.4 };
+});
+const SmokeCloud: React.FC<{ screen: SmokeScreen; tileSize: number; offset: number }> = ({ screen, tileSize, offset }) => {
+    const canisters = useRef<THREE.Group>(null);
+    const cloud = useRef<THREE.Group>(null);
+    const radius = SMOKE.radius * tileSize;
+    useFrame(() => {
+        const now = Date.now();
+        const launch = (now - screen.laidAt) / SMOKE.launchMs;
+        if (canisters.current) {
+            canisters.current.visible = launch < 1;
+            canisters.current.children.forEach((c, i) => {
+                const a = (i / 8) * Math.PI * 2;
+                const t = Math.min(1, Math.max(0, launch));
+                c.position.set(Math.cos(a) * radius * t, 3 + Math.sin(Math.PI * t) * 9, Math.sin(a) * radius * t);
+            });
+        }
+        if (cloud.current) {
+            const life = screen.until - screen.laidAt - SMOKE.launchMs;
+            const t = (now - screen.laidAt - SMOKE.launchMs) / life;
+            const grow = Math.min(1, Math.max(0, t * 6));
+            const fade = t > 0.8 ? Math.max(0, (1 - t) / 0.2) : 1;
+            cloud.current.visible = t > 0 && t < 1;
+            cloud.current.scale.setScalar(0.4 + 0.6 * grow);
+            cloud.current.rotation.y = now * 0.00015;
+            cloud.current.children.forEach((m, i) => {
+                ((m as THREE.Mesh).material as THREE.MeshStandardMaterial).opacity = 0.62 * fade;
+                m.position.y = 2.5 + SMOKE_PUFFS[i].rise + t * 2;
+            });
+        }
+    });
+    return (
+        <group position={[screen.at.x * tileSize - offset, 0, screen.at.z * tileSize - offset]}>
+            <group ref={canisters}>
+                {Array.from({ length: 8 }, (_, i) => (
+                    <mesh key={i} raycast={() => null}>
+                        <cylinderGeometry args={[0.35, 0.35, 1.2, 6]} />
+                        <meshStandardMaterial color="#64748b" emissive="#94a3b8" emissiveIntensity={0.3} />
+                    </mesh>
+                ))}
+            </group>
+            <group ref={cloud} visible={false}>
+                {SMOKE_PUFFS.map((p, i) => (
+                    <mesh key={i} position={[p.x * radius, 2.5, p.z * radius]} raycast={() => null}>
+                        <dodecahedronGeometry args={[tileSize * p.size, 1]} />
+                        <meshStandardMaterial color="#9ca3af" transparent opacity={0.62} depthWrite={false} roughness={1} />
+                    </mesh>
+                ))}
+            </group>
         </group>
     );
 };
@@ -1326,6 +1387,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // When each Kestrel last fired its Flechette Burst (sim/kestrel.ts), the same way.
   const flechetteShotRef = useRef(new Map<string, number>());
   const [miniRockets, setMiniRockets] = useState<MiniRocket[]>([]);
+  // Tank Smoke Screens on the ground (sim/titan.ts), ahead of state for the tick.
+  const smokeRef = useRef<SmokeScreen[]>([]);
+  const [smokeScreens, setSmokeScreens] = useState<SmokeScreen[]>([]);
   const miniRocketsRef = useRef<MiniRocket[]>([]);
   // Thunderhead shells in flight. The ref is the authority; the state is for drawing them.
   const [shells, setShells] = useState<ArtilleryShell[]>([]);
@@ -1552,7 +1616,6 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       battery: 100,
                       maxBattery: 100,
                       cooldowns: {},
-                      charges: { smoke: 3, aps: 2 },
                   }]);
               }, 200);
           }
@@ -1629,7 +1692,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           setStructuresState(prev => [...prev, s]);
           return s.id;
       },
-      state: () => ({ units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, selected: [...selectedUnitIdsRef.current] }),
+      state: () => ({ units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, selected: [...selectedUnitIdsRef.current], smoke: smokeRef.current }),
     };
     return () => { (window as any).GAME_CHEATS = undefined; };
   }, []);
@@ -1833,10 +1896,6 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         }
         const inHE = clouds.some(c => c.type === 'he' && Math.sqrt(Math.pow(u.gridPos.x - c.gridPos.x, 2) + Math.pow(u.gridPos.z - c.gridPos.z, 2)) <= c.radius);
         if (inHE) return; 
-        if (u.smoke?.active) {
-            const isAdjacent = friendlies.some(f => Math.abs(u.gridPos.x - f.gridPos.x) <= 1 && Math.abs(u.gridPos.z - f.gridPos.z) <= 1);
-            if (!isAdjacent) return;
-        }
         const isDetected = friendlies.some(f => {
             const fInHE = clouds.some(c => c.type === 'he' && Math.sqrt(Math.pow(f.gridPos.x - c.gridPos.x, 2) + Math.pow(f.gridPos.z - c.gridPos.z, 2)) <= c.radius);
             if (fInHE) return false;
@@ -2530,6 +2589,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           miniRocketsRef.current = [...miniRocketsRef.current, ...fx.salvo];
           setMiniRockets(miniRocketsRef.current);
       }
+      if (fx.smoke && fx.smoke.length > 0) {
+          smokeRef.current = [...smokeRef.current, ...fx.smoke];
+          setSmokeScreens(smokeRef.current);
+      }
       if (fx.rockets && fx.rockets.length > 0) {
           rocketsRef.current = [...rocketsRef.current, ...fx.rockets];
           setRockets(rocketsRef.current);
@@ -2693,13 +2756,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   };
 
   // Toggles act on the whole selection, plus the unit whose menu was clicked.
-  const TOGGLE_COMMANDS: Record<string, 'TOGGLE_JAMMER' | 'TOGGLE_DAMPENER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD' | 'SMOKE_SCREEN' | 'ACTIVATE_APS'> = {
+  const TOGGLE_COMMANDS: Record<string, 'TOGGLE_JAMMER' | 'TOGGLE_DAMPENER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD'> = {
       'TOGGLE_JAMMER': 'TOGGLE_JAMMER',
       'TOGGLE DAMPENER': 'TOGGLE_DAMPENER',
       'TOGGLE_ANCHOR': 'TOGGLE_ANCHOR',
       'TOGGLE_CLOAK_FIELD': 'TOGGLE_CLOAK_FIELD',
-      'SMOKE SCREEN': 'SMOKE_SCREEN',
-      'ACTIVATE APS': 'ACTIVATE_APS',
   };
   // Abilities that need a target pick it on the next map or unit click.
   const TARGETED_ABILITIES: Record<string, 'SURVEILLANCE' | 'MISSILE' | 'SWARM' | 'BOMBARD'> = {
@@ -3091,7 +3152,13 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               });
           }
           let newExplosions: Explosion[] = [];
-          const currentUnitsRef = unitsRef.current;
+          // Units in a friendly Smoke Screen are screened this tick (sim/titan.ts): enemy ground
+          // fire can't pick them out, and aircraft do half damage.
+          if (smokeRef.current.some(s => s.until <= now)) {
+              smokeRef.current = pruneSmoke(smokeRef.current, now);
+              setSmokeScreens(smokeRef.current);
+          }
+          const currentUnitsRef = markScreened(unitsRef.current, smokeRef.current, now);
           // The pacing report's bookkeeping (sim/pacing.ts): what changed since the last tick.
           const pacing = pacingRef.current;
           if (pacing) {
@@ -3229,7 +3296,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               const t = railShotRef.current.get(u.id);
               return t && t > (u.railgunFiredAt ?? -Infinity) ? { ...u, railgunFiredAt: t } : u;
           };
-          const rail = fireRailguns(currentUnitsRef.map(railReady), structuresRef.current, now, pos => isPointInCloud(pos, nanoClouds, 'nano'), shieldOf);
+          const rail = fireRailguns(currentUnitsRef.map(railReady), structuresRef.current, now, pos => isPointInCloud(pos, nanoClouds, 'nano'), shieldOf, aiHelpersRef.current.isWalkable);
+          if (pacing && rail.pierceHits.length > 0) recordWeaponHits(pacing, { shots: rail.pierceHits }, currentUnitsRef, structuresRef.current);
           rail.shieldDamage.forEach((n, id) => addShieldHit(shieldHits, id, n));
           const railFired = new Set(rail.shots.map(s => s.attackerId));
           railFired.forEach(id => railShotRef.current.set(id, now));
@@ -4033,6 +4101,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         {/* Weapons fire, only where the player can see one end of the shot */}
         {tracers.filter(t => visibleUnitIds.has(t.attackerId) || visibleUnitIds.has(t.targetId) || structuresState.some(st => st.id === t.attackerId || st.id === t.targetId))
             .map(t => <ShotFx key={t.id} shot={t} />)}
+        {smokeScreens.map(s => <SmokeCloud key={s.id} screen={s} tileSize={tileSize} offset={offset} />)}
         {railBeams.filter(b => b.team === playerTeam || visibleUnitIds.has(b.attackerId) || visibleUnitIds.has(b.targetId)).map(b => <RailBeam key={b.id} beam={b} tileSize={tileSize} offset={offset} />)}
         
         {/* Cloud Effects */}

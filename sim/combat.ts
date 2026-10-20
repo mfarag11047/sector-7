@@ -10,6 +10,7 @@ import { dropDamage } from './bombard';
 import type { BuildingData, CloudData, StructureType, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { isHidden } from './cloak';
+import { isScreened, SMOKE } from './titan';
 import { damageMultiplier, damageTakenMultiplier, fireRateMultiplier, hasBuff, isEmpDisabled, rangeBonus } from './unitAbilities';
 import { ArmorClass, canHit, DamageType, shotDamage, STRUCTURE_RULES, UNIT_RULES, Weapon } from './units';
 
@@ -145,11 +146,12 @@ export function resolveAttacks(
   const unitTargets = units.filter(u => u.health > 0 && !isHidden(u) && !inNanoCloud(u.gridPos));
   const structureTargets = structures.filter(s => s.health > 0);
 
-  const pick = (team: UnitData['team'], at: GridPos, weapon: Weapon, current: string | null | undefined): Target | null => {
+  // Ground shooters can't pick out a unit in a friendly Smoke Screen (sim/titan.ts); aircraft can.
+  const pick = (team: UnitData['team'], at: GridPos, weapon: Weapon, current: string | null | undefined, fromAir = false): Target | null => {
     let best: Target | null = null;
     let bestDist = Infinity;
     for (const t of unitTargets) {
-      if (!hostile(team, t.team)) continue;
+      if (!hostile(team, t.team) || (!fromAir && isScreened(t))) continue;
       const armor = UNIT_RULES[t.type].armor;
       const isAir = armor === 'air';
       if (!canHit(weapon, isAir)) continue;
@@ -180,6 +182,9 @@ export function resolveAttacks(
   // Nano-Weave and the like reduce what a unit takes.
   const takenBy = new Map(unitTargets.map(t => [t.id, damageTakenMultiplier(t)]));
   const hitUnit = (id: string, damage: number) => addDamage(result.unitDamage, id, damage * (takenBy.get(id) ?? 1));
+  // Aircraft do half damage to a unit in a Smoke Screen.
+  const screenedIds = new Set(unitTargets.filter(isScreened).map(t => t.id));
+  const fromAirOn = (id: string, fromAir: boolean) => (fromAir && screenedIds.has(id) ? SMOKE.airDamage : 1);
 
   const fire = (attackerId: string, team: UnitData['team'], from: GridPos, fromAir: boolean, weapon: Weapon, target: Target) => {
     // Stopped by an enemy force field: the dome takes the hit.
@@ -192,14 +197,14 @@ export function resolveAttacks(
     }
     const damage = shotDamage(weapon, target.armor);
     if (target.structure) addDamage(result.structureDamage, target.id, damage);
-    else hitUnit(target.id, damage);
+    else hitUnit(target.id, damage * fromAirOn(target.id, fromAir));
     if (weapon.splash) {
       // Splash stays on the target's own layer: shells burst on the ground, flak in the air.
       for (const t of unitTargets) {
         if (t.id === target.id || !hostile(team, t.team)) continue;
         const armor = UNIT_RULES[t.type].armor;
         if ((armor === 'air') !== target.isAir || tiles(t.gridPos, target.gridPos) > weapon.splash || blocked(team, from, t.gridPos)) continue;
-        hitUnit(t.id, shotDamage(weapon, armor) * (weapon.splashFactor ?? 0.5));
+        hitUnit(t.id, shotDamage(weapon, armor) * (weapon.splashFactor ?? 0.5) * fromAirOn(t.id, fromAir));
         (result.splashed ??= []).push({ attackerId, targetId: t.id });
       }
     }
@@ -217,10 +222,11 @@ export function resolveAttacks(
       damage: base.damage * damageMultiplier(u),
       ...(hasBuff(u, 'barrage') ? { splash: 1.5, splashFactor: 0.5 } : {}),
     } : base;
-    const target = pick(u.team, u.gridPos, weapon, u.combatTargetId);
+    const fromAir = UNIT_RULES[u.type].armor === 'air';
+    const target = pick(u.team, u.gridPos, weapon, u.combatTargetId, fromAir);
     result.aiming.set(u.id, target ? target.id : null);
     if (!target || now - (u.lastAttackTime || 0) < weapon.cooldownMs / fireRateMultiplier(u)) continue;
-    fire(u.id, u.team, u.gridPos, UNIT_RULES[u.type].armor === 'air', weapon, target);
+    fire(u.id, u.team, u.gridPos, fromAir, weapon, target);
   }
 
   for (const s of structures) {

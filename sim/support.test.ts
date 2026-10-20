@@ -104,14 +104,9 @@ describe('slowTick', () => {
     doctrineOf: () => null, now: 100_000, random: () => 0.5,
   };
 
-  it('counts cooldowns down and ends smoke when its time runs out (it never used to)', () => {
-    const titan = unit('t', {
-      type: 'tank', unitClass: 'armor', cooldowns: { titanSmoke: 1500 },
-      smoke: { active: true, remainingTime: 1000 },
-    });
-    const [after] = slowTick([titan], ctx);
-    expect(after.cooldowns.titanSmoke).toBe(500);
-    expect(after.smoke).toEqual({ active: false, remainingTime: 0 });
+  it('counts cooldowns down', () => {
+    const [after] = slowTick([unit('m', { type: 'mule', unitClass: 'ordnance', cooldowns: { combatPrint: 1500 } })], ctx);
+    expect(after.cooldowns.combatPrint).toBe(500);
   });
 
   it('wears off stuns', () => {

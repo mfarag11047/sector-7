@@ -31,7 +31,7 @@ import { isInsideEnergyGrid } from './energy';
 import type { Difficulty } from './match';
 import { isOperational, MAX_QUEUE, OrderCommand, popUsed, teamPopCap, teamTier } from './orders';
 import { ArmorClass, dps, Tier, UNIT_RULES, unitsProducedBy } from './units';
-import { abilitiesFor, abilityCooldownLeft } from './unitAbilities';
+import { abilitiesFor, abilityCooldownLeft, hasBuff } from './unitAbilities';
 import { artilleryRange, inArtilleryReach } from './artillery';
 import { freePadsFor } from './baseLayout';
 import { abilityUnlocked, artilleryTierOf, researchBlocker, UPGRADES, type UpgradeId } from './upgrades';
@@ -541,13 +541,6 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   }
 
   // --- 5. Abilities and doctrine powers ---
-  for (const u of mine) {
-    if (u.type !== 'tank' && u.type !== 'titan_dropped') continue;
-    const pressed = theirs.some(t => dist(t.gridPos, u.gridPos) <= 5);
-    if (pressed && u.health < u.maxHealth * 0.5 && (u.charges?.smoke || 0) > 0 && !u.smoke?.active && !(u.cooldowns?.titanSmoke > 0)) {
-      actions.push({ kind: 'ability', command: { type: 'SMOKE_SCREEN', unitIds: [u.id] } });
-    }
-  }
   actions.push(...unitAbilityMoves(mine, theirs, view.economy[team], mode, now, profile, ctx.random));
   actions.push(...specialistAbilities({
     team, tier, mode, objective, home, mine, theirs, structures: view.structures, economy: view.economy,
@@ -597,6 +590,9 @@ function unitAbilityMoves(
         case 'barrage': if (near(u, 6, t => armorOf(t) === 'air').length > 0) want(d.id, u); break;
         case 'radar': if (near(u, 9).length > 0) want(d.id, u); break;
         case 'afterburner': if (hurt && near(u, 6).length > 0) want(d.id, u); break;
+        // Tanks: smoke when hurt or swarmed, a piercing slug when there's a column of ground targets in rail range.
+        case 'smoke_screen': if (near(u, 6).length > 0 && (u.health < u.maxHealth * 0.6 || near(u, 6).length >= 4)) want(d.id, u); break;
+        case 'piercing_round': if (!hasBuff(u, 'piercing_round') && near(u, 14, t => armorOf(t) !== 'air').length >= 3) want(d.id, u); break;
         case 'emp_rocket':
         case 'hellfire': {
           // Aim at the enemy unit with the most valid victims around it, if that's worth a shot.

@@ -19,7 +19,7 @@ import { type UnitAbilityDef } from './unitAbilities';
 export type UpgradeId =
   | 'nanoweave' | 'dampener' | 'phantom_decoy' | 'emp_rocket'
   | 'overclock' | 'radar' | 'long_range_shells' | 'guided_shells'
-  | 'hellfire' | 'hunter_rockets' | 'regen_shield';
+  | 'hellfire' | 'hunter_rockets' | 'regen_shield' | 'piercing_round';
 
 export interface UpgradeDef {
   id: UpgradeId;
@@ -42,6 +42,7 @@ export const UPGRADES: readonly UpgradeDef[] = [
   { id: 'emp_rocket', unit: 'lancer', name: 'EMP Tandem Rocket', tier: 3, ...T3, description: 'Ability: a top-attack EMP missile that shuts down vehicles and aircraft for 4s.' },
   { id: 'overclock', unit: 'razorback', name: 'Overclocked Autogun', tier: 2, ...T2, description: 'Ability: double fire rate for 6s.' },
   { id: 'radar', unit: 'aegis', name: 'Sky-Net Radar Sweep', tier: 3, ...T3, description: 'Ability: vision 14 and +2 weapon range for 10s.' },
+  { id: 'piercing_round', unit: 'tank', name: 'Piercing Rail Round', tier: 3, ...T3, description: 'Ability: the next rail gun shot carries on down the whole lane, hitting every enemy in its path.' },
   { id: 'long_range_shells', unit: 'howitzer', name: 'Long-Range Shells', tier: 2, ...T2, description: 'Thunderhead range from 12 to 16 tiles.' },
   { id: 'guided_shells', unit: 'howitzer', name: 'Guided Shells', tier: 3, ...T3, requires: 'long_range_shells', description: 'Thunderhead range from 16 to 20 tiles.' },
   { id: 'hellfire', unit: 'hornet', name: 'Hellfire Salvo', tier: 3, ...T3, description: 'Ability: a burst of small rockets that blankets an area.' },

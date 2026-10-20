@@ -17,17 +17,18 @@ import { ARTILLERY, artilleryRange, inArtilleryReach } from './artillery';
 import { artilleryTierOf, hasUpgrade } from './upgrades';
 import type { EmpRocket } from './empRocket';
 import type { MiniRocket } from './hornet';
+import type { SmokeScreen } from './titan';
 import { unitAbilityEffects } from './unitAbilities';
 import { isTetherableDrone, JAMMED_REASON, MAX_TETHERS, tetheredIds, unjammedIds } from './jamming';
 
 export type AbilityCommand = Extract<PlayerCommand, { type:
-  | 'TOGGLE_DAMPENER' | 'SET_HELIOS_MODE' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD' | 'SMOKE_SCREEN' | 'ACTIVATE_APS' | 'PHANTOM_DECOY'
+  | 'TOGGLE_DAMPENER' | 'SET_HELIOS_MODE' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD' | 'PHANTOM_DECOY'
   | 'LOAD_AMMO' | 'TAKE_WARHEAD' | 'FABRICATE' | 'RESUPPLY_MATERIAL' | 'TRANSFER_WARHEAD'
   | 'ARTILLERY_FIRE' | 'SURVEILLANCE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD'
   | 'HARDLINE_TETHER' | 'DISCONNECT_TETHER' | 'BATTERY_LINK' | 'DISCONNECT_BATTERY' | 'UNIT_ABILITY' }>;
 
 const ABILITY_TYPES: ReadonlySet<string> = new Set<AbilityCommand['type']>([
-  'TOGGLE_DAMPENER', 'SET_HELIOS_MODE', 'TOGGLE_JAMMER', 'TOGGLE_ANCHOR', 'TOGGLE_CLOAK_FIELD', 'SMOKE_SCREEN', 'ACTIVATE_APS', 'PHANTOM_DECOY',
+  'TOGGLE_DAMPENER', 'SET_HELIOS_MODE', 'TOGGLE_JAMMER', 'TOGGLE_ANCHOR', 'TOGGLE_CLOAK_FIELD', 'PHANTOM_DECOY',
   'LOAD_AMMO', 'TAKE_WARHEAD', 'FABRICATE', 'RESUPPLY_MATERIAL', 'TRANSFER_WARHEAD',
   'ARTILLERY_FIRE', 'SURVEILLANCE', 'FIRE_BALLISTA', 'FIRE_SWARM', 'BOMBARD',
   'HARDLINE_TETHER', 'DISCONNECT_TETHER', 'BATTERY_LINK', 'DISCONNECT_BATTERY', 'UNIT_ABILITY',
@@ -69,6 +70,8 @@ export interface AbilityEffects {
   rockets?: EmpRocket[];
   // Hellfire Salvo mini-rockets launched (sim/hornet.ts).
   salvo?: MiniRocket[];
+  // Tank Smoke Screens laid (sim/titan.ts).
+  smoke?: SmokeScreen[];
   // Cores or stockpiled warheads the order uses. Returns null if they are gone by the time it applies.
   economy?: (e: Economy) => Economy | null;
 }
@@ -81,7 +84,6 @@ const effects = (partial: Partial<AbilityEffects>): AbilityOutcome => ({
   effects: { updates: new Map(), spawnUnits: [], spawnDecoys: [], clearDecoysOf: [], spawnProjectiles: [], ...partial },
 });
 
-const TANKS: readonly UnitType[] = ['tank', 'titan_dropped'];
 export { isTetherableDrone } from './jamming';
 export const isBatteryLinkable = (u: UnitData) =>
   u.health > 0 && u.maxBattery > 0 && u.unitClass !== 'infantry' && u.type !== 'sun_plate' && u.type !== 'defense_drone' && u.type !== 'crawler_drone';
@@ -131,10 +133,6 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
       return toggleEach(view, team, command.unitIds, ['cloak_generator'], u => ({ ...u, cloakFieldOff: !u.cloakFieldOff }));
     case 'TOGGLE_ANCHOR':
       return toggleAnchor(view, team, command.unitIds, ctx);
-    case 'SMOKE_SCREEN':
-      return titanCountermeasure(view, team, command.unitIds, 'smoke');
-    case 'ACTIVATE_APS':
-      return titanCountermeasure(view, team, command.unitIds, 'aps');
     case 'PHANTOM_DECOY': {
       // Researched to switch on; a running decoy can always be called off.
       const ghost = view.units.find(u => u.id === command.unitId);
@@ -349,7 +347,7 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
     case 'UNIT_ABILITY': {
       const outcome = unitAbilityEffects(view.units, team, view.economy[team], command, ctx.now);
       if ('reason' in outcome) return reject(outcome.reason);
-      return effects({ updates: outcome.updates, strike: outcome.strike, rockets: outcome.rockets, salvo: outcome.salvo });
+      return effects({ updates: outcome.updates, strike: outcome.strike, rockets: outcome.rockets, salvo: outcome.salvo, smoke: outcome.smoke });
     }
   }
 }
@@ -428,29 +426,6 @@ function artilleryFire(view: AbilityView, team: Team, ids: readonly string[], ta
     }
     const at = target ? { ...target } : null;
     updates.set(u.id, h => ({ ...h, artilleryTarget: at }));
-  }
-  return updates.size > 0 ? effects({ updates }) : reject(reason);
-}
-
-// Titan smoke and APS. Change: charges were never spent and cooldowns never checked, so
-// both could be used endlessly. Orbital-drop Titans can now use theirs too.
-function titanCountermeasure(view: AbilityView, team: Team, ids: readonly string[], kind: 'smoke' | 'aps'): AbilityOutcome {
-  const cooldownKey = kind === 'smoke' ? 'titanSmoke' : 'titanAps';
-  const cooldown = kind === 'smoke' ? ABILITY_CONFIG.TITAN_SMOKE_COOLDOWN : ABILITY_CONFIG.TITAN_APS_COOLDOWN;
-  const duration = kind === 'smoke' ? ABILITY_CONFIG.TITAN_SMOKE_DURATION : ABILITY_CONFIG.TITAN_APS_DURATION;
-  const updates = new Map<string, (u: UnitData) => UnitData>();
-  let reason = 'no unit can do that';
-  for (const id of ids) {
-    const u = ownUnit(view, team, id, TANKS);
-    if (typeof u === 'string') continue;
-    if ((u.cooldowns[cooldownKey] || 0) > 0) { reason = `${kind} recharging`; continue; }
-    if ((u.charges?.[kind] ?? 0) <= 0) { reason = `no ${kind} charges left`; continue; }
-    updates.set(u.id, t => ({
-      ...t,
-      charges: { ...t.charges, [kind]: Math.max(0, (t.charges?.[kind] ?? 0) - 1) },
-      cooldowns: { ...t.cooldowns, [cooldownKey]: cooldown },
-      [kind]: { active: true, remainingTime: duration },
-    }));
   }
   return updates.size > 0 ? effects({ updates }) : reject(reason);
 }

@@ -8,7 +8,7 @@
 //     the army, the Battery Mule plants at the staging point, Swarm Hosts anchor in a fight,
 //     Ballistas stay by the Ordnance Fab, Bombardment Drones fly their own strikes.
 //   - When to use their abilities: Ghost Dampener and Phantom Decoy, Banshee jammer and
-//     tether, Helios mode, Wasp swarm volleys, drone Surveillance, Titan APS, Battery Mule
+//     tether, Helios mode, Wasp swarm volleys, drone Surveillance, Battery Mule
 //     links, warheads for the Ballista, turrets for the Masons, and new Command HQs.
 
 import { ABILITY_CONFIG, UNIT_STATS } from '../constants';
@@ -214,7 +214,6 @@ export function specialistAbilities(c: AbilityContext2): Action[] {
   const jammerFlip: string[] = [];
   const toCharge: string[] = [];
   const toBurn: string[] = [];
-  const aps: string[] = [];
   const enemy: Team = c.team === 'blue' ? 'red' : 'blue';
 
   for (const u of c.mine) {
@@ -269,12 +268,6 @@ export function specialistAbilities(c: AbilityContext2): Action[] {
           actions.push({ kind: 'ability', command: { type: 'SURVEILLANCE', unitId: u.id, target: c.objective } });
         }
         break;
-      case 'tank':
-      case 'titan_dropped':
-        // Active protection when enemy artillery or missiles have it in reach.
-        if ((u.charges?.aps || 0) > 0 && !u.aps?.active && !(u.cooldowns?.titanAps > 0) && u.health < u.maxHealth * 0.8
-          && c.theirs.some(t => (t.type === 'howitzer' || t.type === 'ballista') && dist(t.gridPos, u.gridPos) <= 14)) aps.push(u.id);
-        break;
       case 'sun_plate': {
         // Links the vehicles around it that need charge.
         if (!u.isDeployed) break;
@@ -302,7 +295,6 @@ export function specialistAbilities(c: AbilityContext2): Action[] {
   if (jammerFlip.length > 0) actions.push({ kind: 'ability', command: { type: 'TOGGLE_JAMMER', unitIds: jammerFlip } });
   if (toBurn.length > 0) actions.push({ kind: 'ability', command: { type: 'SET_HELIOS_MODE', unitIds: toBurn, mode: 'burn' } });
   if (toCharge.length > 0) actions.push({ kind: 'ability', command: { type: 'SET_HELIOS_MODE', unitIds: toCharge, mode: 'charge' } });
-  if (aps.length > 0) actions.push({ kind: 'ability', command: { type: 'ACTIVATE_APS', unitIds: aps } });
   return actions;
 }
 

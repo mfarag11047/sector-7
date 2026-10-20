@@ -92,8 +92,6 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
     use: 'Main battle tank. Leads pushes, levels buildings and breaks infantry clumps.',
     actions: [
       { name: 'Rail Gun (automatic)', text: `Fires on its own at enemy ground units and buildings up to ${RAILGUN.range} tiles away that any of your units or buildings can see, armour first: ${Math.round(railDamage('heavy'))} to heavy armour, ${Math.round(railDamage('light'))} to light vehicles, only ${Math.round(railDamage('infantry'))} to infantry. ${RAILGUN.cooldownMs / 1000}s recharge, ${RAILGUN.batteryCost} battery a shot.` },
-      { name: 'Smoke Screen', text: `Hides the tank for ${ABILITY_CONFIG.TITAN_SMOKE_DURATION / 1000}s. Limited charges.` },
-      { name: 'Activate APS', text: `Active protection shoots down incoming missiles and shells for ${ABILITY_CONFIG.TITAN_APS_DURATION / 1000}s. Limited charges.` },
     ],
   },
   aegis: {

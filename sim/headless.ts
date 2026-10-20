@@ -13,6 +13,7 @@ import { AiMemory, AI_PROFILES, aiThink, freshAiMemory, nextThinkDelay, thinkOff
 import { afterRailShot, fireRailguns } from './railgun';
 import { fireHornetRockets, landSalvo, MiniRocket } from './hornet';
 import { fireFlechettes, regenerateShield, shieldedHit } from './kestrel';
+import { markScreened, pruneSmoke, SmokeScreen } from './titan';
 import { addUpgrades, advanceResearch, applyResearch, artilleryTierOf, hasUpgrade } from './upgrades';
 import { EmpRocket, empRocketImpact, empRocketTick, mergeUnitUpdates } from './empRocket';
 import { ArtilleryShell, fireArtillery, landShells, shellGroundPos } from './artillery';
@@ -75,6 +76,8 @@ export interface HeadlessMatch {
   rockets: EmpRocket[];
   // Hornet Hellfire Salvo rockets in flight.
   salvo: MiniRocket[];
+  // Tank Smoke Screens on the ground (sim/titan.ts).
+  smoke: SmokeScreen[];
   nextId: number;
   // Seeded, so the same options always play out the same match.
   random: () => number;
@@ -113,6 +116,7 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     shellHits: new Map(),
     rockets: [],
     salvo: [],
+    smoke: [],
     nextId: 0,
     random: seededRandom(opts.seed ^ 0x5eed),
     thinkRandom: seededRandom(opts.seed ^ 0x7a1c),
@@ -181,6 +185,9 @@ export function stepMatch(m: HeadlessMatch): void {
     const shot = m.lastShot.get(x.id);
     return shot && shot > (x.lastAttackTime || 0) ? { ...x, lastAttackTime: shot } : x;
   };
+  // Units in a friendly Smoke Screen are screened this tick (sim/titan.ts).
+  m.smoke = pruneSmoke(m.smoke, now);
+  m.units = markScreened(m.units, m.smoke, now);
   const attacks = resolveAttacks(m.units.map(reloaded), m.structures.map(reloaded) as never, now, () => false);
   attacks.fired.forEach((_, id) => m.lastShot.set(id, now));
   m.structures = applyStructureCombat(m.structures, attacks, now);
@@ -188,7 +195,7 @@ export function stepMatch(m: HeadlessMatch): void {
   const volley = fireArtillery(m.units.map(reloaded), m.structures, now, team => (team === 'neutral' ? 1 : artilleryTierOf(m.economy[team])), m.random, () => `shell-${++m.nextId}`);
   volley.fired.forEach((_, id) => { m.lastShot.set(id, now); attacks.fired.set(id, ''); });
   // Tank rail guns: long-range shots at what the side can see.
-  const rail = fireRailguns(m.units, m.structures, now);
+  const rail = fireRailguns(m.units, m.structures, now, undefined, undefined, paths.walkable);
   const railFired = new Set(rail.shots.map(s => s.attackerId));
   if (railFired.size > 0) m.units = m.units.map(u => railFired.has(u.id) ? afterRailShot(u, now) : u);
   rail.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
@@ -229,7 +236,7 @@ export function stepMatch(m: HeadlessMatch): void {
   if (impact.structureDamage.size > 0) m.structures = applyStructureCombat(m.structures, { structureDamage: impact.structureDamage, fired: new Map(), aiming: new Map() }, now);
   // Who hit whom, for the pacing report's damage tally.
   recordWeaponHits(m.pacing, {
-    fired: attacks.fired, shots: [...(attacks.splashed ?? []), ...rail.shots, ...hornets.shots, ...flechettes.shots], ciws: ciws.links,
+    fired: attacks.fired, shots: [...(attacks.splashed ?? []), ...rail.shots, ...rail.pierceHits, ...hornets.shots, ...flechettes.shots], ciws: ciws.links,
     blasts: [
       ...impact.landed.map(s => ({ attackerId: s.attackerId, team: s.team, at: s.at, radius: 2 })),
       ...salvo.landed.map(s => ({ attackerId: s.attackerId, team: s.team, at: s.at, radius: 2 })),
@@ -356,6 +363,7 @@ function think(m: HeadlessMatch, team: Team, paths: ReturnType<typeof pathfinder
         m.units = applyUnitEffects(m.units, outcome.effects);
         if (outcome.effects.rockets) m.rockets.push(...outcome.effects.rockets);
         if (outcome.effects.salvo) m.salvo.push(...outcome.effects.salvo);
+        if (outcome.effects.smoke) m.smoke.push(...outcome.effects.smoke);
         if (outcome.effects.economy) m.economy = outcome.effects.economy(m.economy) ?? m.economy;
       }
     } else if (action.kind === 'doctrine') {
