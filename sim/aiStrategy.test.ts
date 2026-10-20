@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { UnitData } from '../types';
-import { aiThink, chooseUnit, freshAiMemory, type AiContext } from './ai';
+import { aiThink, chooseUnit, freshAiMemory, gatherPoint, type AiContext } from './ai';
 import { counterScore, freshStrategyMemory, LOSS_WINDOW_MS, STRATEGY_PLANS, updateStrategy, type AiStrategy } from './aiStrategy';
 import { createHeadlessMatch } from './headless';
 import { createUnit } from './production';
@@ -37,6 +37,24 @@ describe('army strategy', () => {
     expect(early.strategy).toBe('infantry');
     const easy = updateStrategy(updateStrategy({ ...start, since: 0 }, input(100_000, troopers, gunships, { commitMs: null })), input(103_000, [], gunships, { commitMs: null }));
     expect(easy.strategy).toBe('infantry');
+  });
+
+  it('sticks longer after a change, and does not flip straight back', () => {
+    const troopers = Array.from({ length: 12 }, (_, i) => unit(`t${i}`, 'trooper', 'blue'));
+    const gunships = [unit('h1', 'hornet', 'red', 21, 20), unit('h2', 'hornet', 'red', 20, 22)];
+    const lose = (mem: ReturnType<typeof freshStrategyMemory>, at: number, theirs: UnitData[]) =>
+      updateStrategy(updateStrategy(mem, input(at, troopers, theirs)), input(at + 3000, [], theirs));
+    // Switched from infantry to armour at 100s, losing to aircraft.
+    let mem = lose({ ...freshStrategyMemory(), strategy: 'infantry', since: 0, log: [{ atMs: 0, strategy: 'infantry', reason: 'opening plan' }] }, 100_000, gunships);
+    expect(mem.strategy).toBe('armor');
+    const switchedAt = mem.since;
+    // Now losing to enemy infantry, which infantry would answer: not yet, one commitment on.
+    const riflemen = Array.from({ length: 10 }, (_, i) => unit(`r${i}`, 'trooper', 'red', 20 + (i % 3), 20 + Math.floor(i / 3)));
+    mem = lose(mem, switchedAt + 60_000, riflemen);
+    expect(mem.strategy).toBe('armor');
+    // Nor after twice that, since it gave up infantry only a few minutes ago.
+    mem = lose(mem, switchedAt + 130_000, riflemen);
+    expect(mem.strategy).not.toBe('infantry');
   });
 
   it('forgets old losses, and ignores units that die with no enemy about', () => {
@@ -112,6 +130,67 @@ describe('taking nodes with infantry', () => {
     expect(out.memory.mode).toBe('expand');
     expect(movesOf(out, 'i1')).toContainEqual(objective);
     expect(movesOf(out, 'r1')).toContainEqual(objective);
+  });
+});
+
+describe('server node guards', () => {
+  it('only takes on a Sentinel with an army that can put it down cheaply', async () => {
+    const { guardLosses } = await import('./ai');
+    const guard = createUnit('defense_drone', 'neutral', 'g', { x: 9, z: 33 });
+    const troopers = Array.from({ length: 4 }, (_, i) => unit(`t${i}`, 'trooper', 'blue'));
+    const tanks = Array.from({ length: 4 }, (_, i) => unit(`k${i}`, 'tank', 'blue'));
+    // Four Troopers would lose most of their number; with tanks alongside, little or nothing.
+    expect(guardLosses(troopers, guard)).toBeGreaterThanOrEqual(160);
+    expect(guardLosses([...troopers, ...tanks], guard)).toBeLessThan(160);
+    expect(guardLosses([], guard)).toBe(Infinity);
+  });
+});
+
+describe('the capture team', () => {
+  const setup = () => {
+    const m = createHeadlessMatch({ seed: 1, difficulty: { blue: 'normal', red: 'normal' }, doctrine: { blue: null, red: null } });
+    const ctx: AiContext = {
+      gridSize: m.gridSize, bases: { blue: { x: 4, z: 4 }, red: { x: 74, z: 74 } }, difficulty: 'normal', doctrine: null,
+      canBuildOn: () => false, isOpenGround: () => false, isWalkable: () => true,
+      doctrineCooldowns: { tier2: 0, tier3: 0 }, random: () => 0.99,
+    };
+    const view = (army: UnitData[]) => ({ units: [...m.units.filter(u => u.team !== 'blue'), ...army], structures: m.structures, buildings: m.buildings, economy: m.economy, elapsedMs: 60_000 });
+    return { ctx, view, gather: gatherPoint(view([]), 'blue', ctx) };
+  };
+  const memory = () => ({ ...freshAiMemory(), plan: { ...freshStrategyMemory(), strategy: 'armor' as AiStrategy, since: 0 } });
+  const targets = (out: ReturnType<typeof aiThink>) => out.actions.flatMap(a => (a.kind === 'order' && a.command.type === 'MOVE' ? [a.command.target] : []));
+
+  it('waits at the gather point until a few infantry are together', () => {
+    const { ctx, view, gather } = setup();
+    const lone = aiThink(view([unit('t1', 'trooper', 'blue', gather.x, gather.z + 1)]), 'blue', memory(), ctx);
+    expect(lone.memory.captureGroup).toEqual([]);
+    expect(targets(lone).every(t => Math.hypot(t.x - gather.x, t.z - gather.z) <= 1)).toBe(true);
+    const three = ['t1', 't2', 't3'].map((id, i) => unit(id, 'trooper', 'blue', gather.x + i - 1, gather.z));
+    const out = aiThink(view(three), 'blue', memory(), ctx);
+    expect(out.memory.captureGroup).toEqual(['t1', 't2', 't3']);
+    expect(targets(out).some(t => Math.hypot(t.x - gather.x, t.z - gather.z) > 5)).toBe(true);
+  });
+
+  it('calls a lone survivor back to wait for the next group', () => {
+    const { ctx, view, gather } = setup();
+    const out = aiThink(view([unit('t1', 'trooper', 'blue', 30, 30)]), 'blue', { ...memory(), captureGroup: ['t1', 't2', 't3'] }, ctx);
+    expect(out.memory.captureGroup).toEqual([]);
+    expect(targets(out)).toContainEqual(gather);
+  });
+});
+
+describe('building under attack', () => {
+  it('places no structures while enemy fighters are in its base, and builds once it is clear', () => {
+    const m = createHeadlessMatch({ seed: 1, difficulty: { blue: 'normal', red: 'normal' }, doctrine: { blue: null, red: null } });
+    const ctx: AiContext = {
+      gridSize: m.gridSize, bases: { blue: { x: 4, z: 4 }, red: { x: 74, z: 74 } }, difficulty: 'normal', doctrine: null,
+      canBuildOn: () => true, isOpenGround: () => true, isWalkable: () => true,
+      doctrineCooldowns: { tier2: 0, tier3: 0 }, random: () => 0.99,
+    };
+    const placed = (units: UnitData[]) => aiThink({ units, structures: m.structures, buildings: m.buildings, economy: m.economy, elapsedMs: 60_000 }, 'blue', freshAiMemory(), ctx)
+      .actions.some(a => a.kind === 'order' && a.command.type === 'PLACE_STRUCTURE');
+    expect(placed(m.units)).toBe(true);
+    expect(placed([...m.units, unit('raider', 'razorback', 'red', 9, 9)])).toBe(false);
   });
 });
 

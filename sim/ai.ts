@@ -33,7 +33,7 @@ import { isOperational, MAX_QUEUE, OrderCommand, popUsed, teamPopCap, teamTier }
 import { ArmorClass, dps, Tier, UNIT_RULES, unitsProducedBy } from './units';
 import { abilitiesFor, abilityCooldownLeft } from './unitAbilities';
 import { artilleryRange, inArtilleryReach } from './artillery';
-import { baseMoves, ESCORTS, specialistAbilities, specialistMoves, specialistPick, SPECIALIST_MOVERS } from './aiSpecialists';
+import { baseMoves, ESCORTS, SCOUT_REPLACE_MS, specialistAbilities, specialistMoves, specialistPick, SPECIALIST_MOVERS } from './aiSpecialists';
 import { freshStrategyMemory, lossMix, STRATEGY_PLANS, StrategyMemory, updateStrategy } from './aiStrategy';
 
 export interface AiView {
@@ -82,6 +82,11 @@ export interface AiMemory {
   threatSince: number | null;
   // The army strategy and the losses that may change it (sim/aiStrategy.ts).
   plan: StrategyMemory;
+  // The capture team members out together taking nodes; empty while it gathers.
+  captureGroup: string[];
+  // Scout cars last think, and when one was last lost, to wait before replacing it.
+  scouts: number;
+  scoutLostAt: number;
 }
 
 // When each computer player first thinks in a match with two of them. They think on staggered
@@ -103,7 +108,7 @@ export const nextThinkDelay = (thinkMs: number, random: () => number) =>
 export const freshAiMemory = (): AiMemory => ({
   lastOrder: {}, mode: 'gather', objective: null, objectiveId: null, retreatedAt: -Infinity,
   lastBuildAt: -Infinity, lastProductionAt: -Infinity, researchReadySince: null, threatSince: null,
-  plan: freshStrategyMemory(),
+  plan: freshStrategyMemory(), captureGroup: [], scouts: 0, scoutLostAt: -Infinity,
 });
 
 // How each difficulty plays.
@@ -168,6 +173,10 @@ const CAPTURERS: UnitType[] = ['trooper', 'ghost', 'lancer'];
 const canCapture = (u: UnitData) => CAPTURERS.includes(u.type);
 // Infantry that go with the army onto a node it is taking.
 const NODE_SQUAD = 2;
+// How many of the capture team gather before it sets out on its own.
+const CAPTURE_GROUP = 3;
+// Enemy fighters this close to the HQ mean the base is under attack: no building until it's clear.
+const SIEGE_RADIUS = 12;
 // Cores in hand that count as piling up.
 const BANKED_CORES = 600;
 const ARMORS: ArmorClass[] = ['infantry', 'light', 'heavy', 'air'];
@@ -200,6 +209,9 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     nowMs: now, tier, mine, theirs, armyValue, random: ctx.random, commitMs: profile.adaptMs,
   });
   const plan = STRATEGY_PLANS[mem.plan.strategy!];
+  const scouts = mine.filter(u => u.type === 'scout_car').length;
+  if (scouts < (memory.scouts ?? 0)) mem.scoutLostAt = now;
+  mem.scouts = scouts;
   // Research the next tier a while after there's compute for it.
   if (tier < 3) {
     const next = (tier + 1) as 2 | 3;
@@ -233,9 +245,12 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     counts[type] = (counts[type] || 0) + 1;
     return have(type) < counts[type]!;
   });
-  // Save up for the next structure before spending on units, unless under attack.
+  // Save up for the next structure before spending on units, unless under attack. With enemy
+  // fighters in the base it builds nothing: a new structure would only be knocked down half-built.
+  // It spends on units from the producers still standing, and rebuilds once the base is clear.
+  const besieged = theirs.some(u => isFighter(u) && dist(u.gridPos, home) <= SIEGE_RADIUS);
   let reserve = 0;
-  if (nextBuild && !building && now - mem.lastBuildAt >= profile.buildGapMs) {
+  if (nextBuild && !building && !besieged && now - mem.lastBuildAt >= profile.buildGapMs) {
     const cost = structureCost(nextBuild);
     const spot = cores >= cost ? findBuildSpot(view, team, ctx) : null;
     if (spot) {
@@ -266,7 +281,11 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const byLean = (a: BuildingData, b: BuildingData) => lean(a) - lean(b) || ownFrame(a) - ownFrame(b);
   const freeCores = coreNodes.filter(b => b.owner === null).sort(byLean);
   const enemyCores = coreNodes.filter(b => b.owner === enemy).sort(byLean);
-  const freeServers = serverNodes.filter(b => b.owner !== team).sort(byLean);
+  // A server node still guarded by its Sentinel is only worth going for with an army that can
+  // put it down without being shot to pieces; early on, a handful of Troopers would just die.
+  const freeServers = serverNodes.filter(b => b.owner !== team)
+    .filter(b => { const guard = sentinelAt(b); return !guard || guardLosses(armyUnits, guard) <= armyValue * GUARD_LOSS_SHARE; })
+    .sort(byLean);
 
   // The army's objective, most urgent first.
   const enemyNear = (at: GridPos, r: number) => theirs.filter(u => dist(u.gridPos, at) <= r).reduce((s, u) => s + valueOf(u), 0);
@@ -326,6 +345,17 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     : nodeObjective ? Math.min(profile.capturers, Math.max(0, infantry.length - NODE_SQUAD)) : profile.capturers;
   const capturers = infantry.slice(0, teamSize);
   const capturerIds = new Set(capturers.map(u => u.id));
+  // The capture team sets out together: it waits at the gather point until enough of it is there,
+  // rather than walking out one Trooper at a time to be picked off. Once out, it keeps going
+  // while at least two are left; a lone survivor comes back to wait for the next group.
+  let group = (memory.captureGroup ?? []).filter(id => capturerIds.has(id));
+  if (group.length < 2) group = [];
+  if (group.length === 0) {
+    const ready = capturers.filter(u => dist(u.gridPos, gather) <= 5);
+    if (ready.length >= Math.min(CAPTURE_GROUP, profile.capturers)) group = ready.map(u => u.id);
+  }
+  mem.captureGroup = group;
+  const setOut = new Set(group);
   // The node squad: the army's infantry nearest the objective.
   const nodeSquad = nodeObjective
     ? infantry.filter(u => !capturerIds.has(u.id)).sort((a, b) => dist(a.gridPos, objective) - dist(b.gridPos, objective))
@@ -397,7 +427,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
       continue;
     }
     if (capturerIds.has(u.id) && captureTarget && mode !== 'defend') {
-      send(u, posOf(captureTarget), true);
+      send(u, setOut.has(u.id) ? posOf(captureTarget) : gather, true);
       continue;
     }
     if (!pushing) {
@@ -423,6 +453,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   actions.push(...specialistMoves({
     team, tier, mode, objective, staging, gather, home, mine, theirs, structures: view.structures, buildings: view.buildings,
     bases: ctx.bases, send,
+    sentinels: view.units.filter(u => u.type === 'defense_drone' && alive(u)).map(u => u.gridPos),
   }));
   for (const g of groups.values()) {
     actions.push({ kind: 'order', command: { type: 'MOVE', unitIds: g.ids, target: g.target, attackMove: g.attackMove } });
@@ -468,6 +499,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     const pick = specialistPick(s.type, {
       tier, mine, structures: myStructures, army: armyUnits.length, needInfantry,
       hard: ctx.difficulty === 'hard', random: ctx.random, strategy: mem.plan.strategy!,
+      scoutLostRecently: now - (mem.scoutLostAt ?? -Infinity) < SCOUT_REPLACE_MS,
     }) ?? chooseUnit(s.type, tier, threatMix, {
       counterAccuracy: profile.counterAccuracy, random: ctx.random,
       needInfantry, guardians, howitzers, army: armyUnits.length, weights: plan.units,
@@ -613,6 +645,30 @@ export function chooseUnit(
   };
   const ranked = fighters.sort((a, b) => score(b) - score(a));
   return ranked[0] ?? null;
+}
+
+// The share of the army's worth it will accept losing to take out a server node's Sentinel.
+const GUARD_LOSS_SHARE = 0.2;
+
+// What the army would lose killing a Sentinel: it focuses one unit at a time while the whole army
+// fires back. Infinity if the army can't put it down at all.
+export function guardLosses(army: readonly UnitData[], guard: UnitData): number {
+  const gun = UNIT_RULES[guard.type].weapon;
+  const fighters = army.filter(u => dps(UNIT_RULES[u.type].weapon, 'heavy') > 0 || dps(gun, UNIT_RULES[u.type].armor) > 0)
+    .sort((a, b) => valueOf(b) - valueOf(a));
+  let hp = guard.health;
+  let lost = 0;
+  let firing = fighters.reduce((s, u) => s + dps(UNIT_RULES[u.type].weapon, UNIT_RULES[guard.type].armor), 0);
+  for (const u of fighters) {
+    if (firing <= 0) return Infinity;
+    const hurt = dps(gun, UNIT_RULES[u.type].armor);
+    const lasts = hurt > 0 ? u.health / hurt : Infinity;
+    if (firing * lasts >= hp) return lost;
+    hp -= firing * lasts;
+    lost += valueOf(u);
+    firing -= dps(UNIT_RULES[u.type].weapon, UNIT_RULES[guard.type].armor);
+  }
+  return Infinity;
 }
 
 // The tile the army waits on: the edge of our grid nearest the enemy.

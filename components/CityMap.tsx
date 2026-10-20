@@ -48,7 +48,7 @@ import { AI_PROFILES, aiThink, freshAiMemory, nextThinkDelay, thinkOffsets } fro
 import { OrderCommand, applyOrderToStructures, applyOrderToUnits, orderEffects, popUsed, coreNodesHeld, serverNodesHeld, teamPopCap, teamTier } from '../sim/orders';
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
 import { UNIT_RULES, isAirType } from '../sim/units';
-import { airPath, fastestPath } from '../sim/pathfinding';
+import { airPath, fastestPath, sentinelHazardOf } from '../sim/pathfinding';
 import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
 import { applyFieldCloak, CLOAK_FIELD, fieldCloakedIds, generatorsReplacedBy, isCloakFieldUp, isHidden } from '../sim/cloak';
 import { Victory, checkVictory } from '../sim/victory';
@@ -1910,9 +1910,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
     return set;
   }, [structuresState]);
 
-  // Ground units take the quickest route by travel time, preferring main roads (sim/pathfinding.ts).
+  // Ground units take the quickest route by travel time, preferring main roads and steering clear
+  // of the Sentinels still guarding server nodes (sim/pathfinding.ts).
   const findPath = useCallback((start: {x: number, z: number}, end: {x: number, z: number}) =>
-      fastestPath(start, end, gridSize, (x, z) => dynamicRoadTileSet.has((x << 16) | z), (x, z) => tileTypeMap[`${x},${z}`]),
+      fastestPath(start, end, gridSize, (x, z) => dynamicRoadTileSet.has((x << 16) | z), (x, z) => tileTypeMap[`${x},${z}`], sentinelHazardOf(unitsRef.current)),
       [gridSize, dynamicRoadTileSet, tileTypeMap]);
 
   // Aircraft fly straight over everything.

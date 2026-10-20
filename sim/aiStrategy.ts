@@ -138,6 +138,11 @@ const LOSS_SHARE_OF_ARMY = 0.5;
 const DOMINANT_SHARE = 0.45;
 // A new strategy has to counter the threat this much better than the current one.
 const BETTER_BY = 1.15;
+// After changing course it gives the new strategy this many times as long before changing again,
+// and doesn't go back to one it gave up within REVISIT_MS, so it doesn't flip back and forth
+// between two plans that each lose to the other's weakness.
+const RECOMMIT = 2;
+export const REVISIT_MS = 5 * 60_000;
 
 // Units whose disappearance isn't a combat loss.
 const NOT_LOSSES: ReadonlySet<UnitType> = new Set<UnitType>(['crawler_drone', 'courier', 'titan_dropped', 'field_generator', 'cloak_generator', 'defense_drone']);
@@ -190,14 +195,20 @@ export function updateStrategy(memory: StrategyMemory, input: StrategyInput): St
   mem.losses = mem.losses.filter(l => nowMs - l.atMs <= LOSS_WINDOW_MS);
 
   // Time to change course?
-  if (input.commitMs === null || nowMs - mem.since < input.commitMs) return mem;
+  if (input.commitMs === null) return mem;
+  const changed = mem.log.length > 1;
+  if (nowMs - mem.since < input.commitMs * (changed ? RECOMMIT : 1)) return mem;
   const lostValue = mem.losses.reduce((s, l) => s + l.value, 0);
   if (lostValue < Math.max(MIN_LOSS_VALUE, input.armyValue * LOSS_SHARE_OF_ARMY)) return mem;
   const mix = lossMix(mem.losses);
   const [worst, share] = (Object.entries(mix) as [ArmorClass, number][]).sort((a, b) => b[1] - a[1])[0] ?? ['infantry', 0];
   if (share < DOMINANT_SHARE) return mem;
   const current = mem.strategy;
-  const ranked = AI_STRATEGIES.map(s => ({ s, score: counterScore(s, mix, input.tier) })).sort((a, b) => b.score - a.score);
+  // Strategies given up lately: each log entry after the first left the one before it.
+  const leftLately = new Set(mem.log.slice(1).map((e, i) => ({ left: mem.log[i].strategy, at: e.atMs }))
+    .filter(e => nowMs - e.at < REVISIT_MS).map(e => e.left));
+  const ranked = AI_STRATEGIES.filter(s => s === current || !leftLately.has(s))
+    .map(s => ({ s, score: counterScore(s, mix, input.tier) })).sort((a, b) => b.score - a.score);
   const best = ranked[0];
   const now = ranked.find(r => r.s === current)!;
   if (best.s === current || best.score < now.score * BETTER_BY) return mem;

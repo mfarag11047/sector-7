@@ -54,7 +54,16 @@ export interface SupportNeeds {
   // The army strategy (sim/aiStrategy.ts): a drone army fields many more Helios, Banshees and
   // Swarm Hosts, an air army more Bombardment Drones.
   strategy?: AiStrategy;
+  // A scout car was lost recently: it waits a while before sending another (SCOUT_REPLACE_MS).
+  scoutLostRecently?: boolean;
 }
+
+// How long after losing a scout car it waits before training another.
+export const SCOUT_REPLACE_MS = 3 * 60_000;
+// How close an enemy gets before a scout car turns back, and how far short of the enemy base it
+// stops to watch: it is unarmed and fragile, there to look, not to be shot.
+const SCOUT_WARY = 7;
+const SCOUT_WATCH = 14;
 
 // A specialist worth training at this structure now, or null to train the usual fighter.
 export function specialistPick(producer: StructureType, n: SupportNeeds): UnitType | null {
@@ -66,7 +75,7 @@ export function specialistPick(producer: StructureType, n: SupportNeeds): UnitTy
   const air = n.strategy === 'air';
   switch (producer) {
     case 'hq':
-      return have('scout_car') < (n.hard ? 2 : 1) ? 'scout_car' : null;
+      return !n.scoutLostRecently && have('scout_car') < (n.hard ? 2 : 1) ? 'scout_car' : null;
     case 'infantry':
       // Ghosts join the capture team once the first Troopers are out.
       return !n.needInfantry && have('ghost') < (n.hard ? 3 : 2) && random() < 0.35 ? 'ghost' : null;
@@ -105,6 +114,8 @@ export interface MoveContext {
   structures: readonly StructureData[];
   buildings: readonly BuildingData[];
   bases: Record<Team, GridPos>;
+  // The neutral Sentinels still guarding server nodes.
+  sentinels: readonly GridPos[];
   // sim/ai.ts' de-duplicating move order.
   send: (u: UnitData, target: GridPos, attackMove: boolean) => void;
 }
@@ -120,14 +131,17 @@ export function specialistMoves(c: MoveContext): Action[] {
   for (const u of c.mine) {
     switch (u.type) {
       case 'scout_car': {
-        // Runs ahead of the army to look, and backs off from anything that could catch it.
-        const threat = enemiesNear(u.gridPos, 4);
-        if (threat.length > 0) { c.send(u, c.staging, false); break; }
-        const ahead = pushing || c.mode === 'defend' ? c.objective : c.bases[enemyEnemy];
-        // Stop short of the target so it watches rather than drives in.
+        // Runs ahead of the army to look, and backs off home from anything that could catch it.
+        if (enemiesNear(u.gridPos, SCOUT_WARY).length > 0) { c.send(u, c.gather, false); break; }
+        const withArmy = pushing || c.mode === 'defend';
+        const ahead = withArmy ? c.objective : c.bases[enemyEnemy];
+        // Stop short of the target so it watches rather than drives in; well short of their base.
         const d = dist(ahead, u.gridPos) || 1;
-        const back = Math.min(d, 6);
-        c.send(u, { x: Math.round(ahead.x + ((u.gridPos.x - ahead.x) / d) * back), z: Math.round(ahead.z + ((u.gridPos.z - ahead.z) / d) * back) }, false);
+        const back = Math.min(d, withArmy ? 6 : SCOUT_WATCH);
+        const spot = { x: Math.round(ahead.x + ((u.gridPos.x - ahead.x) / d) * back), z: Math.round(ahead.z + ((u.gridPos.z - ahead.z) / d) * back) };
+        // Never parked under a Sentinel's guns.
+        const guarded = (p: GridPos) => c.sentinels.some(g => dist(g, p) <= SENTINEL_CLEARANCE);
+        c.send(u, guarded(spot) ? (guarded(c.staging) ? c.gather : c.staging) : spot, false);
         break;
       }
       case 'drone':
@@ -170,6 +184,9 @@ export function specialistMoves(c: MoveContext): Action[] {
   if (anchor.length > 0) actions.push({ kind: 'ability', command: { type: 'TOGGLE_ANCHOR', unitIds: anchor } });
   return actions;
 }
+
+// How far from a Sentinel a scout car keeps (its gun reaches 3 tiles).
+const SENTINEL_CLEARANCE = 6;
 
 // --- Abilities ---
 
@@ -360,8 +377,10 @@ export function baseMoves(c: BaseContext): { actions: Action[]; spent: number } 
   // Turrets only go up in the area around a Command HQ (sim/orders.ts).
   const depot = mineS.some(s => s.type === 'builder' && isOperational(s));
   const turrets = mineS.filter(s => s.type === 'defense').length;
-  if (depot && turrets < c.maxTurrets && !mineS.some(s => s.isBlueprint) && c.cores - spent >= structureCost('defense') + 400) {
-    const home = c.bases[c.team];
+  // Not while the base is under attack: it would only be knocked down half-built.
+  const home = c.bases[c.team];
+  const besieged = c.theirs.some(t => !!UNIT_RULES[t.type].weapon && dist(t.gridPos, home) <= 12);
+  if (depot && !besieged && turrets < c.maxTurrets && !mineS.some(s => s.isBlueprint) && c.cores - spent >= structureCost('defense') + 400) {
     const enemyHome = c.bases[c.team === 'blue' ? 'red' : 'blue'];
     const away = dist(home, enemyHome) || 1;
     const front = {

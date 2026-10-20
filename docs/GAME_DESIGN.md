@@ -188,7 +188,9 @@ tiles, a damage type, and whether it can hit ground and/or air.
   fight whatever comes into range, then carries on. (A is taken by the camera's WASD.)
 - Enemy structures and the HQ can be attacked.
 - The HQ and Sentry Turrets shoot back.
-- Neutral Sentinels are hostile to both sides.
+- Neutral Sentinels are hostile to both sides. Ground units route around a living Sentinel's
+  reach when a detour of about a block or less is available. Their route still goes through it
+  if that's where they're headed.
 
 ## Roster
 
@@ -545,7 +547,9 @@ same kind of economy.
 
 1. **Build order:** Barracks → Factory; then Airpad, Comm Link and Ordnance Fab once it reaches
    T2, and a Depot on Normal and Hard; a second Barracks on Hard. Placed on open ground inside its grid, never on a road or touching another
-   structure, so lanes stay open.
+   structure, so lanes stay open. While enemy fighters are within 12 tiles of its HQ it places
+   nothing, not even turrets. It keeps training from the producers still standing and rebuilds
+   once the base is clear.
 2. **Production:** for each structure, the unit with the best damage per core against the armor mix
    of your army (weighted by value, and by its army strategy below), leaning toward whatever has
    been killing its units lately. It keeps enough infantry for a capture team plus a node squad
@@ -559,7 +563,10 @@ same kind of economy.
    nodes are the same distance from both bases.
    - Once its army is worth 400 cores, the army escorts that same node and the capture team
      marches with it, so they arrive together. Before that, the team goes alone and skips free
-     nodes with enemies about.
+     nodes with enemies about. It waits at the gather point until at least 3 of it are together,
+     then sets out as a group, instead of sending Troopers out one at a time to be picked off. Once
+     out it carries on while at least two are left. A lone survivor comes back to wait for the
+     next group.
    - Whenever the army goes for any other node (a server node, or one of yours), a **node squad**
      of two infantry goes onto the node with the vehicles. The capture team gives up members to
      make one.
@@ -586,11 +593,16 @@ same kind of economy.
    light vehicles, heavy armour or aircraft). It then switches to the plan that counters that
    kind best with the units it can field at its current tier: armour against infantry and
    aircraft, infantry against vehicles. It only switches
-   once it has stuck with a plan for 2 minutes (Normal) or 1 minute (Hard); Easy never changes.
+   once it has stuck with a plan for 2 minutes (Normal) or 1 minute (Hard); after a switch it
+   gives the new plan twice as long. It never goes back to a plan it gave up within the last
+   5 minutes, so it doesn't flip back and forth between two. Easy never changes.
    The pacing report logs each plan and change.
 5. **Army**, one objective at a time, most urgent first:
    - defend its base or a node under attack;
-   - take a server node (after 2–6 min, by difficulty);
+   - take a server node (after 2–6 min, by difficulty), but only while its Sentinel stands, if
+     the army can kill it while losing at most a fifth of its worth. The estimate assumes the
+     Sentinel focuses one unit at a time while the whole army fires back. A few early Troopers
+     don't try;
    - attack your nearest Command HQ once its army is worth 1.6× its attack threshold (1.2× at T3
      or after 15 minutes), otherwise your nearest core node once it is worth the threshold;
    - escort a second capture;
@@ -599,7 +611,10 @@ same kind of economy.
    again. Vehicles low on battery outside the grid drive home to recharge.
 6. **Specialists** (`sim/aiSpecialists.ts`), fielded in modest numbers alongside the army as a
    player would (a drone swarm fields many more Helios, Banshees and Swarm Hosts):
-   - **Scout RC Car** from the HQ (2 on Hard) runs ahead to the objective and backs off from enemies.
+   - **Scout RC Car** from the HQ (2 on Hard) runs ahead to the objective. With nothing to scout
+     for the army, it watches your base from 14 tiles out. It turns back home when enemies come
+     within 7 tiles and never parks within 6 of a Sentinel. After losing one, it waits 3 minutes
+     before training another.
    - **Ghosts** join the capture team; the **Dampener** runs while the army pushes (from T2) and
      **Phantom Decoy** gets a caught Ghost out (T3).
    - **Infiltrator Drone** keeps over the army and loiters on **Surveillance** over the objective.

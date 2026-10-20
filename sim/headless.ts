@@ -27,7 +27,7 @@ import { applyOrderToStructures, applyOrderToUnits, OrderCommand, orderEffects, 
 import { advanceProduction, applyProduction, createUnit } from './production';
 import { ballistaLoadStep, repairTick } from './support';
 import { isAirType } from './units';
-import { airPath, fastestPath } from './pathfinding';
+import { airPath, fastestPath, sentinelHazardOf } from './pathfinding';
 import { hasBuff } from './unitAbilities';
 import { checkVictory, Victory } from './victory';
 import { DOCTRINE_CONFIG } from '../constants';
@@ -131,9 +131,10 @@ function blockedTiles(m: HeadlessMatch): Set<string> {
 function pathfinder(m: HeadlessMatch) {
   const blocked = blockedTiles(m);
   const walkable = (x: number, z: number) => x >= 0 && z >= 0 && x < m.gridSize && z < m.gridSize && m.roads.has(key(x, z)) && !blocked.has(key(x, z));
+  const hazard = sentinelHazardOf(m.units);
   return {
     walkable,
-    findPath: (from: GridPos, to: GridPos) => fastestPath(from, to, m.gridSize, walkable, (x, z) => m.tileType[key(x, z)] as RoadType | undefined),
+    findPath: (from: GridPos, to: GridPos) => fastestPath(from, to, m.gridSize, walkable, (x, z) => m.tileType[key(x, z)] as RoadType | undefined, hazard),
     findAirPath: (from: GridPos, to: GridPos) => airPath(from, to),
   };
 }

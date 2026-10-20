@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { RoadType } from '../types';
-import { airPath, fastestPath, TILE_COST } from './pathfinding';
+import { airPath, fastestPath, sentinelHazard, TILE_COST } from './pathfinding';
 
 // A 9x9 grid: everything open ground, with a main road along row z = 0 and column x = 8.
 const N = 9;
@@ -27,6 +27,24 @@ describe('fastestPath', () => {
     expect(around).not.toContain('4,3');
     expect(fastestPath({ x: 0, z: 0 }, { x: 4, z: 2 }, N, wall, () => 'street')).toEqual([]);
     expect(fastestPath({ x: 0, z: 0 }, { x: 0, z: 0 }, N, () => true, type)).toEqual([]);
+  });
+});
+
+describe('Sentinels', () => {
+  // Two streets, rows z = 1 and z = 7, joined at both ends; a Sentinel beside the near one.
+  const streets = (x: number, z: number) => z === 1 || z === 7 || x === 0 || x === 8;
+  const hazard = sentinelHazard([{ x: 4, z: 3 }], 3);
+
+  it('routes round the block rather than past a Sentinel', () => {
+    expect(fastestPath({ x: 0, z: 1 }, { x: 8, z: 1 }, N, streets, () => 'street')).toContain('4,1');
+    const around = fastestPath({ x: 0, z: 1 }, { x: 8, z: 1 }, N, streets, () => 'street', hazard);
+    expect(around).toContain('4,7');
+    expect(around).not.toContain('4,1');
+  });
+
+  it('still goes there when that is where it is going', () => {
+    expect(fastestPath({ x: 0, z: 1 }, { x: 4, z: 1 }, N, streets, () => 'street', hazard).at(-1)).toBe('4,1');
+    expect(sentinelHazard([], 3)).toBeUndefined();
   });
 });
 
