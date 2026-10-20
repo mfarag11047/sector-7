@@ -87,8 +87,21 @@ hex pad with a button over it. Core and server node blocks never become sites.
 
 ## Population
 
-`cap = 20 + 8 × core nodes held`, up to 60. Holding more of the map lets you field a bigger army. A
-unit's pop cost is reserved when it is queued.
+`cap = 20 + 3 × core nodes held + 1 per 100 grid tiles`, up to 60.
+
+- Core nodes give a small bump each.
+- Most of the growth comes from the energy grid. Count the map tiles inside the grid circles of
+  your captured buildings (`gridTiles` in `sim/energy.ts`), each tile once however many buildings
+  cover it. Your base's own circle and core nodes don't count, since core nodes don't power the
+  grid.
+- In AI test matches, held grid runs from about 350 tiles at 2–3 minutes to 2,000 by 10 minutes
+  and 3,000+ late. That puts the cap around 27 early, 45–50 mid-game and the full 60 late, for a
+  side that spreads out.
+- Losing buildings shrinks the cap again. Units already in the field stay, but new ones can't be
+  queued over it.
+- Hover **Pop** in the team panel for the breakdown.
+
+A unit's pop cost is reserved when it is queued.
 
 ## Tech tiers (compute)
 

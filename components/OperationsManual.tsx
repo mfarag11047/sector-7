@@ -22,7 +22,7 @@ import { CIWS, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { HQ_INCOME } from '../sim/economy';
 import { abilitiesFor } from '../sim/unitAbilities';
 import {
-  ArmorClass, COMPUTE_PER_SERVER_NODE, DAMAGE_MULTIPLIER, DamageType, dps, HQ_COMPUTE, POP_BASE, POP_MAX, POP_PER_CORE_NODE,
+  ArmorClass, COMPUTE_PER_SERVER_NODE, DAMAGE_MULTIPLIER, DamageType, dps, GRID_TILES_PER_POP, HQ_COMPUTE, POP_BASE, POP_MAX, POP_PER_CORE_NODE,
   STRUCTURE_RULES, Tier, TIER_RESEARCH_COST, UNIT_RULES, unitsProducedBy, Weapon,
 } from '../sim/units';
 import { ROLE_GLYPH, ROLE_LABEL, roleGlyphFilled, teamBadgeColor, UnitRole, UNIT_ROLE } from './unitIcons';
@@ -606,7 +606,7 @@ const EconomyTab: React.FC = () => (
     <div>
       <H>Cores (money)</H>
       <Item label="Income">Your HQ pays {HQ_INCOME} cores a second. Each core node you hold pays {BUILDING_VALUES.core_node.income} more. Only infantry capture, and core nodes are slow to take.</Item>
-      <Item label="Population">Starts at {POP_BASE}, +{POP_PER_CORE_NODE} for each core node held, up to {POP_MAX}. Queued units reserve their population.</Item>
+      <Item label="Population">Starts at {POP_BASE}. Each core node held adds {POP_PER_CORE_NODE}, and every {GRID_TILES_PER_POP} tiles of energy grid your captured buildings cover add 1 more, so spreading across the city raises it bit by bit. Up to {POP_MAX}. Hover Pop in your team panel for the breakdown. Queued units reserve their population.</Item>
       <H>Compute and tiers</H>
       <Item label="Compute">Each server node you hold makes {COMPUTE_PER_SERVER_NODE} compute a second; your HQ adds {HQ_COMPUTE}. Spend it on Research in your team panel or the HQ menu.</Item>
       <Item label="Tiers">Tier 2 costs {TIER_RESEARCH_COST[2]} compute, Tier 3 {TIER_RESEARCH_COST[3]}. A researched tier is yours for good. Tiers unlock units, unit abilities, doctrine powers and longer artillery range.</Item>

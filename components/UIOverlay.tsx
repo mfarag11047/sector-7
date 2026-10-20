@@ -6,7 +6,7 @@ import { ArmyControls, ArmyInfo, ArmyPanel, SelectionSummary } from './ArmyPanel
 import { ROLE_GLYPH, roleGlyphFilled, teamBadgeColor, UNIT_ROLE } from './unitIcons';
 import { BUILDING_COLORS, TEAM_COLORS, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG, TEAM_BASES } from '../constants';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
-import { TIER_REQUIREMENT, TIER_RESEARCH_COST } from '../sim/units';
+import { GRID_TILES_PER_POP, POP_BASE, POP_MAX, POP_PER_CORE_NODE, TIER_REQUIREMENT, TIER_RESEARCH_COST } from '../sim/units';
 import { DISTRICT_COLORS, districtBorders } from '../sim/districts';
 import type { MatchConfig } from '../sim/match';
 import type { MatchInfo } from './CityMap';
@@ -210,7 +210,7 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
            <span className="hud-label text-[10px] uppercase">Tier</span>
         </div>
 
-        <div className="flex flex-col items-end" title="Population used / cap">
+        <div className="flex flex-col items-end" title={stats.popCap === Infinity ? 'Population used / cap' : `Population used / cap. Cap: ${POP_BASE} base + ${POP_PER_CORE_NODE} × ${stats.buildings.core_node} core nodes + 1 per ${GRID_TILES_PER_POP} grid tiles (${stats.gridTiles ?? 0} held), up to ${POP_MAX}`}>
            {isVisible ? (
                 <span className={`font-mono text-sm font-bold ${(stats.pop ?? 0) >= (stats.popCap ?? 1) ? 'text-red-400' : 'text-white'}`}>{stats.pop ?? stats.units}/{stats.popCap === Infinity ? '∞' : stats.popCap ?? '-'}</span>
            ) : (

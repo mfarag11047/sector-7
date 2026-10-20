@@ -143,10 +143,15 @@ export const unitLabel = (type: UnitType) => UNIT_STATS[type].label;
 
 // --- Population and tech ---
 
+// Population cap: a base allowance, a small bump for each core node held, and one more for every
+// GRID_TILES_PER_POP tiles of energy grid the side's captured buildings cover (sim/energy.ts,
+// gridTiles), so spreading out across the city raises it bit by bit.
 export const POP_BASE = 20;
-export const POP_PER_CORE_NODE = 8;
+export const POP_PER_CORE_NODE = 3;
+export const GRID_TILES_PER_POP = 100;
 export const POP_MAX = 60;
-export const popCap = (coreNodesHeld: number) => Math.min(POP_MAX, POP_BASE + POP_PER_CORE_NODE * coreNodesHeld);
+export const popCap = (coreNodesHeld: number, gridTiles = 0) =>
+  Math.min(POP_MAX, POP_BASE + POP_PER_CORE_NODE * coreNodesHeld + Math.floor(gridTiles / GRID_TILES_PER_POP));
 
 // Compute is a resource: server nodes produce it, and it is spent at the HQ to research the
 // next tier, which then stays unlocked for good. Holding more nodes researches faster, but

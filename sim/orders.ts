@@ -10,7 +10,7 @@ import { ABILITY_CONFIG, BUILDING_VALUES, STRUCTURE_INFO } from '../constants';
 import type { BuildingData, StructureData, StructureType, UnitData } from '../types';
 import type { GridPos, PlayerCommand, Team, Warhead } from './commands';
 import { Economy, research, researchCost, spend, structureCost, unitCost, warheadBuildTime, warheadCost } from './economy';
-import { Blackout, isBlackedOut, isInsideEnergyGrid } from './energy';
+import { Blackout, gridTiles, isBlackedOut, isInsideEnergyGrid } from './energy';
 import { baseOrder } from './bases';
 import { isAirType, popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from './units';
 import { tetheredIds, unjammedIds } from './jamming';
@@ -33,7 +33,7 @@ const held = (buildings: readonly BuildingData[], team: Team, type: BuildingData
 export const coreNodesHeld = (buildings: readonly BuildingData[], team: Team) => held(buildings, team, 'core_node');
 export const serverNodesHeld = (buildings: readonly BuildingData[], team: Team) => held(buildings, team, 'server_node');
 export const teamTier = (economy: Economy, team: Team): Tier => economy[team].tier;
-export const teamPopCap = (buildings: readonly BuildingData[], team: Team) => popCap(coreNodesHeld(buildings, team));
+export const teamPopCap = (buildings: readonly BuildingData[], team: Team) => popCap(coreNodesHeld(buildings, team), gridTiles(buildings, team));
 
 // A structure that has finished going up and still stands.
 export const isOperational = (s: StructureData) => !s.isBlueprint && !((s.buildRemainingMs || 0) > 0) && s.health > 0;
@@ -144,7 +144,7 @@ function trainOrder(view: OrdersView, team: Team, structureId: string, unitType:
   if (rules.tier > tier) return reject(`needs Tier ${rules.tier}`);
   if ((s.queue?.length || 0) >= MAX_QUEUE) return reject('queue full');
   const cap = view.unlimitedPop ? Infinity : teamPopCap(view.buildings, team);
-  if (popUsed(view.units, view.structures, team) + rules.pop > cap) return reject(`population cap reached (${cap}); hold more core nodes`);
+  if (popUsed(view.units, view.structures, team) + rules.pop > cap) return reject(`population cap reached (${cap}); spread your grid or hold more core nodes`);
   const cost = unitCost(unitType);
   if (!spend(view.economy, team, cost)) return reject('not enough cores');
   return effects({

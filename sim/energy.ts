@@ -10,7 +10,7 @@
 // Moved out of the main loop in CityMap.tsx unchanged.
 
 import { FORCE_FIELD } from './forcefield';
-import { ABILITY_CONFIG } from '../constants';
+import { ABILITY_CONFIG, CITY_CONFIG } from '../constants';
 import type { BuildingData, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { CLOAK_FIELD } from './cloak';
@@ -54,6 +54,30 @@ export function isInsideEnergyGrid(
     if (dx * dx + dz * dz <= buildingRadiusSq) return true;
   }
   return false;
+}
+
+// Map tiles inside the energy grid that a side's captured buildings put there (not its base's own
+// circle, which every side has), each tile counted once however many buildings cover it. Drives
+// the population cap (sim/units.ts).
+export function gridTiles(buildings: readonly BuildingData[], team: UnitData['team'], gridSize: number = CITY_CONFIG.gridSize): number {
+  if (team !== 'blue' && team !== 'red') return 0;
+  const r = ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS;
+  const covered = new Uint8Array(gridSize * gridSize);
+  let count = 0;
+  for (const b of buildings) {
+    if (b.destroyed || b.owner !== team || b.type === 'core_node') continue;
+    for (let dx = -r; dx <= r; dx++) {
+      const x = b.gridX + dx;
+      if (x < 0 || x >= gridSize) continue;
+      for (let dz = -r; dz <= r; dz++) {
+        const z = b.gridZ + dz;
+        if (z < 0 || z >= gridSize || dx * dx + dz * dz > r * r) continue;
+        const i = x * gridSize + z;
+        if (!covered[i]) { covered[i] = 1; count++; }
+      }
+    }
+  }
+  return count;
 }
 
 type Charge = { amount: number; sourceId?: string };

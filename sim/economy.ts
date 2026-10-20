@@ -8,6 +8,7 @@ import { ABILITY_CONFIG, BUILDING_VALUES, DOCTRINE_CONFIG, STRUCTURE_INFO, TIER_
 import type { BuildingData, DoctrineType, StructureData, StructureType, TeamStats, UnitData, UnitType } from '../types';
 import type { Team, Warhead } from './commands';
 import { COMPUTE_PER_SERVER_NODE, HQ_COMPUTE, popCap, popUsed, Tier, TIER_RESEARCH_COST } from './units';
+import { gridTiles } from './energy';
 
 export const STARTING_CORES = 2500;
 // Income is paid once per economy tick.
@@ -185,6 +186,7 @@ export function teamStats(
   for (const b of buildings) {
     if (b.owner === team && !b.destroyed) owned[b.type]++;
   }
+  const grid = gridTiles(buildings, team);
   return {
     resources: economy[team].cores,
     income: incomeFor(buildings, team),
@@ -192,7 +194,8 @@ export function teamStats(
     computeRate: computeRateFor(buildings, team),
     tier: economy[team].tier,
     pop: popUsed(units, structures, team),
-    popCap: popCap(owned.core_node),
+    popCap: popCap(owned.core_node, grid),
+    gridTiles: grid,
     units: units.filter(u => u.team === team && u.health > 0).length,
     buildings: owned,
     stockpile: { ...economy[team].stockpile },

@@ -288,6 +288,8 @@ export interface TeamStats {
   tier?: number;
   pop?: number;
   popCap?: number;
+  // Energy-grid tiles its captured buildings cover, which raise the population cap.
+  gridTiles?: number;
   units: number;
   buildings: {
     residential: number;

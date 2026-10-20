@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDING_VALUES, DOCTRINE_CONFIG, UNIT_STATS } from '../constants';
-import { COMPUTE_PER_SERVER_NODE, HQ_COMPUTE, TIER_RESEARCH_COST } from './units';
+import { COMPUTE_PER_SERVER_NODE, GRID_TILES_PER_POP, HQ_COMPUTE, POP_BASE, POP_MAX, POP_PER_CORE_NODE, popCap, TIER_RESEARCH_COST } from './units';
+import { gridTiles } from './energy';
 import type { BuildingData, StructureData, UnitData } from '../types';
 import {
   addWarheads, advanceWarheadProduction, canAfford, createEconomy, doctrinePowerCost, HQ_INCOME, incomeFor, payIncome,
@@ -178,11 +179,37 @@ describe('HUD stats', () => {
       tier: 2,
       units: 2,
       pop: 1 + 3,
-      popCap: 28,
+      // Base plus one core node; the server node's 17 grid tiles in the map corner add nothing yet.
+      popCap: POP_BASE + POP_PER_CORE_NODE,
+      gridTiles: 17,
       stockpile: { emp: 1, he: 0 },
       // Doctrine powers unlock with the researched tier.
       doctrine: { unlockedTiers: 2 },
     });
     expect(stats.buildings).toMatchObject({ core_node: 1, server_node: 1 });
+  });
+});
+
+describe('population cap', () => {
+  const at = (id: string, x: number, z: number, type: BuildingData['type'] = 'residential', owner: BuildingData['owner'] = 'blue'): BuildingData =>
+    ({ ...building(id, type, owner), gridX: x, gridZ: z });
+
+  it('grows a little with each core node and bit by bit with the grid', () => {
+    expect(popCap(0)).toBe(POP_BASE);
+    expect(popCap(2)).toBe(POP_BASE + 2 * POP_PER_CORE_NODE);
+    expect(popCap(1, GRID_TILES_PER_POP * 3 + 50)).toBe(POP_BASE + POP_PER_CORE_NODE + 3);
+    expect(popCap(6, 99_999)).toBe(POP_MAX);
+  });
+
+  it('counts each grid tile once, however many captured buildings cover it, and not core nodes', () => {
+    // A full circle of radius 4 is 49 tiles.
+    expect(gridTiles([at('a', 40, 40)], 'blue')).toBe(49);
+    // Two buildings side by side overlap; far apart they don't.
+    const near = gridTiles([at('a', 40, 40), at('b', 41, 40)], 'blue');
+    expect(near).toBeGreaterThan(49);
+    expect(near).toBeLessThan(98);
+    expect(gridTiles([at('a', 40, 40), at('b', 60, 40)], 'blue')).toBe(98);
+    // Core nodes don't power the grid; the other side's buildings and destroyed ones don't count.
+    expect(gridTiles([at('c', 40, 40, 'core_node'), at('r', 20, 20, 'residential', 'red'), { ...at('d', 10, 50), destroyed: true }], 'blue')).toBe(0);
   });
 });
