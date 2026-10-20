@@ -160,6 +160,7 @@ everything, so what you research commits you to the units you mean to build.
 | | Guided Shells | T3 | 400 | 45 s | Range 16 → 20 tiles; needs Long-Range Shells |
 | Hornet | Hellfire Salvo | T3 | 400 | 45 s | Unlocks the ability |
 | | Hunter-Killer Rockets | T3 | 400 | 45 s | Its passive anti-vehicle rocket |
+| Kestrel | Regenerative Shield | T2 | 250 | 30 s | Shield worth 25% of its health (see Kestrel abilities) |
 
 **Why research and not "hold N nodes":** in the first version, your tier was however many server
 nodes you held right now. All four sat in the centre, so whoever won the middle got every tier and
@@ -273,7 +274,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 | Unit | Cost | Pop | Tier | HP | Armor | Weapon | Role |
 |---|---|---|---|---|---|---|---|
 | **Infiltrator Drone** | 60 | 1 | T1 | 60 | Air | None | Scout, surveillance |
-| **"Kestrel" Attack Drone** (new) | 130 | 1 | T1 | 110 | Air | Machine gun 6 / 0.4 s / 3, hits ground and air | Cheap generalist; fast (1.5×), sees 5, remote-controlled |
+| **"Kestrel" Attack Drone** (new) | 130 | 1 | T1 | 110 | Air | Machine gun 6 / 0.4 s / 3, hits ground and air | Cheap generalist; fast (1.5×), sees 5, remote-controlled; Flechette Burst (passive), Regenerative Shield (T2, researched) |
 | **Wasp** | 240 | 2 | T2 | 160 | Air | Rifle 6 / 0.6 s / 3, hits air | Harasser, swarm volley |
 | **Hornet Gunship** (new) | 320 | 3 | T2 | 320 | Air | AP 32 / 1.6 s / 4; researched T3 rocket AP 60 / 6 s | Anti-vehicle air |
 | **Bombardment Drone** | 480 | 4 | T3 | 260 | Air | None | Levels city blocks; 5 drops, rearms at base |
@@ -374,6 +375,24 @@ replaced the old manually aimed Main Cannon:
 - Stunned, EMP-disabled, out-of-battery or nano-clouded tanks hold fire, and it can't target
   cloaked units.
 - Drawn as a white-hot core in a cyan glow from muzzle to target, with a flash where it strikes.
+
+## Kestrel abilities
+
+`sim/kestrel.ts`. The Kestrel attack drone has two abilities on top of its machine gun:
+
+- **Flechette Burst (T1, passive, comes with the drone):** every 5 s, alongside its machine gun,
+  it fires a shotgun burst at the unit it is shooting, within 3 tiles. It does 18 to the target and
+  8 to each other enemy within 1.3 tiles of it. Damage by armour: infantry full, light 45%, air
+  50%, heavy 20%. It fires automatically and is drawn as a spray of three rounds per target. A
+  force field soaks it.
+- **Regenerative Shield (T2, researched at Advanced Research):** a shield worth 25% of the drone's
+  health (28) on top of it, shown as a pale blue bar. Hits drain the shield first and it takes 25%
+  less damage than the hull would. A hit bigger than the shield breaks it, and the rest lands on
+  the hull. After 10 s without being hit, it recharges, filling in 2 s. A drone built after the
+  research starts with its shield empty and charges it the same way.
+
+Tuned in forced matchups: a drone swarm against infantry and armour armies won 50% of 24 matches
+before, 59% of 22 decisive ones after. A first try at 30/14 every 4 s took it to 85%.
 
 ## Hornet rockets
 

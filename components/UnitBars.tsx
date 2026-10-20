@@ -18,7 +18,7 @@ const GAP = 0.002;
 const BOLT = 0.011;
 const MAX_BARS = 3;
 
-export const METER_COLORS = { hp: '#22d3ee', battery: '#fbbf24', secondary: '#e879f9' } as const;
+export const METER_COLORS = { hp: '#22d3ee', battery: '#fbbf24', secondary: '#e879f9', shield: '#93c5fd' } as const;
 export interface Meter { ratio: number; color: string }
 
 const BAR_H = HEIGHT + 2 * BORDER;

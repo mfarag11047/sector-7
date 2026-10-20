@@ -115,6 +115,9 @@ export interface UnitData {
   railgunFiredAt?: number;
   // Hornet Tier 3 anti-vehicle rocket (sim/hornet.ts): when it last fired.
   hornetRocketAt?: number;
+  // Kestrel (sim/kestrel.ts): when its Flechette Burst last fired, and its Regenerative Shield left.
+  flechetteAt?: number;
+  regenShield?: number;
   // Inside a friendly Cloaking Field and hidden from the enemy (sim/cloak.ts).
   fieldCloaked?: boolean;
   // A Cloaking Field Generator its owner has switched off.

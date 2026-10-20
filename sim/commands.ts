@@ -159,7 +159,7 @@ const UNIT_TYPES = Object.keys({
 const DOCTRINES = Object.keys({ heavy_metal: 1, shadow_ops: 1, netrunner: 1 } satisfies Record<DoctrineType, 1>);
 const WARHEADS = Object.keys({ emp: 1, he: 1 } satisfies Record<Warhead, 1>);
 const UPGRADE_IDS = Object.keys({
-  nanoweave: 1, dampener: 1, phantom_decoy: 1, emp_rocket: 1, overclock: 1, radar: 1, long_range_shells: 1, guided_shells: 1, hellfire: 1, hunter_rockets: 1,
+  nanoweave: 1, dampener: 1, phantom_decoy: 1, emp_rocket: 1, overclock: 1, radar: 1, long_range_shells: 1, guided_shells: 1, hellfire: 1, hunter_rockets: 1, regen_shield: 1,
 } satisfies Record<UpgradeId, 1>);
 
 // Large enough for any real selection, small enough to stop a flood.

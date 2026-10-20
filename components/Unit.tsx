@@ -24,6 +24,7 @@ import { HeliosField } from './HeliosField';
 import { ScoutCarModel } from './ScoutCarModel';
 import { Meter, METER_COLORS, UnitBars } from './UnitBars';
 import { abilityUnlocked, artilleryTierOf, type UpgradeId } from '../sim/upgrades';
+import { shieldMax } from '../sim/kestrel';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
 
@@ -239,6 +240,8 @@ interface UnitProps {
   teamCompute: number; // New Prop
   // The side's upgrades from Advanced Research (sim/upgrades.ts).
   upgrades?: readonly UpgradeId[];
+  // A Kestrel's Regenerative Shield left (sim/kestrel.ts).
+  regenShield?: number;
   firingLaserAt?: string | null;
   lastAttackTime?: number;
   combatTargetId?: string | null;
@@ -380,7 +383,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -1334,6 +1337,9 @@ const Unit: React.FC<UnitProps> = ({
       {!isDecoy && !actionMenuOpen && (() => {
           const meters: Meter[] = [];
           if (isSelected || health < maxHealth) meters.push({ ratio: health / maxHealth, color: METER_COLORS.hp });
+          // A Kestrel's Regenerative Shield (sim/kestrel.ts), while it has one.
+          const shieldCap = type === 'attack_drone' && upgrades.includes('regen_shield') ? shieldMax({ type, maxHealth }) : 0;
+          if (shieldCap > 0 && (isSelected || (regenShield ?? 0) < shieldCap)) meters.push({ ratio: (regenShield ?? 0) / shieldCap, color: METER_COLORS.shield });
           if (maxBattery > 0 && (isSelected || battery < maxBattery)) meters.push({ ratio: battery / maxBattery, color: METER_COLORS.battery });
           if (secondaryBattery !== undefined && maxSecondaryBattery !== undefined && (isSelected || secondaryBattery < maxSecondaryBattery)) {
               meters.push({ ratio: secondaryBattery / maxSecondaryBattery, color: METER_COLORS.secondary });
@@ -1377,6 +1383,17 @@ const Unit: React.FC<UnitProps> = ({
                       )}
                   </div>
 
+                  {type === 'attack_drone' && (
+                      <>
+                        <div className="text-[10px] bg-slate-900/60 text-slate-300 px-2 py-1 rounded flex justify-between gap-2" title="Passive: every 5s alongside its machine gun, a shotgun burst that hits its target hard and peppers enemies beside it. Shreds infantry.">
+                          <span>Flechette Burst</span><span className="font-mono text-slate-500">passive</span>
+                        </div>
+                        <div className={`text-[10px] bg-slate-900/60 ${upgrades.includes('regen_shield') ? 'text-slate-300' : 'text-slate-500'} px-2 py-1 rounded flex justify-between gap-2`} title="A shield worth 25% of its health that takes 25% less damage, and recharges after 10s without being hit. Researched at Advanced Research (Tier 2).">
+                          <span>Regenerative Shield</span>
+                          <span className="font-mono">{upgrades.includes('regen_shield') ? `${Math.round(regenShield ?? 0)}/${shieldMax({ type, maxHealth })}` : 'T2 · Research'}</span>
+                        </div>
+                      </>
+                  )}
                   {isAegis && <CiwsStatus usedMs={ciwsUsedMs ?? 0} reloadUntil={ciwsReloadUntil ?? 0} firing={!!ciwsTargetId} />}
 
                   {/* New-unit abilities: the tier (teamCompute carries it), and research at Advanced Research for the second. */}

@@ -12,6 +12,7 @@ import { abilityEffects, applyUnitEffects } from './abilities';
 import { AiMemory, AI_PROFILES, aiThink, freshAiMemory, nextThinkDelay, thinkOffsets } from './ai';
 import { afterRailShot, fireRailguns } from './railgun';
 import { fireHornetRockets, landSalvo, MiniRocket } from './hornet';
+import { fireFlechettes, regenerateShield, shieldedHit } from './kestrel';
 import { addUpgrades, advanceResearch, applyResearch, artilleryTierOf, hasUpgrade } from './upgrades';
 import { EmpRocket, empRocketImpact, empRocketTick, mergeUnitUpdates } from './empRocket';
 import { ArtilleryShell, fireArtillery, landShells, shellGroundPos } from './artillery';
@@ -196,6 +197,11 @@ export function stepMatch(m: HeadlessMatch): void {
   const hornets = fireHornetRockets(m.units, m.structures, now, team => team !== 'neutral' && hasUpgrade(m.economy[team], 'hunter_rockets'));
   const hornetFired = new Set(hornets.shots.map(s => s.attackerId));
   if (hornetFired.size > 0) m.units = m.units.map(u => hornetFired.has(u.id) ? { ...u, hornetRocketAt: now } : u);
+  // Kestrel Flechette Bursts alongside their machine guns (sim/kestrel.ts).
+  const flechettes = fireFlechettes(m.units, now);
+  const burst = new Set(flechettes.shots.map(s => s.attackerId));
+  if (burst.size > 0) m.units = m.units.map(u => burst.has(u.id) ? { ...u, flechetteAt: now } : u);
+  flechettes.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
   const salvo = landSalvo(m.salvo, now, m.units, m.structures);
   m.salvo = salvo.flying;
   for (const map of [hornets.unitDamage, salvo.unitDamage]) map.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
@@ -223,7 +229,7 @@ export function stepMatch(m: HeadlessMatch): void {
   if (impact.structureDamage.size > 0) m.structures = applyStructureCombat(m.structures, { structureDamage: impact.structureDamage, fired: new Map(), aiming: new Map() }, now);
   // Who hit whom, for the pacing report's damage tally.
   recordWeaponHits(m.pacing, {
-    fired: attacks.fired, shots: [...(attacks.splashed ?? []), ...rail.shots, ...hornets.shots], ciws: ciws.links,
+    fired: attacks.fired, shots: [...(attacks.splashed ?? []), ...rail.shots, ...hornets.shots, ...flechettes.shots], ciws: ciws.links,
     blasts: [
       ...impact.landed.map(s => ({ attackerId: s.attackerId, team: s.team, at: s.at, radius: 2 })),
       ...salvo.landed.map(s => ({ attackerId: s.attackerId, team: s.team, at: s.at, radius: 2 })),
@@ -280,7 +286,11 @@ export function stepMatch(m: HeadlessMatch): void {
     if (draft.buffs?.length) draft.buffs = draft.buffs.filter(b => b.until > now);
     const hit = (attacks.unitDamage.get(u.id) || 0) + (microwave.get(u.id) || 0);
     if (hit > 0) draft.lastDamageTime = now;
-    draft.health = Math.max(0, draft.health - hit);
+    // A Kestrel's Regenerative Shield soaks hits first, and recharges when left alone.
+    Object.assign(draft, shieldedHit(draft, hit));
+    if (draft.type === 'attack_drone' && (draft.team === 'blue' || draft.team === 'red')) {
+      Object.assign(draft, regenerateShield(draft, now, MOVE_TICK_MS, hasUpgrade(m.economy[draft.team], 'regen_shield')));
+    }
     const heal = repair.heal.get(u.id) || 0;
     if (heal > 0 && draft.health > 0) draft.health = Math.min(draft.maxHealth, draft.health + heal);
     if (draft.health > 0) {

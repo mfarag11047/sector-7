@@ -49,6 +49,7 @@ import { OrderCommand, applyOrderToStructures, applyOrderToUnits, orderEffects, 
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
 import { UNIT_RULES, isAirType } from '../sim/units';
 import { airPath, fastestPath, sentinelHazardOf } from '../sim/pathfinding';
+import { fireFlechettes, regenerateShield, shieldedHit } from '../sim/kestrel';
 import { addUpgrades, advanceResearch, applyResearch, artilleryTierOf, hasUpgrade, upgradeDef, type UpgradeId } from '../sim/upgrades';
 import { BUILDING_PADS, freePadsFor, isPad, padKindOf, teamPads, TURRET_PADS } from '../sim/baseLayout';
 import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
@@ -1320,8 +1321,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const engagementsRef = useRef(new Map<string, { targetId: string; at: number }>());
   // When each Bombardment Drone last dropped, ahead of state (sim/bombard.ts).
   const bombardStrikeRef = useRef(new Map<string, number>());
-  // Hornet Tier 3 rockets: when each fired (ahead of state), and Hellfire Salvo rockets in flight.
+  // Hornet Hunter-Killer rockets: when each fired (ahead of state), and Hellfire Salvo rockets in flight.
   const hornetShotRef = useRef(new Map<string, number>());
+  // When each Kestrel last fired its Flechette Burst (sim/kestrel.ts), the same way.
+  const flechetteShotRef = useRef(new Map<string, number>());
   const [miniRockets, setMiniRockets] = useState<MiniRocket[]>([]);
   const miniRocketsRef = useRef<MiniRocket[]>([]);
   // Thunderhead shells in flight. The ref is the authority; the state is for drawing them.
@@ -3245,6 +3248,24 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           hornetVolley.shieldDamage.forEach((n, id) => addShieldHit(shieldHits, id, n));
           hornetVolley.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
           hornetVolley.structureDamage.forEach((n, id) => attacks.structureDamage.set(id, (attacks.structureDamage.get(id) || 0) + n));
+          // Kestrel Flechette Bursts alongside their machine guns (sim/kestrel.ts), drawn as a spray of fast rounds.
+          const flechetteReady = (u: UnitData) => {
+              const t = flechetteShotRef.current.get(u.id);
+              return t && t > (u.flechetteAt ?? -Infinity) ? { ...u, flechetteAt: t } : u;
+          };
+          const flechettes = fireFlechettes(currentUnitsRef.map(flechetteReady), now, fields);
+          const flechetteFired = new Set(flechettes.shots.map(s => s.attackerId));
+          flechetteFired.forEach(id => flechetteShotRef.current.set(id, now));
+          flechettes.shieldDamage.forEach((n, id) => addShieldHit(shieldHits, id, n));
+          flechettes.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+          if (pacing && flechettes.shots.length > 0) recordWeaponHits(pacing, { shots: flechettes.shots }, currentUnitsRef, structuresRef.current);
+          if (flechettes.shots.length > 0) {
+              setTracers(prev => [...prev, ...flechettes.shots.flatMap((s, i) => [-0.35, 0, 0.35].map((spread, j): TracerData => ({
+                  id: `flechette-${now}-${i}-${j}`, kind: 'round', createdAt: now, attackerId: s.attackerId, targetId: s.targetId, flashSize: 2.2,
+                  from: { x: s.from.x * tileSize - offset, y: 74, z: s.from.z * tileSize - offset },
+                  to: { x: (s.to.x + spread) * tileSize - offset, y: 1.4, z: (s.to.z - spread) * tileSize - offset },
+              })))]);
+          }
           if (hornetVolley.shots.length > 0) setRailBeams(prev => [...prev, ...hornetVolley.shots.map((s, i) => ({ ...s, id: `hrocket-${now}-${i}`, createdAt: now, kind: 'rocket' as const, fromY: 74 }))]);
           if (miniRocketsRef.current.length > 0) {
               const salvo = landSalvo(miniRocketsRef.current, now, currentUnitsRef, structuresRef.current, fields);
@@ -3618,6 +3639,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       if (volley.fired.has(u.id)) newUnit.artilleryAim = volley.fired.get(u.id);
                       if (railFired.has(u.id)) { newUnit = afterRailShot(newUnit, now); uChanged = true; }
                       if (hornetFired.has(u.id)) { newUnit.hornetRocketAt = now; uChanged = true; }
+                      if (flechetteFired.has(u.id)) { newUnit.flechetteAt = now; uChanged = true; }
                       const gun = ciws.updates.get(u.id);
                       if (gun) { newUnit = { ...newUnit, ...gun }; uChanged = true; }
                       if (attacks.fired.has(u.id)) {
@@ -3641,9 +3663,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       // Apply accumulated damage
                       const dmg = damageMap.get(u.id) || 0;
                       if (dmg > 0) {
-                          newUnit.health = Math.max(0, newUnit.health - dmg);
+                          // A Kestrel's Regenerative Shield soaks hits first (sim/kestrel.ts).
+                          Object.assign(newUnit, shieldedHit(newUnit, dmg));
                           newUnit.lastDamageTime = now;
                           uChanged = true;
+                      }
+                      if (newUnit.type === 'attack_drone' && (newUnit.team === 'blue' || newUnit.team === 'red')) {
+                          const recharged = regenerateShield(newUnit, now, TICK_RATE, hasUpgrade(economyRef.current[newUnit.team], 'regen_shield'));
+                          if (recharged !== newUnit) { newUnit = recharged; uChanged = true; }
                       }
 
                       const repairHeal = repair.heal.get(u.id) || 0;

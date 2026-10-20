@@ -19,7 +19,7 @@ import { type UnitAbilityDef } from './unitAbilities';
 export type UpgradeId =
   | 'nanoweave' | 'dampener' | 'phantom_decoy' | 'emp_rocket'
   | 'overclock' | 'radar' | 'long_range_shells' | 'guided_shells'
-  | 'hellfire' | 'hunter_rockets';
+  | 'hellfire' | 'hunter_rockets' | 'regen_shield';
 
 export interface UpgradeDef {
   id: UpgradeId;
@@ -45,6 +45,7 @@ export const UPGRADES: readonly UpgradeDef[] = [
   { id: 'long_range_shells', unit: 'howitzer', name: 'Long-Range Shells', tier: 2, ...T2, description: 'Thunderhead range from 12 to 16 tiles.' },
   { id: 'guided_shells', unit: 'howitzer', name: 'Guided Shells', tier: 3, ...T3, requires: 'long_range_shells', description: 'Thunderhead range from 16 to 20 tiles.' },
   { id: 'hellfire', unit: 'hornet', name: 'Hellfire Salvo', tier: 3, ...T3, description: 'Ability: a burst of small rockets that blankets an area.' },
+  { id: 'regen_shield', unit: 'attack_drone', name: 'Regenerative Shield', tier: 2, ...T2, description: 'Passive: a shield worth 25% of its health that takes 25% less damage, and recharges after 10s without being hit.' },
   { id: 'hunter_rockets', unit: 'hornet', name: 'Hunter-Killer Rockets', tier: 3, ...T3, description: 'Passive: fires an anti-vehicle rocket at whatever its gun is on.' },
 ];
 
