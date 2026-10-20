@@ -533,15 +533,25 @@ same kind of economy.
    of your army (weighted by value, and by its army strategy below), leaning toward whatever has
    been killing its units lately. It keeps enough infantry for a capture team plus a node squad
    (two more), three more again for an infantry army, and a Guardian per 8 units. Easy picks at
-   random, weighted by its strategy.
+   random, weighted by its strategy. When cores pile up (600 or more in hand), as they do for an
+   army of cheap units, it tends production every think and queues one deeper, and it builds its
+   strategy's extra production structure straight away rather than after 4 minutes.
 3. **Territory:** only infantry capture, and the AI plans around it. A capture team of 3–4
    infantry (Troopers, Ghosts, Lancers) goes for the free core node that is nearest to its base
-   and farthest from yours, then the next. Whenever the army goes for a node (escorting a capture,
-   a server node, or one of yours) a **node squad** of two infantry goes onto the node with the
-   vehicles. The capture team gives up members to make one. With no infantry to hand, the
-   vehicles hold at the staging point instead of clearing a node nobody can take, and the
-   Barracks trains more. Other infantry capture the buildings that push the grid toward the
-   objective.
+   and farthest from yours. Ties go to the node nearer its infantry, since four of the six core
+   nodes are the same distance from both bases.
+   - Once its army is worth 400 cores, the army escorts that same node and the capture team
+     marches with it, so they arrive together. Before that, the team goes alone and skips free
+     nodes with enemies about.
+   - Whenever the army goes for any other node (a server node, or one of yours), a **node squad**
+     of two infantry goes onto the node with the vehicles. The capture team gives up members to
+     make one.
+   - With no infantry to hand, the vehicles hold at the staging point instead of clearing a node
+     nobody can take, and the Barracks trains more.
+   - Other infantry capture the buildings that push the grid toward the objective.
+   - The army gathers at the front of the ground it actually holds: its base and buildings within
+     12 tiles of its own nodes. Buildings a stray squad captured deep in enemy territory don't
+     count, so new units don't trickle out there one by one.
 4. **Army strategy** (`sim/aiStrategy.ts`). Each side opens with a plan picked at random:
    - **Infantry army:** Troopers, Ghosts, Lancers, Guardians; a second Barracks.
    - **Armoured army:** Razorbacks, Tanks, Thunderheads, Aegis; a second Factory.
@@ -554,10 +564,11 @@ same kind of economy.
    drone plans play a normal mixed army until T2 unlocks their units.
 
    It keeps count of the units it loses and blames the enemy units around each one when it died,
-   by how hard they hit that unit. Suppose that in the last two minutes it has lost at least 700
+   by how hard they hit that unit. Suppose that in the last two minutes it has lost at least 400
    cores' worth, or half its army's worth, and at least 45% of it to one kind of enemy (infantry,
    light vehicles, heavy armour or aircraft). It then switches to the plan that counters that
-   kind best: armour against infantry and aircraft, infantry against vehicles. It only switches
+   kind best with the units it can field at its current tier: armour against infantry and
+   aircraft, infantry against vehicles. It only switches
    once it has stuck with a plan for 2 minutes (Normal) or 1 minute (Hard); Easy never changes.
    The pacing report logs each plan and change.
 5. **Army**, one objective at a time, most urgent first:

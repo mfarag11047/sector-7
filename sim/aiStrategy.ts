@@ -87,8 +87,8 @@ const unitDps = (t: UnitType, a: ArmorClass) => dps(UNIT_RULES[t].weapon, a) + (
 
 // How well a strategy's army deals with an enemy mix: damage per core, with a little health.
 export function counterScore(strategy: AiStrategy, mix: Partial<Record<ArmorClass, number>>, tier: Tier): number {
-  // Judged on the units the strategy reaches by Tier 2, which is when it changes course.
-  const units = ROSTER[strategy].filter(t => UNIT_RULES[t].tier <= Math.max(tier, 2));
+  // Judged on the units it can field now: a counter it can't build yet is no counter.
+  const units = ROSTER[strategy].filter(t => UNIT_RULES[t].tier <= tier);
   if (units.length === 0) return 0;
   const scores = units.map(t => {
     let damage = 0;
@@ -126,7 +126,7 @@ export const LOSS_WINDOW_MS = 120_000;
 const BLAME_RADIUS = 7;
 // Changing course takes losses worth this much, or this share of what the army is worth now,
 // whichever is more, and mostly (this share) to one kind of enemy.
-const MIN_LOSS_VALUE = 700;
+const MIN_LOSS_VALUE = 400;
 const LOSS_SHARE_OF_ARMY = 0.5;
 const DOMINANT_SHARE = 0.45;
 // A new strategy has to counter the threat this much better than the current one.

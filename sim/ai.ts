@@ -152,6 +152,8 @@ const CAPTURERS: UnitType[] = ['trooper', 'ghost', 'lancer'];
 const canCapture = (u: UnitData) => CAPTURERS.includes(u.type);
 // Infantry that go with the army onto a node it is taking.
 const NODE_SQUAD = 2;
+// Cores in hand that count as piling up.
+const BANKED_CORES = 600;
 const ARMORS: ArmorClass[] = ['infantry', 'light', 'heavy', 'air'];
 
 const dist = (a: GridPos, b: GridPos) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -206,7 +208,8 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   if (tier >= 2 && profile.turrets > 0) wants.push('builder');
   if (profile.secondBarracks && now > 6 * 60_000) wants.push('infantry');
   // The strategy's own extra production structure.
-  if (tier >= plan.extra.tier && now > 4 * 60_000) wants.push(plan.extra.type);
+  // Sooner if cores are piling up, as they do for an army of cheap units.
+  if (tier >= plan.extra.tier && (now > 4 * 60_000 || cores >= structureCost(plan.extra.type) + 300)) wants.push(plan.extra.type);
   const counts: Partial<Record<StructureType, number>> = {};
   const nextBuild = wants.find(type => {
     counts[type] = (counts[type] || 0) + 1;
@@ -236,18 +239,21 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const coreNodes = view.buildings.filter(b => b.type === 'core_node' && !b.destroyed);
   const serverNodes = view.buildings.filter(b => b.type === 'server_node' && !b.destroyed);
   const sentinelAt = (b: BuildingData) => view.units.find(u => u.type === 'defense_drone' && alive(u) && dist(u.gridPos, posOf(b)) <= 1.5);
-  // Prefer nodes nearer us than the enemy.
-  const lean = (b: BuildingData) => dist(posOf(b), home) - 0.5 * dist(posOf(b), enemyHome);
+  // Prefer nodes nearer us than the enemy. Several of the contested nodes are the same distance
+  // from both bases, so nodes nearer our own infantry break the tie.
+  const infantry = mine.filter(canCapture).sort((a, b) => a.id.localeCompare(b.id));
+  const infantryAt = infantry.length > 0 ? centroid(infantry.map(u => u.gridPos)) : home;
+  const lean = (b: BuildingData) => dist(posOf(b), home) - 0.5 * dist(posOf(b), enemyHome) + 0.1 * dist(posOf(b), infantryAt);
   const freeCores = coreNodes.filter(b => b.owner === null).sort((a, b) => lean(a) - lean(b));
   const enemyCores = coreNodes.filter(b => b.owner === enemy).sort((a, b) => lean(a) - lean(b));
   const freeServers = serverNodes.filter(b => b.owner !== team).sort((a, b) => lean(a) - lean(b));
 
-  // Capture team: a few infantry that go after free core nodes while the army does its job.
-  const infantry = mine.filter(canCapture).sort((a, b) => a.id.localeCompare(b.id));
-  const captureTarget = freeCores[0] ?? null;
-
   // The army's objective, most urgent first.
   const enemyNear = (at: GridPos, r: number) => theirs.filter(u => dist(u.gridPos, at) <= r).reduce((s, u) => s + valueOf(u), 0);
+  // Capture team: a few infantry that take free core nodes. With an army to escort them, the
+  // army goes to the same node; on their own they skip nodes with enemies about.
+  const escorted = armyValue >= 400;
+  const captureTarget = (escorted ? freeCores[0] : freeCores.find(b => enemyNear(posOf(b), 8) < 150)) ?? null;
   let mode: AiMemory['mode'] = 'gather';
   let objective: GridPos = gather;
   let objectiveId: string | null = null;
@@ -262,14 +268,12 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     .sort((a, b) => dist(a.gridPos, home) - dist(b.gridPos, home))[0] ?? null;
   // A big enough army goes for it rather than the enemy's nodes; late on it takes less.
   const hqPush = profile.attackValue * (tier >= 3 || now > 15 * 60_000 ? 1.2 : 1.6);
-  // Free core nodes the capture team isn't already on. The army escorts the nearest of them.
-  const escort = captureTarget ? freeCores.slice(1) : freeCores;
   const ownCores = coreNodes.filter(b => b.owner === team).length;
   if (threat) {
     mode = 'defend'; objective = threat;
-  } else if (!retreating && escort.length > 0 && armyValue >= 400) {
+  } else if (!retreating && captureTarget && escorted) {
     // Land first: income and population come from core nodes.
-    mode = 'expand'; objective = posOf(escort[0]); objectiveId = escort[0].id;
+    mode = 'expand'; objective = posOf(captureTarget); objectiveId = captureTarget.id;
   } else if (!retreating && tier < 3 && canTech && freeServers.length > 0 && (ownCores >= 2 || dist(posOf(freeServers[0]), home) < dist(posOf(freeServers[0]), enemyHome))) {
     // Compute: the server node in our own half early, the contested ones once we hold some land.
     mode = 'tech'; objective = posOf(freeServers[0]); objectiveId = freeServers[0].id;
@@ -292,16 +296,20 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   mem.mode = mode; mem.objective = objective; mem.objectiveId = objectiveId;
 
   // Only infantry capture. When the army is going for a node it takes a squad of infantry along
-  // to stand on it, so the capture team gives up members if that leaves the army without.
+  // to stand on it, so the capture team gives up members if that leaves the army without. When
+  // the army is escorting the capture team's own node, the team simply marches with it as its
+  // node squad, so they arrive together.
   const nodeObjective = mode !== 'defend' && mode !== 'retreat' && mode !== 'gather' &&
     view.buildings.some(b => b.id === objectiveId && (b.type === 'core_node' || b.type === 'server_node'));
-  const teamSize = !captureTarget ? 0
+  const escorting = mode === 'expand' && !!captureTarget && objectiveId === captureTarget.id;
+  const teamSize = !captureTarget || escorting ? 0
     : nodeObjective ? Math.min(profile.capturers, Math.max(0, infantry.length - NODE_SQUAD)) : profile.capturers;
   const capturers = infantry.slice(0, teamSize);
   const capturerIds = new Set(capturers.map(u => u.id));
   // The node squad: the army's infantry nearest the objective.
   const nodeSquad = nodeObjective
-    ? infantry.filter(u => !capturerIds.has(u.id)).sort((a, b) => dist(a.gridPos, objective) - dist(b.gridPos, objective)).slice(0, NODE_SQUAD)
+    ? infantry.filter(u => !capturerIds.has(u.id)).sort((a, b) => dist(a.gridPos, objective) - dist(b.gridPos, objective))
+      .slice(0, escorting ? Math.max(NODE_SQUAD, profile.capturers) : NODE_SQUAD)
     : [];
   const squadIds = new Set(nodeSquad.map(u => u.id));
   // No infantry to take the node: the vehicles hold back until some arrive, rather than clear
@@ -419,11 +427,13 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const guardians = mine.filter(u => u.type === 'guardian').length;
   const howitzers = mine.filter(u => u.type === 'howitzer').length;
   // Under attack it gets around to production more often.
-  const productionRound = now - mem.lastProductionAt >= (threat ? profile.productionCycleMs / 2 : profile.productionCycleMs);
+  // Cores piling up get noticed: it tends production every think and queues deeper until they're spent.
+  const banked = cores >= BANKED_CORES;
+  const productionRound = banked || now - mem.lastProductionAt >= (threat ? profile.productionCycleMs / 2 : profile.productionCycleMs);
   if (productionRound) mem.lastProductionAt = now;
   for (const s of productionRound ? myStructures : []) {
     if (!isOperational(s) || unitsProducedBy(s.type).length === 0) continue;
-    if ((s.queue?.length || 0) >= Math.min(MAX_QUEUE, profile.queueDepth)) continue;
+    if ((s.queue?.length || 0) >= Math.min(MAX_QUEUE, profile.queueDepth + (banked ? 1 : 0))) continue;
     // Not every structure gets looked at every time, so production has idle gaps.
     if (ctx.random() > profile.attention) continue;
     // The strategy leans on some structures more than others; Barracks always keep the
@@ -589,7 +599,12 @@ export function chooseUnit(
 export function gatherPoint(view: AiView, team: Team, ctx: AiContext): GridPos {
   const enemyHome = ctx.bases[team === 'blue' ? 'red' : 'blue'];
   const home = ctx.bases[team];
-  const anchors: GridPos[] = [home, ...view.buildings.filter(b => b.owner === team && !b.destroyed && b.type !== 'core_node').map(posOf)];
+  // Anchor on ground it actually holds: buildings near its base or its nodes, not ones a stray
+  // squad captured deep in enemy territory, or new units would trickle out there one by one.
+  const held = [home, ...view.buildings.filter(b => b.owner === team && !b.destroyed && (b.type === 'core_node' || b.type === 'server_node')).map(posOf)];
+  const anchors: GridPos[] = [home, ...view.buildings
+    .filter(b => b.owner === team && !b.destroyed && b.type !== 'core_node' && held.some(h => dist(posOf(b), h) <= HELD_GROUND))
+    .map(posOf)];
   anchors.sort((a, b) => dist(a, enemyHome) - dist(b, enemyHome));
   const anchor = anchors[0];
   // A walkable tile a couple of steps from the anchor toward the enemy, still inside the grid.
@@ -606,6 +621,9 @@ export function gatherPoint(view: AiView, team: Team, ctx: AiContext): GridPos {
   }
   return { x: home.x + Math.sign(enemyHome.x - home.x) * 3, z: home.z + Math.sign(enemyHome.z - home.z) * 3 };
 }
+
+// How far from its base or one of its nodes a captured building counts as ground it holds.
+const HELD_GROUND = 12;
 
 // How far past the edge of our grid vehicles may be sent on battery.
 const VEHICLE_REACH = 10;
