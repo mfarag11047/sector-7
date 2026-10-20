@@ -24,7 +24,8 @@ import { GHOST_ABILITY_TIER } from './ghost';
 import { HELIOS } from './helios';
 import { isRemoteUnit, isTetherableDrone, MAX_TETHERS, tetheredIds } from './jamming';
 import type { OrderCommand } from './orders';
-import { inBaseArea, isOperational } from './orders';
+import { isOperational } from './orders';
+import { freePadsFor } from './baseLayout';
 import { type Tier, UNIT_RULES } from './units';
 import type { AiStrategy } from './aiStrategy';
 
@@ -348,9 +349,11 @@ export interface BaseContext {
   bases: Record<Team, GridPos>;
   gather: GridPos;
   canBuildOn: (x: number, z: number) => boolean;
-  isOpenGround: (x: number, z: number) => boolean;
   maxTurrets: number;
   maxBases: number;
+  gridSize: number;
+  // Every building pad is taken: more production needs another Command HQ.
+  padsFull: boolean;
 }
 
 // Orders for the base itself. Returns the cores they spend.
@@ -373,30 +376,28 @@ export function baseMoves(c: BaseContext): { actions: Action[]; spent: number } 
     }
   }
 
-  // A Sentry Turret or two guarding the base, on the side facing the enemy, built by the Masons.
-  // Turrets only go up in the area around a Command HQ (sim/orders.ts).
+  // A Sentry Turret or two guarding the base, on the corner pads facing the enemy, built by the
+  // Masons. Turrets only go on an HQ's corner pads (sim/baseLayout.ts).
+  // Not while the base is under attack: it would only be knocked down half-built.
   const depot = mineS.some(s => s.type === 'builder' && isOperational(s));
   const turrets = mineS.filter(s => s.type === 'defense').length;
-  // Not while the base is under attack: it would only be knocked down half-built.
   const home = c.bases[c.team];
+  const enemyHome = c.bases[c.team === 'blue' ? 'red' : 'blue'];
   const besieged = c.theirs.some(t => !!UNIT_RULES[t.type].weapon && dist(t.gridPos, home) <= 12);
   if (depot && !besieged && turrets < c.maxTurrets && !mineS.some(s => s.isBlueprint) && c.cores - spent >= structureCost('defense') + 400) {
-    const enemyHome = c.bases[c.team === 'blue' ? 'red' : 'blue'];
-    const away = dist(home, enemyHome) || 1;
-    const front = {
-      x: Math.round(home.x + ((enemyHome.x - home.x) / away) * 3),
-      z: Math.round(home.z + ((enemyHome.z - home.z) / away) * 3),
-    };
-    const spot = nearbyBuildSpot(front, c, p => inBaseArea(p, home));
+    const spot = (freePadsFor('defense', c.structures, c.team, c.gridSize) ?? [])
+      .filter(p => c.canBuildOn(p.x, p.z) && isInsideEnergyGrid(p, c.team, c.buildings, c.bases.blue, c.bases.red))
+      .sort((a, b) => dist(a, enemyHome) - dist(b, enemyHome))[0];
     if (spot) {
       actions.push({ kind: 'order', command: { type: 'PLACE_STRUCTURE', structureType: 'defense', at: spot } });
       spent += structureCost('defense');
     }
   }
 
-  // A new Command HQ on a cleared block one of its units stands by, when rich and teched.
+  // A new Command HQ on a cleared block one of its units stands by, when rich and teched, or
+  // sooner once its building pads are all taken.
   const hqs = mineS.filter(s => s.type === 'hq' && s.health > 0).length;
-  if (c.tier >= 3 && hqs < c.maxBases && c.cores - spent >= BASE_SITE.cores + 500 && c.economy[c.team].compute >= BASE_SITE.compute) {
+  if ((c.tier >= 3 || (c.tier >= 2 && c.padsFull)) && hqs < c.maxBases && c.cores - spent >= BASE_SITE.cores + 500 && c.economy[c.team].compute >= BASE_SITE.compute) {
     const site = baseSites(c.buildings, c.structures).find(s => c.mine.some(u => dist(u.gridPos, s.at) <= BASE_SITE.reach - 0.5)
       && !c.theirs.some(t => dist(t.gridPos, s.at) <= 6));
     if (site) {
@@ -405,22 +406,6 @@ export function baseMoves(c: BaseContext): { actions: Action[]; spent: number } 
     }
   }
   return { actions, spent };
-}
-
-function nearbyBuildSpot(around: GridPos, c: BaseContext, allowed: (p: GridPos) => boolean = () => true): GridPos | null {
-  const taken = c.structures.map(s => s.gridPos);
-  for (let r = 1; r <= 4; r++) {
-    for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
-      if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
-      const p = { x: around.x + dx, z: around.z + dz };
-      if (!c.isOpenGround(p.x, p.z) || !c.canBuildOn(p.x, p.z)) continue;
-      if (taken.some(t => Math.abs(t.x - p.x) <= 1 && Math.abs(t.z - p.z) <= 1)) continue;
-      if (!isInsideEnergyGrid(p, c.team, c.buildings, c.bases.blue, c.bases.red)) continue;
-      if (!allowed(p)) continue;
-      return p;
-    }
-  }
-  return null;
 }
 
 function densest(units: readonly UnitData[], radius: number): { at: GridPos; value: number } | null {

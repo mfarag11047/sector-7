@@ -49,6 +49,7 @@ import { OrderCommand, applyOrderToStructures, applyOrderToUnits, orderEffects, 
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
 import { UNIT_RULES, isAirType } from '../sim/units';
 import { airPath, fastestPath, sentinelHazardOf } from '../sim/pathfinding';
+import { BUILDING_PADS, freePadsFor, isPad, padKindOf, teamPads, TURRET_PADS } from '../sim/baseLayout';
 import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
 import { applyFieldCloak, CLOAK_FIELD, fieldCloakedIds, generatorsReplacedBy, isCloakFieldUp, isHidden } from '../sim/cloak';
 import { Victory, checkVictory } from '../sim/victory';
@@ -1872,6 +1873,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const teamBasesRef = useRef(teamBases);
   teamBasesRef.current = teamBases;
   const clearedLots = useMemo(() => clearedBlocks(buildings), [buildings]);
+  const clearedLotsRef = useRef(clearedLots);
+  clearedLotsRef.current = clearedLots;
   const sites = useMemo(() => baseSites(buildings, structuresState), [buildings, structuresState]);
   // The city's thousands of building elements. CityMap renders on every game tick while units
   // move, and capturing changes a few buildings most ticks, so each element is kept with the
@@ -2273,7 +2276,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (Math.abs(x - baseB_Coord.x) <= 1 && Math.abs(z - baseB_Coord.z) <= 1) return false;
       if (onHqPad(x, z, structuresState)) return false;
       if (structuresState.some(s => s.gridPos.x === x && s.gridPos.z === z)) return false;
-      if (buildings.some(b => b.gridX === x && b.gridZ === z)) return false;
+      if (buildings.some(b => b.gridX === x && b.gridZ === z && !rubbleCleared(b, clearedLots))) return false;
+      // Base buildings and turrets only go on the free pads around your Command HQs (sim/baseLayout.ts).
+      const pads = placementModeRef.current ? freePadsFor(placementModeRef.current.type, structuresState, playerTeam, gridSize) : null;
+      if (pads && !isPad({ x, z }, pads)) return false;
       // You can only build where you hold power: around your HQs and captured buildings.
       if (!isInsideEnergyGrid({ x, z }, playerTeam, buildings, teamBases.blue, teamBases.red, activeBlackouts())) return false;
       // The structure occupies its own tile, so the Mason needs a road beside it.
@@ -2305,7 +2311,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       const mode = placementModeRef.current;
       if (!mode) return;
       const spot = findPlacementSpot(x, z);
-      if (!spot) { onNotice?.('Cannot build there: it must be open ground inside your energy grid', 'warn'); return; }
+      if (!spot) {
+          const pads = freePadsFor(mode.type, structuresState, playerTeam, gridSize);
+          const kind = padKindOf(mode.type);
+          onNotice?.(!pads ? 'Cannot build there: it must be open ground inside your energy grid'
+              : pads.length === 0 ? (kind === 'turret' ? `Every turret corner is taken (${TURRET_PADS} per Command HQ)` : `Every building pad is taken (${BUILDING_PADS} per Command HQ): build another Command HQ for more`)
+              : kind === 'turret' ? 'Turrets go on the marked corner pads of a Command HQ' : 'Base buildings go on the marked pads around a Command HQ', 'warn');
+          return;
+      }
       if (!dispatchOrder({ type: 'PLACE_STRUCTURE', structureType: mode.type, at: spot })) return;
       // Masons pick up new blueprints on their own (the Mason loop below).
       placementModeRef.current = null;
@@ -2412,6 +2425,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       handleRightClick(0, 0); 
   }, [handleRightClick]);
 
+  // Free base pads per side, for the HQ build menu.
+  const freePadsOf = (team: 'blue' | 'red') => ({
+      building: teamPads(structuresState, team, 'building', gridSize).filter(p => !p.taken).length,
+      turret: teamPads(structuresState, team, 'turret', gridSize).filter(p => !p.taken).length,
+  });
   const handleBuild = (type: StructureType) => { const cost = structureCost(type); if (canAfford(economy, playerTeam, cost)) { setPlacementMode({ type, cost }); setBaseMenuOpen(null); } };
   
   // Every unit ability goes through sim/abilities.ts as a command: it is checked for the
@@ -2430,7 +2448,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (Math.abs(bx - baseB_Coord.x) <= 1 && Math.abs(bz - baseB_Coord.z) <= 1) return false;
       if (onHqPad(bx, bz, structuresRef.current)) return false;
       if (structuresRef.current.some(st => st.gridPos.x === bx && st.gridPos.z === bz)) return false;
-      if (buildingsRef.current.some(b => b.gridX === bx && b.gridZ === bz)) return false;
+      // Rubble on a cleared block is gone: a new base's pads are free ground.
+      if (buildingsRef.current.some(b => b.gridX === bx && b.gridZ === bz && !rubbleCleared(b, clearedLotsRef.current))) return false;
       return [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => isWalkable(bx + dx, bz + dz));
   };
 
@@ -3976,6 +3995,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             resources={teamResources.blue} 
             onBuild={handleBuild} 
             onRightClick={handleRightClick}
+            freePads={baseMenuOpen === 'blue' ? freePadsOf('blue') : undefined}
             hq={structuresState.find(st => st.id === 'hq-blue')}
             tier={economy.blue.tier}
             compute={economy.blue.compute}
@@ -3994,6 +4014,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             resources={teamResources.red} 
             onBuild={handleBuild} 
             onRightClick={handleRightClick}
+            freePads={baseMenuOpen === 'red' ? freePadsOf('red') : undefined}
             hq={structuresState.find(st => st.id === 'hq-red')}
             tier={economy.red.tier}
             compute={economy.red.compute}
@@ -4018,6 +4039,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                     resources={teamResources[team]}
                     onBuild={handleBuild}
                     onRightClick={handleRightClick}
+                    freePads={baseMenuOpen === s.id ? freePadsOf(team) : undefined}
                     hq={s}
                     tier={economy[team].tier}
                     compute={economy[team].compute}
@@ -4193,6 +4215,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 )}
             </group>
         )}</HoverTile>
+
+        {/* The free pads a base building or turret can go on, while placing one. */}
+        {placementMode && (freePadsFor(placementMode.type, structuresState, playerTeam, gridSize) ?? []).map(p => (
+            <mesh key={`pad-${p.x}-${p.z}`} position={[(p.x * tileSize) - offset, 0.6, (p.z * tileSize) - offset]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+                <ringGeometry args={[tileSize * 0.3, tileSize * 0.42, 4, 1, Math.PI / 4]} />
+                <meshBasicMaterial color={TEAM_COLORS[playerTeam]} transparent opacity={0.8} toneMapped={false} />
+            </mesh>
+        ))}
 
         {/* Placement Preview */}
         <HoverTile store={hoverStore}>{hoverGridPos => placementMode && hoverGridPos && (

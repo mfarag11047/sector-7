@@ -33,10 +33,12 @@ interface BaseProps {
   onTrain?: (unitType: UnitType) => void;
   // 0 to 1 while a newly ordered HQ goes up (sim/bases.ts); it rises out of the ground.
   buildProgress?: number;
+  // Free building pads and turret corners across all the owner's Command HQs (sim/baseLayout.ts).
+  freePads?: { building: number; turret: number };
 }
 
 const Base: React.FC<BaseProps> = ({ 
-  position, gridPos, teamColor, label, onMoveCommand, onRightClick, onDoubleClick, menuOpen, resources = 0, onBuild, hq, tier = 1, compute = 0, onResearch, onTrain, buildProgress = 1
+  position, gridPos, teamColor, label, onMoveCommand, onRightClick, onDoubleClick, menuOpen, resources = 0, onBuild, hq, tier = 1, compute = 0, onResearch, onTrain, buildProgress = 1, freePads
 }) => {
   const radarRef = useRef<THREE.Group>(null);
   const baseGroupRef = useRef<THREE.Group>(null);
@@ -310,12 +312,19 @@ const Base: React.FC<BaseProps> = ({
         <Html position={[0, 10, 0]} center zIndexRange={[200, 0]}>
           <div className="hud-plate hud-corners hud-menu backdrop-blur min-w-[220px] overflow-hidden flex flex-col pointer-events-auto">
              <div className="px-3 py-2 border-b border-cyan-400/30 flex justify-between items-center">
-                <span className="text-cyan-400 font-mono font-bold text-xs uppercase">Build · inside your grid</span>
+                <span className="text-cyan-400 font-mono font-bold text-xs uppercase">Build · on base pads</span>
                 <span className={`text-[10px] font-mono ${resources > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {resources} Cores
                 </span>
              </div>
              
+             {freePads && (
+                <div className="px-3 py-1 border-b border-cyan-400/20 text-[9px] font-mono text-slate-400">
+                    Building pads free: <span className={freePads.building > 0 ? 'text-cyan-300' : 'text-red-400'}>{freePads.building}</span>
+                    {' · '}Turret corners free: <span className={freePads.turret > 0 ? 'text-cyan-300' : 'text-red-400'}>{freePads.turret}</span>
+                    {freePads.building === 0 && <div className="text-amber-300">Build another Command HQ for more pads</div>}
+                </div>
+             )}
              <div className="flex flex-col gap-1 p-1">
                 {onResearch && tier < 3 && (() => {
                     const next = (tier + 1) as 2 | 3;
@@ -358,7 +367,7 @@ const Base: React.FC<BaseProps> = ({
                 })}
                 {buildableStructures.map((type) => {
                     const info = STRUCTURE_INFO[type];
-                    const canAfford = resources >= info.cost;
+                    const canAfford = resources >= info.cost && (!freePads || freePads.building > 0);
                     
                     const getIcon = (t: StructureType) => {
                         if (t in UNIT_CLASSES) return UNIT_CLASSES[t as UnitClass].icon;

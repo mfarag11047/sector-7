@@ -33,6 +33,7 @@ import { isOperational, MAX_QUEUE, OrderCommand, popUsed, teamPopCap, teamTier }
 import { ArmorClass, dps, Tier, UNIT_RULES, unitsProducedBy } from './units';
 import { abilitiesFor, abilityCooldownLeft } from './unitAbilities';
 import { artilleryRange, inArtilleryReach } from './artillery';
+import { freePadsFor } from './baseLayout';
 import { baseMoves, ESCORTS, SCOUT_REPLACE_MS, specialistAbilities, specialistMoves, specialistPick, SPECIALIST_MOVERS } from './aiSpecialists';
 import { freshStrategyMemory, lossMix, STRATEGY_PLANS, StrategyMemory, updateStrategy } from './aiStrategy';
 
@@ -230,16 +231,19 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   // --- 1. Build order ---
   const have = (type: StructureType) => myStructures.filter(s => s.type === type).length;
   const building = myStructures.some(s => (s.buildRemainingMs || 0) > 0);
+  // Most wanted first: each Command HQ has only six building pads (sim/baseLayout.ts), so what
+  // doesn't fit waits for a second HQ.
   const wants: StructureType[] = ['infantry', 'armor'];
   // Air and drone plans want an Airpad at Tier 1 for Kestrel attack drones.
   if (tier >= 2 || plan.earlyAirpad) wants.push('air');
-  if (tier >= 2) wants.push('support', 'ordnance_fab');
-  // A Depot, so the Masons can put up turrets.
-  if (tier >= 2 && profile.turrets > 0) wants.push('builder');
-  if (profile.secondBarracks && now > 6 * 60_000) wants.push('infantry');
   // The strategy's own extra production structure.
   // Sooner if cores are piling up, as they do for an army of cheap units.
   if (tier >= plan.extra.tier && (now > 4 * 60_000 || cores >= structureCost(plan.extra.type) + 300)) wants.push(plan.extra.type);
+  if (tier >= 2) wants.push('support');
+  // A Depot, so the Masons can put up turrets.
+  if (tier >= 2 && profile.turrets > 0) wants.push('builder');
+  if (tier >= 2) wants.push('ordnance_fab');
+  if (profile.secondBarracks && now > 6 * 60_000) wants.push('infantry');
   const counts: Partial<Record<StructureType, number>> = {};
   const nextBuild = wants.find(type => {
     counts[type] = (counts[type] || 0) + 1;
@@ -252,7 +256,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   let reserve = 0;
   if (nextBuild && !building && !besieged && now - mem.lastBuildAt >= profile.buildGapMs) {
     const cost = structureCost(nextBuild);
-    const spot = cores >= cost ? findBuildSpot(view, team, ctx) : null;
+    const spot = cores >= cost ? findBuildSpot(view, team, ctx, nextBuild) : null;
     if (spot) {
       actions.push({ kind: 'order', command: { type: 'PLACE_STRUCTURE', structureType: nextBuild, at: spot } });
       cores -= cost;
@@ -528,8 +532,9 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   // Warheads, turrets and new Command HQs.
   const base = baseMoves({
     team, tier, cores, mine, theirs, structures: view.structures, buildings: view.buildings, economy: view.economy,
-    bases: ctx.bases, gather, canBuildOn: ctx.canBuildOn, isOpenGround: ctx.isOpenGround,
-    maxTurrets: profile.turrets, maxBases: profile.bases,
+    bases: ctx.bases, gather, canBuildOn: ctx.canBuildOn,
+    maxTurrets: profile.turrets, maxBases: profile.bases, gridSize: ctx.gridSize,
+    padsFull: (freePadsFor('infantry', view.structures, team, ctx.gridSize) ?? []).length === 0,
   });
   actions.push(...base.actions);
   cores -= base.spent;
@@ -769,25 +774,13 @@ function threatNear(view: AiView, team: Team, enemy: Team, home: GridPos, minRai
   return worst?.at ?? null;
 }
 
-// A tile in our base to put the next structure: open ground inside the grid, not on a road,
-// not next to another structure (so lanes stay open), nearest the HQ.
-function findBuildSpot(view: AiView, team: Team, ctx: AiContext): GridPos | null {
+// A free building pad for the next structure (sim/baseLayout.ts): at the HQ nearest home first,
+// inside the grid and buildable.
+function findBuildSpot(view: AiView, team: Team, ctx: AiContext, type: StructureType): GridPos | null {
   const home = ctx.bases[team];
-  const taken = view.structures.map(s => s.gridPos);
-  let best: GridPos | null = null;
-  let bestD = Infinity;
-  for (let x = home.x - 7; x <= home.x + 7; x++) {
-    for (let z = home.z - 7; z <= home.z + 7; z++) {
-      const p = { x, z };
-      const d = dist(p, home);
-      if (d < 2.5 || d >= bestD) continue;
-      if (!ctx.isOpenGround(x, z) || !ctx.canBuildOn(x, z)) continue;
-      if (taken.some(t => Math.abs(t.x - x) <= 1 && Math.abs(t.z - z) <= 1)) continue;
-      if (!isInsideEnergyGrid(p, team, view.buildings, ctx.bases.blue, ctx.bases.red)) continue;
-      best = p; bestD = d;
-    }
-  }
-  return best;
+  return (freePadsFor(type, view.structures, team, ctx.gridSize) ?? [])
+    .filter(p => ctx.canBuildOn(p.x, p.z) && isInsideEnergyGrid(p, team, view.buildings, ctx.bases.blue, ctx.bases.red))
+    .sort((a, b) => dist(a, home) - dist(b, home))[0] ?? null;
 }
 
 function doctrineMove(

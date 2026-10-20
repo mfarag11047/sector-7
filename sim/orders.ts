@@ -12,6 +12,7 @@ import type { GridPos, PlayerCommand, Team, Warhead } from './commands';
 import { Economy, research, researchCost, spend, structureCost, unitCost, warheadBuildTime, warheadCost } from './economy';
 import { Blackout, gridTiles, isBlackedOut, isInsideEnergyGrid } from './energy';
 import { baseOrder } from './bases';
+import { BUILDING_PADS, freePadsFor, isPad, padKindOf, TURRET_PADS } from './baseLayout';
 import { isAirType, popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from './units';
 import { tetheredIds, unjammedIds } from './jamming';
 
@@ -19,12 +20,9 @@ export { popUsed };
 
 export const MAX_QUEUE = 5;
 const MASON_BUILT: readonly StructureType[] = ['wall_tier1', 'wall_tier2', 'defense', 'aa_turret'];
-// Base defences: only in the area around one of the side's Command HQs (its starting HQ or one
-// it has built), within BASE_DEFENSE_RADIUS tiles. Walls can go anywhere on the grid.
-export const BASE_DEFENSES: readonly StructureType[] = ['defense', 'aa_turret'];
-export const BASE_DEFENSE_RADIUS = ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS;
-export const inBaseArea = (at: GridPos, bases: GridPos | readonly GridPos[]) =>
-  (Array.isArray(bases) ? bases : [bases as GridPos]).some(b => Math.hypot(at.x - b.x, at.z - b.z) <= BASE_DEFENSE_RADIUS);
+// Base buildings and turrets only go on the pads around one of the side's Command HQs (its
+// starting HQ or one it has built): six for buildings, four turret corners (sim/baseLayout.ts).
+// Walls can go anywhere on the grid.
 
 // --- Team numbers ---
 
@@ -166,7 +164,13 @@ function placeOrder(view: OrdersView, team: Team, type: StructureType, at: GridP
   if (!ctx.canBuildOn(at.x, at.z)) return reject('cannot build there');
   // Holding ground is what lets you build forward: only inside your own energy grid.
   if (!isInsideEnergyGrid(at, team, view.buildings, ctx.bases.blue, ctx.bases.red)) return reject('must be inside your energy grid');
-  if (BASE_DEFENSES.includes(type) && !inBaseArea(at, ctx.bases[team])) return reject(`turrets only go up within ${BASE_DEFENSE_RADIUS} tiles of one of your Command HQs`);
+  const pads = freePadsFor(type, view.structures, team, ctx.gridSize);
+  if (pads && !isPad(at, pads)) {
+    if (pads.length > 0) return reject(padKindOf(type) === 'turret' ? 'turrets go on the corner pads of a Command HQ' : 'base buildings go on the pads around a Command HQ');
+    return reject(padKindOf(type) === 'turret'
+      ? `every turret corner is taken: ${TURRET_PADS} per Command HQ`
+      : `every building pad is taken: ${BUILDING_PADS} per Command HQ. Build another Command HQ for more`);
+  }
   const cost = structureCost(type);
   if (!spend(view.economy, team, cost)) return reject('not enough cores');
 

@@ -14,6 +14,7 @@ import { afterRailShot, fireRailguns } from './railgun';
 import { fireHornetRockets, landSalvo, MiniRocket } from './hornet';
 import { EmpRocket, empRocketImpact, empRocketTick, mergeUnitUpdates } from './empRocket';
 import { ArtilleryShell, fireArtillery, landShells, shellGroundPos } from './artillery';
+import { clearedBlocks, rubbleCleared } from './bases';
 import { captureTick } from './capture';
 import { applyCiwsState, ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
 import type { GridPos, Team } from './commands';
@@ -300,6 +301,7 @@ export function stepMatch(m: HeadlessMatch): void {
 }
 
 function think(m: HeadlessMatch, team: Team, paths: ReturnType<typeof pathfinder>, bases: Record<Team, GridPos>) {
+  const cleared = clearedBlocks(m.buildings);
   const ctx: OrdersContext = {
     gridSize: m.gridSize, bases, isWalkable: paths.walkable, findPath: paths.findPath, findAirPath: paths.findAirPath,
     newId: prefix => `${prefix}-h${++m.nextId}`,
@@ -307,7 +309,8 @@ function think(m: HeadlessMatch, team: Team, paths: ReturnType<typeof pathfinder
       if (Math.abs(x - bases.blue.x) <= 1 && Math.abs(z - bases.blue.z) <= 1) return false;
       if (Math.abs(x - bases.red.x) <= 1 && Math.abs(z - bases.red.z) <= 1) return false;
       if (m.structures.some(s => s.gridPos.x === x && s.gridPos.z === z)) return false;
-      if (m.buildings.some(b => b.gridX === x && b.gridZ === z)) return false;
+      // Rubble on a cleared block is gone: a new base's pads are free ground.
+      if (m.buildings.some(b => b.gridX === x && b.gridZ === z && !rubbleCleared(b, cleared))) return false;
       return [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => paths.walkable(x + dx, z + dz));
     },
   };

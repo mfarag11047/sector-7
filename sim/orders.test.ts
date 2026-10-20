@@ -128,16 +128,36 @@ describe('production over time', () => {
 });
 
 describe('placing structures', () => {
-  it('starts a base structure building, inside the grid', () => {
-    const r = run(view({ structures: [] }), { type: 'PLACE_STRUCTURE', structureType: 'armor', at: { x: 8, z: 8 } });
+  // Blue's starting HQ and its pads (sim/baseLayout.ts).
+  const hq = structure('hq-blue', { type: 'hq', gridPos: { x: 4, z: 4 } });
+  const PADS = [{ x: 3, z: 1 }, { x: 5, z: 1 }, { x: 1, z: 3 }, { x: 1, z: 5 }, { x: 7, z: 4 }, { x: 4, z: 7 }];
+
+  it('starts a base structure building on one of its HQ\'s pads', () => {
+    const r = run(view({ structures: [hq] }), { type: 'PLACE_STRUCTURE', structureType: 'armor', at: { x: 7, z: 4 } });
     expect(r.economy!.blue.cores).toBe(1000 - 550);
-    expect(r.structures![0]).toMatchObject({ type: 'armor', team: 'blue', isBlueprint: false, buildRemainingMs: 25000 });
+    expect(r.structures![1]).toMatchObject({ type: 'armor', team: 'blue', isBlueprint: false, buildRemainingMs: 25000 });
   });
 
-  it('refuses outside the energy grid, and allows it next to a captured building', () => {
-    const far = { type: 'PLACE_STRUCTURE' as const, structureType: 'infantry' as const, at: { x: 40, z: 41 } };
-    expect(run(view(), far).refused).toMatch(/energy grid/);
-    expect(run(view({ buildings: [node('b', 'residential', 'blue')] }), far).refused).toBeUndefined();
+  it('keeps base buildings to six pads per Command HQ', () => {
+    const place = (structures: StructureData[], at: { x: number; z: number }) =>
+      run(view({ structures, economy: createEconomy(10_000) }), { type: 'PLACE_STRUCTURE', structureType: 'infantry', at });
+    expect(place([hq], { x: 8, z: 8 }).refused).toMatch(/pads around a Command HQ/);
+    const five = PADS.slice(0, 5).map((at, i) => structure(`s${i}`, { gridPos: at }));
+    expect(place([hq, ...five], PADS[5]).refused).toBeUndefined();
+    const six = PADS.map((at, i) => structure(`s${i}`, { gridPos: at }));
+    expect(place([hq, ...six], { x: 2, z: 7 }).refused).toMatch(/every building pad is taken: 6 per Command HQ/);
+    // A second HQ, on a cleared block, brings six more.
+    const second = structure('hq-2', { type: 'hq', gridPos: { x: 9, z: 9 } });
+    expect(place([hq, ...six, second], { x: 7, z: 9 }).refused).toBeUndefined();
+    // Not while it is still going up.
+    expect(place([hq, ...six, { ...second, buildRemainingMs: 5000 }], { x: 7, z: 9 }).refused).toMatch(/every building pad is taken/);
+  });
+
+  it('refuses a pad outside the energy grid, and allows it next to a captured building', () => {
+    const far = structure('hq-far', { type: 'hq', gridPos: { x: 39, z: 39 } });
+    const pad = { type: 'PLACE_STRUCTURE' as const, structureType: 'infantry' as const, at: { x: 41, z: 39 } };
+    expect(run(view({ structures: [far] }), pad).refused).toMatch(/energy grid/);
+    expect(run(view({ structures: [far], buildings: [node('b', 'residential', 'blue')] }), pad).refused).toBeUndefined();
   });
 
   it('needs a finished Depot for walls and turrets, which start as blueprints', () => {
@@ -147,20 +167,21 @@ describe('placing structures', () => {
     expect(r.structures![1]).toMatchObject({ type: 'wall_tier1', isBlueprint: true });
   });
 
-  it('keeps turrets to the area around a Command HQ, but lets walls go anywhere on the grid', () => {
+  it('keeps turrets to the four corners of a Command HQ\'s block, but lets walls go anywhere on the grid', () => {
     const depot = structure('d', { type: 'builder' });
     // A captured building far from base puts the grid out there.
-    const v = view({ structures: [depot], buildings: [node('b', 'residential', 'blue')] });
-    const place = (structureType: 'defense' | 'aa_turret' | 'wall_tier1', at: { x: number; z: number }) =>
-      run(v, { type: 'PLACE_STRUCTURE', structureType, at });
-    expect(place('defense', { x: 40, z: 41 }).refused).toMatch(/Command HQ/);
-    expect(place('aa_turret', { x: 40, z: 41 }).refused).toMatch(/Command HQ/);
+    const v = view({ structures: [hq, depot], buildings: [node('b', 'residential', 'blue')] });
+    const place = (structureType: 'defense' | 'aa_turret' | 'wall_tier1', at: { x: number; z: number }, structures = v.structures) =>
+      run({ ...v, structures }, { type: 'PLACE_STRUCTURE', structureType, at });
+    expect(place('defense', { x: 40, z: 41 }).refused).toMatch(/corner pads/);
+    expect(place('aa_turret', { x: 7, z: 4 }).refused).toMatch(/corner pads/);
     expect(place('wall_tier1', { x: 40, z: 41 }).refused).toBeUndefined();
-    expect(place('defense', { x: 8, z: 8 }).refused).toBeUndefined();
-    // Around a base it has built, too.
-    const built = orderEffects(v, 'blue', { type: 'PLACE_STRUCTURE', structureType: 'defense', at: { x: 40, z: 41 } },
-      { ...ctx, bases: { blue: [{ x: 4, z: 4 }, { x: 39, z: 39 }], red: { x: 74, z: 74 } } });
-    expect('reason' in built).toBe(false);
+    for (const corner of [{ x: 1, z: 1 }, { x: 7, z: 1 }, { x: 1, z: 7 }, { x: 7, z: 7 }]) expect(place('defense', corner).refused).toBeUndefined();
+    const corners = [{ x: 1, z: 1 }, { x: 7, z: 1 }, { x: 1, z: 7 }, { x: 7, z: 7 }].map((gridPos, i) => structure(`t${i}`, { type: 'defense', gridPos }));
+    expect(place('defense', { x: 2, z: 2 }, [hq, depot, ...corners]).refused).toMatch(/every turret corner is taken: 4 per Command HQ/);
+    // On the corners of a base it has built, too.
+    const built = structure('hq-2', { type: 'hq', gridPos: { x: 39, z: 39 } });
+    expect(place('defense', { x: 41, z: 41 }, [hq, depot, built]).refused).toBeUndefined();
   });
 
   it('refuses the HQ and Munitions', () => {
@@ -203,10 +224,11 @@ describe('moving', () => {
 
 describe('building under an EMP blackout', () => {
   it('is refused where your grid is down', () => {
-    const at = { x: 8, z: 8 };
+    const at = { x: 7, z: 4 };
+    const hq = structure('hq-blue', { type: 'hq', gridPos: { x: 4, z: 4 } });
     const place = { type: 'PLACE_STRUCTURE' as const, structureType: 'armor' as const, at };
-    expect(run(view({ structures: [] }), place).refused).toBeUndefined();
+    expect(run(view({ structures: [hq] }), place).refused).toBeUndefined();
     const blackouts = [{ gridPos: at, radius: 2, team: 'red' as const }];
-    expect(run(view({ structures: [], blackouts }), place).refused).toMatch(/EMP/);
+    expect(run(view({ structures: [hq], blackouts }), place).refused).toMatch(/EMP/);
   });
 });

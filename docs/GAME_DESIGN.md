@@ -37,6 +37,17 @@ The intended arc:
 - Start with 1000 cores.
 - Structures must be placed **inside your energy grid**: around your HQ or near buildings you have
   captured. Holding ground is what lets you build forward.
+- **Base pads** (`sim/baseLayout.ts`): each Command HQ has **6 building pads** for Barracks,
+  Factories, Airpads, Comm Links, Ordnance Fabs and Depots, in any mix, and **4 turret corners**
+  for Sentry and CIWS Turrets. Base buildings and turrets go nowhere else. More production than
+  six structures takes another Command HQ, which brings its own six pads and four corners. Walls
+  are not limited to pads.
+  - A starting HQ sits on a paved 7x7 square. Its building pads ring the HQ, clear of the two roads
+    crossing the square, and its turret corners are the square's corners. The two sides' layouts
+    are mirror images.
+  - An HQ built later stands in the middle of its cleared block. Its building pads ring it inside
+    the block, and its turret corners are the block's corners.
+  - Placing a building or turret shows the free pads. The HQ menu shows how many are left.
 - Base structures take time to construct. While under construction they can't produce.
 
 | Structure | Cost | Build time | Produces |
@@ -251,8 +262,8 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 
 - **Depot:** Mason (120, pop 1, T1), plus Dragon's Teeth, Bulwark and two turrets:
   - **Sentry Turret** (400): anti-vehicle cannon, AP 40 / 1.5 s / 6, ground only, 900 HP.
-  - Both turrets are base defences: they can only be placed within 6 tiles of one of your
-    Command HQs (the starting one or one you built). Walls can go anywhere in your grid.
+  - Both turrets are base defences: they only go on the four corner pads of one of your Command
+    HQs (the starting one or one you built). Walls can go anywhere in your grid.
   - **CIWS Turret** (450, three Mason hauls): the Aegis rotary cannon on a fixed mount with its own
     tracking radar (`sim/ciws.ts`). Shoots aircraft and incoming ordnance within 10 tiles exactly as
     the Aegis does (32/s to aircraft, 60/s to ordnance, 3.5 s bursts, 6 s reload); with the sky
@@ -550,9 +561,15 @@ The AI (`sim/ai.ts`) plays by the same rules as you. It returns commands; the ga
 through the same checks as yours (`sim/orders.ts`, `sim/abilities.ts`, doctrine powers), from the
 same kind of economy.
 
-1. **Build order:** Barracks → Factory; then Airpad, Comm Link and Ordnance Fab once it reaches
-   T2, and a Depot on Normal and Hard; a second Barracks on Hard. Placed on open ground inside its grid, never on a road or touching another
-   structure, so lanes stay open. While enemy fighters are within 12 tiles of its HQ it places
+1. **Build order**, most wanted first, since an HQ has only six pads:
+   - Barracks, then Factory.
+   - An Airpad for air and drone plans.
+   - Its strategy's extra producer.
+   - At T2: an Airpad, a Comm Link, a Depot (Normal and Hard) and an Ordnance Fab.
+   - A second Barracks on Hard.
+
+   Each goes on the free pad nearest its home. Whatever doesn't fit waits for a second Command HQ.
+   While enemy fighters are within 12 tiles of its HQ it places
    nothing, not even turrets. It keeps training from the producers still standing and rebuilds
    once the base is clear.
 2. **Production:** for each structure, the unit with the best damage per core against the armor mix
@@ -635,10 +652,10 @@ same kind of economy.
    - **Bombardment Drones** (T3) strike enemy production, never on top of its own units.
    - **Ballista** (T3) stays by the Ordnance Fab, which keeps two **warheads** coming (EMP against
      a heavy army, otherwise HE); it takes, loads and fires them at big enemy groups or structures.
-   - **Masons** put up 1 (Normal) or 2 (Hard) **Sentry Turrets** in its base, on the side facing
+   - **Masons** put up 1 (Normal) or 2 (Hard) **Sentry Turrets** on the turret corners facing
      you.
-   - At T3, rich, with a unit beside a cleared block, it builds a **new Command HQ** (up to 2 on
-     Normal, 3 on Hard).
+   - When rich, with a unit beside a cleared block, it builds a **new Command HQ** (up to 2 on
+     Normal, 3 on Hard). This happens at T3, or at T2 once its building pads are all taken.
 7. **Powers:** Titan smoke when hurt. Doctrine powers on Normal (T2) and Hard (T2 and T3): Orbital
    Drop into a fight, a Force Field over its army in a big fight, Decoys on an attack, EMP in a big fight, a Nano Cloud
    over a retreat, a Black Wall Infect bomb on a big enemy cluster.

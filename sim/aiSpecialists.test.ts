@@ -135,7 +135,7 @@ describe('computer opponent: specialist movement and the base', () => {
       team: 'red', tier: 3, cores: 3000, mine: [unit('bal', { type: 'ballista' })], theirs: [],
       structures: [structure('fab', 'ordnance_fab')], buildings: [], economy: createEconomy(),
       bases: { blue: { x: 4, z: 4 }, red: { x: 74, z: 74 } }, gather: { x: 60, z: 60 },
-      canBuildOn: () => false, isOpenGround: () => false, maxTurrets: 0, maxBases: 1,
+      canBuildOn: () => false, maxTurrets: 0, maxBases: 1, gridSize: 79, padsFull: false,
     });
     expect(commands(r.actions)).toContain('BUILD_WARHEAD');
     expect(r.spent).toBeGreaterThan(0);
