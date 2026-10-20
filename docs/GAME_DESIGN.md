@@ -617,7 +617,8 @@ same kind of economy.
    - At T2: Advanced Research, an Airpad, a Comm Link, a Depot (Normal and Hard) and an Ordnance Fab.
    - A second Barracks on Hard.
 
-   Each goes on the free pad nearest its home. Whatever doesn't fit waits for a second Command HQ.
+   Each goes on the free pad nearest its home. Whatever doesn't fit waits for a second Command HQ;
+   it only saves up cores for a building when a pad is free for it.
    While enemy fighters are within 12 tiles of its HQ it places
    nothing, not even turrets. It keeps training from the producers still standing and rebuilds
    once the base is clear.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { UnitData } from '../types';
+import type { StructureData, UnitData } from '../types';
 import { aiThink, chooseUnit, freshAiMemory, gatherPoint, type AiContext } from './ai';
 import { counterScore, freshStrategyMemory, LOSS_WINDOW_MS, STRATEGY_PLANS, updateStrategy, type AiStrategy } from './aiStrategy';
 import { createHeadlessMatch } from './headless';
@@ -211,6 +211,28 @@ describe('researching upgrades', () => {
     expect(think()).toEqual(['overclock']);
     // Busy: nothing new.
     expect(think([...m.structures, { ...lab, research: { upgrade: 'nanoweave' as const, remainingMs: 1000, totalMs: 30_000 } }])).toEqual([]);
+  });
+});
+
+describe('a full base', () => {
+  it('keeps training when every building pad is taken, instead of saving for a building it cannot place', () => {
+    const m = createHeadlessMatch({ seed: 1, difficulty: { blue: 'normal', red: 'normal' }, doctrine: { blue: null, red: null } });
+    const ctx: AiContext = {
+      gridSize: m.gridSize, bases: { blue: { x: 4, z: 4 }, red: { x: 74, z: 74 } }, difficulty: 'normal', doctrine: null,
+      canBuildOn: () => true, isOpenGround: () => true, isWalkable: () => true,
+      doctrineCooldowns: { tier2: 0, tier3: 0 }, random: () => 0.1,
+    };
+    // Six producers on Blue's six pads; an armour plan still wants a second Factory.
+    const pads: [StructureData['type'], number, number][] = [['infantry', 3, 1], ['armor', 5, 1], ['air', 1, 3], ['research_lab', 1, 5], ['support', 7, 4], ['builder', 4, 7]];
+    const structures = [...m.structures, ...pads.map(([type, x, z], i): StructureData => ({
+      id: `p${i}`, type, team: 'blue', gridPos: { x, z }, isBlueprint: false, constructionProgress: 100, maxProgress: 100, health: 900, maxHealth: 900,
+    }))];
+    const economy = { ...m.economy, blue: { ...m.economy.blue, tier: 2 as const, cores: 600 } };
+    const memory = { ...freshAiMemory(), plan: { ...freshStrategyMemory(), strategy: 'armor' as AiStrategy, since: 0 } };
+    const out = aiThink({ units: m.units, structures, buildings: m.buildings, economy, elapsedMs: 9 * 60_000 }, 'blue', memory, ctx);
+    const orders = out.actions.flatMap(a => (a.kind === 'order' ? [a.command.type] : []));
+    expect(orders).not.toContain('PLACE_STRUCTURE');
+    expect(orders).toContain('TRAIN_UNIT');
   });
 });
 

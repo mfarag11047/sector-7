@@ -257,10 +257,12 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   // It spends on units from the producers still standing, and rebuilds once the base is clear.
   const besieged = theirs.some(u => isFighter(u) && dist(u.gridPos, home) <= SIEGE_RADIUS);
   let reserve = 0;
-  if (nextBuild && !building && !besieged && now - mem.lastBuildAt >= profile.buildGapMs) {
+  // Only with a pad free for it: with every pad taken it waits for another Command HQ, and keeps
+  // spending on units and research rather than hoarding for a building it has nowhere to put.
+  const spot = nextBuild ? findBuildSpot(view, team, ctx, nextBuild) : null;
+  if (nextBuild && spot && !building && !besieged && now - mem.lastBuildAt >= profile.buildGapMs) {
     const cost = structureCost(nextBuild);
-    const spot = cores >= cost ? findBuildSpot(view, team, ctx, nextBuild) : null;
-    if (spot) {
+    if (cores >= cost) {
       actions.push({ kind: 'order', command: { type: 'PLACE_STRUCTURE', structureType: nextBuild, at: spot } });
       cores -= cost;
       mem.lastBuildAt = now;
