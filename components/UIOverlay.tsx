@@ -650,7 +650,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
       {/* Top HUD: Team Stats */}
       <div className="flex justify-between items-start w-full relative z-50">
         
-        {/* Match clock; the team switch in the sandbox only. */}
+        {/* Match clock; the team switch in the sandbox and AI vs AI. */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-2 pointer-events-auto z-50 flex flex-col items-center gap-1">
              {matchInfo && (
                 <div className="hud-plate hud-corners px-3 py-1 text-[11px] text-cyan-100 font-mono tracking-widest">
@@ -658,12 +658,14 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                 </div>
              )}
 
-             {sandbox && <button 
+             {/* Spectating, the side whose view is shown: its move orders, grid, radar and jamming,
+                 with every unit on the map still in sight. */}
+             {(sandbox || spectate) && <button 
                 onClick={toggleTeam}
                 className="hud-plate hud-corners px-3 py-1 text-[10px] text-cyan-200 font-mono uppercase tracking-widest transition-colors hover:text-white"
-                title="Admin: Switch Player Team"
+                title={spectate ? "Switch whose view you watch from: their move orders, energy grid, radar and jamming" : "Admin: Switch Player Team"}
              >
-                Playing As: <span className={playerTeam === 'blue' ? 'text-blue-400' : 'text-red-400'}>{playerTeam.toUpperCase()}</span>
+                {spectate ? 'Viewing as' : 'Playing As'}: <span className={playerTeam === 'blue' ? 'text-blue-400' : 'text-red-400'}>{playerTeam.toUpperCase()}</span>
              </button>}
         </div>
 
@@ -760,7 +762,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                 System Message
               </h3>
               <p className="relative text-xs text-cyan-200 font-mono leading-relaxed hud-glow-cyan">
-                &gt; {spectate ? 'Spectating: the computer plays both sides. Watch the match flow and open the pacing report for the timeline.' : objective(activeStats)}
+                &gt; {spectate ? `Spectating: the computer plays both sides. You see every unit; move orders, grid, radar and jamming are shown from ${playerTeam === 'blue' ? 'Blue' : 'Red'}'s side (switch under the clock). The pacing report has the timeline.` : objective(activeStats)}
               </p>
               {notices.length > 0 && (
                 <div className="relative mt-2 flex flex-col gap-0.5">

@@ -239,14 +239,16 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const coreNodes = view.buildings.filter(b => b.type === 'core_node' && !b.destroyed);
   const serverNodes = view.buildings.filter(b => b.type === 'server_node' && !b.destroyed);
   const sentinelAt = (b: BuildingData) => view.units.find(u => u.type === 'defense_drone' && alive(u) && dist(u.gridPos, posOf(b)) <= 1.5);
-  // Prefer nodes nearer us than the enemy. Several of the contested nodes are the same distance
-  // from both bases, so nodes nearer our own infantry break the tie.
+  // Prefer nodes nearer us than the enemy. Several nodes are the same distance from both bases;
+  // ties are broken in the side's own frame (the map is point-symmetric), so the two sides make
+  // mirror-image choices rather than both heading for whichever node is listed first.
   const infantry = mine.filter(canCapture).sort((a, b) => a.id.localeCompare(b.id));
-  const infantryAt = infantry.length > 0 ? centroid(infantry.map(u => u.gridPos)) : home;
-  const lean = (b: BuildingData) => dist(posOf(b), home) - 0.5 * dist(posOf(b), enemyHome) + 0.1 * dist(posOf(b), infantryAt);
-  const freeCores = coreNodes.filter(b => b.owner === null).sort((a, b) => lean(a) - lean(b));
-  const enemyCores = coreNodes.filter(b => b.owner === enemy).sort((a, b) => lean(a) - lean(b));
-  const freeServers = serverNodes.filter(b => b.owner !== team).sort((a, b) => lean(a) - lean(b));
+  const lean = (b: BuildingData) => Math.round(2 * (dist(posOf(b), home) - 0.5 * dist(posOf(b), enemyHome))) / 2;
+  const ownFrame = (b: BuildingData) => (home.x <= enemyHome.x ? b.gridX : ctx.gridSize - 1 - b.gridX);
+  const byLean = (a: BuildingData, b: BuildingData) => lean(a) - lean(b) || ownFrame(a) - ownFrame(b);
+  const freeCores = coreNodes.filter(b => b.owner === null).sort(byLean);
+  const enemyCores = coreNodes.filter(b => b.owner === enemy).sort(byLean);
+  const freeServers = serverNodes.filter(b => b.owner !== team).sort(byLean);
 
   // The army's objective, most urgent first.
   const enemyNear = (at: GridPos, r: number) => theirs.filter(u => dist(u.gridPos, at) <= r).reduce((s, u) => s + valueOf(u), 0);

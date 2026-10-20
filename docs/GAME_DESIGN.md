@@ -625,6 +625,10 @@ against 24 for the old, perfectly efficient Normal; Hard still beats Normal and 
 **AI vs AI (pacing test)** on the setup screen has the computer play both sides at the chosen
 level while you watch with full vision: blue plays the doctrine picked for it, red its own or
 the seed's. The viewer can't give orders. `?autostart=1&mode=spectate` starts one directly.
+The **Viewing as** switch under the match clock flips between the two sides' views. Every unit on
+the map stays in sight either way. The chosen side's own detail is what changes: its units' move
+orders drawn to their destinations, its energy grid, radar contacts, Banshee jamming fields,
+engagement arrows on the minimap, and its notices.
 
 Every match except the sandbox keeps a pacing report (`sim/pacing.ts`, the **Pacing report**
 button under the match clock and on the end screen; `GAME_CHEATS.pacing()` in the console):
