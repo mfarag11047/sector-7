@@ -178,6 +178,23 @@ describe('moving', () => {
     expect(r.units!.every(u => u.attackMove)).toBe(true);
   });
 
+  it('sends support units to the back of the army, on the side it comes from', () => {
+    // Coming from the south-west toward (30, 30).
+    const units = [
+      ...['a', 'b', 'c', 'd'].map((id, i) => createUnit('razorback', 'blue', id, { x: 10 + i, z: 10 })),
+      createUnit('helios', 'blue', 'h', { x: 12, z: 12 }), createUnit('sun_plate', 'blue', 'm', { x: 11, z: 12 }),
+    ];
+    const r = run(view({ units }), { type: 'MOVE', unitIds: units.map(u => u.id), target: { x: 30, z: 30 } });
+    const end = (id: string) => r.units!.find(u => u.id === id)!.path.at(-1)!.split(',').map(Number);
+    const toTarget = (id: string) => { const [x, z] = end(id); return Math.hypot(30 - x, 30 - z); };
+    const behind = (id: string) => { const [x, z] = end(id); return x + z < 60; };
+    expect(['h', 'm'].every(behind)).toBe(true);
+    expect(Math.min(toTarget('h'), toTarget('m'))).toBeGreaterThan(Math.max(...['a', 'b', 'c', 'd'].map(toTarget)) - 1);
+    // On their own, support units go right where they're sent.
+    const alone = run(view({ units }), { type: 'MOVE', unitIds: ['h'], target: { x: 30, z: 30 } });
+    expect(alone.units!.find(u => u.id === 'h')!.path.at(-1)).toBe('30,30');
+  });
+
   it("refuses the other team's units", () => {
     const units = [createUnit('trooper', 'red', 'a', { x: 1, z: 1 })];
     expect(run(view({ units }), { type: 'MOVE', unitIds: ['a'], target: { x: 10, z: 10 } }).refused).toBeTruthy();

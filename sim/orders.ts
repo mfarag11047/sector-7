@@ -217,15 +217,37 @@ function moveOrder(view: OrdersView, team: Team, unitIds: readonly string[], tar
     return null;
   };
 
+  // A mixed group moves as an army: the fighters take the tiles at the target, and the support
+  // units (anything without a gun of its own: Helios, Banshees, Battery Mules, scouts...) take the
+  // ground behind them, on the side the army is coming from.
+  const support = (u: UnitData) => !UNIT_RULES[u.type].weapon;
+  const fighters = movers.filter(u => !support(u));
+  let rear: GridPos | null = null;
+  if (fighters.length > 0 && fighters.length < movers.length) {
+    const from = {
+      x: movers.reduce((s, u) => s + u.gridPos.x, 0) / movers.length,
+      z: movers.reduce((s, u) => s + u.gridPos.z, 0) / movers.length,
+    };
+    const d = Math.hypot(target.x - from.x, target.z - from.z);
+    if (d >= 1) {
+      const depth = Math.ceil(Math.sqrt(fighters.length) / 2) + 2;
+      rear = {
+        x: Math.min(ctx.gridSize - 1, Math.max(0, Math.round(target.x - ((target.x - from.x) / d) * Math.min(depth, d)))),
+        z: Math.min(ctx.gridSize - 1, Math.max(0, Math.round(target.z - ((target.z - from.z) / d) * Math.min(depth, d)))),
+      };
+    }
+  }
+
   const unitUpdates = new Map<string, (u: UnitData) => UnitData>();
-  for (const u of movers) {
+  for (const u of [...fighters, ...movers.filter(support)]) {
     if (u.type === 'bombard') {
       const there = u.gridPos.x === target.x && u.gridPos.z === target.z;
       const path = there ? [] : ctx.findAirPath(u.gridPos, target);
       if (there || path.length > 0) unitUpdates.set(u.id, x => ({ ...x, path, bombardmentTarget: null, bombardReturning: false, attackMove }));
       continue;
     }
-    let dest = findFreeTile(target.x, target.z);
+    const spot = rear && support(u) ? rear : target;
+    let dest = findFreeTile(spot.x, spot.z);
     // A drone on a Banshee hardline can't be sent beyond its leash.
     const host = view.units.find(src => tetheredIds(src).includes(u.id));
     if (dest && host) {

@@ -184,6 +184,11 @@ tiles, a damage type, and whether it can hit ground and/or air.
 
 **Engagement rules:**
 - Units fire automatically at the nearest enemy their weapon can hit, including while moving.
+- A group moved together spreads over separate tiles at the target. If it mixes fighters with
+  support units (anything without a gun of its own, such as Helios, Banshees, Battery Mules,
+  Guardians, Swarm Hosts, scouts and Masons), the fighters take the target, and the support
+  units take the ground just behind them, on the side the army is coming from. Sent on their
+  own, support units go right where they're told.
 - **Attack-move** (used by the AI, and by the player with Ctrl-click, or F then click) stops to
   fight whatever comes into range, then carries on. (A is taken by the camera's WASD.)
 - Enemy structures and the HQ can be attacked.
