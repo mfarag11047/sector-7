@@ -12,6 +12,7 @@
 // sim/COMMANDS.md maps each command to the code that handles it today.
 
 import type { DoctrineType, StructureType, UnitType } from '../types';
+import type { UpgradeId } from './upgrades';
 
 export type GridPos = { x: number; z: number };
 export type Warhead = 'emp' | 'he';
@@ -37,6 +38,8 @@ export interface ResearchTierCommand { type: 'RESEARCH_TIER'; tier: 2 | 3 }
 // A new Command HQ on a cleared city block, at the block's centre (sim/bases.ts).
 export interface BuildBaseCommand { type: 'BUILD_BASE'; at: GridPos }
 export interface BuildWarheadCommand { type: 'BUILD_WARHEAD'; structureId: string; warhead: Warhead }
+// A unit upgrade at an Advanced Research building (sim/upgrades.ts).
+export interface ResearchUpgradeCommand { type: 'RESEARCH_UPGRADE'; structureId: string; upgrade: UpgradeId }
 
 // --- Toggles and instant abilities ---
 // These apply to every listed unit of the right type, matching how the
@@ -99,6 +102,7 @@ export type PlayerCommand =
   | ResearchTierCommand
   | BuildBaseCommand
   | BuildWarheadCommand
+  | ResearchUpgradeCommand
   | ToggleDampenerCommand
   | SetHeliosModeCommand
   | ToggleJammerCommand
@@ -145,7 +149,7 @@ export interface CommandEnvelope {
 
 // Written as Records so the compiler flags a type added to types.ts but missing here.
 const STRUCTURE_TYPES = Object.keys({
-  support: 1, infantry: 1, armor: 1, ordnance: 1, air: 1, builder: 1, ordnance_fab: 1, wall_tier1: 1, wall_tier2: 1, defense: 1, aa_turret: 1, hq: 1,
+  support: 1, infantry: 1, armor: 1, ordnance: 1, air: 1, builder: 1, ordnance_fab: 1, research_lab: 1, wall_tier1: 1, wall_tier2: 1, defense: 1, aa_turret: 1, hq: 1,
 } satisfies Record<StructureType, 1>);
 const UNIT_TYPES = Object.keys({
   drone: 1, tank: 1, ghost: 1, guardian: 1, mule: 1, wasp: 1, mason: 1, helios: 1, sun_plate: 1, ballista: 1, courier: 1,
@@ -154,6 +158,9 @@ const UNIT_TYPES = Object.keys({
 } satisfies Record<UnitType, 1>);
 const DOCTRINES = Object.keys({ heavy_metal: 1, shadow_ops: 1, netrunner: 1 } satisfies Record<DoctrineType, 1>);
 const WARHEADS = Object.keys({ emp: 1, he: 1 } satisfies Record<Warhead, 1>);
+const UPGRADE_IDS = Object.keys({
+  nanoweave: 1, dampener: 1, phantom_decoy: 1, emp_rocket: 1, overclock: 1, radar: 1, long_range_shells: 1, guided_shells: 1, hellfire: 1, hunter_rockets: 1,
+} satisfies Record<UpgradeId, 1>);
 
 // Large enough for any real selection, small enough to stop a flood.
 const MAX_UNIT_IDS = 200;
@@ -184,6 +191,7 @@ const CHECKS: Record<CommandType, (c: Fields) => boolean> = {
   RESEARCH_TIER: c => c.tier === 2 || c.tier === 3,
   BUILD_BASE: c => isTile(c.at),
   BUILD_WARHEAD: c => isId(c.structureId) && oneOf(WARHEADS, c.warhead),
+  RESEARCH_UPGRADE: c => isId(c.structureId) && oneOf(UPGRADE_IDS, c.upgrade),
   TOGGLE_DAMPENER: unitList,
   SET_HELIOS_MODE: c => isIdList(c.unitIds) && (c.mode === 'charge' || c.mode === 'burn'),
   TOGGLE_JAMMER: unitList,

@@ -3,6 +3,7 @@ import { ABILITY_CONFIG } from '../constants';
 import type { StructureData, UnitData } from '../types';
 import { AbilityCommand, AbilityContext, AbilityEffects, abilityEffects, AbilityView, applyUnitEffects } from './abilities';
 import { addWarheads, createEconomy, warheadCost } from './economy';
+import { UPGRADES, type UpgradeId } from './upgrades';
 
 const unit = (id: string, patch: Partial<UnitData> = {}): UnitData => ({
   id, type: 'ghost', unitClass: 'infantry', team: 'blue', gridPos: { x: 5, z: 5 }, path: [], visionRange: 3,
@@ -161,7 +162,8 @@ describe('links', () => {
 
 describe('Ghost and Swarm Host', () => {
   // The side at a given research tier.
-  const atTier = (tier: 1 | 2 | 3) => { const economy = createEconomy(); economy.blue = { ...economy.blue, tier }; return economy; };
+  // ...with every upgrade of that tier researched, unless told otherwise.
+  const atTier = (tier: 1 | 2 | 3, upgrades: UpgradeId[] = UPGRADES.filter(u => u.tier <= tier).map(u => u.id)) => { const economy = createEconomy(); economy.blue = { ...economy.blue, tier, upgrades }; return economy; };
 
   it('Phantom Decoy cloaks and scatters projections; ordering it again ends it', () => {
     const ghost = unit('g');
@@ -187,10 +189,11 @@ describe('Ghost and Swarm Host', () => {
     expect(after(r, 'enemy').isDampenerActive).toBeFalsy();
   });
 
-  it('unlocks the Dampener at Tier 2 and Phantom Decoy at Tier 3', () => {
-    expect(run(view([unit('g')], { economy: atTier(1) }), { type: 'TOGGLE_DAMPENER', unitIds: ['g'] }).refused).toMatch(/Tier 2/);
+  it('needs the Dampener and Phantom Decoy researched at Advanced Research', () => {
+    expect(run(view([unit('g')], { economy: atTier(1) }), { type: 'TOGGLE_DAMPENER', unitIds: ['g'] }).refused).toMatch(/research/);
+    expect(run(view([unit('g')], { economy: atTier(2, []) }), { type: 'TOGGLE_DAMPENER', unitIds: ['g'] }).refused).toMatch(/Advanced Research/);
     expect(run(view([unit('g')], { economy: atTier(2) }), { type: 'TOGGLE_DAMPENER', unitIds: ['g'] }).refused).toBeUndefined();
-    expect(run(view([unit('g')], { economy: atTier(2) }), { type: 'PHANTOM_DECOY', unitId: 'g' }).refused).toMatch(/Tier 3/);
+    expect(run(view([unit('g')], { economy: atTier(2) }), { type: 'PHANTOM_DECOY', unitId: 'g' }).refused).toMatch(/Advanced Research/);
     expect(run(view([unit('g')], { economy: atTier(3) }), { type: 'PHANTOM_DECOY', unitId: 'g' }).refused).toBeUndefined();
   });
 });

@@ -8,11 +8,14 @@ import { HORNET } from './hornet';
 import { EMP_ROCKET, EmpRocket, empRocketImpact, empRocketTick, topAttackHeight } from './empRocket';
 import { abilitiesFor, empVictims, pruneBuffs, spendOvercharge, STIM_HEALTH_COST, unitAbilityEffects, UNIT_ABILITIES } from './unitAbilities';
 import { shotDamage, UNIT_RULES } from './units';
+import { UPGRADES, type UpgradeId } from './upgrades';
 
 const at = (u: UnitData, x: number, z = 0): UnitData => ({ ...u, gridPos: { x, z } });
 const apply = (units: UnitData[], updates: Map<string, (u: UnitData) => UnitData>) => units.map(u => updates.get(u.id)?.(u) ?? u);
-const use = (units: UnitData[], tier: 1 | 2 | 3, command: { unitIds: string[]; ability: string; target?: { x: number; z: number } }, now = 1000) => {
-  const r = unitAbilityEffects(units, 'blue', tier, command, now);
+// A side at this tier with every upgrade researched, unless told otherwise.
+const ALL = UPGRADES.map(u => u.id);
+const use = (units: UnitData[], tier: 1 | 2 | 3, command: { unitIds: string[]; ability: string; target?: { x: number; z: number } }, now = 1000, upgrades: UpgradeId[] = ALL) => {
+  const r = unitAbilityEffects(units, 'blue', { tier, upgrades }, command, now);
   return 'reason' in r ? { refused: r.reason } : { units: apply(units, r.updates), strike: r.strike };
 };
 
@@ -43,9 +46,12 @@ describe('the ability roster', () => {
 describe('using an ability', () => {
   const trooper = createUnit('trooper', 'blue', 't', { x: 0, z: 0 });
 
-  it('needs the tier researched', () => {
+  it('needs the tier researched, and the second ability researched at Advanced Research', () => {
     expect(use([trooper], 1, { unitIds: ['t'], ability: 'nanoweave' }).refused).toMatch(/Tier 2/);
-    expect(use([trooper], 2, { unitIds: ['t'], ability: 'nanoweave' }).refused).toBeUndefined();
+    expect(use([trooper], 2, { unitIds: ['t'], ability: 'nanoweave' }, 1000, []).refused).toMatch(/Advanced Research/);
+    expect(use([trooper], 2, { unitIds: ['t'], ability: 'nanoweave' }, 1000, ['nanoweave']).refused).toBeUndefined();
+    // The first comes with the unit.
+    expect(use([trooper], 1, { unitIds: ['t'], ability: 'stim' }, 1000, []).refused).toBeUndefined();
   });
 
   it("refuses the other team's units and the wrong unit type", () => {
@@ -96,7 +102,7 @@ describe('effects in combat and movement', () => {
   it('EMP rocket: fired at a location, it flies there and shuts down vehicles and aircraft in the blast, not infantry', () => {
     const lancer = at(createUnit('lancer', 'blue', 'l', { x: 0, z: 0 }), 0);
     const units = [lancer, enemy('razorback', 5, 'rb'), enemy('hornet', 5, 'h'), enemy('trooper', 5, 'tr'), enemy('tank', 9, 'far')];
-    const r = unitAbilityEffects(units, 'blue', 3, { unitIds: ['l'], ability: 'emp_rocket', target: { x: 5, z: 0 } }, 1000);
+    const r = unitAbilityEffects(units, 'blue', { tier: 3, upgrades: ALL }, { unitIds: ['l'], ability: 'emp_rocket', target: { x: 5, z: 0 } }, 1000);
     if ('reason' in r) throw new Error(r.reason);
     // Nothing happens until the rocket arrives.
     expect(r.rockets).toHaveLength(1);
@@ -125,7 +131,7 @@ describe('effects in combat and movement', () => {
   it('EMP rocket locked on tracks its target until it hits', () => {
     const lancer = at(createUnit('lancer', 'blue', 'l', { x: 0, z: 0 }), 0);
     let units = [lancer, enemy('razorback', 4, 'rb')];
-    const r = unitAbilityEffects(units, 'blue', 3, { unitIds: ['l'], ability: 'emp_rocket', targetUnitId: 'rb' }, 1000);
+    const r = unitAbilityEffects(units, 'blue', { tier: 3, upgrades: ALL }, { unitIds: ['l'], ability: 'emp_rocket', targetUnitId: 'rb' }, 1000);
     if ('reason' in r) throw new Error(r.reason);
     expect(r.rockets![0].targetUnitId).toBe('rb');
     // The Razorback runs; the rocket follows it.
@@ -147,7 +153,7 @@ describe('effects in combat and movement', () => {
     const lancer = at(createUnit('lancer', 'blue', 'l', { x: 0, z: 0 }), 0);
     const units = [lancer, enemy('trooper', 3, 'tr'), enemy('tank', 12, 'seen'), enemy('tank', 20, 'far'), at(createUnit('tank', 'blue', 'own', { x: 0, z: 0 }), 2)];
     const lock = (id: string, canSee?: (u: UnitData) => boolean) => {
-      const r = unitAbilityEffects(units, 'blue', 3, { unitIds: ['l'], ability: 'emp_rocket', targetUnitId: id }, 1000, canSee);
+      const r = unitAbilityEffects(units, 'blue', { tier: 3, upgrades: ALL }, { unitIds: ['l'], ability: 'emp_rocket', targetUnitId: id }, 1000, canSee);
       return 'reason' in r ? r.reason : 'ok';
     };
     expect(lock('tr')).toMatch(/vehicle or aircraft/);
@@ -162,7 +168,7 @@ describe('effects in combat and movement', () => {
     const lancer = at(createUnit('lancer', 'blue', 'l', { x: 0, z: 0 }), 0);
     const units = [lancer, enemy('tank', 14, 'edge'), enemy('tank', 15, 'beyond')];
     const fire = (cmd: { target?: { x: number; z: number }; targetUnitId?: string }) => {
-      const r = unitAbilityEffects(units, 'blue', 3, { unitIds: ['l'], ability: 'emp_rocket', ...cmd }, 1000, () => true);
+      const r = unitAbilityEffects(units, 'blue', { tier: 3, upgrades: ALL }, { unitIds: ['l'], ability: 'emp_rocket', ...cmd }, 1000, () => true);
       return 'reason' in r ? r.reason : 'ok';
     };
     expect(fire({ target: { x: 14, z: 0 } })).toBe('ok');
@@ -191,7 +197,7 @@ describe('effects in combat and movement', () => {
     const hornet = at(createUnit('hornet', 'blue', 'h', { x: 0, z: 0 }), 0);
     const units = [hornet, enemy('tank', 5, 'tank')];
     expect(use(units, 3, { unitIds: ['h'], ability: 'hellfire', target: { x: 12, z: 0 } }).refused).toMatch(/range/);
-    const r = unitAbilityEffects(units, 'blue', 3, { unitIds: ['h'], ability: 'hellfire', target: { x: 6, z: 0 } }, 1000);
+    const r = unitAbilityEffects(units, 'blue', { tier: 3, upgrades: ALL }, { unitIds: ['h'], ability: 'hellfire', target: { x: 6, z: 0 } }, 1000);
     if ('reason' in r) throw new Error(r.reason);
     expect(r.salvo!.length).toBe(HORNET.salvo.rockets);
     // Nothing is hit until the rockets come down.

@@ -1,6 +1,6 @@
 // The Hornet gunship's rockets.
 //
-// Its gun (sim/combat.ts) fires armour-piercing rounds from Tier 2. From Tier 3 it also carries:
+// Its gun (sim/combat.ts) fires armour-piercing rounds. With Tier 3 research it also carries:
 //   - an anti-vehicle rocket, fired on its own every few seconds at whatever the gun is shooting,
 //     for a hard extra hit on top of the AP rounds;
 //   - the Hellfire Salvo (sim/unitAbilities.ts), aimed by the player: a burst of small unguided
@@ -30,12 +30,14 @@ const tiles = (a: { x: number; z: number }, b: { x: number; z: number }) => Math
 
 export interface HornetRocketShot { attackerId: string; targetId: string; team: UnitData['team']; from: GridPos; to: GridPos; structure: boolean }
 
-// Each Tier 3 Hornet whose rocket is ready fires it at the target its gun is on.
+// Each Hornet with Hunter-Killer Rockets researched (sim/upgrades.ts) whose rocket is ready fires
+// it at the target its gun is on.
 export function fireHornetRockets(
   units: readonly UnitData[],
   structures: readonly StructureData[],
   now: number,
-  tierOf: (team: UnitData['team']) => Tier,
+  // Whether a side has researched Hunter-Killer Rockets.
+  armed: (team: UnitData['team']) => boolean,
   fields: readonly ForceField[] = [],
 ): { shots: HornetRocketShot[]; unitDamage: Map<string, number>; structureDamage: Map<string, number>; shieldDamage: Map<string, number> } {
   const shieldDamage = new Map<string, number>();
@@ -44,7 +46,7 @@ export function fireHornetRockets(
   const structureDamage = new Map<string, number>();
   const add = (m: Map<string, number>, id: string, n: number) => m.set(id, (m.get(id) || 0) + n);
   for (const h of units) {
-    if (h.type !== 'hornet' || h.health <= 0 || h.isStunned || isEmpDisabled(h) || !h.combatTargetId || tierOf(h.team) < 3) continue;
+    if (h.type !== 'hornet' || h.health <= 0 || h.isStunned || isEmpDisabled(h) || !h.combatTargetId || !armed(h.team)) continue;
     if (now - (h.hornetRocketAt ?? -Infinity) < HORNET.rocket.cooldownMs) continue;
     const t = units.find(u => u.id === h.combatTargetId);
     if (t) {

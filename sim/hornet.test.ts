@@ -6,7 +6,8 @@ import { UNIT_RULES } from './units';
 
 const unit = (type: UnitData['type'], team: 'blue' | 'red', id: string, x: number, z = 0) => createUnit(type, team, id, { x, z });
 const NOW = 100_000;
-const tier = (t: 1 | 2 | 3) => () => t;
+// Tier 3 with Hunter-Killer Rockets researched, or not.
+const tier = (t: 1 | 2 | 3) => () => t >= 3;
 
 describe('Hornet gun', () => {
   it('fires armour-piercing rounds from Tier 2', () => {

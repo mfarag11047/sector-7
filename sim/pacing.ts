@@ -21,6 +21,7 @@ import type { GridPos, Team } from './commands';
 import type { Economy } from './economy';
 import { UNIT_STATS } from '../constants';
 import { type AiStrategy, strategyArmy } from './aiStrategy';
+import { upgradeDef } from './upgrades';
 
 export const SAMPLE_MS = 30_000;
 const ATTRIBUTION_MS = 3_000;
@@ -32,7 +33,7 @@ const START_WINDOW_MS = 1_500;
 export interface PacingEvent {
   atMs: number;
   team: Team | null;
-  kind: 'core_captured' | 'core_lost' | 'server_captured' | 'server_lost' | 'tier' | 'structure_built' | 'structure_destroyed'
+  kind: 'core_captured' | 'core_lost' | 'server_captured' | 'server_lost' | 'tier' | 'upgrade' | 'structure_built' | 'structure_destroyed'
     | 'first_combat' | 'first_loss' | 'first_kill' | 'base_built' | 'victory' | 'strategy' | 'note';
   text: string;
 }
@@ -213,6 +214,13 @@ export function pacingTick(r: PacingRecord, nowMs: number, s: PacingState) {
       r.tiers[t] = tier;
       recordEvent(r, t, 'tier', `${sideName(t)} researched Tier ${tier}`);
     }
+    // Unit upgrades from Advanced Research (sim/upgrades.ts).
+    for (const id of s.economy[t].upgrades ?? []) {
+      if (r.firsts.has(`upgrade:${t}:${id}`)) continue;
+      r.firsts.add(`upgrade:${t}:${id}`);
+      const def = upgradeDef(id);
+      if (def) recordEvent(r, t, 'upgrade', `${sideName(t)} researched ${def.name} (${UNIT_STATS[def.unit].label})`);
+    }
   }
 
   // --- Snapshots, on the first tick of every SAMPLE_MS ---
@@ -271,7 +279,7 @@ function sample(s: PacingState, team: Team): TeamSample {
 
 const STRUCTURE_LABELS: Record<string, string> = {
   hq: 'Command HQ', infantry: 'Barracks', armor: 'Factory', air: 'Airpad', support: 'Comm Link', builder: 'Depot',
-  ordnance_fab: 'Ordnance Fab', defense: 'Sentry Turret', aa_turret: 'AA Turret', wall_tier1: 'Wall', wall_tier2: 'Wall',
+  ordnance_fab: 'Ordnance Fab', research_lab: 'Advanced Research', defense: 'Sentry Turret', aa_turret: 'AA Turret', wall_tier1: 'Wall', wall_tier2: 'Wall',
 };
 export const structureLabel = (type: string) => STRUCTURE_LABELS[type] ?? type;
 export const unitLabel = (type: string) =>

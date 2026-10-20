@@ -31,7 +31,7 @@ const eventTone = (e: PacingEvent) =>
     : e.team === 'blue' ? 'text-blue-200' : e.team === 'red' ? 'text-red-200' : 'text-slate-200';
 
 const KIND_TAG: Record<PacingEvent['kind'], string> = {
-  core_captured: 'CORE', core_lost: 'CORE', server_captured: 'SERVER', server_lost: 'SERVER', tier: 'TIER',
+  core_captured: 'CORE', core_lost: 'CORE', server_captured: 'SERVER', server_lost: 'SERVER', tier: 'TIER', upgrade: 'UPGRADE',
   structure_built: 'BUILD', structure_destroyed: 'LOSS', first_combat: 'COMBAT', first_loss: 'COMBAT',
   first_kill: 'COMBAT', base_built: 'BASE', victory: 'END', strategy: 'PLAN', note: 'NOTE',
 };

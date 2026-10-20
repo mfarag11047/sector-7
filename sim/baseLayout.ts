@@ -1,8 +1,8 @@
 // Where a base's structures go.
 //
 // Every Command HQ comes with a fixed set of building pads: six for base buildings (Barracks,
-// Factory, Airpad, Comm Link, Ordnance Fab, Depot, in any mix) and four for turrets, one on each
-// corner of its block. Nothing else in the base can be built on. So a side that wants more
+// Factory, Airpad, Comm Link, Ordnance Fab, Depot, Advanced Research, in any mix) and four for
+// turrets, one on each corner of its block. Nothing else in the base can be built on. So a side that wants more
 // production than six structures has to build another Command HQ (sim/bases.ts), which brings six
 // more pads and four more turret corners of its own.
 //
@@ -14,8 +14,8 @@
 import type { StructureData, StructureType } from '../types';
 import type { GridPos, Team } from './commands';
 
-// Production and tech structures: these take the six base pads.
-export const BASE_BUILDINGS: readonly StructureType[] = ['infantry', 'armor', 'air', 'support', 'ordnance_fab', 'builder'];
+// Production and tech structures, Advanced Research included: these take the six base pads.
+export const BASE_BUILDINGS: readonly StructureType[] = ['infantry', 'armor', 'air', 'support', 'ordnance_fab', 'builder', 'research_lab'];
 // Turrets: these take the four corner pads.
 export const BASE_TURRETS: readonly StructureType[] = ['defense', 'aa_turret'];
 

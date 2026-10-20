@@ -225,7 +225,7 @@ export interface UnitData {
   parentId?: string;
 }
 
-export type StructureType = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'ordnance_fab' | 'wall_tier1' | 'wall_tier2' | 'defense' | 'aa_turret' | 'hq';
+export type StructureType = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'ordnance_fab' | 'research_lab' | 'wall_tier1' | 'wall_tier2' | 'defense' | 'aa_turret' | 'hq';
 
 export interface StructureData {
   id: string;
@@ -243,6 +243,8 @@ export interface StructureData {
       progress: number;
       totalTime: number;
   };
+  // An Advanced Research building's upgrade in progress (sim/upgrades.ts).
+  research?: { upgrade: import('./sim/upgrades').UpgradeId; remainingMs: number; totalMs: number };
   // Base structures take time to go up and cannot train or fire until finished.
   buildRemainingMs?: number;
   buildTotalMs?: number;

@@ -1,8 +1,9 @@
 // Abilities for the playable build's new units: Strike Troopers, Lancers, Razorbacks, Aegis
 // and Hornets.
 //
-// Each unit has two. The first unlocks at the tier the unit itself unlocks; the second, more
-// powerful one at the next tier, so a unit grows stronger as its side researches.
+// Each unit has two. The first comes with the unit; the second, more powerful one needs the next
+// tier and then research at an Advanced Research building (sim/upgrades.ts), so a unit grows
+// stronger only if its side invests in it.
 //
 // Most abilities give the unit a timed buff, which combat (sim/combat.ts) and movement
 // (sim/movement.ts) read: faster firing, more damage, less damage taken, more speed or range.
@@ -10,7 +11,7 @@
 // tile or locked on to an enemy vehicle it can see (the rocket's flight is sim/empRocket.ts).
 //
 // Orders arrive as UNIT_ABILITY commands and are checked here like every other ability:
-// the sender's units, the right type, the tier researched, off cooldown, in range.
+// the sender's units, the right type, the tier and upgrade researched, off cooldown, in range.
 
 import { UNIT_STATS } from '../constants';
 import type { UnitData, UnitType } from '../types';
@@ -18,6 +19,7 @@ import type { GridPos, Team } from './commands';
 import type { EmpRocket } from './empRocket';
 import { MiniRocket, salvoFrom } from './hornet';
 import { shotDamage, Tier, UNIT_RULES } from './units';
+import { abilityUnlocked, type UpgradeId } from './upgrades';
 
 export type BuffKind = 'stim' | 'nanoweave' | 'overcharge' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'emp';
 export interface Buff { kind: BuffKind; until: number }
@@ -118,7 +120,8 @@ export type UnitAbilityOutcome =
 export function unitAbilityEffects(
   units: readonly UnitData[],
   team: Team,
-  tier: Tier,
+  // The side's tier and upgrades.
+  research: { tier: Tier; upgrades?: readonly UpgradeId[] },
   command: { unitIds: string[]; ability: string; target?: GridPos; targetUnitId?: string },
   now: number,
   // Whether `team` can see a unit, for locking on. Defaults to any friendly unit's vision.
@@ -126,7 +129,10 @@ export function unitAbilityEffects(
 ): UnitAbilityOutcome {
   const def = abilityDef(command.ability);
   if (!def) return { ok: false, reason: 'unknown ability' };
-  if (tier < def.tier) return { ok: false, reason: `${def.name} needs Tier ${def.tier}` };
+  if (research.tier < def.tier) return { ok: false, reason: `${def.name} needs Tier ${def.tier}` };
+  if (!abilityUnlocked(def, { tier: research.tier, upgrades: [...(research.upgrades ?? [])] })) {
+    return { ok: false, reason: `${def.name} needs research at Advanced Research` };
+  }
   const ids = new Set(command.unitIds);
   let casters = units.filter(u => ids.has(u.id) && u.team === team && u.type === def.unit && u.health > 0 && !isEmpDisabled(u));
   if (casters.length === 0) return { ok: false, reason: `no ${UNIT_STATS[def.unit].label} of yours selected` };

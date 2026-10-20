@@ -14,12 +14,11 @@ import type { DecoyData, Projectile, StructureData, UnitData, UnitType } from '.
 import type { GridPos, PlayerCommand, Team, Warhead } from './commands';
 import { Economy, spend, takeWarhead, warheadCost } from './economy';
 import { ARTILLERY, artilleryRange, inArtilleryReach } from './artillery';
-import { teamTier } from './orders';
+import { artilleryTierOf, hasUpgrade } from './upgrades';
 import type { EmpRocket } from './empRocket';
 import type { MiniRocket } from './hornet';
 import { unitAbilityEffects } from './unitAbilities';
 import { isTetherableDrone, JAMMED_REASON, MAX_TETHERS, tetheredIds, unjammedIds } from './jamming';
-import { GHOST_ABILITY_TIER } from './ghost';
 
 export type AbilityCommand = Extract<PlayerCommand, { type:
   | 'TOGGLE_DAMPENER' | 'SET_HELIOS_MODE' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD' | 'SMOKE_SCREEN' | 'ACTIVATE_APS' | 'PHANTOM_DECOY'
@@ -115,9 +114,10 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
   }
   switch (command.type) {
     // --- Toggles: act on every listed unit of the right type that the sender owns ---
-    // The Ghost's abilities unlock with research (sim/ghost.ts): the Dampener at Tier 2.
+    // The Ghost's abilities are researched at Advanced Research (sim/upgrades.ts): the Dampener
+    // from Tier 2, Phantom Decoy from Tier 3.
     case 'TOGGLE_DAMPENER':
-      if (view.economy[team].tier < GHOST_ABILITY_TIER.dampener) return reject(`the Dampener needs Tier ${GHOST_ABILITY_TIER.dampener}`);
+      if (!hasUpgrade(view.economy[team], 'dampener')) return reject('the Dampener needs research at Advanced Research');
       return toggleEach(view, team, command.unitIds, ['ghost'], u => ({ ...u, isDampenerActive: !u.isDampenerActive }));
     // The Helios is in one mode at a time (sim/helios.ts).
     case 'SET_HELIOS_MODE': {
@@ -136,9 +136,9 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
     case 'ACTIVATE_APS':
       return titanCountermeasure(view, team, command.unitIds, 'aps');
     case 'PHANTOM_DECOY': {
-      // Tier 3 to switch on; a running decoy can always be called off.
+      // Researched to switch on; a running decoy can always be called off.
       const ghost = view.units.find(u => u.id === command.unitId);
-      if (!ghost?.decoyActive && view.economy[team].tier < GHOST_ABILITY_TIER.decoy) return reject(`Phantom Decoy needs Tier ${GHOST_ABILITY_TIER.decoy}`);
+      if (!ghost?.decoyActive && !hasUpgrade(view.economy[team], 'phantom_decoy')) return reject('Phantom Decoy needs research at Advanced Research');
       return phantomDecoy(view, team, command.unitId, ctx);
     }
 
@@ -345,9 +345,9 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
       return effects({ updates: new Map([[u.id, m => ({ ...m, batteryTetherIds: [] })]]) });
     }
 
-    // --- Abilities of the new units, gated by the researched tier ---
+    // --- Abilities of the new units, gated by the tier and Advanced Research ---
     case 'UNIT_ABILITY': {
-      const outcome = unitAbilityEffects(view.units, team, view.economy[team].tier, command, ctx.now);
+      const outcome = unitAbilityEffects(view.units, team, view.economy[team], command, ctx.now);
       if ('reason' in outcome) return reject(outcome.reason);
       return effects({ updates: outcome.updates, strike: outcome.strike, rockets: outcome.rockets, salvo: outcome.salvo });
     }
@@ -411,9 +411,9 @@ function toggleAnchor(view: AbilityView, team: Team, ids: readonly string[], ctx
 }
 
 // Sets (or, with no target, clears) the fire mission of every listed anchored Thunderhead that
-// can reach the tile. Range grows with the team's researched tier.
+// can reach the tile. Range grows with the side's shell upgrades (sim/upgrades.ts).
 function artilleryFire(view: AbilityView, team: Team, ids: readonly string[], target: GridPos | undefined): AbilityOutcome {
-  const tier = teamTier(view.economy, team);
+  const tier = artilleryTierOf(view.economy[team]);
   const updates = new Map<string, (u: UnitData) => UnitData>();
   let reason = 'no Thunderhead selected';
   for (const id of ids) {
@@ -423,7 +423,7 @@ function artilleryFire(view: AbilityView, team: Team, ids: readonly string[], ta
     if (target && !inArtilleryReach(u.gridPos, target, tier)) {
       reason = Math.hypot(target.x - u.gridPos.x, target.z - u.gridPos.z) < ARTILLERY.minRange
         ? 'too close for the guns'
-        : `out of range (${artilleryRange(tier)} tiles at Tier ${tier})`;
+        : `out of range (${artilleryRange(tier)} tiles)`;
       continue;
     }
     const at = target ? { ...target } : null;

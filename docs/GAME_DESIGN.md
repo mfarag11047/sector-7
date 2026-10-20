@@ -38,7 +38,7 @@ The intended arc:
 - Structures must be placed **inside your energy grid**: around your HQ or near buildings you have
   captured. Holding ground is what lets you build forward.
 - **Base pads** (`sim/baseLayout.ts`): each Command HQ has **6 building pads** for Barracks,
-  Factories, Airpads, Comm Links, Ordnance Fabs and Depots, in any mix, and **4 turret corners**
+  Factories, Airpads, Comm Links, Ordnance Fabs, Depots and Advanced Research, in any mix, and **4 turret corners**
   for Sentry and CIWS Turrets. Base buildings and turrets go nowhere else. More production than
   six structures takes another Command HQ, which brings its own six pads and four corners. Walls
   are not limited to pads.
@@ -131,6 +131,35 @@ which stay unlocked for good.
 | T3 | 360 compute | Bombardment Drones, Ballistas, T3 doctrine powers |
 
 Research from the button in your team panel or the HQ build menu.
+
+### Unit upgrades (Advanced Research)
+
+Reaching a tier unlocks that tier's units with their first ability. It no longer hands over every
+unit's later upgrades: each is researched at an **Advanced Research** building (400 cores, 20 s,
+takes a building pad; `sim/upgrades.ts`). There isn't the time, money or pad space to research
+everything, so what you research commits you to the units you mean to build.
+
+- Click the building for its menu: a unit class (Infantry, Vehicles, Aircraft), then a unit, then
+  that unit's upgrades. Each shows its tier, cost, research time and what it does. Locked ones say
+  why: the tier, an earlier upgrade they need, or the lab busy.
+- One upgrade at a time per building. More buildings research in parallel, at the cost of pads.
+  Research is lost if the building is destroyed before it finishes. Finished upgrades last the
+  match.
+- A unit's locked abilities say "Research" in its action menu. A notice tells you when research
+  completes.
+
+| Unit | Upgrade | Tier | Cost | Time | Effect |
+|---|---|---|---|---|---|
+| Strike Trooper | Nano-Weave Mesh | T2 | 250 | 30 s | Unlocks the ability |
+| Ghost | Dampener | T2 | 250 | 30 s | Unlocks the ability |
+| | Phantom Decoy | T3 | 400 | 45 s | Unlocks the ability |
+| Lancer | EMP Tandem Rocket | T3 | 400 | 45 s | Unlocks the ability |
+| Razorback | Overclocked Autogun | T2 | 250 | 30 s | Unlocks the ability |
+| Aegis | Sky-Net Radar Sweep | T3 | 400 | 45 s | Unlocks the ability |
+| Thunderhead | Long-Range Shells | T2 | 250 | 30 s | Range 12 → 16 tiles |
+| | Guided Shells | T3 | 400 | 45 s | Range 16 → 20 tiles; needs Long-Range Shells |
+| Hornet | Hellfire Salvo | T3 | 400 | 45 s | Unlocks the ability |
+| | Hunter-Killer Rockets | T3 | 400 | 45 s | Its passive anti-vehicle rocket |
 
 **Why research and not "hold N nodes":** in the first version, your tier was however many server
 nodes you held right now. All four sat in the centre, so whoever won the middle got every tier and
@@ -226,7 +255,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 | Unit | Cost | Pop | Tier | HP | Armor | Weapon | Role |
 |---|---|---|---|---|---|---|---|
 | **Strike Trooper** (new) | 80 | 1 | T1 | 100 | Infantry | Rifle 10 / 1.0 s / 3, hits air | Backbone, capture, anti-air |
-| **Ghost** EW Specialist | 150 | 1 | T1 | 110 | Infantry | Rifle 12 / 0.8 s / 3, hits air | Fast capture (1.5×); Dampener at T2, Phantom Decoy at T3 |
+| **Ghost** EW Specialist | 150 | 1 | T1 | 110 | Infantry | Rifle 12 / 0.8 s / 3, hits air | Fast capture (1.5×); Dampener (T2) and Phantom Decoy (T3) researched |
 | **Lancer** (new) | 150 | 1 | T2 | 100 | Infantry | AP 70 / 3.0 s / 4, hits air | Anti-vehicle rockets |
 
 ### Factory (vehicles)
@@ -246,7 +275,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 | **Infiltrator Drone** | 60 | 1 | T1 | 60 | Air | None | Scout, surveillance |
 | **"Kestrel" Attack Drone** (new) | 130 | 1 | T1 | 110 | Air | Machine gun 6 / 0.4 s / 3, hits ground and air | Cheap generalist; fast (1.5×), sees 5, remote-controlled |
 | **Wasp** | 240 | 2 | T2 | 160 | Air | Rifle 6 / 0.6 s / 3, hits air | Harasser, swarm volley |
-| **Hornet Gunship** (new) | 320 | 3 | T2 | 320 | Air | AP 32 / 1.6 s / 4; T3 rocket AP 60 / 6 s | Anti-vehicle air |
+| **Hornet Gunship** (new) | 320 | 3 | T2 | 320 | Air | AP 32 / 1.6 s / 4; researched T3 rocket AP 60 / 6 s | Anti-vehicle air |
 | **Bombardment Drone** | 480 | 4 | T3 | 260 | Air | None | Levels city blocks; 5 drops, rearms at base |
 
 ### Comm Link (support)
@@ -349,9 +378,9 @@ replaced the old manually aimed Main Cannon:
 ## Hornet rockets
 
 `sim/hornet.ts`. From Tier 2 the Hornet's gun fires armour-piercing rounds (AP 32 every 1.6 s,
-double against heavy armour). Once its side has Tier 3 it also fires an anti-vehicle rocket on
-its own every 6 s at whatever its gun is shooting (AP 60, so 120 to heavy armour), drawn as an
-orange streak. The Hellfire Salvo (above) is its aimed Tier 3 area attack.
+double against heavy armour). Once its side has researched Hunter-Killer Rockets (T3, Advanced
+Research) it also fires an anti-vehicle rocket on its own every 6 s at whatever its gun is shooting (AP 60, so 120 to heavy armour), drawn as an
+orange streak. The Hellfire Salvo (above) is its aimed Tier 3 area attack, also researched.
 
 ## Heavy Metal Tier 3: Bulwark Force Field
 
@@ -394,16 +423,16 @@ chosen mode.
 
 ## Ghost EW Specialist
 
-The Ghost is trained from Tier 1 and grows with research (`sim/ghost.ts`):
+The Ghost is trained from Tier 1 and grows with research at Advanced Research (`sim/ghost.ts`):
 
 - **Tier 1:** no abilities, just a fast capturer (1.5× a Trooper).
-- **Tier 2, Dampener (toggle):** the Ghost and every friendly unit within 3 tiles of it vanish from
+- **Dampener (toggle; Tier 2, researched at Advanced Research):** the Ghost and every friendly unit within 3 tiles of it vanish from
   the enemy's **minimap** and **radar** (Aegis air-search contacts and Infiltrator ground-search
   blips). They are still seen in the world and can be shot when enemies are close. A hidden
   attacker doesn't show as a red attack arrow on the enemy minimap either. The field shows as a
   wall of flickering black and white vertical glitch bars at its edge. It slows the Ghost and
   drains its battery, and switches off when the battery runs flat.
-- **Tier 3, Phantom Decoy:** cloaks the Ghost and sends four holographic copies running off in
+- **Phantom Decoy (Tier 3, researched at Advanced Research):** cloaks the Ghost and sends four holographic copies running off in
   different directions. A running decoy can always be called off.
 
 The Ghost's menu shows locked abilities with the tier they need.
@@ -520,7 +549,8 @@ Tier 1. It trades every close-range strength for reach:
 - **Fire Mission** shells a tile the player picks, again every 5 s, whether or not anyone can
   see it, until Cease Fire, a new mission, or packing up. Several selected batteries take the
   same mission.
-- **Range grows with tech:** 12 tiles at Tier 1, 16 at Tier 2, 20 at Tier 3. Nothing closer
+- **Range grows with research:** 12 tiles to start, 16 with Long-Range Shells (T2), 20 with Guided
+  Shells (T3), both from Advanced Research. Nothing closer
   than 3 tiles can be shelled. Selected and anchored, it shows its range (and the dead zone) as
   an orange ring; a fire mission's target shows as a red reticle.
 - **Shells fly.** Each takes 1.2 s plus 0.09 s per tile to land and drifts up to 0.7 tiles, so a
@@ -534,8 +564,8 @@ plants it when something is in reach and packs up to follow when nothing is.
 ## New-unit abilities
 
 Each of the five units added in this build has two abilities, in the cyberpunk spirit of the rest:
-the first unlocks with the unit's own tier, the second with the next tier, so units grow stronger
-as your side researches. They're in the unit's action menu; aimed ones (⌖) take a map click.
+the first comes with the unit, and the second needs the next tier and then research at Advanced
+Research (above), so units grow stronger only if your side invests in them. They're in the unit's action menu; aimed ones (⌖) take a map click.
 Abilities act on every selected unit of that type. Rules: `sim/unitAbilities.ts`.
 
 | Unit | Ability | Tier | Cooldown | Effect |
@@ -565,13 +595,16 @@ same kind of economy.
    - Barracks, then Factory.
    - An Airpad for air and drone plans.
    - Its strategy's extra producer.
-   - At T2: an Airpad, a Comm Link, a Depot (Normal and Hard) and an Ordnance Fab.
+   - At T2: Advanced Research, an Airpad, a Comm Link, a Depot (Normal and Hard) and an Ordnance Fab.
    - A second Barracks on Hard.
 
    Each goes on the free pad nearest its home. Whatever doesn't fit waits for a second Command HQ.
    While enemy fighters are within 12 tiles of its HQ it places
    nothing, not even turrets. It keeps training from the producers still standing and rebuilds
    once the base is clear.
+   At an idle Advanced Research, with cores to spare after units, it researches the upgrade for
+   the units it fields most and its strategy leans on: Overclocked Autogun and the shell upgrades
+   for armour, Nano-Weave, EMP rockets and the Ghost's for infantry.
 2. **Production:** for each structure, the unit with the best damage per core against the armor mix
    of your army (weighted by value, and by its army strategy below), leaning toward whatever has
    been killing its units lately. It keeps enough infantry for a capture team plus a node squad

@@ -92,6 +92,7 @@ const Base: React.FC<BaseProps> = ({
     support: 'Guardians, Helios, Banshees, Ballistas',
     builder: 'Masons; walls and turrets',
     ordnance_fab: 'Warheads and Field Fabricators',
+    research_lab: 'Unit upgrades',
   };
 
   // Reusable Materials

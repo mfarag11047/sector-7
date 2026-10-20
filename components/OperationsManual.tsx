@@ -21,6 +21,7 @@ import { BASE_SITE } from '../sim/bases';
 import { CIWS, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { HQ_INCOME } from '../sim/economy';
 import { abilitiesFor } from '../sim/unitAbilities';
+import { abilityUpgrade, upgradesFor } from '../sim/upgrades';
 import {
   ArmorClass, COMPUTE_PER_SERVER_NODE, DAMAGE_MULTIPLIER, DamageType, dps, GRID_TILES_PER_POP, HQ_COMPUTE, POP_BASE, POP_MAX, POP_PER_CORE_NODE,
   STRUCTURE_RULES, Tier, TIER_RESEARCH_COST, UNIT_RULES, unitsProducedBy, Weapon,
@@ -322,8 +323,12 @@ const UnitDetail: React.FC<{ type: UnitType; color: string; onOpen: (t: UnitType
   const stepsAt = (t: Tier): string[] => {
     const steps: string[] = [];
     if (trainable(type) && rules.tier === t) steps.push(t === 1 ? `Available from the start at the ${producerLabel(type)}` : `Unlocked: trainable at the ${producerLabel(type)}`);
-    for (const a of abilities.filter(a => a.tier === t)) steps.push(`Ability: ${a.name}`);
-    if (isArtillery) steps.push(`Range ${ARTILLERY.range[t]} tiles`);
+    // A later ability or passive is researched at Advanced Research once its tier is reached.
+    for (const a of abilities.filter(a => a.tier === t && !abilityUpgrade(a))) steps.push(`Ability: ${a.name}`);
+    for (const u of upgradesFor(type).filter(u => u.tier === t)) {
+      steps.push(`Research at Advanced Research: ${u.name} (${u.cost} cores, ${u.researchMs / 1000}s)${isArtillery ? ` · range ${ARTILLERY.range[t]} tiles` : ''}`);
+    }
+    if (isArtillery && t === 1) steps.push(`Range ${ARTILLERY.range[1]} tiles`);
     return steps;
   };
 
@@ -392,7 +397,7 @@ const UnitDetail: React.FC<{ type: UnitType; color: string; onOpen: (t: UnitType
           {(note.actions?.length || abilities.length > 0) && <H>Abilities</H>}
           {note.actions?.map(a => <Item key={a.name} label={a.name}>{a.text}</Item>)}
           {abilities.map(a => (
-            <Item key={a.id} label={<>{a.name} <span className="text-amber-300 normal-case font-normal">· Tier {a.tier} · {a.cooldownMs / 1000}s cooldown{a.targeted ? ` · aimed, ${a.targeted.range} tiles` : ''}</span></>}>
+            <Item key={a.id} label={<>{a.name} <span className="text-amber-300 normal-case font-normal">· Tier {a.tier}{abilityUpgrade(a) ? ' + research' : ''} · {a.cooldownMs / 1000}s cooldown{a.targeted ? ` · aimed, ${a.targeted.range} tiles` : ''}</span></>}>
               {a.description}
             </Item>
           ))}
@@ -520,7 +525,7 @@ const UnitsTab: React.FC<{ color: string; open: UnitType | null; onOpen: (t: Uni
   );
 };
 
-const STRUCTURE_ORDER: StructureType[] = ['infantry', 'armor', 'air', 'support', 'builder', 'ordnance_fab', 'wall_tier1', 'wall_tier2', 'defense', 'aa_turret', 'hq'];
+const STRUCTURE_ORDER: StructureType[] = ['infantry', 'armor', 'air', 'support', 'builder', 'ordnance_fab', 'research_lab', 'wall_tier1', 'wall_tier2', 'defense', 'aa_turret', 'hq'];
 const STRUCTURE_TEXT: Partial<Record<StructureType, string>> = {
   infantry: 'Trains infantry.',
   armor: 'Trains vehicles.',
@@ -528,10 +533,11 @@ const STRUCTURE_TEXT: Partial<Record<StructureType, string>> = {
   support: 'Trains support units and the Ballista.',
   builder: 'Trains Masons and unlocks walls and turrets.',
   ordnance_fab: 'Builds EMP and HE warheads for Ballistas, and trains Field Fabricators.',
+  research_lab: 'Advanced Research: researches unit upgrades, one at a time, for cores and time. A unit\'s second ability, the Ghost\'s Dampener and Phantom Decoy, the Thunderhead\'s longer range and the Hornet\'s rockets all need researching here after reaching their tier.',
   wall_tier1: 'Cheap tank traps that block a lane. One Mason haul.',
   wall_tier2: 'A heavy wall. Three Mason hauls.',
-  defense: 'Anti-vehicle cannon: armour-piercing shells that crack tanks and light vehicles. Cannot shoot aircraft. Mason-built, only within 6 tiles of one of your Command HQs.',
-  aa_turret: 'CIWS turret: the Aegis rotary cannon on a fixed mount with its own tracking radar. Shoots down aircraft and incoming missiles within 10 tiles; with the sky clear it hoses ground units within 6 tiles at a fraction of the damage. Fires in bursts and reloads. Mason-built, only within 6 tiles of one of your Command HQs.',
+  defense: 'Anti-vehicle cannon: armour-piercing shells that crack tanks and light vehicles. Cannot shoot aircraft. Mason-built, only on the corner pads of one of your Command HQs.',
+  aa_turret: 'CIWS turret: the Aegis rotary cannon on a fixed mount with its own tracking radar. Shoots down aircraft and incoming missiles within 10 tiles; with the sky clear it hoses ground units within 6 tiles at a fraction of the damage. Fires in bursts and reloads. Mason-built, only on the corner pads of one of your Command HQs.',
   hq: 'Your headquarters. Builds structures, researches tiers and earns income. Lose it and you lose.',
 };
 

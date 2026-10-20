@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { StructureData, UnitData } from '../types';
 import { baseMoves, specialistAbilities, specialistMoves, specialistPick, type AbilityContext2 } from './aiSpecialists';
 import { createEconomy } from './economy';
+import type { UpgradeId } from './upgrades';
 
 const unit = (id: string, patch: Partial<UnitData> = {}): UnitData => ({
   id, type: 'trooper', unitClass: 'infantry', team: 'red', gridPos: { x: 40, z: 40 }, path: [], visionRange: 4,
@@ -62,12 +63,15 @@ describe('computer opponent: abilities', () => {
     expect(abilities({ mine: [{ ...helios, heliosMode: 'burn' }], theirs: [] }).find(a => a.command.type === 'SET_HELIOS_MODE')?.command).toMatchObject({ mode: 'charge' });
   });
 
-  it('runs the Ghost Dampener from Tier 2 while the army moves, and Phantom Decoy at Tier 3 when caught', () => {
+  it('runs the Ghost Dampener while the army moves, and Phantom Decoy when caught, once researched', () => {
+    const researched = (...upgrades: UpgradeId[]) => { const e = createEconomy(); e.red = { ...e.red, upgrades }; return e; };
     const ghost = unit('g', { type: 'ghost' });
-    expect(commands(abilities({ tier: 1, mine: [ghost] }))).not.toContain('TOGGLE_DAMPENER');
-    expect(commands(abilities({ tier: 2, mine: [ghost] }))).toContain('TOGGLE_DAMPENER');
+    expect(commands(abilities({ tier: 2, mine: [ghost] }))).not.toContain('TOGGLE_DAMPENER');
+    expect(commands(abilities({ tier: 2, mine: [ghost], economy: researched('dampener') }))).toContain('TOGGLE_DAMPENER');
     const caught = { ...ghost, health: 30 };
-    expect(commands(abilities({ tier: 3, mine: [caught], theirs: [unit('e', { team: 'blue', gridPos: { x: 42, z: 40 } })] }))).toContain('PHANTOM_DECOY');
+    const enemy = [unit('e', { team: 'blue', gridPos: { x: 42, z: 40 } })];
+    expect(commands(abilities({ tier: 3, mine: [caught], theirs: enemy }))).not.toContain('PHANTOM_DECOY');
+    expect(commands(abilities({ tier: 3, mine: [caught], theirs: enemy, economy: researched('phantom_decoy') }))).toContain('PHANTOM_DECOY');
   });
 
   it('takes, loads and fires Ballista warheads', () => {

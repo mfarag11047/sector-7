@@ -194,6 +194,26 @@ describe('building under attack', () => {
   });
 });
 
+describe('researching upgrades', () => {
+  it('researches an upgrade for the units it fields at an idle Advanced Research', () => {
+    const m = createHeadlessMatch({ seed: 1, difficulty: { blue: 'normal', red: 'normal' }, doctrine: { blue: null, red: null } });
+    const ctx: AiContext = {
+      gridSize: m.gridSize, bases: { blue: { x: 4, z: 4 }, red: { x: 74, z: 74 } }, difficulty: 'normal', doctrine: null,
+      canBuildOn: () => false, isOpenGround: () => false, isWalkable: () => true,
+      doctrineCooldowns: { tier2: 0, tier3: 0 }, random: () => 0.1,
+    };
+    const lab = { id: 'lab', type: 'research_lab' as const, team: 'blue' as const, gridPos: { x: 7, z: 4 }, isBlueprint: false, constructionProgress: 100, maxProgress: 100, health: 800, maxHealth: 800 };
+    const economy = { ...m.economy, blue: { ...m.economy.blue, tier: 2 as const, cores: 2000 } };
+    const razorbacks = ['r1', 'r2', 'r3'].map((id, i) => unit(id, 'razorback', 'blue', 8 + i, 8));
+    const memory = { ...freshAiMemory(), plan: { ...freshStrategyMemory(), strategy: 'armor' as AiStrategy, since: 0 } };
+    const think = (structures = [...m.structures, lab]) => aiThink({ units: [...m.units.filter(u => u.team !== 'blue'), ...razorbacks], structures, buildings: m.buildings, economy, elapsedMs: 8 * 60_000 }, 'blue', memory, ctx)
+      .actions.flatMap(a => (a.kind === 'order' && a.command.type === 'RESEARCH_UPGRADE' ? [a.command.upgrade] : []));
+    expect(think()).toEqual(['overclock']);
+    // Busy: nothing new.
+    expect(think([...m.structures, { ...lab, research: { upgrade: 'nanoweave' as const, remainingMs: 1000, totalMs: 30_000 } }])).toEqual([]);
+  });
+});
+
 describe('think timing', () => {
   it('staggers two computer players and varies every interval a little, so their order keeps changing', async () => {
     const { nextThinkDelay, thinkOffsets, THINK_JITTER } = await import('./ai');

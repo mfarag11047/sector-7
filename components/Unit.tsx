@@ -23,7 +23,9 @@ import { GlitchField } from './GlitchField';
 import { HeliosField } from './HeliosField';
 import { ScoutCarModel } from './ScoutCarModel';
 import { Meter, METER_COLORS, UnitBars } from './UnitBars';
-import { GHOST_ABILITY_TIER } from '../sim/ghost';
+import { abilityUnlocked, artilleryTierOf, type UpgradeId } from '../sim/upgrades';
+
+const NO_UPGRADES: readonly UpgradeId[] = [];
 
 // Helper component for spinning rotors
 const Rotor: React.FC = () => {
@@ -235,6 +237,8 @@ interface UnitProps {
   isHacked?: boolean;
   hackType?: 'recall' | 'drain' | null;
   teamCompute: number; // New Prop
+  // The side's upgrades from Advanced Research (sim/upgrades.ts).
+  upgrades?: readonly UpgradeId[];
   firingLaserAt?: string | null;
   lastAttackTime?: number;
   combatTargetId?: string | null;
@@ -376,7 +380,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, smoke, aps, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -396,8 +400,8 @@ const Unit: React.FC<UnitProps> = ({
   const apsRef = useRef<THREE.Group>(null);
 
   const teamColor = TEAM_COLORS[team];
-  // Thunderhead: its range follows the side's tier; the gun turns to where it last fired.
-  const howitzerTier = Math.min(3, Math.max(1, teamCompute)) as 1 | 2 | 3;
+  // Thunderhead: its range follows the side's shell upgrades; the gun turns to where it last fired.
+  const howitzerTier = artilleryTierOf({ upgrades: [...upgrades] });
   const aimWorld = useMemo(() => {
     const at = artilleryTarget ?? artilleryAim;
     return at ? new THREE.Vector3(at.x * tileSize - offset, 0, at.z * tileSize - offset) : null;
@@ -1375,9 +1379,10 @@ const Unit: React.FC<UnitProps> = ({
 
                   {isAegis && <CiwsStatus usedMs={ciwsUsedMs ?? 0} reloadUntil={ciwsReloadUntil ?? 0} firing={!!ciwsTargetId} />}
 
-                  {/* New-unit abilities: unlocked by the team's researched tier (teamCompute carries it). */}
+                  {/* New-unit abilities: the tier (teamCompute carries it), and research at Advanced Research for the second. */}
                   {abilitiesFor(type).flatMap(a => {
-                      const locked = teamCompute < a.tier;
+                      const tierLocked = teamCompute < a.tier;
+                      const locked = !abilityUnlocked(a, { tier: Math.max(1, Math.min(3, teamCompute)) as 1 | 2 | 3, upgrades: [...upgrades] });
                       const wait = Math.ceil(Math.max(0, (abilityReadyAt?.[a.id] ?? 0) - Date.now()) / 1000);
                       const active = !!buffs?.some(b => b.kind === a.id);
                       // The EMP rocket has two fire modes, sharing one cooldown.
@@ -1389,12 +1394,12 @@ const Unit: React.FC<UnitProps> = ({
                           <button
                               key={m.action}
                               disabled={locked || wait > 0}
-                              title={`${a.description}${m.hint ? ` ${m.hint}` : ''}${locked ? ` Needs Tier ${a.tier}.` : ''}`}
+                              title={`${a.description}${m.hint ? ` ${m.hint}` : ''}${tierLocked ? ` Needs Tier ${a.tier}, then research at Advanced Research.` : locked ? ' Research it at Advanced Research.' : ''}`}
                               onClick={(e) => { e.stopPropagation(); handleMenuAction(m.action); }}
                               className={`text-[10px] px-2 py-1 rounded text-left flex justify-between gap-2 ${active ? 'bg-cyan-900 text-cyan-200' : locked ? 'bg-slate-900 text-slate-500' : 'bg-slate-800 hover:bg-slate-700 text-white'} disabled:cursor-not-allowed`}
                           >
                               <span>{m.label}{a.targeted ? ' ⌖' : ''}</span>
-                              <span className="font-mono">{locked ? `T${a.tier}` : wait > 0 ? `${wait}s` : active ? 'ON' : ''}</span>
+                              <span className="font-mono">{tierLocked ? `T${a.tier}` : locked ? 'Research' : wait > 0 ? `${wait}s` : active ? 'ON' : ''}</span>
                           </button>
                       ));
                   })}
@@ -1436,16 +1441,16 @@ const Unit: React.FC<UnitProps> = ({
                   )}
                   {isGhost && (
                       <>
-                        {/* Abilities unlock with research (sim/ghost.ts): locked ones show the tier they need. */}
-                        {teamCompute >= GHOST_ABILITY_TIER.dampener ? (
+                        {/* Abilities are researched at Advanced Research (sim/upgrades.ts): locked ones say so. */}
+                        {upgrades.includes('dampener') ? (
                           <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TOGGLE DAMPENER'); }} className={`text-[10px] ${isDampenerActive ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>Toggle Dampener</button>
                         ) : (
-                          <div className="text-[10px] bg-slate-900/60 text-slate-500 px-2 py-1 rounded">Dampener · Tier {GHOST_ABILITY_TIER.dampener}</div>
+                          <div className="text-[10px] bg-slate-900/60 text-slate-500 px-2 py-1 rounded">Dampener · T2 · Research</div>
                         )}
-                        {teamCompute >= GHOST_ABILITY_TIER.decoy || decoyActive ? (
+                        {upgrades.includes('phantom_decoy') || decoyActive ? (
                           <button onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); handleMenuAction('PHANTOM_DECOY_INIT'); }} className={`text-[10px] ${decoyActive ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>{decoyActive ? 'Phantom Decoy (On)' : 'Phantom Decoy'}</button>
                         ) : (
-                          <div className="text-[10px] bg-slate-900/60 text-slate-500 px-2 py-1 rounded">Phantom Decoy · Tier {GHOST_ABILITY_TIER.decoy}</div>
+                          <div className="text-[10px] bg-slate-900/60 text-slate-500 px-2 py-1 rounded">Phantom Decoy · T3 · Research</div>
                         )}
                       </>
                   )}

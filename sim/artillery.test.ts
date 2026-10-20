@@ -1,3 +1,4 @@
+import type { UpgradeId } from './upgrades';
 import { describe, expect, it } from 'vitest';
 import type { StructureData, UnitData } from '../types';
 import { AbilityCommand, AbilityContext, abilityEffects, applyUnitEffects } from './abilities';
@@ -15,7 +16,12 @@ const enemy = (type: UnitData['type'], x: number, id = 'e', z = 0) => at(createU
 const hq = (team: 'blue' | 'red', x: number, id = `hq-${team}`): StructureData => ({
   id, type: 'hq', team, gridPos: { x, z: 0 }, isBlueprint: false, constructionProgress: 100, maxProgress: 100, health: 3000, maxHealth: 3000,
 });
-const withTier = (tier: 1 | 2 | 3): Economy => { const e = createEconomy(); return { ...e, blue: { ...e.blue, tier } }; };
+// At a tier with the Thunderhead's shell upgrades of that tier researched (sim/upgrades.ts).
+const withTier = (tier: 1 | 2 | 3): Economy => {
+  const e = createEconomy();
+  const upgrades: UpgradeId[] = tier >= 3 ? ['long_range_shells', 'guided_shells'] : tier === 2 ? ['long_range_shells'] : [];
+  return { ...e, blue: { ...e.blue, tier, upgrades } };
+};
 
 let n = 0;
 const ctx: AbilityContext = {
@@ -65,15 +71,18 @@ describe('fire missions', () => {
   it('needs the battery anchored, and the target between the dead zone and its range', () => {
     expect(order([gun()], { type: 'ARTILLERY_FIRE', unitIds: ['h'], target: { x: 8, z: 0 } }).refused).toMatch(/anchor/);
     expect(order([planted()], { type: 'ARTILLERY_FIRE', unitIds: ['h'], target: { x: 2, z: 0 } }).refused).toMatch(/close/);
-    expect(order([planted()], { type: 'ARTILLERY_FIRE', unitIds: ['h'], target: { x: 14, z: 0 } }).refused).toMatch(/12 tiles at Tier 1/);
+    expect(order([planted()], { type: 'ARTILLERY_FIRE', unitIds: ['h'], target: { x: 14, z: 0 } }).refused).toMatch(/12 tiles/);
     const [h] = order([planted()], { type: 'ARTILLERY_FIRE', unitIds: ['h'], target: { x: 10, z: 0 } }).units!;
     expect(h.artilleryTarget).toEqual({ x: 10, z: 0 });
     // No target ceases fire.
     expect(order([h], { type: 'ARTILLERY_FIRE', unitIds: ['h'] }).units![0].artilleryTarget).toBeNull();
   });
 
-  it('reaches further as the side researches tiers', () => {
+  it('reaches further with the shell upgrades', () => {
     expect([1, 2, 3].map(t => artilleryRange(t as 1 | 2 | 3))).toEqual([12, 16, 20]);
+    // Tier 3 alone doesn't do it: the shells have to be researched.
+    const unresearched = abilityEffects({ units: [planted()], structures: [], economy: { ...createEconomy(), blue: { ...createEconomy().blue, tier: 3 } } }, 'blue', { type: 'ARTILLERY_FIRE', unitIds: ['h'], target: { x: 14, z: 0 } }, ctx);
+    expect('reason' in unresearched).toBe(true);
     expect(order([planted()], { type: 'ARTILLERY_FIRE', unitIds: ['h'], target: { x: 19, z: 0 } }, 2).refused).toBeTruthy();
     expect(order([planted()], { type: 'ARTILLERY_FIRE', unitIds: ['h'], target: { x: 19, z: 0 } }, 3).refused).toBeUndefined();
   });

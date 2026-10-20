@@ -3,12 +3,15 @@ import StructureStatus from './StructureStatus';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges, Html } from '@react-three/drei';
-import { StructureData, StructureType, UnitType } from '../types';
+import { StructureData, StructureType, UnitClass, UnitType } from '../types';
+import { upgradeClasses, upgradeDef, upgradesFor, type UpgradeDef, type UpgradeId } from '../sim/upgrades';
 import { ABILITY_CONFIG, STRUCTURE_INFO, TEAM_COLORS, UNIT_CLASSES, UNIT_STATS } from '../constants';
 import * as THREE from 'three';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { MAX_QUEUE } from '../sim/orders';
 import { TIER_REQUIREMENT, UNIT_RULES, unitsProducedBy } from '../sim/units';
+
+const NO_UPGRADES: readonly UpgradeId[] = [];
 
 interface StructureProps {
   data: StructureData;
@@ -26,6 +29,9 @@ interface StructureProps {
   tier?: number;
   popUsed?: number;
   popCap?: number;
+  // The owner's researched upgrades and those under way at any of its labs, for Advanced Research.
+  upgrades?: readonly UpgradeId[];
+  upgradesUnderway?: readonly UpgradeId[];
 }
 
 const CommLinkModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
@@ -459,6 +465,43 @@ const getLoadingZoneTexture = () => {
     return loadingZoneTexture;
 };
 
+// Advanced Research: a lab block under a glass dome with a slowly turning holo-ring, which spins
+// up while an upgrade is being researched.
+const ResearchLabModel = ({ color, teamColor, active }: { color: string, teamColor: string, active: boolean }) => {
+    const ringRef = useRef<THREE.Group>(null);
+    useFrame((_, delta) => {
+        if (ringRef.current && isObjectInFrustum(ringRef.current, 6)) ringRef.current.rotation.y += delta * (active ? 2.4 : 0.4);
+    });
+    return (
+        <group>
+            <mesh position={[0, 0.4, 0]}>
+                <boxGeometry args={[7, 0.8, 7]} />
+                <meshStandardMaterial color="#1e293b" />
+                <Edges color={teamColor} />
+            </mesh>
+            <mesh position={[0, 2, 0]}>
+                <boxGeometry args={[5, 2.4, 5]} />
+                <meshStandardMaterial color="#0f172a" metalness={0.6} roughness={0.4} />
+                <Edges color={color} />
+            </mesh>
+            <mesh position={[0, 3.2, 0]}>
+                <sphereGeometry args={[2.2, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
+                <meshStandardMaterial color={color} transparent opacity={0.35} emissive={color} emissiveIntensity={active ? 0.9 : 0.3} />
+            </mesh>
+            <group ref={ringRef} position={[0, 4.4, 0]}>
+                <mesh rotation={[Math.PI / 2, 0, 0]}>
+                    <torusGeometry args={[2.8, 0.12, 8, 32]} />
+                    <meshBasicMaterial color={teamColor} toneMapped={false} />
+                </mesh>
+                <mesh position={[2.8, 0, 0]}>
+                    <boxGeometry args={[0.4, 0.4, 0.4]} />
+                    <meshBasicMaterial color={color} toneMapped={false} />
+                </mesh>
+            </group>
+        </group>
+    );
+};
+
 const DepotModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
     const label = useMemo(getLoadingZoneTexture, []);
     return (
@@ -869,7 +912,11 @@ const WallTier2Model = ({ teamColor, tileSize }: { color: string, teamColor: str
     );
 };
 
-const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0 }) => {
+const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES }) => {
+  // Advanced Research menu: a unit class, then a unit, then its upgrades.
+  const [labClass, setLabClass] = React.useState<UnitClass | null>(null);
+  const [labUnit, setLabUnit] = React.useState<UnitType | null>(null);
+  useEffect(() => { if (!menuOpen) { setLabClass(null); setLabUnit(null); } }, [menuOpen]);
   const config = STRUCTURE_INFO[data.type];
   const teamColor = TEAM_COLORS[data.team];
 
@@ -912,6 +959,78 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
       e.stopPropagation();
       if (onClick) onClick(data.id);
   }
+
+  // Advanced Research: unit classes, then their units, then each unit's upgrades (sim/upgrades.ts).
+  const renderResearch = () => {
+    const constructing = (data.buildRemainingMs || 0) > 0;
+    const done = (id: UpgradeId) => upgrades.includes(id);
+    const tally = (list: readonly UpgradeDef[]) => `${list.filter(u => done(u.id)).length}/${list.length}`;
+    const back = (to: () => void, label: string) => (
+        <button onClick={(e) => { e.stopPropagation(); to(); }} className="px-2 py-1 text-left rounded text-[10px] font-mono uppercase text-cyan-300 hover:bg-slate-700">‹ {label}</button>
+    );
+    const row = (key: string, label: React.ReactNode, sub: string, right: string, onPick?: () => void) => (
+        <button key={key} disabled={!onPick} onClick={(e) => { e.stopPropagation(); onPick?.(); }}
+            className={`flex items-center justify-between px-3 py-2 text-left rounded text-xs font-mono ${onPick ? 'hover:bg-slate-700 text-slate-200' : 'text-slate-500 cursor-default'}`}>
+            <div className="flex flex-col"><span>{label}</span><span className="text-[9px] text-slate-500">{sub}</span></div>
+            <span className="text-[10px] text-cyan-300 pl-2">{right}</span>
+        </button>
+    );
+    const running = data.research;
+    return (
+        <>
+            <div className="text-[10px] text-slate-400 font-mono uppercase mb-1 px-1">{constructing ? 'Under construction' : 'Unit upgrades'}</div>
+            {running && (
+                <div className="px-1 mb-1">
+                    <div className="text-[9px] text-teal-300 font-mono uppercase">
+                        Researching {upgradeDef(running.upgrade)?.name} {Math.min(100, Math.floor((1 - running.remainingMs / running.totalMs) * 100))}%
+                    </div>
+                    <div className="hud-meter w-full h-1.5 mt-1">
+                        <div className="hud-meter-cell h-full" style={{ width: `${Math.max(4, Math.min(100, (1 - running.remainingMs / running.totalMs) * 100))}%` }} />
+                    </div>
+                </div>
+            )}
+            {!labClass && upgradeClasses().map(c => row(c.unitClass,
+                <span className="flex gap-2 items-center"><span>{UNIT_CLASSES[c.unitClass].icon}</span>{UNIT_CLASSES[c.unitClass].label}</span>,
+                c.units.map(u => UNIT_STATS[u].label).join(' · '),
+                tally(c.units.flatMap(upgradesFor)),
+                () => setLabClass(c.unitClass)))}
+            {labClass && !labUnit && (
+                <>
+                    {back(() => setLabClass(null), 'Classes')}
+                    {upgradeClasses().find(c => c.unitClass === labClass)?.units.map(u => row(u, UNIT_STATS[u].label,
+                        upgradesFor(u).map(x => x.name).join(' · '), tally(upgradesFor(u)), () => setLabUnit(u)))}
+                </>
+            )}
+            {labClass && labUnit && (
+                <>
+                    {back(() => setLabUnit(null), UNIT_CLASSES[labClass].label)}
+                    <div className="text-[10px] text-slate-300 font-mono uppercase px-1">{UNIT_STATS[labUnit].label}</div>
+                    {upgradesFor(labUnit).map(u => {
+                        const blocked = done(u.id) ? 'Researched'
+                            : upgradesUnderway.includes(u.id) ? 'Researching'
+                            : tier < u.tier ? `🔒 Tier ${u.tier}`
+                            : u.requires && !done(u.requires) ? `🔒 ${upgradeDef(u.requires)!.name} first`
+                            : constructing ? 'Under construction'
+                            : running ? 'Lab busy'
+                            : resources < u.cost ? `${u.cost} cores` : null;
+                        return (
+                            <button key={u.id} disabled={!!blocked} title={u.description}
+                                onClick={(e) => { e.stopPropagation(); onAction && onAction('RESEARCH_UPGRADE', u.id); }}
+                                className={`flex items-center justify-between gap-2 px-3 py-2 text-left rounded text-xs font-mono ${!blocked ? 'hover:bg-slate-700 text-slate-200' : 'text-slate-500 cursor-not-allowed'}`}>
+                                <div className="flex flex-col">
+                                    <span className={done(u.id) ? 'text-emerald-300' : ''}>{done(u.id) ? '✓ ' : ''}{u.name} <span className="text-amber-300">T{u.tier}</span></span>
+                                    <span className="text-[9px] text-slate-400 max-w-[190px] whitespace-normal">{u.description}</span>
+                                    <span className="text-[9px] text-slate-500">{blocked ?? `${u.researchMs / 1000}s research`}</span>
+                                </div>
+                                {!done(u.id) && <span className="text-[10px]">{u.cost}</span>}
+                            </button>
+                        );
+                    })}
+                </>
+            )}
+        </>
+    );
+  };
 
   // Depot Menu Content
   const renderMenu = () => {
@@ -1026,6 +1145,8 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                         </>
                     )}
 
+                    {data.type === 'research_lab' && renderResearch()}
+
                     {/* Engineering Section (Depot Only) */}
                     {data.type === 'builder' && (
                         <>
@@ -1126,6 +1247,9 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
     }
     if (data.type === 'ordnance_fab') {
         return <group scale={[2.5, 2.5, 2.5]}><OrdnanceFabModel color={config.color} teamColor={teamColor} /></group>;
+    }
+    if (data.type === 'research_lab') {
+        return <group scale={[1.9, 1.9, 1.9]}><ResearchLabModel color={config.color} teamColor={teamColor} active={!!data.research} /></group>;
     }
 
     // 2. Specialized Existing Models

@@ -12,6 +12,7 @@ import type { GridPos, PlayerCommand, Team, Warhead } from './commands';
 import { Economy, research, researchCost, spend, structureCost, unitCost, warheadBuildTime, warheadCost } from './economy';
 import { Blackout, gridTiles, isBlackedOut, isInsideEnergyGrid } from './energy';
 import { baseOrder } from './bases';
+import { researchBlocker, upgradeDef, type UpgradeId } from './upgrades';
 import { BUILDING_PADS, freePadsFor, isPad, padKindOf, TURRET_PADS } from './baseLayout';
 import { isAirType, popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from './units';
 import { tetheredIds, unjammedIds } from './jamming';
@@ -38,9 +39,9 @@ export const isOperational = (s: StructureData) => !s.isBlueprint && !((s.buildR
 
 // --- Commands ---
 
-export type OrderCommand = Extract<PlayerCommand, { type: 'MOVE' | 'TRAIN_UNIT' | 'PLACE_STRUCTURE' | 'SET_RALLY' | 'RESEARCH_TIER' | 'BUILD_BASE' | 'BUILD_WARHEAD' }>;
+export type OrderCommand = Extract<PlayerCommand, { type: 'MOVE' | 'TRAIN_UNIT' | 'PLACE_STRUCTURE' | 'SET_RALLY' | 'RESEARCH_TIER' | 'BUILD_BASE' | 'BUILD_WARHEAD' | 'RESEARCH_UPGRADE' }>;
 export const isOrderCommand = (c: PlayerCommand): c is OrderCommand =>
-  c.type === 'MOVE' || c.type === 'TRAIN_UNIT' || c.type === 'PLACE_STRUCTURE' || c.type === 'SET_RALLY' || c.type === 'RESEARCH_TIER' || c.type === 'BUILD_BASE' || c.type === 'BUILD_WARHEAD';
+  c.type === 'MOVE' || c.type === 'TRAIN_UNIT' || c.type === 'PLACE_STRUCTURE' || c.type === 'SET_RALLY' || c.type === 'RESEARCH_TIER' || c.type === 'BUILD_BASE' || c.type === 'BUILD_WARHEAD' || c.type === 'RESEARCH_UPGRADE';
 
 export interface OrdersView {
   units: readonly UnitData[];
@@ -93,6 +94,7 @@ export function orderEffects(view: OrdersView, team: Team, command: OrderCommand
     case 'SET_RALLY': return rallyOrder(view, team, command.structureId, command.at, ctx);
     case 'RESEARCH_TIER': return researchOrder(view, team, command.tier);
     case 'BUILD_WARHEAD': return warheadOrder(view, team, command.structureId, command.warhead);
+    case 'RESEARCH_UPGRADE': return upgradeOrder(view, team, command.structureId, command.upgrade);
     case 'BUILD_BASE': {
       const outcome = baseOrder(view, team, command.at, ctx.newId);
       if ('reason' in outcome) return reject(outcome.reason);
@@ -113,6 +115,22 @@ function warheadOrder(view: OrdersView, team: Team, structureId: string, warhead
   return effects({
     economy: e => spend(e, team, cost),
     structureUpdates: new Map([[s.id, x => ({ ...x, production: { active: true, item: warhead, progress: 0, totalTime } })]]),
+  });
+}
+
+// An Advanced Research building starts researching a unit upgrade (sim/upgrades.ts).
+function upgradeOrder(view: OrdersView, team: Team, structureId: string, upgrade: UpgradeId): OrderOutcome {
+  const s = view.structures.find(x => x.id === structureId);
+  if (!s || s.team !== team || s.type !== 'research_lab') return reject('not your Advanced Research');
+  if (!isOperational(s)) return reject('Advanced Research is not finished');
+  if (s.research) return reject(`already researching ${upgradeDef(s.research.upgrade)?.name ?? 'an upgrade'}`);
+  const blocked = researchBlocker(view.economy, team, view.structures, upgrade);
+  if (blocked) return reject(blocked);
+  const def = upgradeDef(upgrade)!;
+  if (!spend(view.economy, team, def.cost)) return reject(`needs ${def.cost} cores`);
+  return effects({
+    economy: e => spend(e, team, def.cost),
+    structureUpdates: new Map([[s.id, x => ({ ...x, research: { upgrade, remainingMs: def.researchMs, totalMs: def.researchMs } })]]),
   });
 }
 

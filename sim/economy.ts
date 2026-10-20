@@ -9,6 +9,7 @@ import type { BuildingData, DoctrineType, StructureData, StructureType, TeamStat
 import type { Team, Warhead } from './commands';
 import { COMPUTE_PER_SERVER_NODE, HQ_COMPUTE, popCap, popUsed, Tier, TIER_RESEARCH_COST } from './units';
 import { gridTiles } from './energy';
+import type { UpgradeId } from './upgrades';
 
 export const STARTING_CORES = 2500;
 // Income is paid once per economy tick.
@@ -28,13 +29,15 @@ export interface TeamEconomy {
   lifetimeCompute: number;
   // The highest tech tier researched. Never goes down.
   tier: Tier;
+  // Unit upgrades researched at Advanced Research (sim/upgrades.ts).
+  upgrades: UpgradeId[];
 }
 
 export type Economy = Record<Team, TeamEconomy>;
 
 export const TEAMS: readonly Team[] = ['blue', 'red'];
 
-const freshTeam = (cores: number): TeamEconomy => ({ cores, lifetimeIncome: 0, stockpile: { emp: 0, he: 0 }, compute: 0, lifetimeCompute: 0, tier: 1 });
+const freshTeam = (cores: number): TeamEconomy => ({ cores, lifetimeIncome: 0, stockpile: { emp: 0, he: 0 }, compute: 0, lifetimeCompute: 0, tier: 1, upgrades: [] });
 
 export const createEconomy = (startingCores = STARTING_CORES): Economy => ({
   blue: freshTeam(startingCores),

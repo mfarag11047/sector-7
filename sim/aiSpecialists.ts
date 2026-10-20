@@ -20,7 +20,7 @@ import type { GridPos, Team, Warhead } from './commands';
 import type { Economy } from './economy';
 import { structureCost, warheadCost } from './economy';
 import { isInsideEnergyGrid } from './energy';
-import { GHOST_ABILITY_TIER } from './ghost';
+import { hasUpgrade } from './upgrades';
 import { HELIOS } from './helios';
 import { isRemoteUnit, isTetherableDrone, MAX_TETHERS, tetheredIds } from './jamming';
 import type { OrderCommand } from './orders';
@@ -222,13 +222,13 @@ export function specialistAbilities(c: AbilityContext2): Action[] {
     const battery = u.maxBattery > 0 ? u.battery / u.maxBattery : 1;
     switch (u.type) {
       case 'ghost': {
-        // Dampener (Tier 2) on while the army is on the move, off at home to save battery.
-        if (c.tier >= GHOST_ABILITY_TIER.dampener) {
+        // Dampener (researched) on while the army is on the move, off at home to save battery.
+        if (hasUpgrade(c.economy[c.team], 'dampener')) {
           const want = pushing && battery > 0.25;
           if (!!u.isDampenerActive !== want && (want || battery < 0.9 || !pushing)) flipDampener.push(u.id);
         }
-        // Phantom Decoy (Tier 3) to slip away when caught.
-        if (c.tier >= GHOST_ABILITY_TIER.decoy && !u.decoyActive && u.health < u.maxHealth * 0.5 && near(u.gridPos, 4).length > 0 && battery > 0.3) {
+        // Phantom Decoy (researched) to slip away when caught.
+        if (hasUpgrade(c.economy[c.team], 'phantom_decoy') && !u.decoyActive && u.health < u.maxHealth * 0.5 && near(u.gridPos, 4).length > 0 && battery > 0.3) {
           actions.push({ kind: 'ability', command: { type: 'PHANTOM_DECOY', unitId: u.id } });
         }
         break;

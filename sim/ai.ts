@@ -26,7 +26,7 @@ import { ABILITY_CONFIG, DOCTRINE_CONFIG, UNIT_STATS } from '../constants';
 import type { BuildingData, DoctrineType, StructureData, StructureType, UnitData, UnitType } from '../types';
 import type { AbilityCommand } from './abilities';
 import type { GridPos, Team } from './commands';
-import { Economy, researchCost, structureCost, unitCost } from './economy';
+import { Economy, researchCost, structureCost, TeamEconomy, unitCost } from './economy';
 import { isInsideEnergyGrid } from './energy';
 import type { Difficulty } from './match';
 import { isOperational, MAX_QUEUE, OrderCommand, popUsed, teamPopCap, teamTier } from './orders';
@@ -34,6 +34,7 @@ import { ArmorClass, dps, Tier, UNIT_RULES, unitsProducedBy } from './units';
 import { abilitiesFor, abilityCooldownLeft } from './unitAbilities';
 import { artilleryRange, inArtilleryReach } from './artillery';
 import { freePadsFor } from './baseLayout';
+import { abilityUnlocked, artilleryTierOf, researchBlocker, UPGRADES, type UpgradeId } from './upgrades';
 import { baseMoves, ESCORTS, SCOUT_REPLACE_MS, specialistAbilities, specialistMoves, specialistPick, SPECIALIST_MOVERS } from './aiSpecialists';
 import { freshStrategyMemory, lossMix, STRATEGY_PLANS, StrategyMemory, updateStrategy } from './aiStrategy';
 
@@ -239,6 +240,8 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   // The strategy's own extra production structure.
   // Sooner if cores are piling up, as they do for an army of cheap units.
   if (tier >= plan.extra.tier && (now > 4 * 60_000 || cores >= structureCost(plan.extra.type) + 300)) wants.push(plan.extra.type);
+  // Advanced Research, for the upgrades of the units it is committed to.
+  if (tier >= 2) wants.push('research_lab');
   if (tier >= 2) wants.push('support');
   // A Depot, so the Masons can put up turrets.
   if (tier >= 2 && profile.turrets > 0) wants.push('builder');
@@ -398,11 +401,13 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const joined = (u: UnitData) => dist(u.gridPos, staging) <= 8 || dist(u.gridPos, objective) <= dist(staging, objective) + 2;
 
   const anchorIds: string[] = [];
+  // Thunderhead range grows with its shell upgrades (sim/upgrades.ts).
+  const gunTier = artilleryTierOf(view.economy[team]);
   for (const u of mine) {
     if (u.type === 'howitzer') {
       // Thunderheads trail the army, plant when something is in reach and shell it, and pack up
       // to follow when nothing is left in range.
-      const reach = (p: GridPos) => inArtilleryReach(u.gridPos, p, tier);
+      const reach = (p: GridPos) => inArtilleryReach(u.gridPos, p, gunTier);
       const targets = theirs.some(t => UNIT_RULES[t.type].armor !== 'air' && reach(t.gridPos)) ||
         view.structures.some(s => s.team === enemy && reach(s.gridPos)) ||
         (mode !== 'gather' && mode !== 'retreat' && reach(objective));
@@ -413,7 +418,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
       if (u.isDeployed && mode !== 'retreat' && !pushing) continue;
       // Stand off short of the objective, toward home.
       const away = dist(objective, home) || 1;
-      const back = Math.min(away, artilleryRange(tier) * 0.6);
+      const back = Math.min(away, artilleryRange(gunTier) * 0.6);
       const standoff = mode === 'gather' || mode === 'retreat' ? objective : {
         x: Math.round(objective.x + ((home.x - objective.x) / away) * back),
         z: Math.round(objective.z + ((home.z - objective.z) / away) * back),
@@ -516,6 +521,23 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     pop += UNIT_RULES[pick].pop;
   }
 
+  // --- Research: upgrades for the units it fields and its strategy leans on (sim/upgrades.ts) ---
+  const fielded = (t: UnitType) => mine.filter(u => u.type === t).length;
+  const started = new Set<UpgradeId>();
+  for (const lab of myStructures.filter(s => s.type === 'research_lab' && isOperational(s) && !s.research)) {
+    if (ctx.random() > profile.attention) continue;
+    const pick = UPGRADES
+      .filter(u => !started.has(u.id) && !researchBlocker(view.economy, team, view.structures, u.id))
+      .filter(u => fielded(u.unit) > 0 || (plan.units[u.unit] ?? 1) > 1.2)
+      .map(u => ({ u, score: fielded(u.unit) + 3 * ((plan.units[u.unit] ?? 1) - 1) }))
+      .sort((a, b) => b.score - a.score)[0];
+    // Never at the expense of the army: only with cores to spare.
+    if (!pick || spendable() < pick.u.cost + 150) continue;
+    actions.push({ kind: 'order', command: { type: 'RESEARCH_UPGRADE', structureId: lab.id, upgrade: pick.u.id } });
+    started.add(pick.u.id);
+    cores -= pick.u.cost;
+  }
+
   // --- 5. Abilities and doctrine powers ---
   for (const u of mine) {
     if (u.type !== 'tank' && u.type !== 'titan_dropped') continue;
@@ -524,7 +546,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
       actions.push({ kind: 'ability', command: { type: 'SMOKE_SCREEN', unitIds: [u.id] } });
     }
   }
-  actions.push(...unitAbilityMoves(mine, theirs, tier, mode, now, profile, ctx.random));
+  actions.push(...unitAbilityMoves(mine, theirs, view.economy[team], mode, now, profile, ctx.random));
   actions.push(...specialistAbilities({
     team, tier, mode, objective, home, mine, theirs, structures: view.structures, economy: view.economy,
     attention: profile.attention, random: ctx.random,
@@ -549,7 +571,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
 // When to use the new units' abilities (sim/unitAbilities.ts). Each think, casters of the same
 // ability are grouped into one order. Easier levels notice the moment less often.
 function unitAbilityMoves(
-  mine: readonly UnitData[], theirs: readonly UnitData[], tier: Tier, mode: AiMemory['mode'], now: number,
+  mine: readonly UnitData[], theirs: readonly UnitData[], research: TeamEconomy, mode: AiMemory['mode'], now: number,
   profile: AiProfile, random: () => number,
 ): AiAction[] {
   const near = (u: UnitData, r: number, filter: (t: UnitData) => boolean = () => true) =>
@@ -560,7 +582,7 @@ function unitAbilityMoves(
   const aimed: AiAction[] = [];
   const want = (ability: string, u: UnitData) => groups.set(ability, [...(groups.get(ability) || []), u.id]);
   for (const u of mine) {
-    const defs = abilitiesFor(u.type).filter(d => d.tier <= tier && abilityCooldownLeft(u, d.id, now) === 0);
+    const defs = abilitiesFor(u.type).filter(d => abilityUnlocked(d, research) && abilityCooldownLeft(u, d.id, now) === 0);
     if (defs.length === 0 || random() > profile.attention) continue;
     const hurt = u.health < u.maxHealth * 0.5;
     for (const d of defs) {

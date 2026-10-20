@@ -12,6 +12,7 @@ import { abilityEffects, applyUnitEffects } from './abilities';
 import { AiMemory, AI_PROFILES, aiThink, freshAiMemory, nextThinkDelay, thinkOffsets } from './ai';
 import { afterRailShot, fireRailguns } from './railgun';
 import { fireHornetRockets, landSalvo, MiniRocket } from './hornet';
+import { addUpgrades, advanceResearch, applyResearch, artilleryTierOf, hasUpgrade } from './upgrades';
 import { EmpRocket, empRocketImpact, empRocketTick, mergeUnitUpdates } from './empRocket';
 import { ArtilleryShell, fireArtillery, landShells, shellGroundPos } from './artillery';
 import { clearedBlocks, rubbleCleared } from './bases';
@@ -19,7 +20,7 @@ import { captureTick } from './capture';
 import { applyCiwsState, ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
 import type { GridPos, Team } from './commands';
 import { applyStructureCombat, resolveAttacks } from './combat';
-import { addWarheads, advanceWarheadProduction, createEconomy, Economy, payIncome } from './economy';
+import { addWarheads, advanceWarheadProduction, createEconomy, Economy, payIncome, productionStep } from './economy';
 import { chargeSources, isInsideEnergyGrid, powerTick } from './energy';
 import { generateCity, seededRandom } from './mapgen';
 import { Difficulty, MatchConfig, startingRoster } from './match';
@@ -183,7 +184,7 @@ export function stepMatch(m: HeadlessMatch): void {
   attacks.fired.forEach((_, id) => m.lastShot.set(id, now));
   m.structures = applyStructureCombat(m.structures, attacks, now);
   // Artillery: new shells go up, and the ones whose flight is over come down.
-  const volley = fireArtillery(m.units.map(reloaded), m.structures, now, team => (team === 'neutral' ? 1 : m.economy[team].tier), m.random, () => `shell-${++m.nextId}`);
+  const volley = fireArtillery(m.units.map(reloaded), m.structures, now, team => (team === 'neutral' ? 1 : artilleryTierOf(m.economy[team])), m.random, () => `shell-${++m.nextId}`);
   volley.fired.forEach((_, id) => { m.lastShot.set(id, now); attacks.fired.set(id, ''); });
   // Tank rail guns: long-range shots at what the side can see.
   const rail = fireRailguns(m.units, m.structures, now);
@@ -192,7 +193,7 @@ export function stepMatch(m: HeadlessMatch): void {
   rail.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
   if (rail.structureDamage.size > 0) m.structures = applyStructureCombat(m.structures, { structureDamage: rail.structureDamage, fired: new Map(), aiming: new Map() }, now);
   // Hornet rockets: the Tier 3 anti-vehicle rocket, and Hellfire Salvo rockets coming down.
-  const hornets = fireHornetRockets(m.units, m.structures, now, team => (team === 'neutral' ? 1 : m.economy[team].tier));
+  const hornets = fireHornetRockets(m.units, m.structures, now, team => team !== 'neutral' && hasUpgrade(m.economy[team], 'hunter_rockets'));
   const hornetFired = new Set(hornets.shots.map(s => s.attackerId));
   if (hornetFired.size > 0) m.units = m.units.map(u => hornetFired.has(u.id) ? { ...u, hornetRocketAt: now } : u);
   const salvo = landSalvo(m.salvo, now, m.units, m.structures);
@@ -240,6 +241,10 @@ export function stepMatch(m: HeadlessMatch): void {
   const fab = advanceWarheadProduction(m.structures, team => m.opts.doctrine[team]);
   if (fab.updates.size > 0) m.structures = m.structures.map(s => fab.updates.has(s.id) ? { ...s, production: fab.updates.get(s.id) } : s);
   for (const { team, warhead } of fab.finished) m.economy = addWarheads(m.economy, team, warhead);
+  // Advanced Research finishes upgrades for its side (sim/upgrades.ts).
+  const lab = advanceResearch(m.structures, team => productionStep(team === 'blue' || team === 'red' ? m.opts.doctrine[team] : null));
+  m.structures = applyResearch(m.structures, lab);
+  m.economy = addUpgrades(m.economy, lab.finished);
   for (const { structure, unitType } of build.trained) {
     const taken = new Set(m.units.map(u => key(u.gridPos.x, u.gridPos.z)));
     let spawn = { ...structure.gridPos };

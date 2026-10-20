@@ -49,6 +49,7 @@ import { OrderCommand, applyOrderToStructures, applyOrderToUnits, orderEffects, 
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
 import { UNIT_RULES, isAirType } from '../sim/units';
 import { airPath, fastestPath, sentinelHazardOf } from '../sim/pathfinding';
+import { addUpgrades, advanceResearch, applyResearch, artilleryTierOf, hasUpgrade, upgradeDef, type UpgradeId } from '../sim/upgrades';
 import { BUILDING_PADS, freePadsFor, isPad, padKindOf, teamPads, TURRET_PADS } from '../sim/baseLayout';
 import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
 import { applyFieldCloak, CLOAK_FIELD, fieldCloakedIds, generatorsReplacedBy, isCloakFieldUp, isHidden } from '../sim/cloak';
@@ -1405,6 +1406,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       // No population cap in the sandbox: it is for play-testing.
       cap: match.mode === 'sandbox' ? Infinity : teamPopCap(buildings, playerTeam),
   }), [buildings, units, structuresState, playerTeam, economy, match.mode]);
+  // The player's researched upgrades and those under way, for Advanced Research (sim/upgrades.ts).
+  const playerUpgrades = playerTeam === 'blue' || playerTeam === 'red' ? economy[playerTeam].upgrades : undefined;
+  const underwayKey = structuresState.filter(s => s.team === playerTeam && s.research).map(s => s.research!.upgrade).join(',');
+  const upgradesUnderway = useMemo(() => (underwayKey ? underwayKey.split(',') as UpgradeId[] : []), [underwayKey]);
 
   // Cheat State
 
@@ -2479,7 +2484,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           setEconomy(prev => charge(prev) ?? prev);
       }
       if (command.type === 'RESEARCH_TIER') {
-          onNotice?.(team === playerTeam ? `Tier ${command.tier} researched: new units and doctrine powers unlocked` : `The enemy has reached Tier ${command.tier}`, team === playerTeam ? 'info' : 'warn');
+          onNotice?.(team === playerTeam ? `Tier ${command.tier} researched: new units and doctrine powers unlocked; research their upgrades at Advanced Research` : `The enemy has reached Tier ${command.tier}`, team === playerTeam ? 'info' : 'warn');
       }
       if (fx.unitUpdates.size > 0) setUnits(prev => applyOrderToUnits(prev, fx));
       if (fx.structureUpdates.size > 0 || fx.newStructures.length > 0) setStructuresState(prev => applyOrderToStructures(prev, fx));
@@ -2796,7 +2801,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (didDragRef.current) return;
 
       const struct = structuresState.find(s => s.id === id);
-      const validTypes = ['support', 'infantry', 'armor', 'ordnance', 'air', 'builder', 'ordnance_fab'];
+      const validTypes = ['support', 'infantry', 'armor', 'ordnance', 'air', 'builder', 'ordnance_fab', 'research_lab'];
       if (struct && validTypes.includes(struct.type) && struct.team === playerTeam && !struct.isBlueprint) {
           setDepotMenuOpenId(id);
       }
@@ -2812,6 +2817,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           if (item !== 'emp' && item !== 'he') return;
           // Checked and paid for in sim/orders.ts, like the computer's.
           dispatchOrder({ type: 'BUILD_WARHEAD', structureId: struct.id, warhead: item });
+          return;
+      }
+
+      if (action === 'RESEARCH_UPGRADE' && struct.type === 'research_lab') {
+          // Checked and paid for in sim/orders.ts, like the computer's.
+          dispatchOrder({ type: 'RESEARCH_UPGRADE', structureId: struct.id, upgrade: payload as UpgradeId });
           return;
       }
 
@@ -3205,7 +3216,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           // over come down. Their damage joins this tick's weapons fire.
           const volley = fireArtillery(
               currentUnitsRef.map(reloaded), structuresRef.current, now,
-              t => (t === 'blue' || t === 'red') ? economyRef.current[t].tier : 1,
+              t => (t === 'blue' || t === 'red') ? artilleryTierOf(economyRef.current[t]) : 1,
               Math.random, () => `shell-${now}-${Math.random().toString(36).slice(2, 8)}`,
           );
           volley.fired.forEach((_, id) => { lastShotRef.current.set(id, now); attacks.fired.set(id, ''); });
@@ -3228,7 +3239,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               const t = hornetShotRef.current.get(u.id);
               return t && t > (u.hornetRocketAt ?? -Infinity) ? { ...u, hornetRocketAt: t } : u;
           };
-          const hornetVolley = fireHornetRockets(currentUnitsRef.map(hornetReady), structuresRef.current, now, t => (t === 'blue' || t === 'red') ? economyRef.current[t].tier : 1, fields);
+          const hornetVolley = fireHornetRockets(currentUnitsRef.map(hornetReady), structuresRef.current, now, t => (t === 'blue' || t === 'red') && hasUpgrade(economyRef.current[t], 'hunter_rockets'), fields);
           const hornetFired = new Set(hornetVolley.shots.map(s => s.attackerId));
           hornetFired.forEach(id => hornetShotRef.current.set(id, now));
           hornetVolley.shieldDamage.forEach((n, id) => addShieldHit(shieldHits, id, n));
@@ -3464,6 +3475,19 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           }
           if (fabTick.finished.length > 0) {
               setEconomy(prev => fabTick.finished.reduce((acc, done) => addWarheads(acc, done.team, done.warhead), prev));
+          }
+
+          // Advanced Research (sim/upgrades.ts), same pattern as the fabs.
+          const labTick = advanceResearch(structuresRef.current, team => productionStep(team === 'blue' || team === 'red' ? aiHelpersRef.current.doctrines?.[team]?.selected : null));
+          if (labTick.updates.size > 0) {
+              structuresRef.current = applyResearch(structuresRef.current, labTick);
+              setStructuresState(prev => applyResearch(prev, labTick));
+          }
+          if (labTick.finished.length > 0) {
+              setEconomy(prev => addUpgrades(prev, labTick.finished));
+              for (const done of labTick.finished) {
+                  if (done.team === playerTeam) onNotice?.(`Research complete: ${upgradeDef(done.upgrade)?.name}`);
+              }
           }
 
           // Construction and training queues (sim/production.ts), same pattern as the fabs.
@@ -3864,6 +3888,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 tier={supply.tier}
                 popUsed={supply.used}
                 popCap={supply.cap}
+                upgrades={s.type === 'research_lab' ? playerUpgrades : undefined}
+                upgradesUnderway={s.type === 'research_lab' ? upgradesUnderway : undefined}
             /> 
         ))}
         {/* Only a fully held block shows a status; the rest drew nothing but still re-rendered every tick. */}
@@ -3879,6 +3905,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
              // Cores matter only in an open menu: given to every unit, the income tick re-rendered them all.
              const menuOpen = primarySelectionId === u.id && (!targetingSourceId || targetingSourceId === u.id);
              const teamCompute = (u.team === 'blue' || u.team === 'red') ? economy[u.team].tier : 0;
+             const upgrades = (u.team === 'blue' || u.team === 'red') ? economy[u.team].upgrades : undefined;
              const radarRange = u.team === playerTeam ? radarRangeOf(u) : 0;
              const ownJammer = u.type === 'banshee' && u.team === playerTeam;
              const selected = selectedUnitIds.has(u.id);
@@ -3889,13 +3916,13 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
              const isBatteryLinkCandidate = !!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE;
              const warheadStock = u.team === playerTeam && (playerTeam === 'blue' || playerTeam === 'red') ? stockpile[playerTeam] : undefined;
              const cores = menuOpen && (u.team === 'blue' || u.team === 'red') ? teamResources[u.team] : 0;
-             const deps = [teamCompute, radarRange, ownJammer, selected, isVisible, menuOpen, isTargetingMode, showTetherRange, showBatteryRange, isLockCandidate, isTetherCandidate, isBatteryLinkCandidate, warheadStock, atOrdnanceFab, ballistaInRange, cores];
+             const deps = [teamCompute, upgrades, radarRange, ownJammer, selected, isVisible, menuOpen, isTargetingMode, showTetherRange, showBatteryRange, isLockCandidate, isTetherCandidate, isBatteryLinkCandidate, warheadStock, atOrdnanceFab, ballistaInRange, cores];
              // The same element as last render when nothing it shows changed (see unitElementCache).
              const hit = unitElementCache.current.get(u.id);
              if (hit && sameUnitForRender(hit.u, u) && hit.deps.every((d, i) => d === deps[i])) { liveUnitIds.add(u.id); return hit.el; }
              // Motion (moveProgress and friends) goes through the motion registry, not props, and the
              // battery to whole points: both change every tick, and either re-rendered every moving unit.
-             const el = ( <Unit key={u.id} {...u} moveProgress={undefined} moveTarget={undefined} moveSpeed={undefined} battery={Math.round(u.battery)} teamCompute={teamCompute} radarRange={radarRange} ownJammer={ownJammer} isSelected={selected} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={menuOpen} onAction={stableUnitAction} isTargetingMode={isTargetingMode} showTetherRange={showTetherRange} showBatteryRange={showBatteryRange} isLockCandidate={isLockCandidate} isTetherCandidate={isTetherCandidate} isBatteryLinkCandidate={isBatteryLinkCandidate} warheadStock={warheadStock} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={cores} /> );
+             const el = ( <Unit key={u.id} {...u} moveProgress={undefined} moveTarget={undefined} moveSpeed={undefined} battery={Math.round(u.battery)} teamCompute={teamCompute} upgrades={upgrades} radarRange={radarRange} ownJammer={ownJammer} isSelected={selected} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={menuOpen} onAction={stableUnitAction} isTargetingMode={isTargetingMode} showTetherRange={showTetherRange} showBatteryRange={showBatteryRange} isLockCandidate={isLockCandidate} isTetherCandidate={isTetherCandidate} isBatteryLinkCandidate={isBatteryLinkCandidate} warheadStock={warheadStock} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={cores} /> );
              unitElementCache.current.set(u.id, { u, deps, el });
              liveUnitIds.add(u.id);
              return el;
