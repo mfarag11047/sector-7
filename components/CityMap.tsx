@@ -51,7 +51,7 @@ import { UNIT_RULES, isAirType } from '../sim/units';
 import { airPath, fastestPath, sentinelHazardOf } from '../sim/pathfinding';
 import { fireFlechettes, regenerateShield, shieldedHit } from '../sim/kestrel';
 import { markScreened, pruneSmoke, SMOKE, SmokeScreen } from '../sim/titan';
-import { detonateMules, VOLT, VoltBlast } from '../sim/voltCore';
+import { armMules, countdownOf, dueCharges, VOLT, VoltCharge, voltBlasts } from '../sim/voltCore';
 import { addUpgrades, advanceResearch, applyResearch, artilleryTierOf, hasUpgrade, upgradeDef, type UpgradeId } from '../sim/upgrades';
 import { BUILDING_PADS, freePadsFor, isPad, padKindOf, teamPads, TURRET_PADS } from '../sim/baseLayout';
 import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
@@ -531,6 +531,49 @@ const RailBeam: React.FC<{ beam: RailBeamData; tileSize: number; offset: number 
                 <sphereGeometry args={[1, 12, 10]} />
                 <meshBasicMaterial color={colors.flash} transparent opacity={0.9} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
             </mesh>
+        </group>
+    );
+};
+
+// A Battery Mule's Volt Core gone critical (sim/voltCore.ts): its core sparks where it fell, a red
+// ring marks the blast radius, and a flashing red warning sign counts down the seconds to the blast.
+const VoltWarning: React.FC<{ charge: VoltCharge; tileSize: number; offset: number }> = ({ charge, tileSize, offset }) => {
+    const core = useRef<THREE.Mesh>(null);
+    const ring = useRef<THREE.Mesh>(null);
+    const [count, setCount] = useState(() => countdownOf(charge, Date.now()));
+    useFrame(() => {
+        const now = Date.now();
+        // Flashes faster as the blast nears.
+        const left = Math.max(0, charge.blowsAt - now) / VOLT.fuseMs;
+        const on = Math.sin(now / (60 + 140 * left)) > 0;
+        if (core.current) {
+            core.current.scale.setScalar(on ? 1.25 : 0.85);
+            ((core.current.material as THREE.MeshBasicMaterial)).color.set(on ? '#ff2d2d' : '#7dd3fc');
+        }
+        if (ring.current) ((ring.current.material as THREE.MeshBasicMaterial)).opacity = on ? 0.55 : 0.2;
+        const c = countdownOf(charge, now);
+        if (c !== count) setCount(c);
+    });
+    const r = VOLT.radius * tileSize;
+    return (
+        <group position={[charge.at.x * tileSize - offset, 0, charge.at.z * tileSize - offset]}>
+            <mesh ref={core} position={[0, 2.5, 0]} raycast={() => null}>
+                <icosahedronGeometry args={[2.2, 0]} />
+                <meshBasicMaterial color="#ff2d2d" toneMapped={false} />
+            </mesh>
+            <mesh ref={ring} rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.8, 0]} raycast={() => null}>
+                <ringGeometry args={[r - 1.2, r, 64]} />
+                <meshBasicMaterial color="#ef4444" transparent opacity={0.4} depthWrite={false} toneMapped={false} />
+            </mesh>
+            <Html position={[0, 24, 0]} center zIndexRange={[60, 0]} style={{ pointerEvents: 'none' }}>
+                <div className="flex flex-col items-center select-none animate-pulse">
+                    <svg width="38" height="34" viewBox="0 0 38 34">
+                        <polygon points="19,2 36,32 2,32" fill="#dc2626" stroke="#fecaca" strokeWidth="2" />
+                        <text x="19" y="28" textAnchor="middle" fontSize="20" fontWeight="bold" fill="#fff">!</text>
+                    </svg>
+                    <div className="font-mono font-bold text-red-400 text-lg leading-none" style={{ textShadow: '0 0 6px #000' }}>{count}</div>
+                </div>
+            </Html>
         </group>
     );
 };
@@ -1390,8 +1433,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const [miniRockets, setMiniRockets] = useState<MiniRocket[]>([]);
   // Tank Smoke Screens on the ground (sim/titan.ts), ahead of state for the tick.
   const smokeRef = useRef<SmokeScreen[]>([]);
-  // Volt Core detonations waiting to be drawn, by mule (sim/voltCore.ts).
-  const voltBlastsRef = useRef(new Map<string, VoltBlast>());
+  // Battery Mule Volt Cores counting down, by mule (sim/voltCore.ts), and the warnings drawn.
+  const voltRef = useRef(new Map<string, VoltCharge>());
+  const voltCharges = useRef<VoltCharge[]>([]);
+  const [voltWarnings, setVoltWarnings] = useState<VoltCharge[]>([]);
   const [smokeScreens, setSmokeScreens] = useState<SmokeScreen[]>([]);
   const miniRocketsRef = useRef<MiniRocket[]>([]);
   // Thunderhead shells in flight. The ref is the authority; the state is for drawing them.
@@ -3155,15 +3200,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               });
           }
           let newExplosions: Explosion[] = [];
-          // Volt Core detonations from the last tick: a big blue discharge.
-          if (voltBlastsRef.current.size > 0) {
-              for (const b of voltBlastsRef.current.values()) {
-                  newExplosions.push({
-                      id: `volt-${b.muleId}`, style: 'emp', radius: VOLT.radius * tileSize, duration: 900, createdAt: now,
-                      position: { x: b.at.x * tileSize - offset, y: 1.5, z: b.at.z * tileSize - offset },
-                  });
-              }
-              voltBlastsRef.current.clear();
+          // Volt Cores counting down (sim/voltCore.ts): the warnings follow the ref, which the unit
+          // updater arms as mules die.
+          if (voltRef.current.size !== voltCharges.current.length) {
+              voltCharges.current = [...voltRef.current.values()];
+              setVoltWarnings(voltCharges.current);
           }
           // Units in a friendly Smoke Screen are screened this tick (sim/titan.ts): enemy ground
           // fire can't pick them out, and aircraft do half damage.
@@ -3340,6 +3381,20 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           flechettes.shieldDamage.forEach((n, id) => addShieldHit(shieldHits, id, n));
           flechettes.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
           if (pacing && flechettes.shots.length > 0) recordWeaponHits(pacing, { shots: flechettes.shots }, currentUnitsRef, structuresRef.current);
+          // Volt Cores whose countdown is over detonate: a big blue discharge (sim/voltCore.ts).
+          const voltDue = dueCharges([...voltRef.current.values()], now);
+          if (voltDue.length > 0) {
+              const volt = voltBlasts(currentUnitsRef, voltDue);
+              volt.damage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+              if (pacing) recordWeaponHits(pacing, { shots: volt.hits }, currentUnitsRef, structuresRef.current);
+              for (const c of voltDue) voltRef.current.delete(c.muleId);
+              voltCharges.current = [...voltRef.current.values()];
+              setVoltWarnings(voltCharges.current);
+              setExplosions(prev => [...prev, ...voltDue.map(c => ({
+                  id: `volt-${c.muleId}`, style: 'emp' as const, radius: VOLT.radius * tileSize, duration: 900, createdAt: now,
+                  position: { x: c.at.x * tileSize - offset, y: 1.5, z: c.at.z * tileSize - offset },
+              }))]);
+          }
           if (flechettes.shots.length > 0) {
               setTracers(prev => [...prev, ...flechettes.shots.flatMap((s, i) => [-0.35, 0, 0.35].map((spread, j): TracerData => ({
                   id: `flechette-${now}-${i}-${j}`, kind: 'round', createdAt: now, attackerId: s.attackerId, targetId: s.targetId, flashSize: 2.2,
@@ -3806,13 +3861,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       });
                   }
                   
-                  // Battery Mules with the Volt Core detonate as they die (sim/voltCore.ts). The
-                  // blasts are drawn on the next tick, outside this updater.
-                  const volt = detonateMules(nextUnits, team => hasUpgrade(economyRef.current[team], 'volt_core'));
-                  if (volt.blasts.length > 0) {
-                      nextUnits = volt.units;
-                      for (const b of volt.blasts) voltBlastsRef.current.set(b.muleId, b);
-                      if (pacingRef.current) recordWeaponHits(pacingRef.current, { shots: volt.hits }, nextUnits, structuresRef.current);
+                  // A Battery Mule with the Volt Core goes critical where it dies (sim/voltCore.ts).
+                  // Keyed by mule, so a second run of this updater changes nothing.
+                  for (const c of armMules(nextUnits, team => hasUpgrade(economyRef.current[team], 'volt_core'), now)) {
+                      if (!voltRef.current.has(c.muleId)) voltRef.current.set(c.muleId, c);
                   }
                   // Cloaking Fields (sim/cloak.ts): who is hidden after this tick's fire.
                   const living = nextUnits.filter(u => u.health > 0);
@@ -4123,6 +4175,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         {tracers.filter(t => visibleUnitIds.has(t.attackerId) || visibleUnitIds.has(t.targetId) || structuresState.some(st => st.id === t.attackerId || st.id === t.targetId))
             .map(t => <ShotFx key={t.id} shot={t} />)}
         {smokeScreens.map(s => <SmokeCloud key={s.id} screen={s} tileSize={tileSize} offset={offset} />)}
+        {voltWarnings.map(c => <VoltWarning key={c.muleId} charge={c} tileSize={tileSize} offset={offset} />)}
         {railBeams.filter(b => b.team === playerTeam || visibleUnitIds.has(b.attackerId) || visibleUnitIds.has(b.targetId)).map(b => <RailBeam key={b.id} beam={b} tileSize={tileSize} offset={offset} />)}
         
         {/* Cloud Effects */}

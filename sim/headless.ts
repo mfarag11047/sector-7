@@ -14,7 +14,7 @@ import { afterRailShot, fireRailguns } from './railgun';
 import { fireHornetRockets, landSalvo, MiniRocket } from './hornet';
 import { fireFlechettes, regenerateShield, shieldedHit } from './kestrel';
 import { markScreened, pruneSmoke, SmokeScreen } from './titan';
-import { detonateMules } from './voltCore';
+import { armMules, dueCharges, VoltCharge, voltBlasts } from './voltCore';
 import { addUpgrades, advanceResearch, applyResearch, artilleryTierOf, hasUpgrade } from './upgrades';
 import { EmpRocket, empRocketImpact, empRocketTick, mergeUnitUpdates } from './empRocket';
 import { ArtilleryShell, fireArtillery, landShells, shellGroundPos } from './artillery';
@@ -79,6 +79,8 @@ export interface HeadlessMatch {
   salvo: MiniRocket[];
   // Tank Smoke Screens on the ground (sim/titan.ts).
   smoke: SmokeScreen[];
+  // Battery Mule Volt Cores counting down (sim/voltCore.ts).
+  volt: VoltCharge[];
   nextId: number;
   // Seeded, so the same options always play out the same match.
   random: () => number;
@@ -118,6 +120,7 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     rockets: [],
     salvo: [],
     smoke: [],
+    volt: [],
     nextId: 0,
     random: seededRandom(opts.seed ^ 0x5eed),
     thinkRandom: seededRandom(opts.seed ^ 0x7a1c),
@@ -210,6 +213,13 @@ export function stepMatch(m: HeadlessMatch): void {
   const burst = new Set(flechettes.shots.map(s => s.attackerId));
   if (burst.size > 0) m.units = m.units.map(u => burst.has(u.id) ? { ...u, flechetteAt: now } : u);
   flechettes.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+  // Volt Cores whose countdown is over detonate (sim/voltCore.ts).
+  const due = dueCharges(m.volt, now);
+  const volt = voltBlasts(m.units, due);
+  if (due.length > 0) {
+    m.volt = m.volt.filter(c => !due.includes(c));
+    volt.damage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+  }
   const salvo = landSalvo(m.salvo, now, m.units, m.structures);
   m.salvo = salvo.flying;
   for (const map of [hornets.unitDamage, salvo.unitDamage]) map.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
@@ -237,7 +247,7 @@ export function stepMatch(m: HeadlessMatch): void {
   if (impact.structureDamage.size > 0) m.structures = applyStructureCombat(m.structures, { structureDamage: impact.structureDamage, fired: new Map(), aiming: new Map() }, now);
   // Who hit whom, for the pacing report's damage tally.
   recordWeaponHits(m.pacing, {
-    fired: attacks.fired, shots: [...(attacks.splashed ?? []), ...rail.shots, ...rail.pierceHits, ...hornets.shots, ...flechettes.shots], ciws: ciws.links,
+    fired: attacks.fired, shots: [...(attacks.splashed ?? []), ...rail.shots, ...rail.pierceHits, ...hornets.shots, ...flechettes.shots, ...volt.hits], ciws: ciws.links,
     blasts: [
       ...impact.landed.map(s => ({ attackerId: s.attackerId, team: s.team, at: s.at, radius: 2 })),
       ...salvo.landed.map(s => ({ attackerId: s.attackerId, team: s.team, at: s.at, radius: 2 })),
@@ -310,12 +320,8 @@ export function stepMatch(m: HeadlessMatch): void {
     }
     return draft;
   });
-  // Battery Mules with the Volt Core detonate as they die (sim/voltCore.ts).
-  const volt = detonateMules(m.units, team => hasUpgrade(m.economy[team], 'volt_core'));
-  if (volt.blasts.length > 0) {
-    m.units = volt.units;
-    recordWeaponHits(m.pacing, { shots: volt.hits }, m.units, m.structures);
-  }
+  // A Battery Mule with the Volt Core goes critical where it dies (sim/voltCore.ts).
+  m.volt.push(...armMules(m.units, team => hasUpgrade(m.economy[team], 'volt_core'), now));
   m.units = m.units.filter(u => u.health > 0);
 
   // Once a second: income and victory.
