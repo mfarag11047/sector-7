@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { StructureData, UnitData } from '../types';
-import { aiThink, chooseUnit, freshAiMemory, gatherPoint, type AiContext } from './ai';
+import { aiThink, bestCounters, chooseUnit, freshAiMemory, gatherPoint, type AiContext } from './ai';
 import { counterScore, freshStrategyMemory, LOSS_WINDOW_MS, STRATEGY_PLANS, updateStrategy, type AiStrategy } from './aiStrategy';
 import { createHeadlessMatch } from './headless';
 import { createUnit } from './production';
@@ -17,16 +17,25 @@ describe('army strategy', () => {
   });
 
   it('switches to a counter after losing much of its army to one kind of enemy', () => {
-    // An infantry army being shot out of the sky... by gunships.
+    // An infantry army cut down by a Kestrel swarm. Troopers can shoot back at aircraft, but the
+    // machine guns shred them: the answer is the Aegis's flak, in the armoured army.
+    let mem = { ...freshStrategyMemory(), strategy: 'infantry' as AiStrategy, since: 0 };
+    const troopers = Array.from({ length: 12 }, (_, i) => unit(`t${i}`, 'trooper', 'blue'));
+    const kestrels = Array.from({ length: 6 }, (_, i) => unit(`k${i}`, 'attack_drone', 'red', 20 + (i % 3), 21 + Math.floor(i / 3)));
+    mem = updateStrategy(mem, input(100_000, troopers, kestrels));
+    expect(mem.strategy).toBe('infantry');
+    mem = updateStrategy(mem, input(103_000, [], kestrels));
+    expect(mem.strategy).toBe('armor');
+    expect(mem.log.at(-1)!.reason).toBe('losing units to enemy aircraft (mostly "Kestrel" Attack Drones)');
+    expect(mem.losses).toEqual([]);
+  });
+
+  it('answers what actually did it: gunships that can\'t shoot back at aircraft lose to drones', () => {
     let mem = { ...freshStrategyMemory(), strategy: 'infantry' as AiStrategy, since: 0 };
     const troopers = Array.from({ length: 12 }, (_, i) => unit(`t${i}`, 'trooper', 'blue'));
     const gunships = [unit('h1', 'hornet', 'red', 21, 20), unit('h2', 'hornet', 'red', 20, 22)];
-    mem = updateStrategy(mem, input(100_000, troopers, gunships));
-    expect(mem.strategy).toBe('infantry');
-    mem = updateStrategy(mem, input(103_000, [], gunships));
-    expect(mem.strategy).toBe('armor');
-    expect(mem.log.at(-1)!.reason).toBe('losing units to enemy aircraft');
-    expect(mem.losses).toEqual([]);
+    mem = updateStrategy(updateStrategy(mem, input(100_000, troopers, gunships)), input(103_000, [], gunships));
+    expect(mem.strategy).toBe('drones');
   });
 
   it('sticks with its plan for a while, and on Easy for good', () => {
@@ -44,14 +53,14 @@ describe('army strategy', () => {
     const gunships = [unit('h1', 'hornet', 'red', 21, 20), unit('h2', 'hornet', 'red', 20, 22)];
     const lose = (mem: ReturnType<typeof freshStrategyMemory>, at: number, theirs: UnitData[]) =>
       updateStrategy(updateStrategy(mem, input(at, troopers, theirs)), input(at + 3000, [], theirs));
-    // Switched from infantry to armour at 100s, losing to aircraft.
+    // Switched from infantry to a drone swarm at 100s, losing to gunships.
     let mem = lose({ ...freshStrategyMemory(), strategy: 'infantry', since: 0, log: [{ atMs: 0, strategy: 'infantry', reason: 'opening plan' }] }, 100_000, gunships);
-    expect(mem.strategy).toBe('armor');
+    expect(mem.strategy).toBe('drones');
     const switchedAt = mem.since;
     // Now losing to enemy infantry, which infantry would answer: not yet, one commitment on.
     const riflemen = Array.from({ length: 10 }, (_, i) => unit(`r${i}`, 'trooper', 'red', 20 + (i % 3), 20 + Math.floor(i / 3)));
     mem = lose(mem, switchedAt + 60_000, riflemen);
-    expect(mem.strategy).toBe('armor');
+    expect(mem.strategy).toBe('drones');
     // Nor after twice that, since it gave up infantry only a few minutes ago.
     mem = lose(mem, switchedAt + 130_000, riflemen);
     expect(mem.strategy).not.toBe('infantry');
@@ -70,14 +79,20 @@ describe('army strategy', () => {
   it('knows what counters what', () => {
     const best = (mix: Parameters<typeof counterScore>[1]) =>
       (['infantry', 'armor', 'air', 'drones'] as AiStrategy[]).sort((a, b) => counterScore(b, mix, 2) - counterScore(a, mix, 2))[0];
-    expect(best({ infantry: 1 })).toBe('armor');
-    expect(best({ air: 1 })).toBe('armor');
-    expect(best({ heavy: 1 })).toBe('infantry');
+    expect(best({ trooper: 1 })).toBe('armor');
+    // Tanks can't shoot aircraft: gunships are the answer to a pure tank army.
+    expect(best({ tank: 1 })).toBe('air');
+    // With flak to cover them, Lancers' rockets are.
+    expect(best({ tank: 0.5, aegis: 0.5 })).toBe('infantry');
+    // Losing to a Kestrel swarm: infantry can shoot back, but the machine guns cut it down. The
+    // answer is the Aegis's flak, in the armoured army.
+    expect(best({ attack_drone: 0.8, wasp: 0.2 })).toBe('armor');
+    expect(counterScore('infantry', { attack_drone: 1 }, 2)).toBeLessThan(counterScore('armor', { attack_drone: 1 }, 2));
   });
 
   it('leans training toward the strategy', () => {
     const base = { counterAccuracy: 0, needInfantry: false, guardians: 0, army: 10 };
-    const mix = { infantry: 0.25, light: 0.25, heavy: 0.25, air: 0.25, structure: 0 };
+    const mix = { trooper: 0.25, razorback: 0.25, tank: 0.25, attack_drone: 0.25 };
     let seq = 0;
     const random = () => ((seq = (seq * 9301 + 49297) % 233280) / 233280);
     const tally = (strategy: AiStrategy) => {
@@ -214,6 +229,34 @@ describe('researching upgrades', () => {
     expect(think()).toEqual([]);
     // Busy: nothing new.
     expect(think([...m.structures, { ...lab, research: { upgrade: 'nanoweave' as const, remainingMs: 1000, totalMs: 30_000 } }])).toEqual([]);
+  });
+});
+
+describe('answering a threat', () => {
+  it('names the best counters it can train to what has been killing it', () => {
+    const all = new Set<StructureData['type']>(['infantry', 'armor', 'air']);
+    expect(bestCounters({ attack_drone: 1 }, 2, all, 2)[0]).toBe('aegis');
+    // Only what it has a producer for.
+    expect(bestCounters({ attack_drone: 1 }, 2, new Set(['infantry']), 2)).not.toContain('aegis');
+  });
+
+  it('trains Aegis at its Factory when losing to Kestrels, even as an infantry army that hardly uses it', () => {
+    const m = createHeadlessMatch({ seed: 1, difficulty: { blue: 'hard', red: 'hard' }, doctrine: { blue: null, red: null } });
+    const ctx: AiContext = {
+      gridSize: m.gridSize, bases: { blue: { x: 4, z: 4 }, red: { x: 74, z: 74 } }, difficulty: 'hard', doctrine: null,
+      canBuildOn: () => false, isOpenGround: () => false, isWalkable: () => true,
+      doctrineCooldowns: { tier2: 0, tier3: 0 }, random: () => 0.6,
+    };
+    const factory: StructureData = { id: 'fac', type: 'armor', team: 'blue', gridPos: { x: 5, z: 1 }, isBlueprint: false, constructionProgress: 100, maxProgress: 100, health: 1200, maxHealth: 1200 };
+    const kestrels = Array.from({ length: 6 }, (_, i) => createUnit('attack_drone', 'red', `k${i}`, { x: 30 + i, z: 30 }));
+    const plan = { ...freshStrategyMemory(), strategy: 'infantry' as AiStrategy, since: 0,
+      losses: [{ atMs: 7 * 60_000, value: 900, by: { air: 1 }, byType: { attack_drone: 1 } }] };
+    const trained = aiThink({
+      units: [...m.units, ...kestrels], structures: [...m.structures, factory], buildings: m.buildings,
+      economy: { ...m.economy, blue: { ...m.economy.blue, tier: 2, cores: 5000 } }, elapsedMs: 8 * 60_000,
+    }, 'blue', { ...freshAiMemory(), plan }, ctx).actions
+      .flatMap(a => (a.kind === 'order' && a.command.type === 'TRAIN_UNIT' && a.command.structureId === 'fac' ? [a.command.unitType] : []));
+    expect(trained).toContain('aegis');
   });
 });
 

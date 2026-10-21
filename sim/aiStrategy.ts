@@ -8,15 +8,16 @@
 // enemy units standing around each unit when it died, weighted by how well they hurt it. When
 // it has lost a good share of its army in the last couple of minutes, mostly to one kind of
 // enemy (infantry, light vehicles, heavy armour or aircraft), it switches to whichever strategy
-// counters that kind best, and leans its training toward the counter.
+// counters the units that did it best (sim/counters.ts: which kill them and survive them), and
+// leans its training toward the counter.
 //
 // Pure: aiThink calls updateStrategy once per think with what it can see.
 
 import { UNIT_STATS } from '../constants';
 import type { StructureType, UnitData, UnitType } from '../types';
 import type { GridPos } from './commands';
-import { unitCost } from './economy';
-import { ArmorClass, dps, Tier, UNIT_RULES } from './units';
+import { ArmorClass, Tier, UNIT_RULES } from './units';
+import { EnemyMix, matchup, topType, unitDps } from './counters';
 
 export type AiStrategy = 'infantry' | 'armor' | 'air' | 'drones';
 export const AI_STRATEGIES: readonly AiStrategy[] = ['infantry', 'armor', 'air', 'drones'];
@@ -82,28 +83,15 @@ const ROSTER: Record<AiStrategy, UnitType[]> = {
   drones: ['attack_drone', 'wasp', 'swarm_host', 'helios'],
 };
 
-// Damage per second Crawler Drones and Helios beams do in practice, for the units that have no
-// weapon of their own in UNIT_RULES. Rough, but enough to rank counters.
-const EXTRA_DPS: Partial<Record<UnitType, Partial<Record<ArmorClass, number>>>> = {
-  swarm_host: { infantry: 12, light: 12, heavy: 9, air: 0 },
-  helios: { infantry: 4, light: 4, heavy: 4, air: 4 },
-};
-
-const ARMORS: ArmorClass[] = ['infantry', 'light', 'heavy', 'air'];
-const unitDps = (t: UnitType, a: ArmorClass) => dps(UNIT_RULES[t].weapon, a) + (EXTRA_DPS[t]?.[a] ?? 0);
-
-// How well a strategy's army deals with an enemy mix: damage per core, with a little health.
-export function counterScore(strategy: AiStrategy, mix: Partial<Record<ArmorClass, number>>, tier: Tier): number {
+// How well a strategy's army deals with an enemy mix (by unit type): its best counters' matchups
+// (sim/counters.ts), killing them and surviving them, per core.
+export function counterScore(strategy: AiStrategy, mix: EnemyMix, tier: Tier): number {
   // Judged on the units it can field now: a counter it can't build yet is no counter.
-  const units = ROSTER[strategy].filter(t => UNIT_RULES[t].tier <= tier);
-  if (units.length === 0) return 0;
-  const scores = units.map(t => {
-    let damage = 0;
-    for (const a of ARMORS) damage += (mix[a] ?? 0) * unitDps(t, a);
-    return (damage * Math.sqrt(UNIT_STATS[t].maxHealth)) / unitCost(t);
-  });
-  // Mostly its best answer, which its training leans on once it is losing to that kind.
-  return 0.6 * Math.max(...scores) + 0.4 * scores.reduce((s, x) => s + x, 0) / scores.length;
+  const scores = ROSTER[strategy].filter(t => UNIT_RULES[t].tier <= tier).map(t => matchup(t, mix)).sort((a, b) => b - a);
+  if (scores.length === 0) return 0;
+  // Its best answer, which its training leans on once it is losing to that kind, and a little of
+  // its next best. Units that can't engage the threat at all don't drag a good answer down.
+  return scores.length === 1 ? scores[0] : 0.75 * scores[0] + 0.25 * scores[1];
 }
 
 // --- Keeping track of losses ---
@@ -114,6 +102,8 @@ export interface LossRecord {
   value: number;
   // Who did it: shares by the enemy's armour class, summing to 1.
   by: Partial<Record<ArmorClass, number>>;
+  // And by the enemy's unit type, for judging what counters them.
+  byType?: EnemyMix;
 }
 
 export interface StrategyMemory {
@@ -136,8 +126,10 @@ const BLAME_RADIUS = 7;
 const MIN_LOSS_VALUE = 400;
 const LOSS_SHARE_OF_ARMY = 0.5;
 const DOMINANT_SHARE = 0.45;
-// A new strategy has to counter the threat this much better than the current one.
-const BETTER_BY = 1.15;
+// A new strategy has to counter the threat this much better than the current one. High, since
+// sim/ai.ts already trains the best answers to a threat within the current strategy: changing
+// the whole army is for when the strategy itself has no good answer.
+const BETTER_BY = 1.6;
 // After changing course it gives the new strategy this many times as long before changing again,
 // and doesn't go back to one it gave up within REVISIT_MS, so it doesn't flip back and forth
 // between two plans that each lose to the other's weakness.
@@ -176,6 +168,7 @@ export function updateStrategy(memory: StrategyMemory, input: StrategyInput): St
     if (living.has(id) || NOT_LOSSES.has(last.type)) continue;
     const armor = UNIT_RULES[last.type].armor;
     const blame: Partial<Record<ArmorClass, number>> = {};
+    const byType: EnemyMix = {};
     let total = 0;
     for (const e of input.theirs) {
       if (Math.hypot(e.gridPos.x - last.at.x, e.gridPos.z - last.at.z) > BLAME_RADIUS) continue;
@@ -184,12 +177,14 @@ export function updateStrategy(memory: StrategyMemory, input: StrategyInput): St
       const share = hurt * valueOf(e);
       const cls = UNIT_RULES[e.type].armor;
       blame[cls] = (blame[cls] ?? 0) + share;
+      byType[e.type] = (byType[e.type] ?? 0) + share;
       total += share;
     }
     // Nobody about: a turret, a doctrine power or a long-range shot. Nothing to learn from.
     if (total <= 0) continue;
     for (const k of Object.keys(blame) as ArmorClass[]) blame[k]! /= total;
-    mem.losses.push({ atMs: nowMs, value: last.value, by: blame });
+    for (const k of Object.keys(byType) as UnitType[]) byType[k]! /= total;
+    mem.losses.push({ atMs: nowMs, value: last.value, by: blame, byType });
   }
   for (const u of input.mine) mem.seen[u.id] = { type: u.type, at: { ...u.gridPos }, value: UNIT_STATS[u.type].cost || 0 };
   mem.losses = mem.losses.filter(l => nowMs - l.atMs <= LOSS_WINDOW_MS);
@@ -207,15 +202,19 @@ export function updateStrategy(memory: StrategyMemory, input: StrategyInput): St
   // Strategies given up lately: each log entry after the first left the one before it.
   const leftLately = new Set(mem.log.slice(1).map((e, i) => ({ left: mem.log[i].strategy, at: e.atMs }))
     .filter(e => nowMs - e.at < REVISIT_MS).map(e => e.left));
+  // Judged against the units that did it, not just their armour class.
+  const killers = lossTypeMix(mem.losses);
   const ranked = AI_STRATEGIES.filter(s => s === current || !leftLately.has(s))
-    .map(s => ({ s, score: counterScore(s, mix, input.tier) })).sort((a, b) => b.score - a.score);
+    .map(s => ({ s, score: counterScore(s, killers, input.tier) })).sort((a, b) => b.score - a.score);
   const best = ranked[0];
   const now = ranked.find(r => r.s === current)!;
   if (best.s === current || best.score < now.score * BETTER_BY) return mem;
   mem.strategy = best.s;
   mem.since = nowMs;
   mem.losses = [];
-  mem.log.push({ atMs: nowMs, strategy: best.s, reason: `losing units to enemy ${ARMOR_NAMES[worst]}` });
+  // The unit that did most of it, from the kind of enemy named.
+  const top = topType(Object.fromEntries((Object.entries(killers) as [UnitType, number][]).filter(([t]) => UNIT_RULES[t].armor === worst)));
+  mem.log.push({ atMs: nowMs, strategy: best.s, reason: `losing units to enemy ${ARMOR_NAMES[worst]}${top ? ` (mostly ${UNIT_STATS[top].label}s)` : ''}` });
   return mem;
 }
 
@@ -232,6 +231,23 @@ export function lossMix(losses: readonly LossRecord[]): Partial<Record<ArmorClas
     }
   }
   if (total > 0) for (const k of Object.keys(mix) as ArmorClass[]) mix[k]! /= total;
+  return mix;
+}
+
+// What our recent losses were to, as shares by the enemy's unit type. Losses recorded before
+// unit types were noted count by a typical unit of their armour class.
+const TYPICAL: Record<ArmorClass, UnitType> = { infantry: 'trooper', light: 'razorback', heavy: 'tank', air: 'attack_drone', structure: 'trooper' };
+export function lossTypeMix(losses: readonly LossRecord[]): EnemyMix {
+  const mix: EnemyMix = {};
+  let total = 0;
+  for (const l of losses) {
+    const by = l.byType ?? Object.fromEntries((Object.entries(l.by) as [ArmorClass, number][]).map(([a, v]) => [TYPICAL[a], v]));
+    for (const [k, v] of Object.entries(by) as [UnitType, number][]) {
+      mix[k] = (mix[k] ?? 0) + v * l.value;
+      total += v * l.value;
+    }
+  }
+  if (total > 0) for (const k of Object.keys(mix) as UnitType[]) mix[k]! /= total;
   return mix;
 }
 

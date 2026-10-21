@@ -758,12 +758,26 @@ same kind of economy.
    The plan weights what it trains and how often each production structure is used. An air
    force plays a normal mixed army, plus Kestrels, until T2 unlocks its gunships.
 
+   **What counters what** (`sim/counters.ts`). A counter has to kill the threat *and* survive it.
+   Each unit is scored against the enemy, by unit type: its damage per second to them, times its
+   health over their damage per second to it, each per core (Lanchester's square law). Troopers
+   can shoot aircraft, but a Kestrel swarm's machine guns cut them down, so against Kestrels the
+   Aegis scores far higher. A pure tank army is best answered by gunships, since tanks can't shoot
+   up; with Aegis among the tanks, Lancers are.
+
    It keeps count of the units it loses and blames the enemy units around each one when it died,
-   by how hard they hit that unit. Suppose that in the last two minutes it has lost at least 400
-   cores' worth, or half its army's worth, and at least 45% of it to one kind of enemy (infantry,
-   light vehicles, heavy armour or aircraft). It then switches to the plan that counters that
-   kind best with the units it can field at its current tier: armour against infantry and
-   aircraft, infantry against vehicles. It only switches
+   by unit type, by how hard they hit that unit. Two responses:
+   - **Answers, at once.** Once it has lost 300 cores' worth in the last two minutes, the two
+     units it can train that best counter whatever did it are favoured 2× in training and are
+     built whatever the plan: their structure is used even if the plan hardly uses it (an
+     infantry army losing to Kestrels trains Aegis at its Factory). Training otherwise ranks
+     units the same way, against a mix of the enemy army it sees and what has been killing it.
+   - **A new plan, sometimes.** Suppose that in the last two minutes it has lost at least 400
+     cores' worth, or half its army's worth, and at least 45% of it to one kind of enemy
+     (infantry, light vehicles, heavy armour or aircraft). It switches to the plan whose best
+     units counter the units that did it, if that plan is at least 1.6× better than its current
+     one (the answers above cover the smaller gaps). The pacing report names the killers:
+     "losing units to enemy aircraft (mostly "Kestrel" Attack Drones)". It only switches
    once it has stuck with a plan for 2 minutes (Normal) or 1 minute (Hard); after a switch it
    gives the new plan twice as long. It never goes back to a plan it gave up within the last
    5 minutes, so it doesn't flip back and forth between two. Easy never changes.

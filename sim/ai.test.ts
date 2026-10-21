@@ -7,19 +7,20 @@ const opts = { counterAccuracy: 1, random: noRandom, needInfantry: false, guardi
 
 describe('what the computer trains', () => {
   it('counters infantry with Razorbacks and armour with rockets', () => {
-    expect(chooseUnit('armor', 1, { infantry: 1, light: 0, heavy: 0, air: 0, structure: 0 }, opts)).toBe('razorback');
-    expect(chooseUnit('infantry', 2, { infantry: 0, light: 0.3, heavy: 0.7, air: 0, structure: 0 }, opts)).toBe('lancer');
+    expect(chooseUnit('armor', 1, { trooper: 1 }, opts)).toBe('razorback');
+    expect(chooseUnit('infantry', 2, { razorback: 0.3, tank: 0.7 }, opts)).toBe('lancer');
   });
 
   it('answers aircraft with flak', () => {
-    expect(chooseUnit('armor', 2, { infantry: 0, light: 0, heavy: 0, air: 1, structure: 0 }, opts)).toBe('aegis');
+    expect(chooseUnit('armor', 2, { attack_drone: 1 }, opts)).toBe('aegis');
+    expect(chooseUnit('armor', 2, { hornet: 0.5, wasp: 0.5 }, opts)).toBe('aegis');
   });
 
   it('never trains above its tier, and keeps a floor of infantry for capturing', () => {
-    expect(chooseUnit('infantry', 1, { infantry: 0, light: 0, heavy: 1, air: 0, structure: 0 }, opts)).toBe('trooper');
+    expect(chooseUnit('infantry', 1, { tank: 1 }, opts)).toBe('trooper');
     // At Tier 1 the Airpad's only fighter is the Kestrel attack drone, never the Tier 2 gunships.
-    expect(chooseUnit('air', 1, { infantry: 1, light: 0, heavy: 0, air: 0, structure: 0 }, opts)).toBe('attack_drone');
-    expect(chooseUnit('infantry', 3, { infantry: 0, light: 0, heavy: 1, air: 0, structure: 0 }, { ...opts, needInfantry: true })).toBe('trooper');
+    expect(chooseUnit('air', 1, { trooper: 1 }, opts)).toBe('attack_drone');
+    expect(chooseUnit('infantry', 3, { tank: 1 }, { ...opts, needInfantry: true })).toBe('trooper');
   });
 });
 

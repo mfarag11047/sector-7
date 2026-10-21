@@ -30,14 +30,15 @@ import { Economy, researchCost, structureCost, TeamEconomy, unitCost } from './e
 import { isInsideEnergyGrid } from './energy';
 import type { Difficulty } from './match';
 import { isOperational, MAX_QUEUE, OrderCommand, popUsed, teamPopCap, teamTier } from './orders';
-import { ArmorClass, dps, Tier, UNIT_RULES, unitsProducedBy } from './units';
+import { dps, Tier, UNIT_RULES, unitsProducedBy } from './units';
 import { abilitiesFor, abilityCooldownLeft, hasBuff } from './unitAbilities';
 import { artilleryRange, inArtilleryReach } from './artillery';
 import { freePadsFor } from './baseLayout';
 import { abilityUnlocked, artilleryTierOf, researchBlocker, UPGRADES, type UpgradeId } from './upgrades';
 import { REFINERY, upgradeBlocker } from './refinery';
 import { baseMoves, ESCORTS, SCOUT_REPLACE_MS, specialistAbilities, specialistMoves, specialistPick, SPECIALIST_MOVERS } from './aiSpecialists';
-import { freshStrategyMemory, lossMix, STRATEGY_PLANS, StrategyMemory, updateStrategy } from './aiStrategy';
+import { freshStrategyMemory, lossTypeMix, STRATEGY_PLANS, StrategyMemory, updateStrategy } from './aiStrategy';
+import { blendMix, EnemyMix, matchup, typeMix } from './counters';
 
 export interface AiView {
   units: readonly UnitData[];
@@ -182,7 +183,6 @@ const CAPTURE_GROUP = 3;
 const SIEGE_RADIUS = 12;
 // Cores in hand that count as piling up.
 const BANKED_CORES = 600;
-const ARMORS: ArmorClass[] = ['infantry', 'light', 'heavy', 'air'];
 
 const dist = (a: GridPos, b: GridPos) => Math.hypot(a.x - b.x, a.z - b.z);
 const posOf = (b: BuildingData): GridPos => ({ x: b.gridX, z: b.gridZ });
@@ -482,11 +482,19 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const spendable = () => cores - (threat ? 0 : reserve);
   let pop = popUsed(view.units, view.structures, team);
   const cap = teamPopCap(view.buildings, team);
-  // What to counter: the enemy army, leaning toward whatever has been killing our units.
-  const enemyMix = armorMix(theirs);
-  const recent = lossMix(mem.plan.losses);
-  const threatMix = Object.keys(recent).length === 0 ? enemyMix
-    : Object.fromEntries(ARMORS.map(a => [a, 0.5 * enemyMix[a] + 0.5 * (recent[a] ?? 0)])) as Record<ArmorClass, number>;
+  // What to counter, by unit type (sim/counters.ts): the enemy army, leaning toward whatever has
+  // been killing our units.
+  const seen = typeMix(theirs);
+  const enemyMix = Object.keys(seen).length > 0 ? seen : OPENING_MIX;
+  const killers = lossTypeMix(mem.plan.losses);
+  const lostLately = mem.plan.losses.reduce((n, l) => n + l.value, 0);
+  const threatMix = Object.keys(killers).length === 0 ? enemyMix : blendMix(enemyMix, killers, 0.5);
+  // After real losses, the best answers to what did it are trained whatever the strategy: from
+  // whichever structure makes them, even one the strategy hardly uses, and favoured there.
+  const producing = new Set(myStructures.filter(isOperational).map(s => s.type));
+  const answers = lostLately >= THREAT_LOSSES ? bestCounters(killers, tier, producing, 2) : [];
+  const weights: Partial<Record<UnitType, number>> = { ...plan.units };
+  for (const a of answers) weights[a] = Math.max(1, weights[a] ?? 1) * ANSWER_BOOST;
   // Enough infantry for the capture team and a node squad, and more for an infantry army.
   const infantryWanted = profile.capturers + NODE_SQUAD + (mem.plan.strategy === 'infantry' ? 3 : 0);
   const needInfantry = infantry.length < infantryWanted;
@@ -506,7 +514,8 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     // infantry up.
     // An air force waits on Tier 2 gunships, so it plays a normal mixed army until then.
     const share = plan.techRush && tier < 2 ? 1 : plan.producers[s.type] ?? 1;
-    if (share < 1 && !(s.type === 'infantry' && needInfantry) && ctx.random() > share) continue;
+    const answersHere = answers.some(a => UNIT_RULES[a].producer === s.type);
+    if (share < 1 && !(s.type === 'infantry' && needInfantry) && !answersHere && ctx.random() > share) continue;
     // New units head for the gather point.
     if (!s.rallyPoint || s.rallyPoint.x !== gather.x || s.rallyPoint.z !== gather.z) {
       actions.push({ kind: 'order', command: { type: 'SET_RALLY', structureId: s.id, at: gather } });
@@ -517,7 +526,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
       scoutLostRecently: now - (mem.scoutLostAt ?? -Infinity) < SCOUT_REPLACE_MS,
     }) ?? chooseUnit(s.type, tier, threatMix, {
       counterAccuracy: profile.counterAccuracy, random: ctx.random,
-      needInfantry, guardians, howitzers, army: armyUnits.length, weights: plan.units,
+      needInfantry, guardians, howitzers, army: armyUnits.length, weights,
     });
     if (!pick) continue;
     const cost = unitCost(pick);
@@ -634,28 +643,25 @@ function centroid(points: GridPos[]): GridPos {
   return { x: Math.round(x), z: Math.round(z) };
 }
 
-// The share of the enemy army's value in each armor class.
-function armorMix(units: readonly UnitData[]): Record<ArmorClass, number> {
-  const mix: Record<ArmorClass, number> = { infantry: 0, light: 0, heavy: 0, air: 0, structure: 0 };
-  let total = 0;
-  for (const u of units) {
-    if (u.type === 'defense_drone' || u.type === 'crawler_drone') continue;
-    const v = valueOf(u);
-    mix[UNIT_RULES[u.type].armor] += v;
-    total += v;
-  }
-  // Nothing seen yet: expect the usual opening of infantry and light vehicles.
-  if (total === 0) return { infantry: 0.6, light: 0.3, heavy: 0.1, air: 0, structure: 0 };
-  for (const k of ARMORS) mix[k] /= total;
-  return mix;
-}
-
 // What to train next at a structure: whatever does the most damage per core against the
 // enemy's mix, with a little health thrown in so it doesn't only build glass cannons.
+// Before anything of the enemy's is seen: the usual opening of infantry and light vehicles.
+const OPENING_MIX: EnemyMix = { trooper: 0.6, razorback: 0.3, tank: 0.1 };
+// Losses (cores' worth, in the strategy's loss window) that make it train the answers to what did it.
+const THREAT_LOSSES = 300;
+const ANSWER_BOOST = 2;
+
+// The `n` units it can train now that best counter an enemy mix (sim/counters.ts).
+export function bestCounters(enemy: EnemyMix, tier: Tier, producing: ReadonlySet<StructureType>, n: number): UnitType[] {
+  return FIGHTERS.filter(t => t !== 'guardian' && UNIT_RULES[t].tier <= tier && producing.has(UNIT_RULES[t].producer as StructureType))
+    .map(t => ({ t, score: matchup(t, enemy) })).filter(x => x.score > 0)
+    .sort((a, b) => b.score - a.score).slice(0, n).map(x => x.t);
+}
+
 export function chooseUnit(
   producer: StructureType,
   tier: Tier,
-  enemyMix: Record<ArmorClass, number>,
+  enemyMix: EnemyMix,
   opts: {
     counterAccuracy: number; random: () => number; needInfantry: boolean; guardians: number; army: number; howitzers?: number;
     // How much the army strategy favours each unit (sim/aiStrategy.ts).
@@ -677,12 +683,8 @@ export function chooseUnit(
     for (const t of fighters) if ((roll -= weight(t)) < 0) return t;
     return fighters[fighters.length - 1] ?? null;
   }
-  const score = (t: UnitType) => {
-    const rules = UNIT_RULES[t];
-    let damage = 0;
-    for (const a of ARMORS) damage += enemyMix[a] * dps(rules.weapon, a);
-    return (damage * Math.sqrt(UNIT_STATS[t].maxHealth) * weight(t)) / unitCost(t);
-  };
+  // The best counter: kills them and survives them, per core (sim/counters.ts).
+  const score = (t: UnitType) => matchup(t, enemyMix) * weight(t);
   const ranked = fighters.sort((a, b) => score(b) - score(a));
   return ranked[0] ?? null;
 }
