@@ -149,6 +149,12 @@ everything, so what you research commits you to the units you mean to build.
   added to what they have. The damage bonus covers all their weapons: main gun, rail gun, shells,
   rockets, flechettes, CIWS and the Volt Core blast. (`applyUpgradeBonuses` in `sim/upgrades.ts`,
   `upgradeDamage` in `sim/unitAbilities.ts`.)
+- Every unit you can train has **two upgrades**, a Tier 2 and a Tier 3 one (both Tier 3 for the
+  Tier 3 Ballista and Bombard). Where a unit has no ability to unlock yet, the slot is a stat-only
+  **Mk II / Mk III Refit**: just the health and damage bonus, no new ability. Refits:
+  Scout RC Car, Drone, Wasp, Bombard, Guardian, Helios, Banshee, Ballista, Mason, Field Fabricator
+  and Swarm Host (Mk II and Mk III); Strike Trooper, Razorback, Battery Mule and Kestrel (Mk III,
+  beside their Tier 2 ability); Lancer, Titan and Aegis (Mk II, beside their Tier 3 ability).
 - Each upgrade costs cores **and compute** (T2: 250 cores + 50 compute, T3: 400 + 100), so
   upgrades compete with the next tier for compute. The computer always keeps the compute for its
   next tier before it spends any on upgrades.

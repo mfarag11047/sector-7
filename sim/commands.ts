@@ -156,6 +156,11 @@ const DOCTRINES = Object.keys({ heavy_metal: 1, shadow_ops: 1, netrunner: 1 } sa
 const WARHEADS = Object.keys({ emp: 1, he: 1, wp: 1 } satisfies Record<Warhead, 1>);
 const UPGRADE_IDS = Object.keys({
   nanoweave: 1, dampener: 1, phantom_decoy: 1, emp_rocket: 1, overclock: 1, radar: 1, long_range_shells: 1, guided_shells: 1, hellfire: 1, hunter_rockets: 1, regen_shield: 1, piercing_round: 1, volt_core: 1,
+  scout_car_mk2: 1, scout_car_mk3: 1, trooper_mk3: 1, lancer_mk2: 1, razorback_mk3: 1, sun_plate_mk3: 1,
+  tank_mk2: 1, aegis_mk2: 1, drone_mk2: 1, drone_mk3: 1, attack_drone_mk3: 1, wasp_mk2: 1, wasp_mk3: 1,
+  bombard_mk2: 1, bombard_mk3: 1, guardian_mk2: 1, guardian_mk3: 1, helios_mk2: 1, helios_mk3: 1,
+  banshee_mk2: 1, banshee_mk3: 1, ballista_mk2: 1, ballista_mk3: 1, mason_mk2: 1, mason_mk3: 1, mule_mk2: 1,
+  mule_mk3: 1, swarm_host_mk2: 1, swarm_host_mk3: 1,
 } satisfies Record<UpgradeId, 1>);
 
 // Large enough for any real selection, small enough to stop a flood.

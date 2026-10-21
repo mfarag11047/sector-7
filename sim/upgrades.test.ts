@@ -4,11 +4,12 @@ import { UNIT_STATS } from '../constants';
 import { landShells } from './artillery';
 import { createHeadlessMatch, stepMatch } from './headless';
 import { createUnit } from './production';
+import { UNIT_RULES } from './units';
 import { createEconomy, Economy } from './economy';
 import { applyOrderToStructures, orderEffects, OrdersContext } from './orders';
 import { abilityDef, damageMultiplier, upgradeDamage } from './unitAbilities';
 import {
-  abilityUnlocked, addUpgrades, applyUpgradeBonuses, upgradeLevelOf, type UpgradeId, advanceResearch, applyResearch, artilleryTierOf, researchBlocker, upgradeClasses, upgradeDef, UPGRADES,
+  abilityUnlocked, addUpgrades, applyUpgradeBonuses, upgradesFor, upgradeLevelOf, type UpgradeId, advanceResearch, applyResearch, artilleryTierOf, researchBlocker, upgradeClasses, upgradeDef, UPGRADES,
 } from './upgrades';
 
 const lab = (patch: Partial<StructureData> = {}): StructureData => ({
@@ -23,10 +24,26 @@ const research = (economy: Economy, structures: StructureData[], upgrade: string
 describe('unit upgrades', () => {
   it('lists the upgrades by unit class, then unit', () => {
     const classes = upgradeClasses();
-    expect(classes.map(c => c.unitClass)).toEqual(['infantry', 'armor', 'air']);
+    expect(classes.map(c => c.unitClass)).toEqual(['infantry', 'armor', 'air', 'support', 'builder', 'ordnance']);
     expect(classes[0].units).toEqual(['trooper', 'ghost', 'lancer']);
     // Every later-tier unit ability is an upgrade.
     for (const id of ['nanoweave', 'emp_rocket', 'overclock', 'radar', 'hellfire']) expect(upgradeDef(id)).toBeDefined();
+  });
+
+  it('gives every unit you can train two upgrades, a refit where there is no ability for it yet', () => {
+    const trainable = (Object.keys(UNIT_RULES) as UnitData['type'][]).filter(t => UNIT_RULES[t].producer);
+    for (const t of trainable) {
+      const ups = upgradesFor(t);
+      expect(ups.length, t).toBe(2);
+      // Tier 2 first, never below the unit's own tier.
+      expect(ups.every(u => u.tier >= UNIT_RULES[t].tier && u.tier >= 2), t).toBe(true);
+      expect(ups[0].tier <= ups[1].tier, t).toBe(true);
+    }
+    expect(upgradesFor('trooper').map(u => u.id)).toEqual(['nanoweave', 'trooper_mk3']);
+    expect(upgradesFor('lancer').map(u => u.id)).toEqual(['lancer_mk2', 'emp_rocket']);
+    expect(upgradesFor('ballista').map(u => u.tier)).toEqual([3, 3]);
+    // A refit unlocks no ability, but counts toward the bonus.
+    expect(upgradeLevelOf({ upgrades: ['scout_car_mk2'] }, 'scout_car')).toBe(1);
   });
 
   it('starts research at a finished Advanced Research, paid for, one at a time', () => {

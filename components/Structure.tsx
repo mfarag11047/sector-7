@@ -4,7 +4,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges, Html } from '@react-three/drei';
 import { StructureData, StructureType, UnitClass, UnitType } from '../types';
-import { upgradeClasses, upgradeDef, upgradesFor, type UpgradeDef, type UpgradeId } from '../sim/upgrades';
+import { upgradeClasses, upgradeDef, upgradesFor, upgradeTitle, type UpgradeDef, type UpgradeId } from '../sim/upgrades';
 import { ABILITY_CONFIG, STRUCTURE_INFO, TEAM_COLORS, UNIT_CLASSES, UNIT_STATS } from '../constants';
 import * as THREE from 'three';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
@@ -985,7 +985,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
             {running && (
                 <div className="px-1 mb-1">
                     <div className="text-[9px] text-teal-300 font-mono uppercase">
-                        Researching {upgradeDef(running.upgrade)?.name} {Math.min(100, Math.floor((1 - running.remainingMs / running.totalMs) * 100))}%
+                        Researching {(d => d ? upgradeTitle(d) : running.upgrade)(upgradeDef(running.upgrade))} {Math.min(100, Math.floor((1 - running.remainingMs / running.totalMs) * 100))}%
                     </div>
                     <div className="hud-meter w-full h-1.5 mt-1">
                         <div className="hud-meter-cell h-full" style={{ width: `${Math.max(4, Math.min(100, (1 - running.remainingMs / running.totalMs) * 100))}%` }} />

@@ -53,7 +53,7 @@ import { fireFlechettes, regenerateShield, shieldedHit } from '../sim/kestrel';
 import { markScreened, pruneSmoke, SMOKE, SmokeScreen } from '../sim/titan';
 import { armMules, countdownOf, dueCharges, VOLT, VoltCharge, voltBlasts } from '../sim/voltCore';
 import { canisterSpots, HE, WARHEAD_LIST, WP, wpGasDamage } from '../sim/warheads';
-import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade, upgradeDef, type UpgradeId } from '../sim/upgrades';
+import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade, upgradeDef, upgradeTitle, type UpgradeId } from '../sim/upgrades';
 import { teamPads } from '../sim/baseLayout';
 import BuildPads, { FreePad } from './BuildPads';
 import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
@@ -3763,7 +3763,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           if (labTick.finished.length > 0) {
               setEconomy(prev => addUpgrades(prev, labTick.finished));
               for (const done of labTick.finished) {
-                  if (done.team === playerTeam) onNotice?.(`Research complete: ${upgradeDef(done.upgrade)?.name}`);
+                  if (done.team === playerTeam) { const def = upgradeDef(done.upgrade); onNotice?.(`Research complete: ${def ? upgradeTitle(def) : done.upgrade}`); }
               }
           }
 
