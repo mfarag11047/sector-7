@@ -12,6 +12,7 @@ import { MAX_QUEUE } from '../sim/orders';
 import { TIER_REQUIREMENT, UNIT_RULES, unitsProducedBy } from '../sim/units';
 import { UPGRADE_BONUS } from '../sim/unitAbilities';
 import { REFINERY } from '../sim/refinery';
+import { builtCost, canDismantle, DISMANTLE, dismantleRefund, isUnfinished } from '../sim/dismantle';
 import type { IncomeBreakdown } from '../sim/economy';
 import { WARHEAD_LABEL } from '../sim/warheads';
 
@@ -562,6 +563,20 @@ const RefineryModel = ({ color, teamColor, level, upgrading }: { color: string, 
     );
 };
 
+// A building being taken down: a pulsing amber frame round it.
+const DismantleFrame = ({ height, tileSize }: { height: number; tileSize: number }) => {
+    const ref = useRef<THREE.Mesh>(null);
+    useFrame(({ clock }) => {
+        if (ref.current) (ref.current.material as THREE.MeshBasicMaterial).opacity = 0.35 + 0.35 * Math.sin(clock.elapsedTime * 6);
+    });
+    return (
+        <mesh ref={ref} position={[0, height * 0.6, 0]} raycast={() => null}>
+            <boxGeometry args={[tileSize * 0.9, height * 1.2, tileSize * 0.9]} />
+            <meshBasicMaterial color="#f59e0b" wireframe transparent opacity={0.6} toneMapped={false} />
+        </mesh>
+    );
+};
+
 const DepotModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
     const label = useMemo(getLoadingZoneTexture, []);
     return (
@@ -975,6 +990,9 @@ const WallTier2Model = ({ teamColor, tileSize }: { color: string, teamColor: str
 const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES, income }) => {
   // Advanced Research menu: a unit class, then a unit, then its upgrades.
   const [labClass, setLabClass] = React.useState<UnitClass | null>(null);
+  // Disassemble asks twice.
+  const [confirmTeardown, setConfirmTeardown] = React.useState(false);
+  React.useEffect(() => { if (!menuOpen) setConfirmTeardown(false); }, [menuOpen]);
   const [labUnit, setLabUnit] = React.useState<UnitType | null>(null);
   useEffect(() => { if (!menuOpen) { setLabClass(null); setLabUnit(null); } }, [menuOpen]);
   const config = STRUCTURE_INFO[data.type];
@@ -1020,6 +1038,46 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
       if (onClick) onClick(data.id);
   }
 
+  // Taking the building down (sim/dismantle.ts): a confirm step, then its progress and a Stop.
+  const renderDisassemble = () => {
+    const d = data.dismantle;
+    const unfinished = isUnfinished(data);
+    const back = unfinished ? builtCost(data) : dismantleRefund(data);
+    if (d) {
+        const pct = Math.min(100, Math.floor((1 - d.remainingMs / d.totalMs) * 100));
+        return (
+            <div className="flex flex-col gap-1 px-1 mt-2 pt-1 border-t border-slate-700 text-[10px] font-mono">
+                <div className="text-amber-300 uppercase">Disassembling {pct}% · +{d.refund} cores when done</div>
+                <div className="hud-meter w-full h-1.5"><div className="hud-meter-cell h-full" style={{ width: `${Math.max(4, pct)}%` }} /></div>
+                <button onClick={(e) => { e.stopPropagation(); onAction && onAction('DISASSEMBLE'); }}
+                    className="px-2 py-1 text-left rounded text-slate-200 hover:bg-slate-700">Stop disassembling</button>
+            </div>
+        );
+    }
+    return (
+        <div className="flex flex-col gap-1 px-1 mt-2 pt-1 border-t border-slate-700 text-[10px] font-mono">
+            {!confirmTeardown ? (
+                <button onClick={(e) => { e.stopPropagation(); setConfirmTeardown(true); }}
+                    className="px-2 py-1 text-left rounded text-rose-300 hover:bg-rose-900/30">
+                    {unfinished ? 'Cancel construction' : 'Disassemble'}
+                </button>
+            ) : (
+                <div className="flex flex-col gap-1">
+                    <span className="text-slate-400 leading-snug">{unfinished
+                        ? `Cancel it and get all ${back} cores back?`
+                        : `Take it down over ${DISMANTLE.ms / 1000}s and get ${back} cores back (${Math.round(DISMANTLE.refundShare * 100)}%)? It stops working now${data.queue?.length || data.research || data.production?.active || data.refineryUpgrade ? '; what it is doing is cancelled and refunded' : ''}.`}</span>
+                    <div className="flex gap-1">
+                        <button onClick={(e) => { e.stopPropagation(); setConfirmTeardown(false); onAction && onAction('DISASSEMBLE'); }}
+                            className="flex-1 px-2 py-1 rounded border border-rose-400/60 text-rose-200 hover:bg-rose-900/40">Confirm (+{back})</button>
+                        <button onClick={(e) => { e.stopPropagation(); setConfirmTeardown(false); }}
+                            className="flex-1 px-2 py-1 rounded border border-slate-600 text-slate-300 hover:bg-slate-700">Keep</button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+  };
+
   // Core Refinery (sim/refinery.ts): what it and the side's refineries make, and its upgrade.
   const renderRefinery = () => {
     const level = data.refineryLevel === 2 ? 2 : 1;
@@ -1027,6 +1085,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
     const up = data.refineryUpgrade;
     const blocked = level === 2 ? null
         : constructing ? 'Under construction'
+        : data.dismantle ? 'Disassembling'
         : up ? null
         : tier < REFINERY.upgrade.tier ? `🔒 Tier ${REFINERY.upgrade.tier}`
         : resources < REFINERY.upgrade.cost ? `${REFINERY.upgrade.cost} cores` : null;
@@ -1114,6 +1173,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                             : tier < u.tier ? `🔒 Tier ${u.tier}`
                             : u.requires && !done(u.requires) ? `🔒 ${upgradeDef(u.requires)!.name} first`
                             : constructing ? 'Under construction'
+                            : data.dismantle ? 'Disassembling'
                             : running ? 'Lab busy'
                             : resources < u.cost ? `${u.cost} cores`
                             : compute < u.compute ? `${u.compute} compute` : null;
@@ -1149,6 +1209,8 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
     const buildableUnits = unitsProducedBy(data.type);
     const queue = data.queue || [];
     const constructing = (data.buildRemainingMs || 0) > 0;
+    // Coming down: it trains and builds nothing more.
+    const idle = constructing || !!data.dismantle;
 
     // Walls from the Depot; turrets go on the free turret corners round an HQ (components/BuildPads.tsx).
     const engineeringItems: StructureType[] = ['wall_tier1', 'wall_tier2'];
@@ -1169,7 +1231,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                     {buildableUnits.length > 0 && (
                         <>
                             <div className="flex justify-between text-[10px] text-slate-400 font-mono uppercase mb-1 px-1">
-                                <span>{constructing ? 'Under construction' : `Production · T${tier}`}</span>
+                                <span>{constructing ? 'Under construction' : data.dismantle ? 'Disassembling' : `Production · T${tier}`}</span>
                                 <span className={popUsed >= popCap ? 'text-red-400' : ''}>Pop {popUsed}/{popCap === Infinity ? '∞' : popCap}</span>
                             </div>
                             {buildableUnits.map(uType => {
@@ -1178,7 +1240,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                 const cost = stats.cost || 0;
                                 const locked = rules.tier > tier;
                                 const full = queue.length >= MAX_QUEUE || popUsed + rules.pop > popCap;
-                                const ok = !constructing && !locked && !full && (resources || 0) >= cost;
+                                const ok = !idle && !locked && !full && (resources || 0) >= cost;
                                 const queued = queue.filter(q => q.unitType === uType).length;
                                 return (
                                     <button
@@ -1235,7 +1297,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                 { item: 'he' as const, label: 'HE Missile (anti-armour)', cost: ABILITY_CONFIG.WARHEAD_COST_HE, seconds: ABILITY_CONFIG.WARHEAD_BUILD_TIME_HE / 1000 },
                                 { item: 'wp' as const, label: 'White Phosphorus (anti-infantry)', cost: ABILITY_CONFIG.WARHEAD_COST_WP, seconds: ABILITY_CONFIG.WARHEAD_BUILD_TIME_WP / 1000 },
                             ]).map(missile => {
-                                const busy = !!data.production?.active;
+                                const busy = !!data.production?.active || !!data.dismantle;
                                 const canAfford = resources >= missile.cost && !busy;
                                 return (
                                     <button
@@ -1257,6 +1319,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
 
                     {data.type === 'research_lab' && renderResearch()}
                     {data.type === 'refinery' && renderRefinery()}
+                    {canDismantle(data.type) && renderDisassemble()}
 
                     {/* Engineering Section (Depot Only) */}
                     {data.type === 'builder' && (
@@ -1269,7 +1332,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                 return (
                                     <button
                                         key={type}
-                                        disabled={!canAfford || !hasMason}
+                                        disabled={!canAfford || !hasMason || !!data.dismantle}
                                         onClick={(e) => { e.stopPropagation(); onAction && onAction('SELECT_WALL', type); }}
                                         className={`
                                             flex items-center justify-between px-3 py-2 text-left transition-colors rounded text-xs font-mono
@@ -1499,6 +1562,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
     <group ref={groupRef} position={position} onContextMenu={handleRightClick} onDoubleClick={handleDoubleClick} onClick={handleClick}>
       {renderMenu()}
       {renderModel()}
+      {data.dismantle && <DismantleFrame height={config.height} tileSize={tileSize} />}
       <StructureStatus data={data} height={config.height} />
     </group>
   );

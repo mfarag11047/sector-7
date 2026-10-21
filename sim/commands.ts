@@ -42,6 +42,8 @@ export interface BuildWarheadCommand { type: 'BUILD_WARHEAD'; structureId: strin
 export interface ResearchUpgradeCommand { type: 'RESEARCH_UPGRADE'; structureId: string; upgrade: UpgradeId }
 // A Core Refinery's upgrade to level 2 (sim/refinery.ts).
 export interface UpgradeRefineryCommand { type: 'UPGRADE_REFINERY'; structureId: string }
+// Take down one of your base buildings or turrets, or stop taking it down (sim/dismantle.ts).
+export interface DisassembleStructureCommand { type: 'DISASSEMBLE_STRUCTURE'; structureId: string }
 
 // --- Toggles and instant abilities ---
 // These apply to every listed unit of the right type, matching how the
@@ -104,6 +106,7 @@ export type PlayerCommand =
   | BuildWarheadCommand
   | ResearchUpgradeCommand
   | UpgradeRefineryCommand
+  | DisassembleStructureCommand
   | ToggleDampenerCommand
   | SetHeliosModeCommand
   | ToggleJammerCommand
@@ -197,6 +200,7 @@ const CHECKS: Record<CommandType, (c: Fields) => boolean> = {
   BUILD_WARHEAD: c => isId(c.structureId) && oneOf(WARHEADS, c.warhead),
   RESEARCH_UPGRADE: c => isId(c.structureId) && oneOf(UPGRADE_IDS, c.upgrade),
   UPGRADE_REFINERY: c => isId(c.structureId),
+  DISASSEMBLE_STRUCTURE: c => isId(c.structureId),
   TOGGLE_DAMPENER: unitList,
   SET_HELIOS_MODE: c => isIdList(c.unitIds) && (c.mode === 'charge' || c.mode === 'burn'),
   TOGGLE_JAMMER: unitList,

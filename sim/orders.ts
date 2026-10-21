@@ -9,11 +9,12 @@
 import { ABILITY_CONFIG, BUILDING_VALUES, STRUCTURE_INFO } from '../constants';
 import type { BuildingData, StructureData, StructureType, UnitData } from '../types';
 import type { GridPos, PlayerCommand, Team, Warhead } from './commands';
-import { Economy, research, researchCost, spend, spendCompute, structureCost, unitCost, warheadBuildTime, warheadCost } from './economy';
+import { Economy, refund, research, researchCost, spend, spendCompute, structureCost, unitCost, warheadBuildTime, warheadCost } from './economy';
 import { Blackout, gridTiles, isBlackedOut, isInsideEnergyGrid } from './energy';
 import { baseOrder } from './bases';
 import { researchBlocker, upgradeDef, type UpgradeId } from './upgrades';
 import { REFINERY, refineriesOf, refineryLimit, upgradeBlocker } from './refinery';
+import { builtCost, canDismantle, cancelledWork, isUnfinished, startDismantling } from './dismantle';
 import { BUILDING_PADS, freePadsFor, isPad, padKindOf, TURRET_PADS } from './baseLayout';
 import { isAirType, popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from './units';
 import { tetheredIds, unjammedIds } from './jamming';
@@ -36,13 +37,14 @@ export const teamTier = (economy: Economy, team: Team): Tier => economy[team].ti
 export const teamPopCap = (buildings: readonly BuildingData[], team: Team) => popCap(coreNodesHeld(buildings, team), gridTiles(buildings, team));
 
 // A structure that has finished going up and still stands.
-export const isOperational = (s: StructureData) => !s.isBlueprint && !((s.buildRemainingMs || 0) > 0) && s.health > 0;
+// Finished, standing, and not being taken down.
+export const isOperational = (s: StructureData) => !s.isBlueprint && !((s.buildRemainingMs || 0) > 0) && s.health > 0 && !s.dismantle;
 
 // --- Commands ---
 
-export type OrderCommand = Extract<PlayerCommand, { type: 'MOVE' | 'TRAIN_UNIT' | 'PLACE_STRUCTURE' | 'SET_RALLY' | 'RESEARCH_TIER' | 'BUILD_BASE' | 'BUILD_WARHEAD' | 'RESEARCH_UPGRADE' | 'UPGRADE_REFINERY' }>;
+export type OrderCommand = Extract<PlayerCommand, { type: 'MOVE' | 'TRAIN_UNIT' | 'PLACE_STRUCTURE' | 'SET_RALLY' | 'RESEARCH_TIER' | 'BUILD_BASE' | 'BUILD_WARHEAD' | 'RESEARCH_UPGRADE' | 'UPGRADE_REFINERY' | 'DISASSEMBLE_STRUCTURE' }>;
 export const isOrderCommand = (c: PlayerCommand): c is OrderCommand =>
-  c.type === 'MOVE' || c.type === 'TRAIN_UNIT' || c.type === 'PLACE_STRUCTURE' || c.type === 'SET_RALLY' || c.type === 'RESEARCH_TIER' || c.type === 'BUILD_BASE' || c.type === 'BUILD_WARHEAD' || c.type === 'RESEARCH_UPGRADE' || c.type === 'UPGRADE_REFINERY';
+  c.type === 'MOVE' || c.type === 'TRAIN_UNIT' || c.type === 'PLACE_STRUCTURE' || c.type === 'SET_RALLY' || c.type === 'RESEARCH_TIER' || c.type === 'BUILD_BASE' || c.type === 'BUILD_WARHEAD' || c.type === 'RESEARCH_UPGRADE' || c.type === 'UPGRADE_REFINERY' || c.type === 'DISASSEMBLE_STRUCTURE';
 
 export interface OrdersView {
   units: readonly UnitData[];
@@ -71,6 +73,8 @@ export interface OrderEffects {
   unitUpdates: Map<string, (u: UnitData) => UnitData>;
   structureUpdates: Map<string, (s: StructureData) => StructureData>;
   newStructures: StructureData[];
+  // Structures gone at once (a cancelled building).
+  removeStructures?: string[];
   economy?: (e: Economy) => Economy | null;
 }
 
@@ -97,6 +101,7 @@ export function orderEffects(view: OrdersView, team: Team, command: OrderCommand
     case 'BUILD_WARHEAD': return warheadOrder(view, team, command.structureId, command.warhead);
     case 'RESEARCH_UPGRADE': return upgradeOrder(view, team, command.structureId, command.upgrade);
     case 'UPGRADE_REFINERY': return refineryUpgradeOrder(view, team, command.structureId);
+    case 'DISASSEMBLE_STRUCTURE': return disassembleOrder(view, team, command.structureId);
     case 'BUILD_BASE': {
       const outcome = baseOrder(view, team, command.at, ctx.newId);
       if ('reason' in outcome) return reject(outcome.reason);
@@ -134,6 +139,24 @@ function upgradeOrder(view: OrdersView, team: Team, structureId: string, upgrade
   return effects({
     economy: e => { const paid = spend(e, team, def.cost); return paid && spendCompute(paid, team, def.compute); },
     structureUpdates: new Map([[s.id, x => ({ ...x, research: { upgrade, remainingMs: def.researchMs, totalMs: def.researchMs } })]]),
+  });
+}
+
+// Takes down one of your base buildings or turrets, or stops taking it down (sim/dismantle.ts).
+function disassembleOrder(view: OrdersView, team: Team, structureId: string): OrderOutcome {
+  const s = view.structures.find(x => x.id === structureId);
+  if (!s || s.team !== team || s.health <= 0) return reject('not your building');
+  if (!canDismantle(s.type)) return reject(`a ${STRUCTURE_INFO[s.type].label} can't be disassembled`);
+  if (s.dismantle) return effects({ structureUpdates: new Map([[s.id, x => ({ ...x, dismantle: undefined })]]) });
+  // Still going up: cancelled, its full cost back.
+  if (isUnfinished(s)) {
+    const cost = builtCost(s);
+    return effects({ removeStructures: [s.id], economy: e => refund(e, team, cost) });
+  }
+  const work = cancelledWork(s);
+  return effects({
+    structureUpdates: new Map([[s.id, startDismantling]]),
+    economy: work.cores + work.compute > 0 ? e => refund(e, team, work.cores, work.compute) : undefined,
   });
 }
 
@@ -320,8 +343,9 @@ export function applyOrderToUnits(units: UnitData[], fx: OrderEffects): UnitData
   return units.map(u => fx.unitUpdates.get(u.id)?.(u) ?? u);
 }
 export function applyOrderToStructures(structures: StructureData[], fx: OrderEffects): StructureData[] {
-  if (fx.structureUpdates.size === 0 && fx.newStructures.length === 0) return structures;
-  const next = structures.map(s => fx.structureUpdates.get(s.id)?.(s) ?? s);
+  if (fx.structureUpdates.size === 0 && fx.newStructures.length === 0 && !fx.removeStructures?.length) return structures;
+  const gone = new Set(fx.removeStructures ?? []);
+  const next = structures.filter(s => !gone.has(s.id)).map(s => fx.structureUpdates.get(s.id)?.(s) ?? s);
   return fx.newStructures.length > 0 ? [...next, ...fx.newStructures] : next;
 }
 

@@ -16,6 +16,7 @@ import { fireFlechettes, regenerateShield, shieldedHit } from './kestrel';
 import { markScreened, pruneSmoke, SmokeScreen } from './titan';
 import { armMules, dueCharges, VoltCharge, voltBlasts } from './voltCore';
 import { advanceRefineryUpgrades } from './refinery';
+import { advanceDismantling } from './dismantle';
 import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade } from './upgrades';
 import { EmpRocket, empRocketImpact, empRocketTick, mergeUnitUpdates } from './empRocket';
 import { ArtilleryShell, fireArtillery, landShells, shellGroundPos } from './artillery';
@@ -24,7 +25,7 @@ import { captureTick } from './capture';
 import { applyCiwsState, ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
 import type { GridPos, Team } from './commands';
 import { applyStructureCombat, resolveAttacks } from './combat';
-import { addWarheads, advanceWarheadProduction, createEconomy, Economy, payIncome, productionStep } from './economy';
+import { addWarheads, advanceWarheadProduction, createEconomy, Economy, payIncome, productionStep, refund } from './economy';
 import { chargeSources, isInsideEnergyGrid, powerTick } from './energy';
 import { generateCity, seededRandom } from './mapgen';
 import { Difficulty, MatchConfig, startingRoster } from './match';
@@ -270,6 +271,10 @@ export function stepMatch(m: HeadlessMatch): void {
   const lab = advanceResearch(m.structures, team => productionStep(team === 'blue' || team === 'red' ? m.opts.doctrine[team] : null));
   m.structures = applyResearch(m.structures, lab);
   m.economy = addUpgrades(m.economy, lab.finished);
+  // Buildings being taken down (sim/dismantle.ts).
+  const teardown = advanceDismantling(m.structures, productionStep(null));
+  m.structures = teardown.structures;
+  for (const d of teardown.done) m.economy = refund(m.economy, d.team, d.refund);
   // Core Refinery upgrades (sim/refinery.ts).
   m.structures = advanceRefineryUpgrades(m.structures, team => productionStep(team === 'blue' || team === 'red' ? m.opts.doctrine[team] : null)).structures;
   for (const { structure, unitType } of build.trained) {

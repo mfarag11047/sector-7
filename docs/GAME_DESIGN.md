@@ -77,6 +77,15 @@ side can invest in its economy instead of only fighting for nodes.
     placed on that pad and starts building. The HQ menu shows how many pads are left.
     (`components/BuildPads.tsx`)
 - Base structures take time to construct. While under construction they can't produce.
+- **Disassembling** (`sim/dismantle.ts`): click one of your base buildings or turrets and choose
+  Disassemble (it asks you to confirm) to change course. A finished one stops working at once,
+  comes down over 8 s (a pulsing amber frame shows it), then is gone, freeing its pad, and pays
+  back 50% of what it cost, a Core Refinery's level 2 upgrade included. The refund comes only
+  when it is down, so taking down a building about to be destroyed gains nothing; choose Stop to
+  keep it. Whatever it was doing is cancelled and refunded in full at once: units in its queue,
+  a warhead being built, research in progress (cores and compute), a refinery upgrade. One
+  still under construction, or a turret blueprint, is cancelled at once with its full cost back.
+  The Command HQ and walls can't be disassembled. The computer never does it.
 
 | Structure | Cost | Build time | Produces |
 |---|---|---|---|

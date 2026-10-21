@@ -68,7 +68,7 @@ export const ciwsMagazine = (u: GunState, now: number) => (ciwsReloading(u, now)
 
 // A finished CIWS turret that can fire.
 export const isCiwsTurretReady = (s: StructureData) =>
-  s.type === 'aa_turret' && s.health > 0 && !s.isBlueprint && (s.buildRemainingMs || 0) <= 0;
+  s.type === 'aa_turret' && s.health > 0 && !s.isBlueprint && (s.buildRemainingMs || 0) <= 0 && !s.dismantle;
 
 interface Gun {
   id: string;

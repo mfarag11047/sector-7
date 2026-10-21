@@ -543,7 +543,7 @@ const STRUCTURE_TEXT: Partial<Record<StructureType, string>> = {
 const StructuresTab: React.FC<{ onOpen: (t: UnitType) => void }> = ({ onOpen }) => (
   <div>
     <Legend />
-    <p className="text-slate-400 text-xs mb-4">Every free building pad and turret corner around your Command HQs is marked with a +: click it and pick what to build there. Double-click a finished structure to train from it. Turrets and walls need a Depot and Masons to build; walls come from the Depot menu.</p>
+    <p className="text-slate-400 text-xs mb-4">Every free building pad and turret corner around your Command HQs is marked with a +: click it and pick what to build there. Double-click a finished structure to train from it. Any base building or turret can be disassembled from its menu: it comes down over 8s and pays back half its cost (one still going up is cancelled with all its cost back). Turrets and walls need a Depot and Masons to build; walls come from the Depot menu.</p>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
       {STRUCTURE_ORDER.map(s => {
         const info = STRUCTURE_INFO[s];

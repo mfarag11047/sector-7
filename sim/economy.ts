@@ -154,6 +154,10 @@ export function spendCompute(economy: Economy, team: Team, amount: number): Econ
   return withTeam(economy, team, { compute: economy[team].compute - amount });
 }
 
+// Cores and compute given back (a cancelled order, a building taken down).
+export const refund = (economy: Economy, team: Team, cores: number, compute = 0): Economy =>
+  withTeam(economy, team, { cores: economy[team].cores + cores, compute: economy[team].compute + compute });
+
 export function setCompute(economy: Economy, team: Team, compute: number): Economy {
   return withTeam(economy, team, { compute: Math.max(0, compute) });
 }

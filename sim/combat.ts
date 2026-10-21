@@ -87,6 +87,7 @@ export interface CombatStructure {
   health: number;
   isBlueprint: boolean;
   buildRemainingMs?: number;
+  dismantle?: unknown;
   lastAttackTime?: number;
   combatTargetId?: string | null;
 }
@@ -233,7 +234,7 @@ export function resolveAttacks(
 
   for (const s of structures) {
     const weapon = STRUCTURE_RULES[s.type].weapon;
-    if (!weapon || weapon.ciws || s.health <= 0 || s.isBlueprint || (s.buildRemainingMs || 0) > 0) continue;
+    if (!weapon || weapon.ciws || s.health <= 0 || s.isBlueprint || (s.buildRemainingMs || 0) > 0 || s.dismantle) continue;
     const target = pick(s.team, s.gridPos, weapon, s.combatTargetId);
     result.aiming.set(s.id, target ? target.id : null);
     if (!target || now - (s.lastAttackTime || 0) < weapon.cooldownMs) continue;

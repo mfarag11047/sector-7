@@ -241,6 +241,8 @@ export interface StructureData {
   // A Core Refinery's level (1 unless upgraded) and its upgrade to level 2 in progress (sim/refinery.ts).
   refineryLevel?: 1 | 2;
   refineryUpgrade?: { remainingMs: number; totalMs: number };
+  // Being taken down by its owner, and what that pays back when done (sim/dismantle.ts).
+  dismantle?: { remainingMs: number; totalMs: number; refund: number };
   // Base structures take time to go up and cannot train or fire until finished.
   buildRemainingMs?: number;
   buildTotalMs?: number;

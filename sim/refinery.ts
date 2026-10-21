@@ -32,7 +32,7 @@ export const levelOf = (s: Pick<StructureData, 'refineryLevel'>): 1 | 2 => (s.re
 
 // Finished, standing and not a blueprint: the ones that pay.
 export const isWorkingRefinery = (s: StructureData) =>
-  s.type === 'refinery' && s.health > 0 && !s.isBlueprint && !((s.buildRemainingMs ?? 0) > 0);
+  s.type === 'refinery' && s.health > 0 && !s.isBlueprint && !((s.buildRemainingMs ?? 0) > 0) && !s.dismantle;
 
 export interface RefineryIncome {
   // Working refineries.

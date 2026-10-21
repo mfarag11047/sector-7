@@ -57,11 +57,12 @@ import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artil
 import { teamPads } from '../sim/baseLayout';
 import BuildPads, { FreePad } from './BuildPads';
 import { advanceRefineryUpgrades, REFINERY, refineriesOf, refineryLimit } from '../sim/refinery';
+import { advanceDismantling } from '../sim/dismantle';
 import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
 import { applyFieldCloak, CLOAK_FIELD, fieldCloakedIds, generatorsReplacedBy, isCloakFieldUp, isHidden } from '../sim/cloak';
 import { Victory, checkVictory } from '../sim/victory';
 import type { MatchSummary } from './MatchScreens';
-import { Economy, createEconomy, incomeBreakdown, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
+import { Economy, createEconomy, incomeBreakdown, refund, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
 import { dampenedUnits } from '../sim/ghost';
 import { heliosBeams, microwaveDamage } from '../sim/helios';
@@ -2717,7 +2718,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           onNotice?.(team === playerTeam ? `Tier ${command.tier} researched: new units and doctrine powers unlocked; research their upgrades at Advanced Research` : `The enemy has reached Tier ${command.tier}`, team === playerTeam ? 'info' : 'warn');
       }
       if (fx.unitUpdates.size > 0) setUnits(prev => applyOrderToUnits(prev, fx));
-      if (fx.structureUpdates.size > 0 || fx.newStructures.length > 0) setStructuresState(prev => applyOrderToStructures(prev, fx));
+      if (fx.structureUpdates.size > 0 || fx.newStructures.length > 0 || fx.removeStructures?.length) setStructuresState(prev => applyOrderToStructures(prev, fx));
       return true;
   };
   dispatchOrderRef.current = dispatchOrder;
@@ -3033,8 +3034,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (didDragRef.current) return;
 
       const struct = structuresState.find(s => s.id === id);
-      const validTypes = ['support', 'infantry', 'armor', 'ordnance', 'air', 'builder', 'ordnance_fab', 'research_lab', 'refinery'];
-      if (struct && validTypes.includes(struct.type) && struct.team === playerTeam && !struct.isBlueprint) {
+      const validTypes = ['support', 'infantry', 'armor', 'ordnance', 'air', 'builder', 'ordnance_fab', 'research_lab', 'refinery', 'defense', 'aa_turret'];
+      if (struct && validTypes.includes(struct.type) && struct.team === playerTeam) {
           setDepotMenuOpenId(id);
       }
   };
@@ -3044,6 +3045,16 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       const struct = structuresState.find(s => s.id === depotMenuOpenId);
       if (!struct) return;
 
+      if (action === 'DISASSEMBLE') {
+          const wasDismantling = !!struct.dismantle;
+          const unfinished = struct.isBlueprint || (struct.buildRemainingMs || 0) > 0;
+          if (dispatchOrder({ type: 'DISASSEMBLE_STRUCTURE', structureId: struct.id })) {
+              if (wasDismantling) onNotice?.(`Stopped disassembling the ${STRUCTURE_INFO[struct.type].label}`);
+              else if (unfinished) { onNotice?.(`${STRUCTURE_INFO[struct.type].label} cancelled: cores refunded`); setDepotMenuOpenId(null); }
+              else onNotice?.(`Disassembling the ${STRUCTURE_INFO[struct.type].label}`);
+          }
+          return;
+      }
       if (action === 'UPGRADE_REFINERY' && struct.type === 'refinery') {
           if (dispatchOrder({ type: 'UPGRADE_REFINERY', structureId: struct.id })) onNotice?.(`Core Refinery upgrading: level 2 in ${REFINERY.upgrade.ms / 1000}s`);
           return;
@@ -3782,6 +3793,21 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   return r ? { ...s, refineryLevel: r.refineryLevel, refineryUpgrade: r.refineryUpgrade } : s;
               }));
               if (refits.finished.some(s => s.team === playerTeam)) onNotice?.(`Core Refinery upgraded to level 2: +${REFINERY.flat[2]} cores/s`);
+          }
+
+          // Buildings being taken down (sim/dismantle.ts): gone when done, with their refund.
+          const teardown = advanceDismantling(structuresRef.current, productionStep(null));
+          if (teardown.structures !== structuresRef.current) {
+              const remaining = new Map(teardown.structures.map(s => [s.id, s]));
+              structuresRef.current = teardown.structures;
+              setStructuresState(prev => prev.filter(s => remaining.has(s.id)).map(s => {
+                  const d = remaining.get(s.id)!;
+                  return d.dismantle !== s.dismantle ? { ...s, dismantle: d.dismantle } : s;
+              }));
+              if (teardown.done.length > 0) {
+                  setEconomy(prev => teardown.done.reduce((e, d) => refund(e, d.team, d.refund), prev));
+                  for (const d of teardown.done) if (d.team === playerTeam) onNotice?.(`${STRUCTURE_INFO[d.type].label} disassembled: +${d.refund} cores`);
+              }
           }
 
           // Construction and training queues (sim/production.ts), same pattern as the fabs.
