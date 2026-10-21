@@ -288,7 +288,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 | **Guardian** | 220 | 2 | T1 | 300 | Light | Heals 3 allies, Trophy system |
 | **Helios** | 110 | 1 | T1 | 90 | Air | Wireless charging |
 | **Banshee** | 320 | 3 | T2 | 380 | Light | Jammer, drone tether |
-| **Ballista** | 380 | 3 | T3 | 160 | Light | EMP and HE missiles up to 39 tiles away, half the map (EMP: grid blackout and vehicle shutdown, 8 tiles, 20 s); missiles fly at 21 tiles/s |
+| **Ballista** | 380 | 3 | T3 | 160 | Light | EMP, HE and White Phosphorus missiles up to 39 tiles away, half the map (see [Ballista warheads](#ballista-warheads)); missiles fly at 21 tiles/s |
 
 ### Other producers
 
@@ -302,7 +302,8 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
     clear it fires on ground units within 6 tiles at half its flak damage (about 6/s to infantry
     and light vehicles, 3/s to heavy armour). 800 HP.
 - **Ordnance Fab:** Field Fabricator (260, T2), Swarm Host (340, T2, 3 pop, 30 s: anchors to release
-  up to 7 Crawler Drones that hunt nearby enemies) and EMP and HE warheads. Couriers are sent by
+  up to 7 Crawler Drones that hunt nearby enemies) and EMP (500), HE (300) and White Phosphorus (350)
+  warheads. Couriers are sent by
   Transfer Warhead, not trained.
 - **Command HQ:** 5000 HP; AP 30 / 1.0 s / 5, hits air.
 
@@ -342,6 +343,21 @@ and after 4 s without firing a part-used magazine is topped up. Ordnance has int
 health: missiles take 120 (2 s of fire), drop pods 180, shells 30. A downed missile
 bursts in the air and does nothing. The fire is drawn as a dense stream of glowing rounds; an
 enemy Aegis you can't see doesn't show its stream.
+
+## Ballista warheads
+
+Rules: `sim/warheads.ts`. Built at the Ordnance Fab (or by a Field Fabricator), taken and loaded by
+the Ballista. Each suits a different enemy, so what you build follows what you face.
+
+- **EMP** (500): see [EMP](#emp). Shuts down vehicles and aircraft and blacks out the grid.
+- **HE** (300, 15 s): anti-armour. A 4-tile blast, 150 at the centre falling off to nothing at the
+  edge, times x2 against heavy armour, x1.25 against light vehicles and only x0.4 against infantry
+  and aircraft. A direct hit takes half a tank.
+- **White Phosphorus** (350, 17 s): anti-infantry. Flies in like the others but bursts 14 units over
+  the target, throwing 14 small canisters on white smoke trails across a 6-tile radius. Where they
+  land they lay a burning white gas that lingers for 20 s, doing 12 damage a second to every enemy
+  infantry unit inside (Nano-Weave reduces it). Vehicles, aircraft, structures and your own side
+  are untouched. A trooper that stays in it dies in about 8 s.
 
 ## EMP
 
@@ -737,8 +753,10 @@ same kind of economy.
    - **Swarm Host** (T2) anchors to release Crawlers when a fight is close.
    - **Wasps** fire **swarm volleys** into enemy groups.
    - **Bombardment Drones** (T3) strike enemy production, never on top of its own units.
-   - **Ballista** (T3) stays by the Ordnance Fab, which keeps two **warheads** coming (EMP against
-     a heavy army, otherwise HE); it takes, loads and fires them at big enemy groups or structures. It only fires at targets within its 39-tile range.
+   - **Ballista** (T3) stays by the Ordnance Fab, which keeps two **warheads** coming, of
+     the kind that suits your army (White Phosphorus against mostly infantry, EMP against a big air
+     wing, otherwise HE); it loads the best one it holds and fires White Phosphorus at the thickest
+     infantry crowd, HE at the thickest knot of vehicles or else a structure. It only fires at targets within its 39-tile range.
    - **Masons** put up 1 (Normal) or 2 (Hard) **Sentry Turrets** on the turret corners facing
      you.
    - When rich, with a unit beside a cleared block, it builds a **new Command HQ** (up to 2 on

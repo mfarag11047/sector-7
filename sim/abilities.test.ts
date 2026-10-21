@@ -60,11 +60,11 @@ describe('who may give an order', () => {
 });
 
 describe('Ballista and Field Fabricator', () => {
-  const ballista = (patch: Partial<UnitData> = {}) => unit('b', { type: 'ballista', unitClass: 'support', missileInventory: { emp: 1, he: 1 }, ammoState: 'empty', ...patch });
+  const ballista = (patch: Partial<UnitData> = {}) => unit('b', { type: 'ballista', unitClass: 'support', missileInventory: { emp: 1, he: 1, wp: 0 }, ammoState: 'empty', ...patch });
 
   it('loads a missile from the inventory', () => {
     expect(after(run(view([ballista()]), { type: 'LOAD_AMMO', unitId: 'b', warhead: 'he' }), 'b'))
-      .toMatchObject({ ammoState: 'loading', loadedAmmo: 'he', missileInventory: { emp: 1, he: 0 } });
+      .toMatchObject({ ammoState: 'loading', loadedAmmo: 'he', missileInventory: { emp: 1, he: 0, wp: 0 } });
   });
 
   it('will not load over an armed missile, which used to throw it away', () => {
@@ -91,7 +91,7 @@ describe('Ballista and Field Fabricator', () => {
     expect(run(view([ballista()], { economy }), { type: 'TAKE_WARHEAD', unitId: 'b', warhead: 'emp' }).refused).toMatch(/Fab/);
     const r = run(view([ballista()], { economy, structures: [fab()] }), { type: 'TAKE_WARHEAD', unitId: 'b', warhead: 'emp' });
     expect(r.fx!.economy!(economy)!.blue.stockpile.emp).toBe(0);
-    expect(after(r, 'b').missileInventory).toEqual({ emp: 2, he: 1 });
+    expect(after(r, 'b').missileInventory).toEqual({ emp: 2, he: 1, wp: 0 });
   });
 
   it('charges cores to fabricate and refuses when broke', () => {

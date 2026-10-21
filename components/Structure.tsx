@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { MAX_QUEUE } from '../sim/orders';
 import { TIER_REQUIREMENT, UNIT_RULES, unitsProducedBy } from '../sim/units';
+import { WARHEAD_LABEL } from '../sim/warheads';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
 
@@ -24,7 +25,7 @@ interface StructureProps {
   onAction?: (action: string, payload?: any) => void;
   hasMason?: boolean;
   resources?: number;
-  warheadStock?: { emp: number; he: number };
+  warheadStock?: { emp: number; he: number; wp: number };
   // The owner's tech tier and population, for the production menu.
   tier?: number;
   popUsed?: number;
@@ -1109,12 +1110,12 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                         <>
                             <div className="text-[10px] text-slate-400 font-mono uppercase mb-1 px-1 mt-2 border-t border-slate-700 pt-1">Warheads</div>
                             <div className="text-[9px] text-slate-500 font-mono px-1 mb-1">
-                                EMP {warheadStock?.emp ?? 0} · HE {warheadStock?.he ?? 0}
+                                EMP {warheadStock?.emp ?? 0} · HE {warheadStock?.he ?? 0} · WP {warheadStock?.wp ?? 0}
                             </div>
                             {data.production?.active && (
                                 <div className="px-1 mb-1">
                                     <div className="text-[9px] text-yellow-300 font-mono uppercase">
-                                        Building {data.production.item === 'emp' ? 'EMP' : 'HE'} {Math.min(100, Math.floor((data.production.progress / data.production.totalTime) * 100))}%
+                                        Building {WARHEAD_LABEL[data.production.item]} {Math.min(100, Math.floor((data.production.progress / data.production.totalTime) * 100))}%
                                     </div>
                                     <div className="hud-meter w-full h-1.5 mt-1">
                                         <div className="hud-meter-cell h-full" style={{ width: `${Math.max(4, Math.min(100, (data.production.progress / data.production.totalTime) * 100))}%` }} />
@@ -1123,7 +1124,8 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                             )}
                             {([
                                 { item: 'emp' as const, label: 'EMP Missile', cost: ABILITY_CONFIG.WARHEAD_COST_EMP, seconds: ABILITY_CONFIG.WARHEAD_BUILD_TIME_EMP / 1000 },
-                                { item: 'he' as const, label: 'HE Missile', cost: ABILITY_CONFIG.WARHEAD_COST_HE, seconds: ABILITY_CONFIG.WARHEAD_BUILD_TIME_HE / 1000 },
+                                { item: 'he' as const, label: 'HE Missile (anti-armour)', cost: ABILITY_CONFIG.WARHEAD_COST_HE, seconds: ABILITY_CONFIG.WARHEAD_BUILD_TIME_HE / 1000 },
+                                { item: 'wp' as const, label: 'White Phosphorus (anti-infantry)', cost: ABILITY_CONFIG.WARHEAD_COST_WP, seconds: ABILITY_CONFIG.WARHEAD_BUILD_TIME_WP / 1000 },
                             ]).map(missile => {
                                 const busy = !!data.production?.active;
                                 const canAfford = resources >= missile.cost && !busy;
@@ -1135,7 +1137,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                         className={`flex items-center justify-between px-3 py-2 text-left transition-colors rounded text-xs font-mono ${canAfford ? 'hover:bg-slate-700 text-slate-200' : 'opacity-50 text-slate-500 cursor-not-allowed'}`}
                                     >
                                         <div className="flex flex-col">
-                                            <span className={missile.item === 'emp' ? 'text-sky-300' : 'text-red-300'}>{missile.label}</span>
+                                            <span className={missile.item === 'emp' ? 'text-sky-300' : missile.item === 'wp' ? 'text-orange-200' : 'text-red-300'}>{missile.label}</span>
                                             <span className="text-[9px] text-slate-500">{missile.seconds}s</span>
                                         </div>
                                         <span>{missile.cost}</span>

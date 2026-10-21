@@ -77,9 +77,9 @@ describe('computer opponent: abilities', () => {
   it('takes, loads and fires Ballista warheads', () => {
     const ballista = unit('bal', { type: 'ballista', unitClass: 'support', ammoState: 'empty' });
     const economy = createEconomy();
-    economy.red = { ...economy.red, stockpile: { emp: 0, he: 1 } };
+    economy.red = { ...economy.red, stockpile: { emp: 0, he: 1, wp: 0 } };
     expect(commands(abilities({ mine: [ballista], economy }))).toContain('TAKE_WARHEAD');
-    expect(commands(abilities({ mine: [{ ...ballista, missileInventory: { emp: 0, he: 1 } }] }))).toContain('LOAD_AMMO');
+    expect(commands(abilities({ mine: [{ ...ballista, missileInventory: { emp: 0, he: 1, wp: 0 } }] }))).toContain('LOAD_AMMO');
     const cluster = [0, 1, 2, 3].map(i => unit(`e${i}`, { type: 'tank', unitClass: 'armor', team: 'blue', gridPos: { x: 20 + i, z: 20 }, health: 600, maxHealth: 600 }));
     const fired = abilities({ mine: [{ ...ballista, ammoState: 'armed', loadedAmmo: 'he' }], theirs: cluster }).find(a => a.command.type === 'FIRE_BALLISTA');
     expect(fired).toBeDefined();

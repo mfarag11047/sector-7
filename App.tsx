@@ -24,7 +24,7 @@ const INITIAL_STATS: GameStats = {
     compute: 0,
     units: 0, 
     buildings: { residential: 0, commercial: 0, industrial: 0, hightech: 0, server_node: 0, core_node: 0 },
-    stockpile: { emp: 0, he: 0 },
+    stockpile: { emp: 0, he: 0, wp: 0 },
     doctrine: { selected: null, unlockedTiers: 0, cooldowns: { tier2: 0, tier3: 0 } }
   },
   red: { 
@@ -33,7 +33,7 @@ const INITIAL_STATS: GameStats = {
     compute: 0,
     units: 0, 
     buildings: { residential: 0, commercial: 0, industrial: 0, hightech: 0, server_node: 0, core_node: 0 },
-    stockpile: { emp: 0, he: 0 },
+    stockpile: { emp: 0, he: 0, wp: 0 },
     doctrine: { selected: null, unlockedTiers: 0, cooldowns: { tier2: 0, tier3: 0 } }
   }
 };

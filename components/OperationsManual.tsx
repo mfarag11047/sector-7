@@ -22,6 +22,7 @@ import { CIWS, ORDNANCE_INTEGRITY } from '../sim/ciws';
 import { HQ_INCOME } from '../sim/economy';
 import { abilitiesFor } from '../sim/unitAbilities';
 import { abilityUpgrade, upgradesFor } from '../sim/upgrades';
+import { HE, WP } from '../sim/warheads';
 import {
   ArmorClass, COMPUTE_PER_SERVER_NODE, DAMAGE_MULTIPLIER, DamageType, dps, GRID_TILES_PER_POP, HQ_COMPUTE, POP_BASE, POP_MAX, POP_PER_CORE_NODE,
   STRUCTURE_RULES, Tier, TIER_RESEARCH_COST, UNIT_RULES, unitsProducedBy, Weapon,
@@ -145,17 +146,17 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
     ],
   },
   ballista: {
-    use: 'Missile launcher. Strikes up to half the map away (39 tiles, red ring when selected) with EMP or HE warheads built at the Ordnance Fab.',
+    use: 'Missile launcher. Strikes up to half the map away (39 tiles, red ring when selected) with EMP, HE or White Phosphorus warheads built at the Ordnance Fab.',
     actions: [
       { name: 'Take / Load', text: 'Take warheads from your stockpile beside an Ordnance Fab, then load one.' },
-      { name: 'Launch', text: `Fires the loaded missile at any tile. HE burns infantry and light aircraft in a ${ABILITY_CONFIG.HE_RADIUS}-tile cloud; EMP knocks out the enemy energy grid within ${ABILITY_CONFIG.EMP_RADIUS} tiles and shuts down every enemy vehicle and aircraft caught in the blast, both for ${ABILITY_CONFIG.EMP_DURATION / 1000}s.` },
+      { name: 'Launch', text: `Fires the loaded missile at any tile. HE is anti-armour: a ${HE.radius}-tile blast of ${HE.damage} at the centre, x${HE.vs.heavy} against heavy armour and x${HE.vs.light} against light vehicles, but only x${HE.vs.infantry} against infantry and aircraft. White Phosphorus bursts high over the target into ${WP.canisters} canisters that blanket ${WP.radius} tiles in burning white gas for ${WP.durationMs / 1000}s, ${WP.dps} damage a second to enemy infantry inside it (vehicles and aircraft are untouched). EMP knocks out the enemy energy grid within ${ABILITY_CONFIG.EMP_RADIUS} tiles and shuts down every enemy vehicle and aircraft caught in the blast, both for ${ABILITY_CONFIG.EMP_DURATION / 1000}s.` },
     ],
   },
   mason: { use: 'Combat engineer. Place walls and turrets from the Depot and Masons haul materials to build them.' },
   mule: {
     use: 'Field Fabricator. Builds missiles at the front and hands them to Ballistas.',
     actions: [
-      { name: 'Fabricate', text: `Turns material into an EMP or HE missile (${ABILITY_CONFIG.FABRICATOR_BUILD_TIME / 1000}s each, ${ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY} material).` },
+      { name: 'Fabricate', text: `Turns material into an EMP, HE or White Phosphorus missile (${ABILITY_CONFIG.FABRICATOR_BUILD_TIME / 1000}s each, ${ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY} material).` },
       { name: 'Transfer', text: 'Hands a finished missile to a Ballista alongside.' },
     ],
   },

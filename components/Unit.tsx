@@ -25,6 +25,7 @@ import { ScoutCarModel } from './ScoutCarModel';
 import { Meter, METER_COLORS, UnitBars } from './UnitBars';
 import { abilityUnlocked, artilleryTierOf, type UpgradeId } from '../sim/upgrades';
 import { shieldMax } from '../sim/kestrel';
+import { WARHEAD_LABEL } from '../sim/warheads';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
 
@@ -198,17 +199,17 @@ interface UnitProps {
   isBatteryLinkCandidate?: boolean;
   batteryTetherIds?: string[];
   ammoState?: 'empty' | 'loading' | 'armed' | 'awaiting_delivery';
-  loadedAmmo?: 'emp' | 'he' | null;
-  missileInventory?: { emp: number; he: number }; // Added
+  loadedAmmo?: 'emp' | 'he' | 'wp' | null;
+  missileInventory?: { emp: number; he: number; wp: number }; // Added
   ordnanceMaterial?: number;
-  fabrication?: { active: boolean; item: 'emp' | 'he'; progress: number; totalTime: number };
+  fabrication?: { active: boolean; item: 'emp' | 'he' | 'wp'; progress: number; totalTime: number };
   atOrdnanceFab?: boolean;
   ballistaInRange?: boolean;
   cores?: number;
-  warheadStock?: { emp: number; he: number };
+  warheadStock?: { emp: number; he: number; wp: number };
   loadingProgress?: number;
   courierTargetId?: string;
-  courierPayload?: 'emp' | 'he';
+  courierPayload?: 'emp' | 'he' | 'wp';
   bombardmentTarget?: { x: number; z: number } | null;
   bombardMunitions?: number;
   blackwallInfectedAt?: number;
@@ -854,7 +855,7 @@ const Unit: React.FC<UnitProps> = ({
                          {(ammoState === 'armed' || ammoState === 'loading') && (
                              <group position={[0, 0.2, 0.2]} scale={ammoState === 'loading' ? [0.9, 0.9, 0.9] : [1,1,1]}>
                                  <mesh rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.3, 0.3, 2.4, 8]} /><meshStandardMaterial color="#e2e8f0" metalness={0.4} transparent={ammoState === 'loading'} opacity={ammoState === 'loading' ? 0.5 : 1.0} /></mesh>
-                                 <mesh position={[0, 0, -1.4]} rotation={[Math.PI/2, 0, 0]}><coneGeometry args={[0.3, 0.6, 8]} /><meshStandardMaterial color={loadedAmmo === 'emp' ? '#38bdf8' : '#ef4444'} emissive={loadedAmmo === 'emp' ? '#38bdf8' : '#ef4444'} emissiveIntensity={0.5} transparent={ammoState === 'loading'} opacity={ammoState === 'loading' ? 0.5 : 1.0} /></mesh>
+                                 <mesh position={[0, 0, -1.4]} rotation={[Math.PI/2, 0, 0]}><coneGeometry args={[0.3, 0.6, 8]} /><meshStandardMaterial color={loadedAmmo === 'emp' ? '#38bdf8' : loadedAmmo === 'wp' ? '#f8fafc' : '#ef4444'} emissive={loadedAmmo === 'emp' ? '#38bdf8' : loadedAmmo === 'wp' ? '#fdba74' : '#ef4444'} emissiveIntensity={0.5} transparent={ammoState === 'loading'} opacity={ammoState === 'loading' ? 0.5 : 1.0} /></mesh>
                                  <mesh position={[0, 0, -1.0]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.31, 0.31, 0.2, 8]} /><meshBasicMaterial color="#f97316" transparent={ammoState === 'loading'} opacity={ammoState === 'loading' ? 0.5 : 1.0} /></mesh>
                                  {[0, Math.PI/2, Math.PI, -Math.PI/2].map((r, i) => ( <mesh key={i} position={[0, 0, 0.8]} rotation={[0, 0, r]}><boxGeometry args={[0.05, 0.8, 0.6]} /><meshStandardMaterial color="#475569" /></mesh> ))}
                              </group>
@@ -1495,21 +1496,23 @@ const Unit: React.FC<UnitProps> = ({
                       const material = ordnanceMaterial ?? 0;
                       const empReady = missileInventory?.emp ?? 0;
                       const heReady = missileInventory?.he ?? 0;
-                      const held = empReady + heReady;
+                      const wpReady = missileInventory?.wp ?? 0;
+                      const held = empReady + heReady + wpReady;
                       const room = ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY - held;
                       const busy = !!fabrication?.active;
                       const canFabricateEmp = material > 0 && !busy && (cores ?? 0) >= ABILITY_CONFIG.WARHEAD_COST_EMP;
                       const canFabricateHe = material > 0 && !busy && (cores ?? 0) >= ABILITY_CONFIG.WARHEAD_COST_HE;
+                      const canFabricateWp = material > 0 && !busy && (cores ?? 0) >= ABILITY_CONFIG.WARHEAD_COST_WP;
                       const canLoad = !!atOrdnanceFab && material < room;
                       return (
                           <>
                               <div className="text-[9px] text-slate-400 uppercase font-mono mb-1">Field Fabricator</div>
                               <div className="text-[10px] text-amber-300 px-2 py-1 bg-slate-900/50 rounded">Material {material}/{ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY}</div>
-                              <div className="text-[9px] text-slate-500 font-mono px-1">EMP {empReady} · HE {heReady}</div>
+                              <div className="text-[9px] text-slate-500 font-mono px-1">EMP {empReady} · HE {heReady} · WP {wpReady}</div>
                               {busy && fabrication && (
                                   <div className="px-1">
                                       <div className="text-[9px] text-yellow-300 font-mono uppercase">
-                                          Fabricating {fabrication.item === 'emp' ? 'EMP' : 'HE'} {Math.min(100, Math.floor((fabrication.progress / fabrication.totalTime) * 100))}%
+                                          Fabricating {WARHEAD_LABEL[fabrication.item]} {Math.min(100, Math.floor((fabrication.progress / fabrication.totalTime) * 100))}%
                                       </div>
                                       <div className="hud-meter w-full h-1.5 mt-1">
                                           <div className="hud-meter-cell h-full" style={{ width: `${Math.max(4, Math.min(100, (fabrication.progress / fabrication.totalTime) * 100))}%` }} />
@@ -1518,6 +1521,7 @@ const Unit: React.FC<UnitProps> = ({
                               )}
                               <button onClick={(e) => { e.stopPropagation(); handleMenuAction('FABRICATE_EMP'); }} disabled={!canFabricateEmp} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-sky-400 px-2 py-1 rounded text-left flex justify-between disabled:opacity-40"><span>Fabricate EMP</span><span>{ABILITY_CONFIG.WARHEAD_COST_EMP}</span></button>
                               <button onClick={(e) => { e.stopPropagation(); handleMenuAction('FABRICATE_HE'); }} disabled={!canFabricateHe} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-red-400 px-2 py-1 rounded text-left flex justify-between disabled:opacity-40"><span>Fabricate HE</span><span>{ABILITY_CONFIG.WARHEAD_COST_HE}</span></button>
+                              <button onClick={(e) => { e.stopPropagation(); handleMenuAction('FABRICATE_WP'); }} disabled={!canFabricateWp} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-orange-200 px-2 py-1 rounded text-left flex justify-between disabled:opacity-40"><span>Fabricate WP</span><span>{ABILITY_CONFIG.WARHEAD_COST_WP}</span></button>
                               {canLoad && (
                                   <button onClick={(e) => { e.stopPropagation(); handleMenuAction('RESUPPLY_MATERIAL'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-amber-300 px-2 py-1 rounded text-left">Load Material</button>
                               )}
@@ -1532,6 +1536,9 @@ const Unit: React.FC<UnitProps> = ({
                               )}
                               {heReady > 0 && (
                                   <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TRANSFER_HE'); }} disabled={!ballistaInRange} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-red-300 px-2 py-1 rounded text-left disabled:opacity-40">Transfer HE ({heReady})</button>
+                              )}
+                              {wpReady > 0 && (
+                                  <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TRANSFER_WP'); }} disabled={!ballistaInRange} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-orange-200 px-2 py-1 rounded text-left disabled:opacity-40">Transfer WP ({wpReady})</button>
                               )}
                               {held > 0 && !ballistaInRange && (
                                   <div className="text-[9px] text-slate-500 px-1">Drive to a Ballista to hand off missiles</div>
@@ -1548,6 +1555,7 @@ const Unit: React.FC<UnitProps> = ({
                                   <>
                                     <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TAKE_EMP'); }} disabled={!warheadStock?.emp} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-sky-400 px-2 py-1 rounded text-left disabled:opacity-40">Take EMP ({warheadStock?.emp ?? 0})</button>
                                     <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TAKE_HE'); }} disabled={!warheadStock?.he} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-red-400 px-2 py-1 rounded text-left disabled:opacity-40">Take HE ({warheadStock?.he ?? 0})</button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TAKE_WP'); }} disabled={!warheadStock?.wp} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-orange-200 px-2 py-1 rounded text-left disabled:opacity-40">Take WP ({warheadStock?.wp ?? 0})</button>
                                   </>
                                 ) : (
                                   <div className="text-[9px] text-slate-500 px-1">Drive to an Ordnance Fab to resupply</div>
@@ -1557,6 +1565,9 @@ const Unit: React.FC<UnitProps> = ({
                                 )}
                                 {missileInventory && missileInventory.he > 0 && (
                                      <button onClick={(e) => { e.stopPropagation(); handleMenuAction('LOAD_AMMO_HE'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-red-400 px-2 py-1 rounded text-left">Load HE ({missileInventory.he})</button>
+                                )}
+                                {missileInventory && missileInventory.wp > 0 && (
+                                     <button onClick={(e) => { e.stopPropagation(); handleMenuAction('LOAD_AMMO_WP'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-orange-200 px-2 py-1 rounded text-left">Load WP ({missileInventory.wp})</button>
                                 )}
                               </>
                           )}

@@ -27,6 +27,7 @@ import type { OrderCommand } from './orders';
 import { isOperational } from './orders';
 import { freePadsFor } from './baseLayout';
 import { type Tier, UNIT_RULES } from './units';
+import { HE, inventoryOf, missilesHeld, WARHEAD_LIST, WP } from './warheads';
 import type { AiStrategy } from './aiStrategy';
 
 type Action = { kind: 'order'; command: OrderCommand } | { kind: 'ability'; command: AbilityCommand };
@@ -298,27 +299,53 @@ export function specialistAbilities(c: AbilityContext2): Action[] {
   return actions;
 }
 
+// The warhead that best fits what the enemy fields: White Phosphorus against an infantry army,
+// EMP against a big air wing, otherwise high explosive for the armour.
+export function preferredWarhead(theirs: readonly UnitData[]): Warhead {
+  const army = theirs.filter(t => !!UNIT_RULES[t.type].weapon || t.unitClass === 'infantry');
+  if (army.length === 0) return 'he';
+  const count = (armor: string) => army.filter(t => UNIT_RULES[t.type].armor === armor).length;
+  const infantry = count('infantry');
+  const armour = count('heavy') + count('light');
+  if (count('air') > army.length * 0.35) return 'emp';
+  return infantry >= armour ? 'wp' : 'he';
+}
+
+// Where an armed Ballista's missile does the most good, within its reach (half the map across).
+function ballistaTarget(u: UnitData, c: AbilityContext2, enemy: Team): GridPos | null {
+  const reach = (p: GridPos) => dist(p, u.gridPos) <= ABILITY_CONFIG.BALLISTA_RANGE;
+  const inReach = c.theirs.filter(t => t.type !== 'defense_drone' && reach(t.gridPos));
+  const structure = c.structures.filter(s => s.team === enemy && s.health > 0 && s.type !== 'hq' && !s.isBlueprint && reach(s.gridPos))
+    .sort((a, b) => dist(a.gridPos, c.home) - dist(b.gridPos, c.home))[0];
+  if (u.loadedAmmo === 'wp') {
+    // The gas only burns infantry, and it covers a wide area: the thickest crowd of them.
+    const crowd = densest(inReach.filter(t => UNIT_RULES[t.type].armor === 'infantry'), WP.radius * 0.6);
+    return crowd && crowd.value >= 240 ? crowd.at : null;
+  }
+  if (u.loadedAmmo === 'he') {
+    // Anti-armour: the thickest knot of vehicles, else a building.
+    const armour = densest(inReach.filter(t => UNIT_RULES[t.type].armor === 'heavy' || UNIT_RULES[t.type].armor === 'light'), HE.radius * 0.6);
+    return armour && armour.value >= 500 ? armour.at : structure?.gridPos ?? (armour && armour.value >= 250 ? armour.at : null);
+  }
+  const cluster = densest(inReach, 2.5);
+  return cluster && cluster.value >= 450 ? cluster.at : structure?.gridPos ?? (cluster && cluster.value >= 200 ? cluster.at : null);
+}
+
 // The Ballista's cycle beside the Ordnance Fab: take a warhead, load it, fire it.
 function ballistaMoves(u: UnitData, c: AbilityContext2, enemy: Team): Action[] {
-  const carried = (u.missileInventory?.emp || 0) + (u.missileInventory?.he || 0);
   if (u.ammoState === 'armed') {
-    // Only what's within its reach, half the map across.
-    const reach = (p: GridPos) => dist(p, u.gridPos) <= ABILITY_CONFIG.BALLISTA_RANGE;
-    const cluster = densest(c.theirs.filter(t => t.type !== 'defense_drone' && reach(t.gridPos)), 2.5);
-    const structure = c.structures.filter(s => s.team === enemy && s.health > 0 && s.type !== 'hq' && !s.isBlueprint && reach(s.gridPos))
-      .sort((a, b) => dist(a.gridPos, c.home) - dist(b.gridPos, c.home))[0];
-    const at = cluster && cluster.value >= 450 ? cluster.at : structure?.gridPos ?? (cluster && cluster.value >= 200 ? cluster.at : null);
+    const at = ballistaTarget(u, c, enemy);
     return at ? [{ kind: 'ability', command: { type: 'FIRE_BALLISTA', unitId: u.id, target: { ...at } } }] : [];
   }
   if (u.ammoState === 'loading') return [];
-  if (carried > 0) {
-    const warhead: Warhead = (u.missileInventory?.he || 0) > 0 ? 'he' : 'emp';
-    return [{ kind: 'ability', command: { type: 'LOAD_AMMO', unitId: u.id, warhead } }];
-  }
-  const stock = c.economy[c.team].stockpile;
-  if (stock.he > 0) return [{ kind: 'ability', command: { type: 'TAKE_WARHEAD', unitId: u.id, warhead: 'he' } }];
-  if (stock.emp > 0) return [{ kind: 'ability', command: { type: 'TAKE_WARHEAD', unitId: u.id, warhead: 'emp' } }];
-  return [];
+  const want = preferredWarhead(c.theirs);
+  // The one that suits the enemy best, else whatever there is.
+  const pick = (have: Record<Warhead, number>): Warhead | null =>
+    have[want] > 0 ? want : WARHEAD_LIST.find(w => have[w] > 0) ?? null;
+  const carried = pick(inventoryOf(u));
+  if (carried) return [{ kind: 'ability', command: { type: 'LOAD_AMMO', unitId: u.id, warhead: carried } }];
+  const stocked = pick(c.economy[c.team].stockpile);
+  return stocked ? [{ kind: 'ability', command: { type: 'TAKE_WARHEAD', unitId: u.id, warhead: stocked } }] : [];
 }
 
 function bombardTarget(c: AbilityContext2, enemy: Team): GridPos | null {
@@ -356,15 +383,14 @@ export function baseMoves(c: BaseContext): { actions: Action[]; spent: number } 
   let spent = 0;
   const mineS = c.structures.filter(s => s.team === c.team);
 
-  // Warheads for the Ballista: keep a couple in hand, high explosive unless the enemy is mostly armour.
+  // Warheads for the Ballista: keep a couple in hand, of the kind that suits the enemy's army.
   const ballistas = c.mine.filter(u => u.type === 'ballista');
   const fab = mineS.find(s => s.type === 'ordnance_fab' && isOperational(s) && !s.production?.active);
   if (fab && ballistas.length > 0) {
     const stock = c.economy[c.team].stockpile;
-    const carried = ballistas.reduce((n, b) => n + (b.missileInventory?.emp || 0) + (b.missileInventory?.he || 0), 0);
-    const heavy = c.theirs.filter(t => UNIT_RULES[t.type].armor === 'heavy').length > c.theirs.length * 0.4;
-    const warhead: Warhead = heavy ? 'emp' : 'he';
-    if (stock.he + stock.emp + carried < 2 && c.cores - spent >= warheadCost(warhead) + 300) {
+    const carried = ballistas.reduce((n, b) => n + missilesHeld(b), 0);
+    const warhead = preferredWarhead(c.theirs);
+    if (stock.he + stock.emp + stock.wp + carried < 2 && c.cores - spent >= warheadCost(warhead) + 300) {
       actions.push({ kind: 'order', command: { type: 'BUILD_WARHEAD', structureId: fab.id, warhead } });
       spent += warheadCost(warhead);
     }

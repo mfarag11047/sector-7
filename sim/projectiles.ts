@@ -9,13 +9,14 @@
 
 import { ABILITY_CONFIG, CITY_CONFIG, STRUCTURE_INFO } from '../constants';
 import type { BuildingData, CloudData, DecoyData, Explosion, Projectile, StructureData, UnitData } from '../types';
-import { isAirType } from './units';
+import { ArmorClass, isAirType } from './units';
+import { HE, WP } from './warheads';
 import { FORCE_FIELD, type ForceField } from './forcefield';
 import { isHidden } from './cloak';
 
 // How fast a ballistic shot flies: Ballista warheads faster than drop pods.
 const cruiseSpeed = (p: Projectile) =>
-    p.payload === 'emp' || p.payload === 'he' ? ABILITY_CONFIG.BALLISTA_MISSILE_SPEED : ABILITY_CONFIG.MISSILE_CRUISE_SPEED;
+    p.payload === 'emp' || p.payload === 'he' || p.payload === 'wp' ? ABILITY_CONFIG.BALLISTA_MISSILE_SPEED : ABILITY_CONFIG.MISSILE_CRUISE_SPEED;
 
 // How far along its arc a ballistic missile is, 0 at launch to 1 at impact.
 export const ballisticProgress = (p: Projectile, nowMs: number) => {
@@ -48,9 +49,10 @@ export type LiveFlight = { shot: Projectile; impacted: boolean };
 export type FlightEvent =
     | { kind: 'explosion'; position: { x: number; y: number; z: number }; radius: number; duration: number; style?: Explosion['style'] }
     // ownerId: the unit that fired it, for the pacing report's damage tally.
-    | { kind: 'damage'; position: { x: number; y: number; z: number }; radius: number; damage: number; team: UnitData['team']; ownerId?: string }
+    // vs: damage multiplier by armour class (the HE missile is anti-armour).
+    | { kind: 'damage'; position: { x: number; y: number; z: number }; radius: number; damage: number; team: UnitData['team']; ownerId?: string; vs?: Record<ArmorClass, number> }
     | { kind: 'decoy'; id: string }
-    | { kind: 'cloud'; cloudType: 'nano' | 'emp'; position: { x: number; y: number; z: number }; team: CloudData['team'] }
+    | { kind: 'cloud'; cloudType: 'nano' | 'emp' | 'wp'; position: { x: number; y: number; z: number }; team: CloudData['team'] }
     | { kind: 'titan'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' }
     | { kind: 'cloak'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' }
     | { kind: 'field'; position: { x: number; y: number; z: number }; team: 'blue' | 'red' }
@@ -67,7 +69,7 @@ export const cloneProjectile = (p: Projectile): Projectile => ({
 
 // Trophy systems stop heavy ordnance only. Small-arms fire and swarm darts are not shots it can catch.
 export const isHeavyOrdnance = (p: Projectile) => {
-    if (p.trajectory === 'ballistic' && (p.payload === 'emp' || p.payload === 'he')) return true;
+    if (p.trajectory === 'ballistic' && (p.payload === 'emp' || p.payload === 'he' || p.payload === 'wp')) return true;
     if (p.trajectory === 'direct' && !p.payload && p.damage >= ABILITY_CONFIG.TITAN_CANNON_DAMAGE) return true;
     return false;
 };
@@ -115,6 +117,12 @@ export const advanceFlight = (
             events.push({ kind: 'cloud', cloudType: 'emp', position: p.targetPos, team: p.team });
             return events;
         }
+        if (p.payload === 'wp') {
+            // Bursts high over the target; the canisters fall and lay the gas (sim/warheads.ts).
+            events.push({ kind: 'explosion', position: { ...p.targetPos, y: p.targetPos.y + WP.burstHeight }, radius: 5, duration: 900, style: 'airburst' });
+            events.push({ kind: 'cloud', cloudType: 'wp', position: p.targetPos, team: p.team });
+            return events;
+        }
         events.push({
             kind: 'explosion',
             position: p.targetPos,
@@ -122,7 +130,7 @@ export const advanceFlight = (
             duration: p.payload === 'nano_canister' ? 500 : 1200,
         });
         if ((p.payload || 'he') === 'he') {
-            events.push({ kind: 'damage', position: p.targetPos, damage: 150, radius: 4 * tileSize, team: p.team, ownerId: p.ownerId });
+            events.push({ kind: 'damage', position: p.targetPos, damage: HE.damage, radius: HE.radius * tileSize, team: p.team, ownerId: p.ownerId, vs: p.payload === 'he' ? HE.vs : undefined });
         }
         if (p.payload === 'nano_cloud_master') events.push({ kind: 'cloud', cloudType: 'nano', position: p.targetPos, team: p.team });
         return events;

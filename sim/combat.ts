@@ -23,6 +23,8 @@ export interface Blast {
   radius: number; // World units
   damage: number;
   team: UnitData['team'];
+  // Damage multiplier by armour class (the Ballista's HE missile); full damage when absent.
+  vs?: Record<ArmorClass, number>;
 }
 
 // Damage to every enemy unit inside a blast, falling off linearly from full at the center
@@ -47,7 +49,7 @@ export function blastDamage(
       const dist = Math.hypot(b.position.x - ux, b.position.z - uz);
       if (dist > radius) continue;
       if (fields.length > 0 && shotBlocked(fields, b.team, { x: (b.position.x + offset) / tileSize, z: (b.position.z + offset) / tileSize }, u.gridPos)) continue;
-      addDamage(damage, u.id, b.damage * (1 - dist / radius));
+      addDamage(damage, u.id, b.damage * (1 - dist / radius) * (b.vs ? b.vs[UNIT_RULES[u.type].armor] : 1));
     }
   }
   return damage;

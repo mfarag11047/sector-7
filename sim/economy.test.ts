@@ -23,7 +23,7 @@ const CORE_INCOME = BUILDING_VALUES.core_node.income;
 describe('spending', () => {
   it('starts both teams with the same cores and empty stockpiles', () => {
     const e = createEconomy();
-    expect(e.blue).toEqual({ cores: STARTING_CORES, lifetimeIncome: 0, stockpile: { emp: 0, he: 0 }, compute: 0, lifetimeCompute: 0, tier: 1, upgrades: [] });
+    expect(e.blue).toEqual({ cores: STARTING_CORES, lifetimeIncome: 0, stockpile: { emp: 0, he: 0, wp: 0 }, compute: 0, lifetimeCompute: 0, tier: 1, upgrades: [] });
     expect(e.red).toEqual(e.blue);
   });
 
@@ -61,8 +61,8 @@ describe('warhead stockpile', () => {
   it('adds and draws per team and type', () => {
     let e = addWarheads(createEconomy(), 'red', 'he', 2);
     e = takeWarhead(e, 'red', 'he')!;
-    expect(e.red.stockpile).toEqual({ emp: 0, he: 1 });
-    expect(e.blue.stockpile).toEqual({ emp: 0, he: 0 });
+    expect(e.red.stockpile).toEqual({ emp: 0, he: 1, wp: 0 });
+    expect(e.blue.stockpile).toEqual({ emp: 0, he: 0, wp: 0 });
   });
 
   it('cannot draw from an empty stockpile', () => {
@@ -182,7 +182,7 @@ describe('HUD stats', () => {
       // Base plus one core node; the server node's 17 grid tiles in the map corner add nothing yet.
       popCap: POP_BASE + POP_PER_CORE_NODE,
       gridTiles: 17,
-      stockpile: { emp: 1, he: 0 },
+      stockpile: { emp: 1, he: 0, wp: 0 },
       // Doctrine powers unlock with the researched tier.
       doctrine: { unlockedTiers: 2 },
     });

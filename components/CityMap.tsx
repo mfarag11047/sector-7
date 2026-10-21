@@ -52,6 +52,7 @@ import { airPath, fastestPath, sentinelHazardOf } from '../sim/pathfinding';
 import { fireFlechettes, regenerateShield, shieldedHit } from '../sim/kestrel';
 import { markScreened, pruneSmoke, SMOKE, SmokeScreen } from '../sim/titan';
 import { armMules, countdownOf, dueCharges, VOLT, VoltCharge, voltBlasts } from '../sim/voltCore';
+import { canisterSpots, HE, WARHEAD_LIST, WP, wpGasDamage } from '../sim/warheads';
 import { addUpgrades, advanceResearch, applyResearch, artilleryTierOf, hasUpgrade, upgradeDef, type UpgradeId } from '../sim/upgrades';
 import { BUILDING_PADS, freePadsFor, isPad, padKindOf, teamPads, TURRET_PADS } from '../sim/baseLayout';
 import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
@@ -251,7 +252,9 @@ const DetailedMissileModel = ({ color }: { color: string }) => {
 
 // CloudMesh Component
 const CloudMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number; playerTeam: 'blue' | 'red' }> = (props) =>
-    props.cloud.type === 'emp' ? <EmpFieldMesh cloud={props.cloud} tileSize={props.tileSize} offset={props.offset} /> : <SmokeCloudMesh {...props} />;
+    props.cloud.type === 'emp' ? <EmpFieldMesh cloud={props.cloud} tileSize={props.tileSize} offset={props.offset} />
+    : props.cloud.type === 'wp' ? <WpGasMesh cloud={props.cloud} tileSize={props.tileSize} offset={props.offset} />
+    : <SmokeCloudMesh {...props} />;
 const SmokeCloudMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number; playerTeam: 'blue' | 'red' }> = ({ cloud, tileSize, offset, playerTeam }) => {
     const meshRef = useRef<THREE.Mesh>(null);
     
@@ -385,7 +388,7 @@ const ProjectileMesh: React.FC<{ projectile: Projectile; flightRef: React.Mutabl
     }
 
     if (projectile.trajectory === 'ballistic') {
-        const payloadColor = projectile.payload === 'emp' ? EMP_BLUE : '#ef4444';
+        const payloadColor = projectile.payload === 'emp' ? EMP_BLUE : projectile.payload === 'wp' ? WP_WHITE : '#ef4444';
         return (
             <group ref={meshRef}>
                  <DetailedMissileModel color={payloadColor} />
@@ -1068,9 +1071,117 @@ const EmpFieldMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: numbe
     );
 };
 
+// White Phosphorus: the canisters arc down from the airburst on white smoke trails, then each lays
+// a burning white cloud with embers in it. The cloud fades out over its last few seconds.
+const WP_WHITE = '#f8fafc';
+const WP_EMBER = '#fb923c';
+const WpGasMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number }> = ({ cloud, tileSize, offset }) => {
+    const spots = useMemo(() => canisterSpots(cloud.id, WP.canisters, cloud.radius).map(s => new THREE.Vector3(s.x * tileSize, 0, s.z * tileSize)), [cloud.id, cloud.radius, tileSize]);
+    const burst = useMemo(() => new THREE.Vector3(0, WP.burstHeight, 0), []);
+    // Each canister's fall: out from the burst and down, bowing outward a little.
+    const arc = (to: THREE.Vector3, t: number) => new THREE.Vector3(
+        burst.x + (to.x - burst.x) * Math.sqrt(t),
+        burst.y + (to.y - burst.y) * t * t + 2 * t * (1 - t),
+        burst.z + (to.z - burst.z) * Math.sqrt(t),
+    );
+    const trails = useMemo(() => spots.map(to => Array.from({ length: 13 }, (_, i) => arc(to, i / 12))), [spots]);
+    const canisters = useRef<THREE.Group>(null);
+    const trailGroup = useRef<THREE.Group>(null);
+    const puffs = useRef<THREE.Group>(null);
+    const embers = useRef<THREE.Group>(null);
+    const area = useRef<THREE.Mesh>(null);
+    const puffSize = tileSize * 1.25;
+    useFrame(state => {
+        const age = Date.now() - cloud.createdAt;
+        const fall = Math.min(1, age / WP.fallMs);
+        const fade = Math.max(0, Math.min(1, (cloud.duration - age) / 3000));
+        const time = state.clock.elapsedTime;
+        canisters.current?.children.forEach((c, i) => {
+            c.visible = fall < 1;
+            if (fall < 1) c.position.copy(arc(spots[i], fall));
+        });
+        if (trailGroup.current) {
+            const trailFade = Math.max(0, 1 - age / 4000);
+            trailGroup.current.visible = trailFade > 0;
+            trailGroup.current.children.forEach(l => {
+                const m = (l as unknown as { material: THREE.Material & { opacity: number } }).material;
+                if (m) m.opacity = 0.7 * trailFade;
+            });
+        }
+        // The gas billows up where each canister lands, then drifts and breathes.
+        const grow = Math.max(0, Math.min(1, (age - WP.fallMs * 0.8) / 1800));
+        puffs.current?.children.forEach((p, i) => {
+            const k = (i % 3) * 0.13;
+            const s = Math.max(0.001, grow * (0.75 + k + 0.06 * Math.sin(time * 0.9 + i)));
+            // Low, flattened billows that hug the ground.
+            p.scale.set(s, s * 0.55, s);
+            p.position.y = puffSize * (0.15 + 0.2 * (i % 3) / 2) + 0.2 * Math.sin(time * 0.6 + i * 1.7);
+            ((p as THREE.Mesh).material as THREE.MeshBasicMaterial).opacity = (i % 3 === 0 ? 0.3 : 0.2) * fade;
+        });
+        embers.current?.children.forEach((e, i) => {
+            e.visible = grow > 0.2 && fade > 0.1 && Math.sin(time * (5 + i % 4) + i * 2.3) > 0.1;
+            e.position.y = 0.4 + ((time * 0.8 + i * 0.37) % 1.6);
+        });
+        if (area.current) (area.current.material as THREE.MeshBasicMaterial).opacity = 0.12 * grow * fade;
+    });
+    return (
+        <group position={[(cloud.gridPos.x * tileSize) - offset, 0.7, (cloud.gridPos.z * tileSize) - offset]}>
+            <mesh ref={area} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+                <circleGeometry args={[cloud.radius * tileSize, 48]} />
+                <meshBasicMaterial color={WP_EMBER} transparent opacity={0} depthWrite={false} toneMapped={false} />
+            </mesh>
+            <group ref={trailGroup}>
+                {trails.map((pts, i) => <Line key={i} points={pts} color={WP_WHITE} lineWidth={2.5} transparent opacity={0.7} depthWrite={false} />)}
+            </group>
+            <group ref={canisters}>
+                {spots.map((_, i) => (
+                    <mesh key={i} raycast={() => null}>
+                        <sphereGeometry args={[0.28, 8, 8]} />
+                        <meshBasicMaterial color="#fff7ed" toneMapped={false} />
+                    </mesh>
+                ))}
+            </group>
+            <group ref={puffs}>
+                {spots.flatMap((at, i) => [[-0.5, 0.3], [0.6, -0.4], [0.1, 0.9]].map(([dx, dz], j) => (
+                    <mesh key={`${i}-${j}`} position={[at.x + dx * tileSize, 0, at.z + dz * tileSize]} scale={0.001} raycast={() => null}>
+                        <sphereGeometry args={[puffSize, 14, 10]} />
+                        <meshBasicMaterial color={j === 1 ? '#e2e8f0' : WP_WHITE} transparent opacity={0} depthWrite={false} />
+                    </mesh>
+                )))}
+            </group>
+            <group ref={embers}>
+                {spots.flatMap((at, i) => [0, 1].map(j => (
+                    <mesh key={`${i}-${j}`} position={[at.x + (j - 0.5) * tileSize * 0.8, 0.5, at.z + (0.5 - j) * tileSize * 0.6]} visible={false} raycast={() => null}>
+                        <sphereGeometry args={[0.16, 6, 6]} />
+                        <meshBasicMaterial color={WP_EMBER} toneMapped={false} />
+                    </mesh>
+                )))}
+            </group>
+        </group>
+    );
+};
+
+// The White Phosphorus missile bursting over its target: a white flash high in the air.
+const AirburstMesh: React.FC<{ explosion: Explosion }> = ({ explosion }) => {
+    const meshRef = useRef<THREE.Mesh>(null);
+    useFrame(() => {
+        if (!meshRef.current) return;
+        const progress = Math.min(1, (Date.now() - explosion.createdAt) / explosion.duration);
+        meshRef.current.scale.setScalar(0.4 + progress * 1.8);
+        (meshRef.current.material as THREE.MeshBasicMaterial).opacity = 0.95 * (1 - progress);
+    });
+    return (
+        <mesh ref={meshRef} position={[explosion.position.x, explosion.position.y, explosion.position.z]} raycast={() => null}>
+            <sphereGeometry args={[explosion.radius, 16, 16]} />
+            <meshBasicMaterial color="#fffbeb" transparent opacity={0.95} toneMapped={false} depthWrite={false} />
+        </mesh>
+    );
+};
+
 // Explosion Component
 const ExplosionMesh: React.FC<{ explosion: Explosion }> = ({ explosion }) => {
     if (explosion.style === 'emp') return <EmpDischargeMesh explosion={explosion} />;
+    if (explosion.style === 'airburst') return <AirburstMesh explosion={explosion} />;
     if (explosion.style === 'shield') return <ShieldImpact position={explosion.position} radius={explosion.radius} createdAt={explosion.createdAt} duration={explosion.duration} />;
     if (explosion.style === 'blackwall') return <BlackwallBurst position={explosion.position} radius={explosion.radius} createdAt={explosion.createdAt} duration={explosion.duration} />;
     return <FireballMesh explosion={explosion} />;
@@ -1598,8 +1709,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           } else if (event.kind === 'decoy') {
               poppedDecoys.push(event.id);
           } else if (event.kind === 'cloud') {
-              const radius = event.cloudType === 'nano' ? ABILITY_CONFIG.NANO_CLOUD_RADIUS : ABILITY_CONFIG.EMP_RADIUS;
-              const duration = event.cloudType === 'nano' ? ABILITY_CONFIG.NANO_CLOUD_DURATION : ABILITY_CONFIG.EMP_DURATION;
+              const radius = event.cloudType === 'nano' ? ABILITY_CONFIG.NANO_CLOUD_RADIUS : event.cloudType === 'wp' ? WP.radius : ABILITY_CONFIG.EMP_RADIUS;
+              const duration = event.cloudType === 'nano' ? ABILITY_CONFIG.NANO_CLOUD_DURATION : event.cloudType === 'wp' ? WP.durationMs : ABILITY_CONFIG.EMP_DURATION;
               const gridPos = {
                   x: Math.round((event.position.x + offset) / CITY_CONFIG.tileSize),
                   z: Math.round((event.position.z + offset) / CITY_CONFIG.tileSize),
@@ -2817,7 +2928,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       'FIRE_SWARM': 'SWARM',
       'BOMBARD': 'BOMBARD',
   };
-  const warheadIn = (action: string): Warhead => action.endsWith('EMP') ? 'emp' : 'he';
+  const warheadIn = (action: string): Warhead => action.endsWith('EMP') ? 'emp' : action.endsWith('WP') ? 'wp' : 'he';
 
   const handleUnitAction = (unitId: string, action: string) => {
       const unit = unitsRef.current.find(u => u.id === unitId);
@@ -2925,8 +3036,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (!struct) return;
 
       if (action === 'BUILD_WARHEAD' && struct.type === 'ordnance_fab' && !struct.isBlueprint) {
-          const item = payload as 'emp' | 'he';
-          if (item !== 'emp' && item !== 'he') return;
+          const item = payload as Warhead;
+          if (!WARHEAD_LIST.includes(item)) return;
           // Checked and paid for in sim/orders.ts, like the computer's.
           dispatchOrder({ type: 'BUILD_WARHEAD', structureId: struct.id, warhead: item });
           return;
@@ -3316,6 +3427,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               return active.length === prev.length ? prev : active;
           });
           const burningClouds = cloudsRef.current.filter(c => c.type === 'he' && now - c.createdAt < c.duration);
+          const wpClouds = cloudsRef.current.filter(c => c.type === 'wp' && now - c.createdAt < c.duration);
           const blackouts = activeBlackouts();
 
           // Weapons fire for every armed unit, HQ and Sentry Turret (sim/combat.ts). Worked out
@@ -3706,6 +3818,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   const damageMap = blastDamage(prevUnits, damageEvents, tileSize, offset, { hitsCloaked: true }, fieldsRef.current);
                   attacks.unitDamage.forEach((amount, id) => damageMap.set(id, (damageMap.get(id) || 0) + amount));
                   heCloudDamage(prevUnits, burningClouds).forEach((amount, id) => damageMap.set(id, (damageMap.get(id) || 0) + amount));
+                  // White Phosphorus gas burns the enemy infantry inside it (sim/warheads.ts).
+                  wpGasDamage(prevUnits, wpClouds, now, TICK_RATE).forEach((amount, id) => damageMap.set(id, (damageMap.get(id) || 0) + amount));
 
                   let activeUnits = prevUnits.filter(u => u.health > 0);
                   if (prevUnits.length !== activeUnits.length) unitsChanged = true;
@@ -4303,9 +4417,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                              <sphereGeometry args={[0.3]} />
                              <meshBasicMaterial color="#ef4444" />
                          </mesh>
-                         {/* Impact Radius Warning */}
+                         {/* Impact Radius Warning: the loaded warhead's area */}
                          <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, -0.4, 0]}>
-                              <circleGeometry args={[ABILITY_CONFIG.HE_RADIUS * tileSize, 32]} />
+                              <circleGeometry args={[(() => {
+                                  const ammo = targetingAbility === 'MISSILE' ? units.find(u => u.id === targetingSourceId)?.loadedAmmo : null;
+                                  return ammo === 'wp' ? WP.radius : ammo === 'emp' ? ABILITY_CONFIG.EMP_RADIUS : ammo === 'he' ? HE.radius : ABILITY_CONFIG.HE_RADIUS;
+                              })() * tileSize, 32]} />
                               <meshBasicMaterial color="#fca5a5" transparent opacity={0.15} depthWrite={false} />
                          </mesh>
                      </group>

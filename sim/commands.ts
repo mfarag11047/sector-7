@@ -15,7 +15,7 @@ import type { DoctrineType, StructureType, UnitType } from '../types';
 import type { UpgradeId } from './upgrades';
 
 export type GridPos = { x: number; z: number };
-export type Warhead = 'emp' | 'he';
+export type Warhead = 'emp' | 'he' | 'wp';
 export type Team = 'blue' | 'red';
 
 // --- Movement ---
@@ -153,7 +153,7 @@ const UNIT_TYPES = Object.keys({
   trooper: 1, lancer: 1, razorback: 1, aegis: 1, hornet: 1, howitzer: 1, cloak_generator: 1, field_generator: 1, scout_car: 1, attack_drone: 1,
 } satisfies Record<UnitType, 1>);
 const DOCTRINES = Object.keys({ heavy_metal: 1, shadow_ops: 1, netrunner: 1 } satisfies Record<DoctrineType, 1>);
-const WARHEADS = Object.keys({ emp: 1, he: 1 } satisfies Record<Warhead, 1>);
+const WARHEADS = Object.keys({ emp: 1, he: 1, wp: 1 } satisfies Record<Warhead, 1>);
 const UPGRADE_IDS = Object.keys({
   nanoweave: 1, dampener: 1, phantom_decoy: 1, emp_rocket: 1, overclock: 1, radar: 1, long_range_shells: 1, guided_shells: 1, hellfire: 1, hunter_rockets: 1, regen_shield: 1, piercing_round: 1, volt_core: 1,
 } satisfies Record<UpgradeId, 1>);

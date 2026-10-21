@@ -208,6 +208,9 @@ export const ABILITY_CONFIG = {
   HE_DURATION: 20000, 
   HE_RADIUS: 5,
   HE_DAMAGE_PER_TICK: 5, 
+  // White Phosphorus: an infantry killer (sim/warheads.ts has the gas).
+  WARHEAD_COST_WP: 350,
+  WARHEAD_BUILD_TIME_WP: 17000,
   
   // Nano Cloud
   NANO_CLOUD_RADIUS: 5,
@@ -217,7 +220,7 @@ export const ABILITY_CONFIG = {
   MISSILE_LAUNCH_HEIGHT: 80,
   MISSILE_ASCENT_SPEED: 10, 
   MISSILE_CRUISE_SPEED: 15, 
-  // Ballista EMP and HE missiles fly 40% faster than other ballistic shots (orbital drop pods).
+  // Ballista missiles (EMP, HE, White Phosphorus) fly 40% faster than other ballistic shots (orbital drop pods).
   BALLISTA_MISSILE_SPEED: 21,
   // The furthest a Ballista can fire, in tiles: half the map across.
   BALLISTA_RANGE: 39.5,

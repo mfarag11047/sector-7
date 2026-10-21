@@ -10,6 +10,7 @@ import { ABILITY_CONFIG } from '../constants';
 import type { DoctrineType, StructureData, UnitData } from '../types';
 import type { GridPos, Warhead } from './commands';
 import { productionStep } from './economy';
+import { addToInventory } from './warheads';
 
 export type FindPath = (from: GridPos, to: GridPos) => string[];
 
@@ -196,10 +197,8 @@ export function fabricationStep(u: UnitData, draft: UnitData, doctrine: Doctrine
   }
   const material = u.ordnanceMaterial || 0;
   if (material > 0) {
-    const inv = { emp: u.missileInventory?.emp || 0, he: u.missileInventory?.he || 0 };
-    inv[u.fabrication.item] += 1;
     draft.ordnanceMaterial = material - 1;
-    draft.missileInventory = inv;
+    draft.missileInventory = addToInventory(u, u.fabrication.item, 1);
   }
   draft.fabrication = { ...u.fabrication, active: false, progress: 0 };
   return true;

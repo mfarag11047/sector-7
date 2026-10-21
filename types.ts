@@ -162,14 +162,14 @@ export interface UnitData {
   // Helios mode (sim/helios.ts): charging friendly units, or microwaving enemies. Charge if unset.
   heliosMode?: 'charge' | 'burn';
   ammoState?: 'empty' | 'loading' | 'armed' | 'awaiting_delivery';
-  loadedAmmo?: 'emp' | 'he' | null;
-  missileInventory?: { emp: number; he: number };
+  loadedAmmo?: 'emp' | 'he' | 'wp' | null;
+  missileInventory?: { emp: number; he: number; wp: number };
   // Field Fabricator: untyped charges, spent one per missile fabricated in the field.
   ordnanceMaterial?: number;
-  fabrication?: { active: boolean; item: 'emp' | 'he'; progress: number; totalTime: number };
+  fabrication?: { active: boolean; item: 'emp' | 'he' | 'wp'; progress: number; totalTime: number };
   loadingProgress?: number;
   courierTargetId?: string;
-  courierPayload?: 'emp' | 'he';
+  courierPayload?: 'emp' | 'he' | 'wp';
   bombardmentTarget?: { x: number; z: number } | null;
   // Bombardment Drone munitions (sim/bombard.ts): drops left (undefined = a full load), when it
   // last dropped, flying home empty, and when it started rearming at a base.
@@ -230,7 +230,7 @@ export interface StructureData {
   maxHealth: number;
   production?: {
       active: boolean;
-      item: 'emp' | 'he';
+      item: 'emp' | 'he' | 'wp';
       progress: number;
       totalTime: number;
   };
@@ -295,6 +295,7 @@ export interface TeamStats {
   stockpile: {
       emp: number;
       he: number;
+      wp: number;
   };
   doctrine?: DoctrineState;
 }
@@ -346,7 +347,7 @@ export interface DecoyData {
 
 export interface CloudData {
     id: string;
-    type: 'emp' | 'he' | 'nano';
+    type: 'emp' | 'he' | 'nano' | 'wp';
     team: 'blue' | 'red' | 'neutral';
     gridPos: { x: number; z: number };
     radius: number;
@@ -366,7 +367,7 @@ export interface Projectile {
     distanceTraveled: number;
     targetPos?: { x: number, y: number, z: number }; // For guided/ballistic
     trajectory: 'direct' | 'ballistic' | 'swarm';
-    payload?: 'emp' | 'he' | 'nano_canister' | 'nano_cloud_master' | 'titan_drop' | 'cloak_drop' | 'field_drop' | null; // For warheads
+    payload?: 'emp' | 'he' | 'wp' | 'nano_canister' | 'nano_cloud_master' | 'titan_drop' | 'cloak_drop' | 'field_drop' | null; // For warheads
     startPos?: { x: number, y: number, z: number };
     startTime?: number;
     lockedTargetId?: string | null; // For swarm homing
@@ -385,7 +386,7 @@ export interface Explosion {
     // 'emp': a blue energy discharge whose ring reaches `radius`, instead of a fireball.
     // 'blackwall': the Black Wall virus bomb's glitching blast.
     // 'shield': a shot or projectile stopped on a force field's skin.
-    style?: 'emp' | 'blackwall' | 'shield';
+    style?: 'emp' | 'blackwall' | 'shield' | 'airburst';
 }
 
 export interface CityConfig {

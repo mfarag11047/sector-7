@@ -20,6 +20,7 @@ import type { MiniRocket } from './hornet';
 import type { SmokeScreen } from './titan';
 import { unitAbilityEffects } from './unitAbilities';
 import { isTetherableDrone, JAMMED_REASON, MAX_TETHERS, tetheredIds, unjammedIds } from './jamming';
+import { addToInventory, missilesHeld } from './warheads';
 
 export type AbilityCommand = Extract<PlayerCommand, { type:
   | 'TOGGLE_DAMPENER' | 'SET_HELIOS_MODE' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD' | 'PHANTOM_DECOY'
@@ -150,7 +151,7 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
       const warhead = command.warhead;
       return effects({ updates: new Map([[u.id, b => ({
         ...b,
-        missileInventory: { emp: b.missileInventory?.emp || 0, he: b.missileInventory?.he || 0, [warhead]: (b.missileInventory?.[warhead] || 0) - 1 },
+        missileInventory: addToInventory(b, warhead, -1),
         ammoState: 'loading' as const,
         loadedAmmo: warhead,
         loadingProgress: 0,
@@ -185,7 +186,7 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
       if (typeof u === 'string') return reject(u);
       if (!besideOrdnanceFab(u, view.structures)) return reject('not beside an Ordnance Fab');
       // Material plus missiles carried never exceeds capacity.
-      const held = (u.missileInventory?.emp || 0) + (u.missileInventory?.he || 0);
+      const held = missilesHeld(u);
       const room = ABILITY_CONFIG.FABRICATOR_MATERIAL_CAPACITY - held;
       if (room <= 0 || (u.ordnanceMaterial || 0) >= room) return reject('already full');
       return effects({ updates: new Map([[u.id, m => ({ ...m, ordnanceMaterial: room })]]) });
@@ -354,11 +355,7 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
   }
 }
 
-function addMissile(u: UnitData, warhead: Warhead, count: number) {
-  const inv = { emp: u.missileInventory?.emp || 0, he: u.missileInventory?.he || 0 };
-  inv[warhead] += count;
-  return inv;
-}
+const addMissile = addToInventory;
 
 // Applies `change` to each listed unit the sender owns that is of the right type.
 function toggleEach(view: AbilityView, team: Team, ids: readonly string[], types: readonly UnitType[], change: (u: UnitData) => UnitData): AbilityOutcome {
