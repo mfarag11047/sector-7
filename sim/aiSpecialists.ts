@@ -269,17 +269,6 @@ export function specialistAbilities(c: AbilityContext2): Action[] {
           actions.push({ kind: 'ability', command: { type: 'SURVEILLANCE', unitId: u.id, target: c.objective } });
         }
         break;
-      case 'sun_plate': {
-        // Links the vehicles around it that need charge.
-        if (!u.isDeployed) break;
-        const links = u.batteryTetherIds || [];
-        if (links.length >= ABILITY_CONFIG.BATTERY_MULE_SLOTS) break;
-        const needy = c.mine.find(v => v.id !== u.id && v.unitClass !== 'infantry' && v.type !== 'sun_plate' && v.type !== 'defense_drone'
-          && !links.includes(v.id) && v.battery < v.maxBattery * 0.7 && dist(v.gridPos, u.gridPos) <= ABILITY_CONFIG.BATTERY_MULE_RANGE - 0.5
-          && !c.mine.some(o => o.id !== u.id && o.batteryTetherIds?.includes(v.id)));
-        if (needy) actions.push({ kind: 'ability', command: { type: 'BATTERY_LINK', unitId: u.id, targetUnitId: needy.id } });
-        break;
-      }
       case 'bombard': {
         // Strikes when loaded and idle: enemy production first, nearest our side.
         if (u.bombardmentTarget || u.bombardReturning || munitionsOf(u) <= 0) break;

@@ -134,6 +134,39 @@ export function chargeSources(units: readonly UnitData[]): ChargeSources {
   return sources;
 }
 
+// What a Battery Mule can charge: vehicles and aircraft with a battery. Not infantry, other mules,
+// or the drones that run on their host.
+export const isBatteryLinkable = (u: UnitData) =>
+  u.health > 0 && u.maxBattery > 0 && u.unitClass !== 'infantry' && u.type !== 'sun_plate' && u.type !== 'defense_drone' && u.type !== 'crawler_drone';
+
+// The units an anchored Battery Mule charges, picked automatically like a Guardian's patients: it
+// stays on the ones it is charging until they are full or out of range, and fills its free links
+// (BATTERY_MULE_SLOTS) with the friendly vehicles and aircraft in range lowest on battery, by share
+// of a full battery, nearest first on a tie. A unit another mule is already charging is left to it.
+// Packed up, it charges nothing.
+export function muleLinks(mule: UnitData, units: readonly UnitData[]): string[] {
+  if (mule.type !== 'sun_plate' || !mule.isDeployed || mule.health <= 0) return [];
+  const distance = (t: UnitData) => Math.hypot(t.gridPos.x - mule.gridPos.x, t.gridPos.z - mule.gridPos.z);
+  const wants = (t: UnitData) => t.team === mule.team && t.id !== mule.id && isBatteryLinkable(t)
+    && t.battery < t.maxBattery && distance(t) <= ABILITY_CONFIG.BATTERY_MULE_RANGE;
+  const others = units.filter(m => m.id !== mule.id && m.type === 'sun_plate' && m.isDeployed && m.health > 0);
+  // Two mules that picked the same unit at once: the one with the lower id keeps it.
+  const claimedFirst = new Set(others.filter(m => m.id < mule.id).flatMap(m => m.batteryTetherIds || []));
+  const kept = (mule.batteryTetherIds || []).filter(id => {
+    const t = units.find(x => x.id === id);
+    return !!t && wants(t) && !claimedFirst.has(id);
+  });
+  const open = ABILITY_CONFIG.BATTERY_MULE_SLOTS - kept.length;
+  if (open <= 0) return kept;
+  const elsewhere = new Set(others.flatMap(m => m.batteryTetherIds || []));
+  const newcomers = units
+    .filter(t => wants(t) && !kept.includes(t.id) && !elsewhere.has(t.id))
+    .sort((a, b) => a.battery / a.maxBattery - b.battery / b.maxBattery || distance(a) - distance(b))
+    .slice(0, open)
+    .map(t => t.id);
+  return [...kept, ...newcomers];
+}
+
 // Battery spent this tick: moving off-grid, plus anything switched on.
 export function batteryDrain(u: UnitData, isMoving: boolean, onGrid: boolean): number {
   let drain = (u.unitClass === 'infantry' || onGrid) ? 0 : (isMoving ? ABILITY_CONFIG.BATTERY_DRAIN_MOVE : ABILITY_CONFIG.BATTERY_DRAIN_IDLE);
@@ -166,16 +199,10 @@ export function powerTick(u: UnitData, draft: UnitData, ctx: PowerContext): bool
   const isMoving = u.path.length > 0;
   const drain = batteryDrain(u, isMoving, ctx.onGrid);
 
-  // Battery Mule links break when the mule packs up or the vehicle drives out of range.
+  // An anchored Battery Mule picks who to charge on its own, lowest battery first (muleLinks).
   if (u.type === 'sun_plate') {
     const previousLinks = u.batteryTetherIds || [];
-    const keptLinks = u.isDeployed
-      ? previousLinks.filter(linkId => {
-          const target = ctx.units.find(t => t.id === linkId);
-          return !!target && target.team === u.team && target.health > 0
-            && Math.hypot(target.gridPos.x - u.gridPos.x, target.gridPos.z - u.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE;
-        })
-      : [];
+    const keptLinks = muleLinks(u, ctx.units);
     if (keptLinks.length !== previousLinks.length || keptLinks.some((linkId, index) => previousLinks[index] !== linkId)) {
       draft.batteryTetherIds = keptLinks;
       changed = true;

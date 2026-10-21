@@ -21,6 +21,7 @@ import type { SmokeScreen } from './titan';
 import { unitAbilityEffects } from './unitAbilities';
 import { isTetherableDrone, JAMMED_REASON, MAX_TETHERS, tetheredIds, unjammedIds } from './jamming';
 import { addToInventory, missilesHeld } from './warheads';
+import { isBatteryLinkable } from './energy';
 
 export type AbilityCommand = Extract<PlayerCommand, { type:
   | 'TOGGLE_DAMPENER' | 'SET_HELIOS_MODE' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD' | 'PHANTOM_DECOY'
@@ -86,8 +87,8 @@ const effects = (partial: Partial<AbilityEffects>): AbilityOutcome => ({
 });
 
 export { isTetherableDrone } from './jamming';
-export const isBatteryLinkable = (u: UnitData) =>
-  u.health > 0 && u.maxBattery > 0 && u.unitClass !== 'infantry' && u.type !== 'sun_plate' && u.type !== 'defense_drone' && u.type !== 'crawler_drone';
+// What a Battery Mule can charge (sim/energy.ts).
+export { isBatteryLinkable } from './energy';
 
 const distance = (a: GridPos, b: GridPos) => Math.hypot(a.x - b.x, a.z - b.z);
 const world = (p: GridPos, y: number, ctx: AbilityContext) => ({ x: (p.x * ctx.tileSize) - ctx.offset, y, z: (p.z * ctx.tileSize) - ctx.offset });

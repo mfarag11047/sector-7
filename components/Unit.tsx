@@ -1453,10 +1453,12 @@ const Unit: React.FC<UnitProps> = ({
                   {isSunPlate && (
                       <>
                         <button onClick={(e) => { e.stopPropagation(); handleMenuAction('TOGGLE_ANCHOR'); }} className={`text-[10px] ${isDeployed ? 'bg-cyan-900 text-cyan-200' : 'bg-slate-800 text-white'} hover:bg-slate-700 px-2 py-1 rounded text-left`}>{isDeployed ? 'Unanchor' : 'Anchor Down'}</button>
-                        <button onClick={(e) => { e.stopPropagation(); handleMenuAction('BATTERY_TETHER'); }} disabled={!isDeployed} className={`text-[10px] ${isDeployed ? 'bg-slate-800 text-white hover:bg-slate-700' : 'bg-slate-900 text-slate-500'} px-2 py-1 rounded text-left flex justify-between`}><span>{isTargetingMode ? 'Select Vehicle' : 'Tether'}</span><span>{(batteryTetherIds || []).length}/{ABILITY_CONFIG.BATTERY_MULE_SLOTS}</span></button>
-                        {(batteryTetherIds || []).length > 0 && (
-                          <button onClick={(e) => { e.stopPropagation(); handleMenuAction('DISCONNECT_BATTERY'); }} className="text-[10px] bg-slate-800 hover:bg-slate-700 text-white px-2 py-1 rounded text-left">Disconnect</button>
-                        )}
+                        {/* Charging is automatic once anchored: lowest battery first (sim/energy.ts muleLinks). */}
+                        <div className="text-[9px] font-mono px-1 flex justify-between">
+                          <span className={isDeployed ? 'text-yellow-300' : 'text-slate-500'}>{isDeployed ? 'Auto-charging' : 'Anchor to charge'}</span>
+                          <span className="text-slate-400">{(batteryTetherIds || []).length}/{ABILITY_CONFIG.BATTERY_MULE_SLOTS}</span>
+                        </div>
+                        {isDeployed && <div className="text-[9px] text-slate-500 px-1">Lowest battery first · {ABILITY_CONFIG.BATTERY_MULE_RANGE} tiles</div>}
                       </>
                   )}
                   {isDrone && (

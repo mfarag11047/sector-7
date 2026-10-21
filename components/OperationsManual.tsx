@@ -103,8 +103,7 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
   sun_plate: {
     use: 'Mobile power. Plant it beyond your energy grid so vehicles can keep going.',
     actions: [
-      { name: 'Anchor Down', text: 'Plants the Battery Mule so it can feed batteries.' },
-      { name: 'Tether', text: `Links up to ${ABILITY_CONFIG.BATTERY_MULE_SLOTS} vehicles within ${ABILITY_CONFIG.BATTERY_MULE_RANGE} tiles (yellow ring) and charges them.` },
+      { name: 'Anchor Down', text: `Plants the Battery Mule. Anchored, it charges up to ${ABILITY_CONFIG.BATTERY_MULE_SLOTS} friendly vehicles and aircraft within ${ABILITY_CONFIG.BATTERY_MULE_RANGE} tiles (yellow ring) on its own, like a Guardian heals: lowest battery first, staying on each until it is full.` },
     ],
   },
   attack_drone: { use: 'A cheap armed drone from the Airpad at Tier 1. Its machine gun does decent damage to everything, infantry, vehicles, armour and aircraft, without being the best answer to any of them: mass a few to back up any army, or as the core of a drone force. Fragile, needs the energy grid like other aircraft, and remote-controlled, so a Banshee can jam it or hardline it.' },
