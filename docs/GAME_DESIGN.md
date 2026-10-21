@@ -47,13 +47,17 @@ The intended arc:
     are mirror images.
   - An HQ built later stands in the middle of its cleared block. Its building pads ring it inside
     the block, and its turret corners are the block's corners.
-  - Placing a building or turret shows the free pads. The HQ menu shows how many are left.
+  - Every free pad is marked on the ground with a **+** button (amber on turret corners). Click it
+    for a menu of what can go there: the base buildings on a building pad, the Sentry and CIWS
+    turrets on a turret corner (these need a finished Depot and a Mason). Pick one and it is
+    placed on that pad and starts building. The HQ menu shows how many pads are left.
+    (`components/BuildPads.tsx`)
 - Base structures take time to construct. While under construction they can't produce.
 
 | Structure | Cost | Build time | Produces |
 |---|---|---|---|
 | Barracks | 300 | 15 s | Infantry |
-| Depot | 200 | 12 s | Mason, plus walls and turrets |
+| Depot | 200 | 12 s | Mason and walls; needed for turrets |
 | Factory | 550 | 25 s | Vehicles |
 | Comm Link | 450 | 20 s | Support units |
 | Airpad | 600 | 25 s | Aircraft |
@@ -91,7 +95,7 @@ hex pad with a button over it. Core and server node blocks never become sites.
 - The new HQ takes 60 s to go up, rising out of the ground with a build bar. Until then it does
   nothing, but it can be attacked.
 - Finished, it is a full HQ: 5000 health and the HQ's gun, its own energy grid circle (so you can
-  build around it), repair for units in its block, and the HQ menu (structures, research).
+  build around it), repair for units in its block, and the HQ menu (Scout RC Cars, research), plus its own pads to build on.
 - Victory by destruction now means destroying every one of a side's HQs, its starting HQ and any
   it has built. A base still going up counts.
 - The AI doesn't build new bases yet.
@@ -296,10 +300,11 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 
 ### Other producers
 
-- **Depot:** Mason (120, pop 1, T1), plus Dragon's Teeth, Bulwark and two turrets:
+- **Depot:** Mason (120, pop 1, T1), plus Dragon's Teeth and Bulwark walls; it also enables two turrets:
   - **Sentry Turret** (400): anti-vehicle cannon, AP 40 / 1.5 s / 6, ground only, 900 HP.
   - Both turrets are base defences: they only go on the four corner pads of one of your Command
-    HQs (the starting one or one you built). Walls can go anywhere in your grid.
+    HQs (the starting one or one you built), built by clicking the + on a free corner. They need
+    a finished Depot and a Mason. Walls come from the Depot menu and can go anywhere in your grid.
   - **CIWS Turret** (450, three Mason hauls): the Aegis rotary cannon on a fixed mount with its own
     tracking radar (`sim/ciws.ts`). Shoots aircraft and incoming ordnance within 10 tiles exactly as
     the Aegis does (32/s to aircraft, 60/s to ordnance, 3.5 s bursts, 6 s reload); with the sky

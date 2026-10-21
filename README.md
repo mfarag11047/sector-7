@@ -29,7 +29,8 @@ Sandbox), doctrine and map seed, then **Deploy**.
 - **Win** by destroying the enemy Command HQ, or by holding 4 of the 6 core nodes for 2 minutes.
 - **Select** with left-click or a drag box; **move** by clicking the ground; **attack-move** with
   Ctrl-click (or F, then click). **Camera:** WASD / arrows, right-drag to turn, wheel to zoom.
-- **Build:** double-click your HQ. Structures must go inside your energy grid.
+- **Build:** click a + on a free pad around your HQ and pick a building (or a turret, on the
+  corner pads). Walls come from the Depot and must go inside your energy grid.
 - **Train:** click a finished structure. Up to 5 queue; set a rally point from the same menu.
 - **Grow:** infantry capture core nodes (income + population) and buildings (energy grid). Server
   nodes in the centre unlock Tier 2 and Tier 3 units and doctrine powers.

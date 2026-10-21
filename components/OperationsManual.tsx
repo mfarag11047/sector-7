@@ -152,7 +152,7 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
       { name: 'Launch', text: `Fires the loaded missile at any tile. HE is anti-armour: a ${HE.radius}-tile blast of ${HE.damage} at the centre, x${HE.vs.heavy} against heavy armour and x${HE.vs.light} against light vehicles, but only x${HE.vs.infantry} against infantry and aircraft. White Phosphorus bursts high over the target into ${WP.canisters} canisters that blanket ${WP.radius} tiles in burning white gas for ${WP.durationMs / 1000}s, ${WP.dps} damage a second to enemy infantry inside it (vehicles and aircraft are untouched). EMP knocks out the enemy energy grid within ${ABILITY_CONFIG.EMP_RADIUS} tiles and shuts down every enemy vehicle and aircraft caught in the blast, both for ${ABILITY_CONFIG.EMP_DURATION / 1000}s.` },
     ],
   },
-  mason: { use: 'Combat engineer. Place walls and turrets from the Depot and Masons haul materials to build them.' },
+  mason: { use: 'Combat engineer. Place walls from the Depot or turrets on a + turret corner, and Masons haul materials to build them.' },
   mule: {
     use: 'Field Fabricator. Builds missiles at the front and hands them to Ballistas.',
     actions: [
@@ -543,7 +543,7 @@ const STRUCTURE_TEXT: Partial<Record<StructureType, string>> = {
 const StructuresTab: React.FC<{ onOpen: (t: UnitType) => void }> = ({ onOpen }) => (
   <div>
     <Legend />
-    <p className="text-slate-400 text-xs mb-4">Double-click your HQ to place structures (inside your energy grid only), and double-click a finished structure to train from it. Walls and the turret come from the Depot and need Masons to build.</p>
+    <p className="text-slate-400 text-xs mb-4">Every free building pad and turret corner around your Command HQs is marked with a +: click it and pick what to build there. Double-click a finished structure to train from it. Turrets and walls need a Depot and Masons to build; walls come from the Depot menu.</p>
     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
       {STRUCTURE_ORDER.map(s => {
         const info = STRUCTURE_INFO[s];
@@ -598,7 +598,7 @@ const BasicsTab: React.FC = () => (
       <H>Your first minutes</H>
       <ol className="list-decimal ml-5 space-y-2 text-xs text-slate-300">
         <li>Send Troopers to the nearest core node to capture it: it pays cores and raises your population cap.</li>
-        <li>Double-click your HQ and build a Barracks and a Factory inside your energy grid.</li>
+        <li>Click a + pad beside your HQ and build a Barracks, then a Factory on another.</li>
         <li>Capture ordinary buildings near your army to stretch the energy grid toward the fight.</li>
         <li>Take the server node in your half for compute, then Research Tier 2 for better units and abilities.</li>
         <li>Build a mixed army (check the Units tab for counters) and take the enemy's core nodes or their HQ.</li>

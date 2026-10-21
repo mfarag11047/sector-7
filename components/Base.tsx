@@ -3,10 +3,10 @@ import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges, Float, Html } from '@react-three/drei';
 import * as THREE from 'three';
-import { StructureData, StructureType, UnitClass, UnitType } from '../types';
+import { StructureData, UnitType } from '../types';
 import StructureStatus from './StructureStatus';
-import { STRUCTURE_INFO, UNIT_CLASSES, UNIT_STATS } from '../constants';
-import { STRUCTURE_RULES, TIER_RESEARCH_COST, UNIT_RULES } from '../sim/units';
+import { UNIT_STATS } from '../constants';
+import { TIER_RESEARCH_COST, UNIT_RULES } from '../sim/units';
 
 // What the HQ itself trains.
 const HQ_UNITS = (Object.keys(UNIT_RULES) as UnitType[]).filter(t => UNIT_RULES[t].producer === 'hq');
@@ -22,7 +22,6 @@ interface BaseProps {
   onDoubleClick?: (e: any, gridPos: {x: number, z: number}) => void;
   menuOpen?: boolean;
   resources?: number;
-  onBuild?: (type: StructureType) => void;
   // The HQ structure from game state, for its health bar.
   hq?: StructureData;
   // Research, for the owner: the tier reached, compute in hand, and the order to send.
@@ -38,7 +37,7 @@ interface BaseProps {
 }
 
 const Base: React.FC<BaseProps> = ({ 
-  position, gridPos, teamColor, label, onMoveCommand, onRightClick, onDoubleClick, menuOpen, resources = 0, onBuild, hq, tier = 1, compute = 0, onResearch, onTrain, buildProgress = 1, freePads
+  position, gridPos, teamColor, label, onMoveCommand, onRightClick, onDoubleClick, menuOpen, resources = 0, hq, tier = 1, compute = 0, onResearch, onTrain, buildProgress = 1, freePads
 }) => {
   const radarRef = useRef<THREE.Group>(null);
   const baseGroupRef = useRef<THREE.Group>(null);
@@ -81,19 +80,6 @@ const Base: React.FC<BaseProps> = ({
     }
   }
 
-  // Filter out walls and defense turrets from the Base menu
-  // Base structures from the HQ; walls and turrets come from the Depot.
-  const buildableStructures = (Object.keys(STRUCTURE_RULES) as StructureType[]).filter(type => STRUCTURE_RULES[type].buildable);
-  // What each one is for, so a new player knows what to build.
-  const PURPOSE: Partial<Record<StructureType, string>> = {
-    infantry: 'Troopers, Ghosts, Lancers',
-    armor: 'Razorbacks, Thunderheads, Titans, Aegis, Battery Mules',
-    air: 'Drones, Wasps, Hornets, Bombards',
-    support: 'Guardians, Helios, Banshees, Ballistas',
-    builder: 'Masons; walls and turrets',
-    ordnance_fab: 'Warheads and Field Fabricators',
-    research_lab: 'Unit upgrades',
-  };
 
   // Reusable Materials
   const materials = useMemo(() => ({
@@ -313,7 +299,7 @@ const Base: React.FC<BaseProps> = ({
         <Html position={[0, 10, 0]} center zIndexRange={[200, 0]}>
           <div className="hud-plate hud-corners hud-menu backdrop-blur min-w-[220px] overflow-hidden flex flex-col pointer-events-auto">
              <div className="px-3 py-2 border-b border-cyan-400/30 flex justify-between items-center">
-                <span className="text-cyan-400 font-mono font-bold text-xs uppercase">Build · on base pads</span>
+                <span className="text-cyan-400 font-mono font-bold text-xs uppercase">Command HQ</span>
                 <span className={`text-[10px] font-mono ${resources > 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                     {resources} Cores
                 </span>
@@ -323,6 +309,7 @@ const Base: React.FC<BaseProps> = ({
                 <div className="px-3 py-1 border-b border-cyan-400/20 text-[9px] font-mono text-slate-400">
                     Building pads free: <span className={freePads.building > 0 ? 'text-cyan-300' : 'text-red-400'}>{freePads.building}</span>
                     {' · '}Turret corners free: <span className={freePads.turret > 0 ? 'text-cyan-300' : 'text-red-400'}>{freePads.turret}</span>
+                    {freePads.building + freePads.turret > 0 && <div className="text-cyan-300/80">Click a + on a free pad around the HQ to build there</div>}
                     {freePads.building === 0 && <div className="text-amber-300">Build another Command HQ for more pads</div>}
                 </div>
              )}
@@ -363,43 +350,6 @@ const Base: React.FC<BaseProps> = ({
                                 <span className="text-[9px] font-mono text-slate-500">Fast unarmed scout · {UNIT_RULES[unitType].buildTimeMs / 1000}s</span>
                             </div>
                             <span className="text-[10px] font-mono text-emerald-400">{stats.cost}</span>
-                        </button>
-                    );
-                })}
-                {buildableStructures.map((type) => {
-                    const info = STRUCTURE_INFO[type];
-                    const canAfford = resources >= info.cost && (!freePads || freePads.building > 0);
-                    
-                    const getIcon = (t: StructureType) => {
-                        if (t in UNIT_CLASSES) return UNIT_CLASSES[t as UnitClass].icon;
-                        return '?';
-                    };
-
-                    return (
-                        <button
-                            key={type}
-                            disabled={!canAfford}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                if (onBuild && canAfford) onBuild(type);
-                            }}
-                            className={`
-                                flex items-center justify-between px-3 py-2 text-left transition-colors rounded
-                                ${canAfford 
-                                    ? 'hover:bg-cyan-900/40 text-slate-200 cursor-pointer' 
-                                    : 'opacity-50 text-slate-500 cursor-not-allowed'}
-                            `}
-                        >
-                            <div className="flex items-center gap-2">
-                                <span style={{ color: info.color }} className="text-sm">{getIcon(type)}</span>
-                                <div className="flex flex-col">
-                                    <span className="text-xs font-mono font-bold">{info.label}</span>
-                                    <span className="text-[9px] font-mono text-slate-500">{PURPOSE[type]} · {STRUCTURE_RULES[type].buildTimeMs / 1000}s</span>
-                                </div>
-                            </div>
-                            <span className="text-[10px] font-mono text-cyan-600">
-                                {info.cost}
-                            </span>
                         </button>
                     );
                 })}

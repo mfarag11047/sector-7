@@ -1048,11 +1048,10 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
     const queue = data.queue || [];
     const constructing = (data.buildRemainingMs || 0) > 0;
 
-    // Engineering Build List (Walls) for Depot
-    const engineeringItems: StructureType[] = ['wall_tier1', 'wall_tier2', 'defense', 'aa_turret'];
+    // Walls from the Depot; turrets go on the free turret corners round an HQ (components/BuildPads.tsx).
+    const engineeringItems: StructureType[] = ['wall_tier1', 'wall_tier2'];
     const engineeringRole: Partial<Record<StructureType, string>> = {
         wall_tier1: 'Blocks a lane', wall_tier2: 'Heavy wall',
-        defense: 'Anti-vehicle cannon · ground only', aa_turret: 'Anti-air CIWS · weak vs ground',
     };
 
     return (
@@ -1193,6 +1192,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                     Requires Combat Engineer unit.
                                 </div>
                             )}
+                            <div className="mt-1 text-[9px] text-amber-300/80 px-2">Turrets: click a + on a free turret corner of a Command HQ.</div>
                         </>
                     )}
                 </div>
