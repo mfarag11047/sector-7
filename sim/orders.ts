@@ -9,7 +9,7 @@
 import { ABILITY_CONFIG, BUILDING_VALUES, STRUCTURE_INFO } from '../constants';
 import type { BuildingData, StructureData, StructureType, UnitData } from '../types';
 import type { GridPos, PlayerCommand, Team, Warhead } from './commands';
-import { Economy, research, researchCost, spend, structureCost, unitCost, warheadBuildTime, warheadCost } from './economy';
+import { Economy, research, researchCost, spend, spendCompute, structureCost, unitCost, warheadBuildTime, warheadCost } from './economy';
 import { Blackout, gridTiles, isBlackedOut, isInsideEnergyGrid } from './energy';
 import { baseOrder } from './bases';
 import { researchBlocker, upgradeDef, type UpgradeId } from './upgrades';
@@ -128,8 +128,9 @@ function upgradeOrder(view: OrdersView, team: Team, structureId: string, upgrade
   if (blocked) return reject(blocked);
   const def = upgradeDef(upgrade)!;
   if (!spend(view.economy, team, def.cost)) return reject(`needs ${def.cost} cores`);
+  if (!spendCompute(view.economy, team, def.compute)) return reject(`needs ${def.compute} compute`);
   return effects({
-    economy: e => spend(e, team, def.cost),
+    economy: e => { const paid = spend(e, team, def.cost); return paid && spendCompute(paid, team, def.compute); },
     structureUpdates: new Map([[s.id, x => ({ ...x, research: { upgrade, remainingMs: def.researchMs, totalMs: def.researchMs } })]]),
   });
 }

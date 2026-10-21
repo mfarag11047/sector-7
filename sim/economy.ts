@@ -139,6 +139,12 @@ export function research(economy: Economy, team: Team, tier: 2 | 3): Economy | n
   return withTeam(economy, team, { compute: e.compute - researchCost(tier), tier });
 }
 
+// Returns the economy after spending `amount` compute, or null when the team lacks it.
+export function spendCompute(economy: Economy, team: Team, amount: number): Economy | null {
+  if (economy[team].compute < amount) return null;
+  return withTeam(economy, team, { compute: economy[team].compute - amount });
+}
+
 export function setCompute(economy: Economy, team: Team, compute: number): Economy {
   return withTeam(economy, team, { compute: Math.max(0, compute) });
 }

@@ -4171,6 +4171,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 popUsed={supply.used}
                 popCap={supply.cap}
                 upgrades={s.type === 'research_lab' ? playerUpgrades : undefined}
+                compute={s.type === 'research_lab' && (playerTeam === 'blue' || playerTeam === 'red') ? economy[playerTeam].compute : undefined}
                 upgradesUnderway={s.type === 'research_lab' ? upgradesUnderway : undefined}
             /> 
         ))}

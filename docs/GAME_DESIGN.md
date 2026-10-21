@@ -139,8 +139,12 @@ unit's later upgrades: each is researched at an **Advanced Research** building (
 takes a building pad; `sim/upgrades.ts`). There isn't the time, money or pad space to research
 everything, so what you research commits you to the units you mean to build.
 
+- Each upgrade costs cores **and compute** (T2: 250 cores + 50 compute, T3: 400 + 100), so
+  upgrades compete with the next tier for compute. The computer always keeps the compute for its
+  next tier before it spends any on upgrades.
 - Click the building for its menu: a unit class (Infantry, Vehicles, Aircraft), then a unit, then
-  that unit's upgrades. Each shows its tier, cost, research time and what it does. Locked ones say
+  that unit's upgrades. Each shows its tier, cost in cores and compute, research time and what it
+  does. Locked ones say
   why: the tier, an earlier upgrade they need, or the lab busy.
 - One upgrade at a time per building. More buildings research in parallel, at the cost of pads.
   Research is lost if the building is destroyed before it finishes. Finished upgrades last the
@@ -148,7 +152,7 @@ everything, so what you research commits you to the units you mean to build.
 - A unit's locked abilities say "Research" in its action menu. A notice tells you when research
   completes.
 
-| Unit | Upgrade | Tier | Cost | Time | Effect |
+| Unit | Upgrade | Tier | Cores (+ compute: 50 at T2, 100 at T3) | Time | Effect |
 |---|---|---|---|---|---|
 | Strike Trooper | Nano-Weave Mesh | T2 | 250 | 30 s | Unlocks the ability |
 | Ghost | Dampener | T2 | 250 | 30 s | Unlocks the ability |

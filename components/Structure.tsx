@@ -25,6 +25,7 @@ interface StructureProps {
   onAction?: (action: string, payload?: any) => void;
   hasMason?: boolean;
   resources?: number;
+  compute?: number;
   warheadStock?: { emp: number; he: number; wp: number };
   // The owner's tech tier and population, for the production menu.
   tier?: number;
@@ -913,7 +914,7 @@ const WallTier2Model = ({ teamColor, tileSize }: { color: string, teamColor: str
     );
 };
 
-const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES }) => {
+const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES }) => {
   // Advanced Research menu: a unit class, then a unit, then its upgrades.
   const [labClass, setLabClass] = React.useState<UnitClass | null>(null);
   const [labUnit, setLabUnit] = React.useState<UnitType | null>(null);
@@ -1013,7 +1014,8 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                             : u.requires && !done(u.requires) ? `🔒 ${upgradeDef(u.requires)!.name} first`
                             : constructing ? 'Under construction'
                             : running ? 'Lab busy'
-                            : resources < u.cost ? `${u.cost} cores` : null;
+                            : resources < u.cost ? `${u.cost} cores`
+                            : compute < u.compute ? `${u.compute} compute` : null;
                         return (
                             <button key={u.id} disabled={!!blocked} title={u.description}
                                 onClick={(e) => { e.stopPropagation(); onAction && onAction('RESEARCH_UPGRADE', u.id); }}
@@ -1023,7 +1025,12 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                     <span className="text-[9px] text-slate-400 max-w-[190px] whitespace-normal">{u.description}</span>
                                     <span className="text-[9px] text-slate-500">{blocked ?? `${u.researchMs / 1000}s research`}</span>
                                 </div>
-                                {!done(u.id) && <span className="text-[10px]">{u.cost}</span>}
+                                {!done(u.id) && (
+                                    <span className="flex flex-col items-end text-[10px] whitespace-nowrap">
+                                        <span className={resources >= u.cost ? '' : 'text-red-400'}>{u.cost}</span>
+                                        <span className={compute >= u.compute ? 'text-blue-300' : 'text-red-400'}>{u.compute} ⚡</span>
+                                    </span>
+                                )}
                             </button>
                         );
                     })}

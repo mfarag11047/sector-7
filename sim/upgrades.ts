@@ -2,7 +2,7 @@
 //
 // Reaching a tier unlocks the units of that tier, with their first ability. It no longer hands
 // over every unit's later upgrades too: each has to be researched, one at a time per Advanced
-// Research building, for cores and time. A side can't afford them all at once, so what it
+// Research building, for cores, compute and time. A side can't afford them all at once, so what it
 // researches commits it to the units it means to build.
 //
 // An upgrade needs its tier researched first, and some need an earlier upgrade. Research runs on
@@ -27,13 +27,15 @@ export interface UpgradeDef {
   name: string;
   tier: Tier;
   cost: number;
+  // Compute spent as well as cores, so upgrades compete with the next tier for it.
+  compute: number;
   researchMs: number;
   requires?: UpgradeId;
   description: string;
 }
 
-const T2 = { cost: 250, researchMs: 30_000 };
-const T3 = { cost: 400, researchMs: 45_000 };
+const T2 = { cost: 250, compute: 50, researchMs: 30_000 };
+const T3 = { cost: 400, compute: 100, researchMs: 45_000 };
 
 export const UPGRADES: readonly UpgradeDef[] = [
   { id: 'nanoweave', unit: 'trooper', name: 'Nano-Weave Mesh', tier: 2, ...T2, description: 'Ability: takes 50% less damage for 6s.' },

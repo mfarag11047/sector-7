@@ -526,6 +526,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   // --- Research: upgrades for the units it fields and its strategy leans on (sim/upgrades.ts) ---
   const fielded = (t: UnitType) => mine.filter(u => u.type === t).length;
   const started = new Set<UpgradeId>();
+  let compute = view.economy[team].compute;
   for (const lab of myStructures.filter(s => s.type === 'research_lab' && isOperational(s) && !s.research)) {
     if (ctx.random() > profile.attention) continue;
     const pick = UPGRADES
@@ -533,11 +534,14 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
       .filter(u => fielded(u.unit) > 0 || (plan.units[u.unit] ?? 1) > 1.2)
       .map(u => ({ u, score: fielded(u.unit) + 3 * ((plan.units[u.unit] ?? 1) - 1) }))
       .sort((a, b) => b.score - a.score)[0];
-    // Never at the expense of the army: only with cores to spare.
+    // Never at the expense of the army: only with cores to spare. And never at the expense of the
+    // next tier: its compute comes first.
     if (!pick || spendable() < pick.u.cost + 150) continue;
+    if (compute - pick.u.compute < (tier < 3 ? researchCost((tier + 1) as 2 | 3) : 0)) continue;
     actions.push({ kind: 'order', command: { type: 'RESEARCH_UPGRADE', structureId: lab.id, upgrade: pick.u.id } });
     started.add(pick.u.id);
     cores -= pick.u.cost;
+    compute -= pick.u.compute;
   }
 
   // --- 5. Abilities and doctrine powers ---

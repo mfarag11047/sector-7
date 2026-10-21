@@ -203,12 +203,15 @@ describe('researching upgrades', () => {
       doctrineCooldowns: { tier2: 0, tier3: 0 }, random: () => 0.1,
     };
     const lab = { id: 'lab', type: 'research_lab' as const, team: 'blue' as const, gridPos: { x: 7, z: 4 }, isBlueprint: false, constructionProgress: 100, maxProgress: 100, health: 800, maxHealth: 800 };
-    const economy = { ...m.economy, blue: { ...m.economy.blue, tier: 2 as const, cores: 2000 } };
+    let economy = { ...m.economy, blue: { ...m.economy.blue, tier: 2 as const, cores: 2000, compute: 420 } };
     const razorbacks = ['r1', 'r2', 'r3'].map((id, i) => unit(id, 'razorback', 'blue', 8 + i, 8));
     const memory = { ...freshAiMemory(), plan: { ...freshStrategyMemory(), strategy: 'armor' as AiStrategy, since: 0 } };
     const think = (structures = [...m.structures, lab]) => aiThink({ units: [...m.units.filter(u => u.team !== 'blue'), ...razorbacks], structures, buildings: m.buildings, economy, elapsedMs: 8 * 60_000 }, 'blue', memory, ctx)
       .actions.flatMap(a => (a.kind === 'order' && a.command.type === 'RESEARCH_UPGRADE' ? [a.command.upgrade] : []));
     expect(think()).toEqual(['overclock']);
+    // The compute for Tier 3 comes first.
+    economy = { ...economy, blue: { ...economy.blue, compute: 400 } };
+    expect(think()).toEqual([]);
     // Busy: nothing new.
     expect(think([...m.structures, { ...lab, research: { upgrade: 'nanoweave' as const, remainingMs: 1000, totalMs: 30_000 } }])).toEqual([]);
   });
