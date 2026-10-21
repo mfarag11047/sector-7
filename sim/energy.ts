@@ -4,7 +4,7 @@
 // free and only spend it on abilities. The grid is a circle around the command base plus
 // a smaller one around every captured building (core nodes pay cores instead). Units
 // standing in it recharge, as do units near a Helios, tethered to a Banshee or linked to an
-// anchored Battery Mule. Nano clouds block Helios charging but not the grid. An EMP missile
+// Battery Mule. Nano clouds block Helios charging but not the grid. An EMP missile
 // blacks out the enemy's grid inside its blast for a while (see Blackout).
 //
 // Moved out of the main loop in CityMap.tsx unchanged.
@@ -117,7 +117,7 @@ export function chargeSources(units: readonly UnitData[]): ChargeSources {
   }
 
   for (const mule of units) {
-    if (mule.type !== 'sun_plate' || !mule.isDeployed || mule.health <= 0) continue;
+    if (mule.type !== 'sun_plate' || mule.health <= 0) continue;
     let remaining = mule.battery;
     for (const linkId of mule.batteryTetherIds || []) {
       const target = units.find(t => t.id === linkId && t.health > 0 && t.team === mule.team);
@@ -139,17 +139,16 @@ export function chargeSources(units: readonly UnitData[]): ChargeSources {
 export const isBatteryLinkable = (u: UnitData) =>
   u.health > 0 && u.maxBattery > 0 && u.unitClass !== 'infantry' && u.type !== 'sun_plate' && u.type !== 'defense_drone' && u.type !== 'crawler_drone';
 
-// The units an anchored Battery Mule charges, picked automatically like a Guardian's patients: it
+// The units a Battery Mule charges, moving or parked, picked automatically like a Guardian's patients: it
 // stays on the ones it is charging until they are full or out of range, and fills its free links
 // (BATTERY_MULE_SLOTS) with the friendly vehicles and aircraft in range lowest on battery, by share
 // of a full battery, nearest first on a tie. A unit another mule is already charging is left to it.
-// Packed up, it charges nothing.
 export function muleLinks(mule: UnitData, units: readonly UnitData[]): string[] {
-  if (mule.type !== 'sun_plate' || !mule.isDeployed || mule.health <= 0) return [];
+  if (mule.type !== 'sun_plate' || mule.health <= 0) return [];
   const distance = (t: UnitData) => Math.hypot(t.gridPos.x - mule.gridPos.x, t.gridPos.z - mule.gridPos.z);
   const wants = (t: UnitData) => t.team === mule.team && t.id !== mule.id && isBatteryLinkable(t)
     && t.battery < t.maxBattery && distance(t) <= ABILITY_CONFIG.BATTERY_MULE_RANGE;
-  const others = units.filter(m => m.id !== mule.id && m.type === 'sun_plate' && m.isDeployed && m.health > 0);
+  const others = units.filter(m => m.id !== mule.id && m.type === 'sun_plate' && m.health > 0);
   // Two mules that picked the same unit at once: the one with the lower id keeps it.
   const claimedFirst = new Set(others.filter(m => m.id < mule.id).flatMap(m => m.batteryTetherIds || []));
   const kept = (mule.batteryTetherIds || []).filter(id => {
@@ -199,7 +198,7 @@ export function powerTick(u: UnitData, draft: UnitData, ctx: PowerContext): bool
   const isMoving = u.path.length > 0;
   const drain = batteryDrain(u, isMoving, ctx.onGrid);
 
-  // An anchored Battery Mule picks who to charge on its own, lowest battery first (muleLinks).
+  // A Battery Mule picks who to charge on its own, lowest battery first, even on the move (muleLinks).
   if (u.type === 'sun_plate') {
     const previousLinks = u.batteryTetherIds || [];
     const keptLinks = muleLinks(u, ctx.units);
@@ -246,7 +245,7 @@ export function powerTick(u: UnitData, draft: UnitData, ctx: PowerContext): bool
       if (draft.battery !== u.battery) changed = true;
     }
   }
-  if (u.type === 'sun_plate' && u.isDeployed) {
+  if (u.type === 'sun_plate') {
     const paid = ctx.sources.muleDrain.get(u.id) || 0;
     if (paid > 0) {
       draft.battery = Math.max(0, draft.battery - paid);

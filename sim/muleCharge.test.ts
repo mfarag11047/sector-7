@@ -7,7 +7,7 @@ import { createUnit } from './production';
 
 const unit = (id: string, type: UnitData['type'], x: number, patch: Partial<UnitData> = {}) =>
   ({ ...createUnit(type, 'blue', id, { x, z: 0 }), ...patch });
-const mule = (id = 'm', patch: Partial<UnitData> = {}) => unit(id, 'sun_plate', 0, { isDeployed: true, ...patch });
+const mule = (id = 'm', patch: Partial<UnitData> = {}) => unit(id, 'sun_plate', 0, patch);
 const low = (id: string, share: number, x = 2, type: UnitData['type'] = 'tank') => {
   const u = unit(id, type, x);
   return { ...u, battery: u.maxBattery * share };
@@ -20,12 +20,13 @@ describe('Battery Mule automatic charging', () => {
     expect(ABILITY_CONFIG.BATTERY_MULE_SLOTS).toBe(4);
   });
 
-  it('skips infantry, the enemy, units out of range, and anything when packed up', () => {
+  it('skips infantry, the enemy and units out of range, and charges on the move', () => {
     const enemy = { ...low('x', 0.1), team: 'red' as const };
     const far = low('far', 0.1, ABILITY_CONFIG.BATTERY_MULE_RANGE + 1);
     const trooper = { ...unit('t', 'trooper', 1), battery: 1 };
     expect(muleLinks(mule(), [mule(), enemy, far, trooper])).toEqual([]);
-    expect(muleLinks(mule('m', { isDeployed: false }), [low('a', 0.1)])).toEqual([]);
+    const moving = mule('m', { isDeployed: false, path: ['1,0', '2,0'] });
+    expect(muleLinks(moving, [moving, low('a', 0.1)])).toEqual(['a']);
   });
 
   it('stays on a unit until it is full, then moves on to the next lowest', () => {

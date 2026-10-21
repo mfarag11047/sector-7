@@ -230,7 +230,7 @@ function placeOrder(view: OrdersView, team: Team, type: StructureType, at: GridP
 // Spreads a group over free tiles around the target, nearest first, as the click handler did.
 function moveOrder(view: OrdersView, team: Team, unitIds: readonly string[], target: GridPos, attackMove: boolean, ctx: OrdersContext): OrderOutcome {
   const ids = new Set(unitIds);
-  const movers = view.units.filter(u => ids.has(u.id) && u.team === team && u.health > 0 && !(u.type === 'sun_plate' && u.isDeployed) && u.type !== 'cloak_generator' && u.type !== 'field_generator');
+  const movers = view.units.filter(u => ids.has(u.id) && u.team === team && u.health > 0 && u.type !== 'cloak_generator' && u.type !== 'field_generator');
   if (movers.length === 0) return reject('no unit of yours can move');
   if (target.x < 0 || target.z < 0 || target.x >= ctx.gridSize || target.z >= ctx.gridSize) return reject('off the map');
 

@@ -101,9 +101,9 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
       { name: 'CIWS rotary cannon', text: `Automatic. Fires a stream of rounds at any enemy aircraft or missile, shell or drop pod its radar holds within ${CIWS.range} tiles, missiles first. A magazine lasts ${CIWS.burstMs / 1000}s of fire, then it must stop for a ${CIWS.reloadMs / 1000}s reload; after ${CIWS.topUpMs / 1000}s without firing it tops a part-used magazine back up. Its menu shows the magazine and reload. It does ${CIWS.airDps} damage a second to aircraft and tears through ordnance far faster: a missile comes down after about ${Math.round(ORDNANCE_INTEGRITY.missile / CIWS.ordnanceDps)}s of fire, a shell in a fraction of a second.` },{ name: 'Air-search radar', text: `Always on: a green sweep ${RADAR.range} tiles across. Enemy aircraft and incoming missiles, shells and drop pods inside it show as red dots on the map and minimap, even in fog. A dot tells you something is there, not what it is. An EMP knocks the radar out.` }],
   },
   sun_plate: {
-    use: 'Mobile power. Plant it beyond your energy grid so vehicles can keep going.',
+    use: 'Mobile power. Send it with your vehicles beyond the energy grid so they can keep going: it charges them as it drives.',
     actions: [
-      { name: 'Anchor Down', text: `Plants the Battery Mule. Anchored, it charges up to ${ABILITY_CONFIG.BATTERY_MULE_SLOTS} friendly vehicles and aircraft within ${ABILITY_CONFIG.BATTERY_MULE_RANGE} tiles (yellow ring) on its own, like a Guardian heals: lowest battery first, staying on each until it is full.` },
+      { name: 'Auto-charge', text: `Moving or parked, it charges up to ${ABILITY_CONFIG.BATTERY_MULE_SLOTS} friendly vehicles and aircraft within ${ABILITY_CONFIG.BATTERY_MULE_RANGE} tiles (yellow ring) on its own, like a Guardian heals: lowest battery first, staying on each until it is full.` },
     ],
   },
   attack_drone: { use: 'A cheap armed drone from the Airpad at Tier 1. Its machine gun does decent damage to everything, infantry, vehicles, armour and aircraft, without being the best answer to any of them: mass a few to back up any army, or as the core of a drone force. Fragile, needs the energy grid like other aircraft, and remote-controlled, so a Banshee can jam it or hardline it.' },

@@ -151,15 +151,9 @@ export function specialistMoves(c: MoveContext): Action[] {
         if (!u.surveillance?.active) c.send(u, pushing ? c.staging : c.gather, false);
         break;
       case 'sun_plate': {
-        // Plants at the staging point and powers the vehicles around it; packs up to follow.
+        // Keeps with the army at the staging point, charging the vehicles round it as it goes.
         const spot = c.mode === 'retreat' || c.mode === 'gather' ? c.gather : c.staging;
-        if (u.isDeployed) {
-          if (dist(u.gridPos, spot) > ABILITY_CONFIG.BATTERY_MULE_RANGE) anchor.push(u.id);
-        } else if (dist(u.gridPos, spot) <= 2.5 && u.path.length === 0) {
-          anchor.push(u.id);
-        } else {
-          c.send(u, spot, false);
-        }
+        if (dist(u.gridPos, spot) > 2.5) c.send(u, spot, false);
         break;
       }
       case 'swarm_host': {

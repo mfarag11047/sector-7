@@ -105,9 +105,9 @@ describe('computer opponent: abilities', () => {
 });
 
 describe('computer opponent: specialist movement and the base', () => {
-  it('plants the Battery Mule at the staging point and keeps the scout car clear of enemies', () => {
+  it('keeps the Battery Mule with the army at the staging point and the scout car clear of enemies', () => {
     const sent: string[] = [];
-    const mule = unit('m', { type: 'sun_plate', unitClass: 'armor', gridPos: { x: 50, z: 50 } });
+    const mule = unit('m', { type: 'sun_plate', unitClass: 'armor', gridPos: { x: 40, z: 44 } });
     const scout = unit('s', { type: 'scout_car', unitClass: 'support', gridPos: { x: 30, z: 30 } });
     const actions = specialistMoves({
       team: 'red', tier: 2, mode: 'attack', objective: { x: 20, z: 20 }, staging: { x: 50, z: 50 }, gather: { x: 60, z: 60 }, home: { x: 74, z: 74 },
@@ -115,7 +115,8 @@ describe('computer opponent: specialist movement and the base', () => {
       bases: { blue: { x: 4, z: 4 }, red: { x: 74, z: 74 } }, sentinels: [],
       send: (u, target) => sent.push(`${u.id}->${target.x},${target.z}`),
     });
-    expect(actions.find(a => a.command.type === 'TOGGLE_ANCHOR')?.command).toMatchObject({ unitIds: ['m'] });
+    expect(actions.some(a => a.command.type === 'TOGGLE_ANCHOR')).toBe(false);
+    expect(sent).toContain('m->50,50');
     // The scout car backs off home.
     expect(sent).toContain('s->60,60');
   });

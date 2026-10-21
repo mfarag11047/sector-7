@@ -144,14 +144,15 @@ describe('links', () => {
     expect(run(view([banshee('b1'), far]), { type: 'HARDLINE_TETHER', unitId: 'b1', targetUnitId: 'd' }).refused).toMatch(/range/);
   });
 
-  it('links and unlinks a vehicle to an anchored Battery Mule', () => {
-    const mule = unit('m', { type: 'sun_plate', unitClass: 'armor', isDeployed: true, batteryTetherIds: [] });
+  it('links and unlinks a vehicle to a Battery Mule', () => {
+    const mule = unit('m', { type: 'sun_plate', unitClass: 'armor', batteryTetherIds: [] });
     const tank = titan({ gridPos: { x: 8, z: 5 } });
     const linked = run(view([mule, tank]), { type: 'BATTERY_LINK', unitId: 'm', targetUnitId: 't' });
     expect(after(linked, 'm').batteryTetherIds).toEqual(['t']);
     const unlinked = run(view(linked.units!), { type: 'BATTERY_LINK', unitId: 'm', targetUnitId: 't' });
     expect(after(unlinked, 'm').batteryTetherIds).toEqual([]);
-    expect(run(view([{ ...mule, isDeployed: false }, tank]), { type: 'BATTERY_LINK', unitId: 'm', targetUnitId: 't' }).refused).toMatch(/anchor/);
+    // It no longer anchors: it charges on the move.
+    expect(run(view([mule]), { type: 'TOGGLE_ANCHOR', unitIds: ['m'] }).refused).toBeTruthy();
   });
 });
 

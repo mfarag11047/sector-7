@@ -311,7 +311,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 |---|---|---|---|---|---|---|---|
 | **Razorback** (new) | 200 | 2 | T1 | 300 | Light | Rifle 10 / 0.5 s / 3, hits air | Fast raider, anti-infantry |
 | **Thunderhead** (new) | 320 | 3 | T1 | 240 | Light | Explosive 70 / 5 s / 12–20, splash 1.6, ground only | Mobile artillery; fires only when anchored |
-| **Battery Mule** | 250 | 2 | T1 | 500 | Heavy | None | Mobile power for vehicles, as fast as a Titan (0.7×). Anchored, it charges up to 4 friendly vehicles and aircraft within 18 tiles automatically, lowest battery first (`muleLinks`, `sim/energy.ts`); Volt Core (T2, researched) |
+| **Battery Mule** | 250 | 2 | T1 | 500 | Heavy | None | Mobile power for vehicles, as fast as a Titan (0.7×). Moving or parked (it no longer anchors), it charges up to 4 friendly vehicles and aircraft within 18 tiles automatically, lowest battery first (`muleLinks`, `sim/energy.ts`); Volt Core (T2, researched) |
 | **Titan MBT** | 420 | 3 | T2 | 600 | Heavy | Explosive 50 / 2.2 s / 4, splash 1 (10%); rail gun AP 120 / 5 s / 14 | Main battle tank, automatic rail gun; Smoke Screen, Piercing Rail Round (T3, researched) |
 | **Aegis** (new) | 240 | 2 | T2 | 300 | Light | Flak 30 / 1.2 s / 5, air only | Anti-air escort |
 
@@ -450,7 +450,7 @@ Then it detonates in a blue electrical discharge: 220 damage at the centre to ev
 within 4 tiles, ground or air, falling off evenly to 25% (55) at the rim. Friendly units and
 structures are spared. A mule killed by the blast goes critical in turn, with its own countdown,
 so a cluster of mules goes off in a rolling chain. The mule's menu shows "Volt Core: armed"
-once researched. A planted mule behind the army turns from a liability into a trap: dive it and pay.
+once researched. A mule behind the army turns from a liability into a trap: dive it and pay.
 
 ## Tank abilities
 
@@ -793,8 +793,8 @@ same kind of economy.
      come in reach, back to charging when they leave or its battery is low.
    - **Banshee** (T2) keeps with the army, **jams** whenever enemy drones come in reach and
      **hardlines** its own drones so they can't be jammed.
-   - **Battery Mule** (T2, with 5+ vehicles) plants at the staging point, where it charges the
-     vehicles round it on its own; it packs up to follow when the army moves on.
+   - **Battery Mule** (T2, with 5+ vehicles) keeps with the army at the staging point, charging the
+     vehicles round it on its own as it goes.
    - **Swarm Host** (T2) anchors to release Crawlers when a fight is close.
    - **Wasps** fire **swarm volleys** into enemy groups.
    - **Bombardment Drones** (T3) strike enemy production, never on top of its own units.

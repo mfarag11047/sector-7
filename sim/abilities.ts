@@ -322,7 +322,6 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
     case 'BATTERY_LINK': {
       const u = ownUnit(view, team, command.unitId, ['sun_plate']);
       if (typeof u === 'string') return reject(u);
-      if (!u.isDeployed) return reject('anchor the Battery Mule first');
       const target = view.units.find(t => t.id === command.targetUnitId);
       if (!target || !isBatteryLinkable(target) || target.team !== u.team) return reject('cannot link that unit');
       if (distance(u.gridPos, target.gridPos) > ABILITY_CONFIG.BATTERY_MULE_RANGE) return reject('out of range');
@@ -374,7 +373,7 @@ function toggleAnchor(view: AbilityView, team: Team, ids: readonly string[], ctx
   const spawnUnits: UnitData[] = [];
   let refused = 'no unit can do that';
   for (const id of ids) {
-    const u = ownUnit(view, team, id, ['sun_plate', 'swarm_host', 'howitzer']);
+    const u = ownUnit(view, team, id, ['swarm_host', 'howitzer']);
     if (typeof u === 'string') continue;
     if (u.type === 'howitzer') {
       // A Thunderhead plants only once it has stopped; packing up drops its fire mission.
@@ -382,11 +381,6 @@ function toggleAnchor(view: AbilityView, team: Team, ids: readonly string[], ctx
       const anchoring = !u.isDeployed;
       const now = ctx.now;
       updates.set(u.id, h => ({ ...h, isDeployed: anchoring, path: [], anchoredAt: anchoring ? now : undefined, artilleryTarget: null, artilleryAim: null }));
-      continue;
-    }
-    if (u.type === 'sun_plate') {
-      const anchoring = !u.isDeployed;
-      updates.set(u.id, m => ({ ...m, isDeployed: anchoring, path: [], batteryTetherIds: anchoring ? (m.batteryTetherIds || []) : [] }));
       continue;
     }
     const anchoring = !u.isAnchored;
