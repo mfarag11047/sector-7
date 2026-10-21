@@ -217,6 +217,10 @@ export const ABILITY_CONFIG = {
   MISSILE_LAUNCH_HEIGHT: 80,
   MISSILE_ASCENT_SPEED: 10, 
   MISSILE_CRUISE_SPEED: 15, 
+  // Ballista EMP and HE missiles fly 40% faster than other ballistic shots (orbital drop pods).
+  BALLISTA_MISSILE_SPEED: 21,
+  // The furthest a Ballista can fire, in tiles: half the map across.
+  BALLISTA_RANGE: 39.5,
   MISSILE_TERMINAL_SPEED: 30, 
 
   // Banshee Logic

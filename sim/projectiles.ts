@@ -13,9 +13,13 @@ import { isAirType } from './units';
 import { FORCE_FIELD, type ForceField } from './forcefield';
 import { isHidden } from './cloak';
 
+// How fast a ballistic shot flies: Ballista warheads faster than drop pods.
+const cruiseSpeed = (p: Projectile) =>
+    p.payload === 'emp' || p.payload === 'he' ? ABILITY_CONFIG.BALLISTA_MISSILE_SPEED : ABILITY_CONFIG.MISSILE_CRUISE_SPEED;
+
 // How far along its arc a ballistic missile is, 0 at launch to 1 at impact.
 export const ballisticProgress = (p: Projectile, nowMs: number) => {
-    const totalDuration = (p.maxDistance / ABILITY_CONFIG.MISSILE_CRUISE_SPEED) * 1000;
+    const totalDuration = (p.maxDistance / cruiseSpeed(p)) * 1000;
     return totalDuration > 0 ? Math.min(1, Math.max(0, (nowMs - (p.startTime || nowMs)) / totalDuration)) : 1;
 };
 
@@ -24,7 +28,7 @@ export const ballisticProgress = (p: Projectile, nowMs: number) => {
 export const sampleBallistic = (p: Projectile, nowMs: number) => {
     const start = p.startPos!;
     const target = p.targetPos!;
-    const totalDuration = (p.maxDistance / ABILITY_CONFIG.MISSILE_CRUISE_SPEED) * 1000;
+    const totalDuration = (p.maxDistance / cruiseSpeed(p)) * 1000;
     const elapsed = nowMs - (p.startTime || nowMs);
     const t = Math.min(1, Math.max(0, totalDuration > 0 ? elapsed / totalDuration : 1));
     const peakHeight = Math.min(120, p.maxDistance * 0.5);
@@ -100,7 +104,7 @@ export const advanceFlight = (
         const pose = sampleBallistic(p, now);
         p.position = { x: pose.x, y: pose.y, z: pose.z };
         p.velocity = { x: pose.vx, y: pose.vy, z: pose.vz };
-        const totalDuration = (p.maxDistance / ABILITY_CONFIG.MISSILE_CRUISE_SPEED) * 1000;
+        const totalDuration = (p.maxDistance / cruiseSpeed(p)) * 1000;
         const t = totalDuration > 0 ? (now - p.startTime) / totalDuration : 1;
         if (t < 1) return null;
 

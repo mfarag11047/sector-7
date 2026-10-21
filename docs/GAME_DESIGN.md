@@ -288,7 +288,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 | **Guardian** | 220 | 2 | T1 | 300 | Light | Heals 3 allies, Trophy system |
 | **Helios** | 110 | 1 | T1 | 90 | Air | Wireless charging |
 | **Banshee** | 320 | 3 | T2 | 380 | Light | Jammer, drone tether |
-| **Ballista** | 380 | 3 | T3 | 160 | Light | EMP and HE missiles (EMP: grid blackout and vehicle shutdown, 8 tiles, 20 s) |
+| **Ballista** | 380 | 3 | T3 | 160 | Light | EMP and HE missiles up to 39 tiles away, half the map (EMP: grid blackout and vehicle shutdown, 8 tiles, 20 s); missiles fly at 21 tiles/s |
 
 ### Other producers
 
@@ -738,7 +738,7 @@ same kind of economy.
    - **Wasps** fire **swarm volleys** into enemy groups.
    - **Bombardment Drones** (T3) strike enemy production, never on top of its own units.
    - **Ballista** (T3) stays by the Ordnance Fab, which keeps two **warheads** coming (EMP against
-     a heavy army, otherwise HE); it takes, loads and fires them at big enemy groups or structures.
+     a heavy army, otherwise HE); it takes, loads and fires them at big enemy groups or structures. It only fires at targets within its 39-tile range.
    - **Masons** put up 1 (Normal) or 2 (Hard) **Sentry Turrets** on the turret corners facing
      you.
    - When rich, with a unit beside a cleared block, it builds a **new Command HQ** (up to 2 on

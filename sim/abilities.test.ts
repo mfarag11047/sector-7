@@ -78,6 +78,14 @@ describe('Ballista and Field Fabricator', () => {
     expect(after(r, 'b')).toMatchObject({ ammoState: 'empty', loadedAmmo: null });
   });
 
+  it('reaches only half the map across, so it can\'t hit the far base from home', () => {
+    // The Ballista stands at (5, 5).
+    const armed = ballista({ ammoState: 'armed', loadedAmmo: 'he' });
+    expect(run(view([armed]), { type: 'FIRE_BALLISTA', unitId: 'b', target: { x: 44, z: 5 } }).refused).toBeUndefined();
+    expect(run(view([armed]), { type: 'FIRE_BALLISTA', unitId: 'b', target: { x: 46, z: 5 } }).refused).toMatch(/out of range \(39 tiles\)/);
+    expect(run(view([armed]), { type: 'FIRE_BALLISTA', unitId: 'b', target: { x: 74, z: 74 } }).refused).toMatch(/out of range/);
+  });
+
   it('draws from the stockpile only beside an Ordnance Fab', () => {
     const economy = addWarheads(createEconomy(), 'blue', 'emp');
     expect(run(view([ballista()], { economy }), { type: 'TAKE_WARHEAD', unitId: 'b', warhead: 'emp' }).refused).toMatch(/Fab/);

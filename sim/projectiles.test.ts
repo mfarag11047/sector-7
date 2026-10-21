@@ -84,7 +84,7 @@ describe('stepProjectiles', () => {
       id: 'm', ownerId: 'ballista', team: 'blue', position: { ...start }, velocity: { x: 0, y: 0, z: 0 }, damage: 0, radius: 1,
       maxDistance: 300, distanceTraveled: 0, targetPos: target, trajectory: 'ballistic', payload: 'he', startPos: start, startTime: 1, // 0 reads as "no start time" to the flight code
     };
-    const flightMs = (300 / ABILITY_CONFIG.MISSILE_CRUISE_SPEED) * 1000;
+    const flightMs = (300 / ABILITY_CONFIG.BALLISTA_MISSILE_SPEED) * 1000;
     const { ms, result } = flyUntilImpact(flights(missile), world([]), 100);
     expect(ms).toBeGreaterThanOrEqual(flightMs + 1);
     expect(ms).toBeLessThan(flightMs + 1 + 100);

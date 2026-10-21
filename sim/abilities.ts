@@ -231,6 +231,8 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
       const u = ownUnit(view, team, command.unitId, ['ballista']);
       if (typeof u === 'string') return reject(u);
       if (u.ammoState !== 'armed' || !u.loadedAmmo) return reject('no missile armed');
+      // Half the map across, at most: it can't hit the far base from home.
+      if (distance(u.gridPos, command.target) > ABILITY_CONFIG.BALLISTA_RANGE) return reject(`out of range (${Math.floor(ABILITY_CONFIG.BALLISTA_RANGE)} tiles)`);
       const start = world(u.gridPos, 2.0, ctx);
       const target = world(command.target, 1.0, ctx);
       const flight = Math.hypot(target.x - start.x, target.z - start.z);

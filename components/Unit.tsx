@@ -1198,6 +1198,13 @@ const Unit: React.FC<UnitProps> = ({
           <meshBasicMaterial color="#38bdf8" transparent opacity={0.45} side={THREE.DoubleSide} />
         </mesh>
       )}
+      {/* Ballista selected: how far it can fire, half the map across. */}
+      {isBallista && (isSelected || actionMenuOpen) && (
+        <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.8, 0]} raycast={() => null}>
+          <ringGeometry args={[ABILITY_CONFIG.BALLISTA_RANGE * tileSize - 1, ABILITY_CONFIG.BALLISTA_RANGE * tileSize + 1, 160]} />
+          <meshBasicMaterial color="#ef4444" transparent opacity={0.55} side={THREE.DoubleSide} toneMapped={false} depthWrite={false} />
+        </mesh>
+      )}
       {/* Thunderhead anchored and selected: its reach at the side's tier, and the dead zone inside. */}
       {isHowitzer && isDeployed && (isSelected || actionMenuOpen) && (
         <group rotation={[-Math.PI/2, 0, 0]} position={[0, 0.25, 0]}>

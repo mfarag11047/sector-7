@@ -145,7 +145,7 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
     ],
   },
   ballista: {
-    use: 'Missile launcher. Strikes anywhere on the map with EMP or HE warheads built at the Ordnance Fab.',
+    use: 'Missile launcher. Strikes up to half the map away (39 tiles, red ring when selected) with EMP or HE warheads built at the Ordnance Fab.',
     actions: [
       { name: 'Take / Load', text: 'Take warheads from your stockpile beside an Ordnance Fab, then load one.' },
       { name: 'Launch', text: `Fires the loaded missile at any tile. HE burns infantry and light aircraft in a ${ABILITY_CONFIG.HE_RADIUS}-tile cloud; EMP knocks out the enemy energy grid within ${ABILITY_CONFIG.EMP_RADIUS} tiles and shuts down every enemy vehicle and aircraft caught in the blast, both for ${ABILITY_CONFIG.EMP_DURATION / 1000}s.` },

@@ -173,7 +173,7 @@ export function specialistMoves(c: MoveContext): Action[] {
         break;
       }
       case 'ballista':
-        // Stays by the Ordnance Fab, where it loads warheads; fires from there (it reaches anywhere).
+        // Stays by the Ordnance Fab, where it loads warheads; fires from there at what's within its range (half the map).
         if (fab && dist(u.gridPos, fab.gridPos) >= ABILITY_CONFIG.FABRICATOR_DOCK_RANGE - 0.5) c.send(u, fab.gridPos, false);
         break;
       case 'bombard':
@@ -302,8 +302,10 @@ export function specialistAbilities(c: AbilityContext2): Action[] {
 function ballistaMoves(u: UnitData, c: AbilityContext2, enemy: Team): Action[] {
   const carried = (u.missileInventory?.emp || 0) + (u.missileInventory?.he || 0);
   if (u.ammoState === 'armed') {
-    const cluster = densest(c.theirs.filter(t => t.type !== 'defense_drone'), 2.5);
-    const structure = c.structures.filter(s => s.team === enemy && s.health > 0 && s.type !== 'hq' && !s.isBlueprint)
+    // Only what's within its reach, half the map across.
+    const reach = (p: GridPos) => dist(p, u.gridPos) <= ABILITY_CONFIG.BALLISTA_RANGE;
+    const cluster = densest(c.theirs.filter(t => t.type !== 'defense_drone' && reach(t.gridPos)), 2.5);
+    const structure = c.structures.filter(s => s.team === enemy && s.health > 0 && s.type !== 'hq' && !s.isBlueprint && reach(s.gridPos))
       .sort((a, b) => dist(a.gridPos, c.home) - dist(b.gridPos, c.home))[0];
     const at = cluster && cluster.value >= 450 ? cluster.at : structure?.gridPos ?? (cluster && cluster.value >= 200 ? cluster.at : null);
     return at ? [{ kind: 'ability', command: { type: 'FIRE_BALLISTA', unitId: u.id, target: { ...at } } }] : [];
