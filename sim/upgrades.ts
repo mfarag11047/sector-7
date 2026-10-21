@@ -14,7 +14,8 @@ import type { StructureData, UnitClass, UnitType } from '../types';
 import type { Team } from './commands';
 import type { Economy, TeamEconomy } from './economy';
 import { Tier, UNIT_RULES } from './units';
-import { type UnitAbilityDef } from './unitAbilities';
+import { type UnitAbilityDef, UPGRADE_BONUS } from './unitAbilities';
+import type { UnitData } from '../types';
 
 export type UpgradeId =
   | 'nanoweave' | 'dampener' | 'phantom_decoy' | 'emp_rocket'
@@ -79,6 +80,31 @@ export function abilityUnlocked(def: Pick<UnitAbilityDef, 'id' | 'unit' | 'tier'
   if (team.tier < def.tier) return false;
   const upgrade = abilityUpgrade(def);
   return !upgrade || hasUpgrade(team, upgrade);
+}
+
+// How many upgrades a side has researched for one unit type.
+export const upgradeLevelOf = (team: Pick<TeamEconomy, 'upgrades'> | undefined, unit: UnitType) =>
+  UPGRADES.filter(u => u.unit === unit && hasUpgrade(team, u.id)).length;
+
+// A unit's maximum health with its side's upgrades: +UPGRADE_BONUS.health of its base per upgrade.
+export const upgradedMaxHealth = (unit: UnitType, level: number) =>
+  Math.round(UNIT_STATS[unit].maxHealth * (1 + UPGRADE_BONUS.health * level));
+
+// Brings every unit up to its side's upgrades: its upgradeLevel (which sets its damage bonus,
+// sim/unitAbilities.ts upgradeDamage) and its maximum health, adding the extra to its current
+// health too. Units that are already up to date keep their identity; with none changed, the same
+// array comes back.
+export function applyUpgradeBonuses(units: UnitData[], economy: Economy): UnitData[] {
+  let changed = false;
+  const next = units.map(u => {
+    if ((u.team !== 'blue' && u.team !== 'red') || u.health <= 0 || u.decoyActive) return u;
+    const level = upgradeLevelOf(economy[u.team], u.type);
+    if ((u.upgradeLevel ?? 0) === level) return u;
+    changed = true;
+    const maxHealth = upgradedMaxHealth(u.type, level);
+    return { ...u, upgradeLevel: level, maxHealth, health: Math.max(1, u.health + maxHealth - u.maxHealth) };
+  });
+  return changed ? next : units;
 }
 
 // The tier a side's Thunderheads shoot at: their range grows with the shell upgrades.

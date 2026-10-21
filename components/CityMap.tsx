@@ -53,7 +53,7 @@ import { fireFlechettes, regenerateShield, shieldedHit } from '../sim/kestrel';
 import { markScreened, pruneSmoke, SMOKE, SmokeScreen } from '../sim/titan';
 import { armMules, countdownOf, dueCharges, VOLT, VoltCharge, voltBlasts } from '../sim/voltCore';
 import { canisterSpots, HE, WARHEAD_LIST, WP, wpGasDamage } from '../sim/warheads';
-import { addUpgrades, advanceResearch, applyResearch, artilleryTierOf, hasUpgrade, upgradeDef, type UpgradeId } from '../sim/upgrades';
+import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade, upgradeDef, type UpgradeId } from '../sim/upgrades';
 import { teamPads } from '../sim/baseLayout';
 import BuildPads, { FreePad } from './BuildPads';
 import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
@@ -3800,6 +3800,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               unitsRef.current = [...unitsRef.current, ...born];
               setUnits(prev => [...prev, ...born]);
           }
+          // Researched upgrades add health and damage to their units, new ones included (sim/upgrades.ts).
+          setUnits(prev => applyUpgradeBonuses(prev, economyRef.current));
 
           // Force field shields (sim/forcefield.ts): this tick's hits wear them down, a shield
           // battered to nothing collapses for its reboot, and a rebooted one comes back up.

@@ -13,7 +13,7 @@ describe('Battery Mule Volt Core', () => {
   it('goes critical where a mule dies, with a three-second countdown, only once researched', () => {
     const dead = unit('m', 'sun_plate', 'blue', 3, 4, { health: 0 });
     const [charge] = armMules([dead, unit('alive', 'sun_plate', 'blue', 0)], armed, NOW);
-    expect(charge).toEqual({ muleId: 'm', team: 'blue', at: { x: 3, z: 4 }, armedAt: NOW, blowsAt: NOW + VOLT.fuseMs });
+    expect(charge).toEqual({ muleId: 'm', team: 'blue', at: { x: 3, z: 4 }, armedAt: NOW, blowsAt: NOW + VOLT.fuseMs, power: 1 });
     expect(armMules([dead], () => false, NOW)).toEqual([]);
     expect([0, 1000, 2000, 2900].map(t => countdownOf(charge, NOW + t))).toEqual([3, 2, 1, 1]);
     expect(dueCharges([charge], NOW + 2999)).toEqual([]);

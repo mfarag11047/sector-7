@@ -89,7 +89,11 @@ export const hasBuff = (u: { buffs?: Buff[] }, kind: BuffKind) => !!u.buffs?.som
 // Weapon cooldowns are divided by this.
 export const fireRateMultiplier = (u: { buffs?: Buff[] }) =>
   (hasBuff(u, 'stim') ? 1.5 : 1) * (hasBuff(u, 'overclock') ? 2 : 1) * (hasBuff(u, 'barrage') ? 2 : 1);
-export const damageMultiplier = (u: { buffs?: Buff[] }) => (hasBuff(u, 'overcharge') ? OVERCHARGE_MULTIPLIER : 1);
+// Each upgrade researched for a unit's type adds this share of its base health and damage
+// (sim/upgrades.ts applyUpgradeBonuses keeps UnitData.upgradeLevel and the health up to date).
+export const UPGRADE_BONUS = { health: 0.2, damage: 0.15 };
+export const upgradeDamage = (u: { upgradeLevel?: number }) => 1 + UPGRADE_BONUS.damage * (u.upgradeLevel ?? 0);
+export const damageMultiplier = (u: { buffs?: Buff[]; upgradeLevel?: number }) => (hasBuff(u, 'overcharge') ? OVERCHARGE_MULTIPLIER : 1) * upgradeDamage(u);
 export const damageTakenMultiplier = (u: { buffs?: Buff[] }) => (hasBuff(u, 'nanoweave') ? 0.5 : 1);
 export const speedBuffMultiplier = (u: { buffs?: Buff[] }) =>
   hasBuff(u, 'emp') ? 0 : (hasBuff(u, 'stim') ? 1.3 : 1) * (hasBuff(u, 'nitro') ? 1.8 : 1) * (hasBuff(u, 'afterburner') ? 1.7 : 1);

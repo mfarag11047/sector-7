@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import type { StructureData } from '../types';
+import type { StructureData, UnitData } from '../types';
+import { UNIT_STATS } from '../constants';
+import { landShells } from './artillery';
+import { createHeadlessMatch, stepMatch } from './headless';
+import { createUnit } from './production';
 import { createEconomy, Economy } from './economy';
 import { applyOrderToStructures, orderEffects, OrdersContext } from './orders';
-import { abilityDef } from './unitAbilities';
+import { abilityDef, damageMultiplier, upgradeDamage } from './unitAbilities';
 import {
-  abilityUnlocked, addUpgrades, advanceResearch, applyResearch, artilleryTierOf, researchBlocker, upgradeClasses, upgradeDef, UPGRADES,
+  abilityUnlocked, addUpgrades, applyUpgradeBonuses, upgradeLevelOf, type UpgradeId, advanceResearch, applyResearch, artilleryTierOf, researchBlocker, upgradeClasses, upgradeDef, UPGRADES,
 } from './upgrades';
 
 const lab = (patch: Partial<StructureData> = {}): StructureData => ({
@@ -71,5 +75,49 @@ describe('unit upgrades', () => {
     expect(artilleryTierOf({ upgrades: ['long_range_shells'] })).toBe(2);
     expect(artilleryTierOf({ upgrades: ['long_range_shells', 'guided_shells'] })).toBe(3);
     expect(UPGRADES.every(u => u.cost > 0 && u.compute > 0 && u.researchMs > 0)).toBe(true);
+  });
+});
+
+describe('upgrade bonuses: +20% health and +15% damage per upgrade', () => {
+  const unit = (id: string, type: UnitData['type'], team: UnitData['team'] = 'blue', patch: Partial<UnitData> = {}) =>
+    ({ ...createUnit(type, team, id, { x: 0, z: 0 }), ...patch });
+  const researched = (...upgrades: UpgradeId[]) => { const e = createEconomy(); e.blue = { ...e.blue, upgrades }; return e; };
+
+  it('raises the health of every unit of the upgraded type, adding the extra to what it has', () => {
+    const units = [unit('full', 'trooper'), unit('hurt', 'trooper', 'blue', { health: 50 }), unit('tank', 'tank'), unit('red', 'trooper', 'red')];
+    const after = applyUpgradeBonuses(units, researched('nanoweave'));
+    const by = (id: string) => after.find(u => u.id === id)!;
+    expect(by('full')).toMatchObject({ upgradeLevel: 1, maxHealth: 120, health: 120 });
+    expect(by('hurt')).toMatchObject({ maxHealth: 120, health: 70 });
+    expect(by('tank')).toBe(units[2]);
+    expect(by('red')).toBe(units[3]);
+    // Already up to date: nothing changes.
+    expect(applyUpgradeBonuses(after, researched('nanoweave'))).toBe(after);
+  });
+
+  it('stacks for each upgrade of the same unit', () => {
+    expect(upgradeLevelOf(researched('long_range_shells', 'guided_shells', 'nanoweave').blue, 'howitzer')).toBe(2);
+    const [howitzer] = applyUpgradeBonuses([unit('h', 'howitzer')], researched('long_range_shells', 'guided_shells'));
+    expect(howitzer.maxHealth).toBe(Math.round(UNIT_STATS.howitzer.maxHealth * 1.4));
+    expect(damageMultiplier(howitzer)).toBeCloseTo(1.3);
+    expect(damageMultiplier(unit('t', 'trooper'))).toBe(1);
+  });
+
+  it('adds the damage bonus to the special weapons too', () => {
+    const level = (n: number) => ({ upgradeLevel: n });
+    expect(upgradeDamage(level(1))).toBeCloseTo(1.15);
+    // A Thunderhead shell carries its gun's bonus to where it lands.
+    const target = unit('t', 'trooper', 'red', { gridPos: { x: 0, z: 0 } });
+    const shell = (power?: number) => ({ id: 's', team: 'blue' as const, attackerId: 'h', from: { x: 9, z: 0 }, at: { x: 0, z: 0 }, firedAt: 0, landsAt: 0, power });
+    const plain = landShells([shell()], 1, [target], []).unitDamage.get('t')!;
+    expect(landShells([shell(1.3)], 1, [target], []).unitDamage.get('t')).toBeCloseTo(plain * 1.3);
+  });
+
+  it('applies in a match once the research is done', () => {
+    const m = createHeadlessMatch({ seed: 1, difficulty: { blue: 'normal', red: 'normal' }, doctrine: { blue: null, red: null } });
+    m.units.push(unit('tr', 'trooper', 'blue', { gridPos: { x: 6, z: 6 } }));
+    m.economy = { ...m.economy, blue: { ...m.economy.blue, upgrades: ['nanoweave'] } };
+    stepMatch(m);
+    expect(m.units.find(u => u.id === 'tr')).toMatchObject({ upgradeLevel: 1, maxHealth: 120 });
   });
 });

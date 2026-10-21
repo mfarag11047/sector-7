@@ -14,7 +14,7 @@ import type { StructureData, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { isHidden } from './cloak';
 import { isRadarActive } from './radar';
-import { damageTakenMultiplier, fireRateMultiplier, rangeBonus } from './unitAbilities';
+import { damageTakenMultiplier, upgradeDamage, fireRateMultiplier, rangeBonus } from './unitAbilities';
 import { DAMAGE_MULTIPLIER, UNIT_RULES } from './units';
 
 export const CIWS = {
@@ -78,6 +78,8 @@ interface Gun {
   structure: boolean;
   range: number;
   fireRate: number;
+  // Damage multiplier from the carrier's upgrades (1 for the turret).
+  power: number;
 }
 
 // One tick of every Aegis and CIWS turret. Turrets carry their own tracking radar, so they need
@@ -99,11 +101,11 @@ export function ciwsTick(
   const guns: (Gun & { active: boolean })[] = [];
   for (const u of units) {
     if (u.type !== 'aegis') continue;
-    guns.push({ id: u.id, team: u.team, at: u.gridPos, state: stateOf(u), structure: false, range: CIWS.range + rangeBonus(u), fireRate: fireRateMultiplier(u), active: isRadarActive(u) });
+    guns.push({ id: u.id, team: u.team, at: u.gridPos, state: stateOf(u), structure: false, range: CIWS.range + rangeBonus(u), fireRate: fireRateMultiplier(u), power: upgradeDamage(u), active: isRadarActive(u) });
   }
   for (const s of structures) {
     if (s.type !== 'aa_turret') continue;
-    guns.push({ id: s.id, team: s.team, at: s.gridPos, state: stateOf(s), structure: true, range: CIWS.range, fireRate: 1, active: isCiwsTurretReady(s) });
+    guns.push({ id: s.id, team: s.team, at: s.gridPos, state: stateOf(s), structure: true, range: CIWS.range, fireRate: 1, power: 1, active: isCiwsTurretReady(s) });
   }
 
   for (const gun of guns) {
@@ -145,7 +147,7 @@ export function ciwsTick(
       const victim = units.find(t => t.id === hit.id)!;
       // Against ground units the rounds are far less effective: flak multipliers, then halved.
       const dps = hit.ground ? (CIWS.airDps / 2) * DAMAGE_MULTIPLIER.flak[UNIT_RULES[victim.type].armor] : CIWS.airDps;
-      add(result.unitDamage, hit.id, dps * rate * damageTakenMultiplier(victim));
+      add(result.unitDamage, hit.id, dps * gun.power * rate * damageTakenMultiplier(victim));
     }
     result.links.push({ gunId: gun.id, targetId: hit.id, ordnance: hit.ordnance, fromStructure: gun.structure });
     state.ciwsTargetId = hit.id;

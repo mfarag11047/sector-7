@@ -16,7 +16,7 @@ import type { GridPos } from './commands';
 import { isHidden } from './cloak';
 import { ForceField, shotBlockedBy } from './forcefield';
 import { ArmorClass, UNIT_RULES } from './units';
-import { damageTakenMultiplier, isEmpDisabled } from './unitAbilities';
+import { damageTakenMultiplier, upgradeDamage, isEmpDisabled } from './unitAbilities';
 import { airHitMultiplier } from './titan';
 
 export const FLECHETTE = {
@@ -61,11 +61,11 @@ export function fireFlechettes(
     if (!t || t.team === k.team || t.team === 'neutral' || t.health <= 0 || isHidden(t) || tiles(k.gridPos, t.gridPos) > FLECHETTE.range) continue;
     const blocked = shotBlockedBy(fields, k.team, k.gridPos, t.gridPos);
     if (blocked) {
-      add(shieldDamage, blocked.field.id, FLECHETTE.damage);
+      add(shieldDamage, blocked.field.id, FLECHETTE.damage * upgradeDamage(k));
       shots.push({ attackerId: k.id, targetId: t.id, team: k.team, from: k.gridPos, to: blocked.at });
       continue;
     }
-    const hurt = (u: UnitData, n: number) => add(unitDamage, u.id, n * FLECHETTE.vs[UNIT_RULES[u.type].armor] * damageTakenMultiplier(u) * airHitMultiplier(u));
+    const hurt = (u: UnitData, n: number) => add(unitDamage, u.id, n * upgradeDamage(k) * FLECHETTE.vs[UNIT_RULES[u.type].armor] * damageTakenMultiplier(u) * airHitMultiplier(u));
     hurt(t, FLECHETTE.damage);
     shots.push({ attackerId: k.id, targetId: t.id, team: k.team, from: k.gridPos, to: t.gridPos });
     for (const o of units) {

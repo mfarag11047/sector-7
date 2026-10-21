@@ -325,7 +325,7 @@ const UnitDetail: React.FC<{ type: UnitType; color: string; onOpen: (t: UnitType
     // A later ability or passive is researched at Advanced Research once its tier is reached.
     for (const a of abilities.filter(a => a.tier === t && !abilityUpgrade(a))) steps.push(`Ability: ${a.name}`);
     for (const u of upgradesFor(type).filter(u => u.tier === t)) {
-      steps.push(`Research at Advanced Research: ${u.name} (${u.cost} cores + ${u.compute} compute, ${u.researchMs / 1000}s)${isArtillery ? ` · range ${ARTILLERY.range[t]} tiles` : ''}`);
+      steps.push(`Research at Advanced Research: ${u.name} (${u.cost} cores + ${u.compute} compute, ${u.researchMs / 1000}s; +20% health, +15% damage)${isArtillery ? ` · range ${ARTILLERY.range[t]} tiles` : ''}`);
     }
     if (isArtillery && t === 1) steps.push(`Range ${ARTILLERY.range[1]} tiles`);
     return steps;
@@ -532,7 +532,7 @@ const STRUCTURE_TEXT: Partial<Record<StructureType, string>> = {
   support: 'Trains support units and the Ballista.',
   builder: 'Trains Masons and unlocks walls and turrets.',
   ordnance_fab: 'Builds EMP and HE warheads for Ballistas, and trains Field Fabricators.',
-  research_lab: 'Advanced Research: researches unit upgrades, one at a time, for cores, compute and time. A unit\'s second ability, the Ghost\'s Dampener and Phantom Decoy, the Thunderhead\'s longer range and the Hornet\'s rockets all need researching here after reaching their tier.',
+  research_lab: 'Advanced Research: researches unit upgrades, one at a time, for cores, compute and time. Each upgrade also gives that unit type +20% health and +15% damage. A unit\'s second ability, the Ghost\'s Dampener and Phantom Decoy, the Thunderhead\'s longer range and the Hornet\'s rockets all need researching here after reaching their tier.',
   wall_tier1: 'Cheap tank traps that block a lane. One Mason haul.',
   wall_tier2: 'A heavy wall. Three Mason hauls.',
   defense: 'Anti-vehicle cannon: armour-piercing shells that crack tanks and light vehicles. Cannot shoot aircraft. Mason-built, only on the corner pads of one of your Command HQs.',

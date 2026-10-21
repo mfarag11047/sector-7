@@ -10,6 +10,7 @@ import * as THREE from 'three';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { MAX_QUEUE } from '../sim/orders';
 import { TIER_REQUIREMENT, UNIT_RULES, unitsProducedBy } from '../sim/units';
+import { UPGRADE_BONUS } from '../sim/unitAbilities';
 import { WARHEAD_LABEL } from '../sim/warheads';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
@@ -1023,6 +1024,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                 <div className="flex flex-col">
                                     <span className={done(u.id) ? 'text-emerald-300' : ''}>{done(u.id) ? '✓ ' : ''}{u.name} <span className="text-amber-300">T{u.tier}</span></span>
                                     <span className="text-[9px] text-slate-400 max-w-[190px] whitespace-normal">{u.description}</span>
+                                    <span className="text-[9px] text-emerald-300/80">+{UPGRADE_BONUS.health * 100}% health · +{UPGRADE_BONUS.damage * 100}% damage</span>
                                     <span className="text-[9px] text-slate-500">{blocked ?? `${u.researchMs / 1000}s research`}</span>
                                 </div>
                                 {!done(u.id) && (

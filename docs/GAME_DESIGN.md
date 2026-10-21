@@ -143,6 +143,12 @@ unit's later upgrades: each is researched at an **Advanced Research** building (
 takes a building pad; `sim/upgrades.ts`). There isn't the time, money or pad space to research
 everything, so what you research commits you to the units you mean to build.
 
+- Each upgrade also makes the unit tougher and harder-hitting: **+20% health and +15% damage** for
+  every upgrade researched for that unit (so +40% / +30% with both of a Thunderhead's, Ghost's or
+  Hornet's). It applies at once to the units already out, new ones included; the extra health is
+  added to what they have. The damage bonus covers all their weapons: main gun, rail gun, shells,
+  rockets, flechettes, CIWS and the Volt Core blast. (`applyUpgradeBonuses` in `sim/upgrades.ts`,
+  `upgradeDamage` in `sim/unitAbilities.ts`.)
 - Each upgrade costs cores **and compute** (T2: 250 cores + 50 compute, T3: 400 + 100), so
   upgrades compete with the next tier for compute. The computer always keeps the compute for its
   next tier before it spends any on upgrades.

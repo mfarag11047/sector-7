@@ -13,7 +13,7 @@ import { ForceField, impactAbsorbed, shotBlocked } from './forcefield';
 import type { StructureData, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { isHidden } from './cloak';
-import { damageTakenMultiplier, isEmpDisabled, visionOf } from './unitAbilities';
+import { damageTakenMultiplier, upgradeDamage, isEmpDisabled, visionOf } from './unitAbilities';
 import { isScreened } from './titan';
 import { ArmorClass, DAMAGE_MULTIPLIER, Tier, UNIT_RULES } from './units';
 
@@ -45,6 +45,8 @@ export interface ArtilleryShell {
   at: { x: number; z: number };
   firedAt: number;
   landsAt: number;
+  // The gun's damage multiplier when it fired (its upgrades).
+  power?: number;
 }
 
 const tiles = (a: { x: number; z: number }, b: { x: number; z: number }) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -111,7 +113,7 @@ export function fireArtillery(
     const drift = random() * ARTILLERY.scatter;
     const at = { x: aim.x + Math.cos(angle) * drift, z: aim.z + Math.sin(angle) * drift };
     shells.push({
-      id: newId(), team: u.team, attackerId: u.id, from: { ...u.gridPos }, at, firedAt: now,
+      id: newId(), team: u.team, attackerId: u.id, from: { ...u.gridPos }, at, firedAt: now, power: upgradeDamage(u),
       landsAt: now + ARTILLERY.flightBaseMs + ARTILLERY.flightPerTileMs * tiles(u.gridPos, aim),
     });
     fired.set(u.id, { ...aim });
@@ -148,12 +150,12 @@ export function landShells(
       const armor = UNIT_RULES[u.type].armor;
       const d = tiles(u.gridPos, shell.at);
       if (armor === 'air' || d > ARTILLERY.splash || shotBlocked(fields, shell.team, shell.at, u.gridPos)) continue;
-      add(unitDamage, u.id, shellDamage(armor, d) * damageTakenMultiplier(u));
+      add(unitDamage, u.id, shellDamage(armor, d) * (shell.power ?? 1) * damageTakenMultiplier(u));
     }
     for (const s of structures) {
       if (s.team === shell.team || s.health <= 0) continue;
       const d = tiles(s.gridPos, shell.at);
-      if (d <= ARTILLERY.splash && !shotBlocked(fields, shell.team, shell.at, s.gridPos)) add(structureDamage, s.id, shellDamage('structure', d));
+      if (d <= ARTILLERY.splash && !shotBlocked(fields, shell.team, shell.at, s.gridPos)) add(structureDamage, s.id, shellDamage('structure', d) * (shell.power ?? 1));
     }
   }
   return { landed, flying, absorbed, unitDamage, structureDamage };

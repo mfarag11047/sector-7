@@ -15,7 +15,7 @@ import { fireHornetRockets, landSalvo, MiniRocket } from './hornet';
 import { fireFlechettes, regenerateShield, shieldedHit } from './kestrel';
 import { markScreened, pruneSmoke, SmokeScreen } from './titan';
 import { armMules, dueCharges, VoltCharge, voltBlasts } from './voltCore';
-import { addUpgrades, advanceResearch, applyResearch, artilleryTierOf, hasUpgrade } from './upgrades';
+import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade } from './upgrades';
 import { EmpRocket, empRocketImpact, empRocketTick, mergeUnitUpdates } from './empRocket';
 import { ArtilleryShell, fireArtillery, landShells, shellGroundPos } from './artillery';
 import { clearedBlocks, rubbleCleared } from './bases';
@@ -284,6 +284,8 @@ export function stepMatch(m: HeadlessMatch): void {
     if (structure.rallyPoint) unit.path = isAirType(unitType) ? paths.findAirPath(spawn, structure.rallyPoint) : paths.findPath(spawn, structure.rallyPoint);
     m.units.push(unit);
   }
+  // Researched upgrades add health and damage to their units, new ones included.
+  m.units = applyUpgradeBonuses(m.units, m.economy);
 
   // Damage, repair and batteries.
   const power = chargeSources(m.units);

@@ -12,7 +12,7 @@
 
 import type { UnitData } from '../types';
 import type { GridPos, Team } from './commands';
-import { damageTakenMultiplier } from './unitAbilities';
+import { damageTakenMultiplier, upgradeDamage } from './unitAbilities';
 
 export const VOLT = {
   radius: 4,
@@ -24,7 +24,8 @@ export const VOLT = {
 };
 
 // A mule's core counting down where it died.
-export interface VoltCharge { muleId: string; team: UnitData['team']; at: GridPos; armedAt: number; blowsAt: number }
+// power: the mule's damage multiplier (its upgrades).
+export interface VoltCharge { muleId: string; team: UnitData['team']; at: GridPos; armedAt: number; blowsAt: number; power?: number }
 
 // What a blast does at `distance` tiles from its centre.
 export const voltDamage = (distance: number) =>
@@ -33,7 +34,7 @@ export const voltDamage = (distance: number) =>
 // Charges for every Battery Mule that died this tick on a side with the Volt Core.
 export const armMules = (units: readonly UnitData[], armed: (team: Team) => boolean, now: number): VoltCharge[] =>
   units.filter(u => u.type === 'sun_plate' && u.health <= 0 && (u.team === 'blue' || u.team === 'red') && armed(u.team))
-    .map(u => ({ muleId: u.id, team: u.team, at: { ...u.gridPos }, armedAt: now, blowsAt: now + VOLT.fuseMs }));
+    .map(u => ({ muleId: u.id, team: u.team, at: { ...u.gridPos }, armedAt: now, blowsAt: now + VOLT.fuseMs, power: upgradeDamage(u) }));
 
 // The charges whose countdown is over.
 export const dueCharges = (charges: readonly VoltCharge[], now: number) => charges.filter(c => c.blowsAt <= now);
@@ -47,7 +48,7 @@ export function voltBlasts(units: readonly UnitData[], blasts: readonly VoltChar
       if (t.health <= 0 || t.team === b.team || t.team === 'neutral') continue;
       const n = voltDamage(Math.hypot(t.gridPos.x - b.at.x, t.gridPos.z - b.at.z));
       if (n <= 0) continue;
-      damage.set(t.id, (damage.get(t.id) || 0) + n * damageTakenMultiplier(t));
+      damage.set(t.id, (damage.get(t.id) || 0) + n * (b.power ?? 1) * damageTakenMultiplier(t));
       hits.push({ attackerId: b.muleId, targetId: t.id });
     }
   }

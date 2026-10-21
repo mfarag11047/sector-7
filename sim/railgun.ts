@@ -19,7 +19,7 @@ import type { StructureData, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { spottedBy } from './artillery';
 import { isHidden } from './cloak';
-import { damageTakenMultiplier, hasBuff, isEmpDisabled } from './unitAbilities';
+import { damageTakenMultiplier, upgradeDamage, hasBuff, isEmpDisabled } from './unitAbilities';
 import { isScreened, PIERCE } from './titan';
 import { ArmorClass, shotDamage, UNIT_RULES, Weapon } from './units';
 
@@ -81,7 +81,7 @@ export function fireRailguns(
     if (best) {
       const shield = shieldOf(u.team, u.gridPos, best.t.gridPos);
       if (shield) {
-        add(shieldDamage, shield.fieldId, RAILGUN.damage);
+        add(shieldDamage, shield.fieldId, RAILGUN.damage * upgradeDamage(u));
         shots.push({ attackerId: u.id, targetId: best.t.id, team: u.team, from: u.gridPos, to: shield.at, structure: false });
         continue;
       }
@@ -91,19 +91,19 @@ export function fireRailguns(
         for (const t of units) {
           if (t.team === u.team || t.team === 'neutral' || t.health <= 0 || UNIT_RULES[t.type].armor === 'air') continue;
           if (t !== best.t && offPath(u.gridPos, end, t.gridPos) > PIERCE.width) continue;
-          add(unitDamage, t.id, railDamage(UNIT_RULES[t.type].armor) * damageTakenMultiplier(t));
+          add(unitDamage, t.id, railDamage(UNIT_RULES[t.type].armor) * upgradeDamage(u) * damageTakenMultiplier(t));
           pierceHits.push({ attackerId: u.id, targetId: t.id });
         }
         for (const s of structures) {
           if (s.team === u.team || u.team === 'neutral' || s.health <= 0 || offPath(u.gridPos, end, s.gridPos) > PIERCE.width) continue;
-          add(structureDamage, s.id, shotDamage(WEAPON, 'structure'));
+          add(structureDamage, s.id, shotDamage(WEAPON, 'structure') * upgradeDamage(u));
           pierceHits.push({ attackerId: u.id, targetId: s.id });
         }
         shots.push({ attackerId: u.id, targetId: best.t.id, team: u.team, from: u.gridPos, to: end, structure: false, pierced: true });
         continue;
       }
       const armor = UNIT_RULES[best.t.type].armor;
-      add(unitDamage, best.t.id, railDamage(armor) * damageTakenMultiplier(best.t));
+      add(unitDamage, best.t.id, railDamage(armor) * upgradeDamage(u) * damageTakenMultiplier(best.t));
       shots.push({ attackerId: u.id, targetId: best.t.id, team: u.team, from: u.gridPos, to: best.t.gridPos, structure: false });
       continue;
     }
@@ -116,7 +116,7 @@ export function fireRailguns(
       wall = { s, d };
     }
     if (wall) {
-      add(structureDamage, wall.s.id, shotDamage(WEAPON, 'structure'));
+      add(structureDamage, wall.s.id, shotDamage(WEAPON, 'structure') * upgradeDamage(u));
       shots.push({ attackerId: u.id, targetId: wall.s.id, team: u.team, from: u.gridPos, to: wall.s.gridPos, structure: true });
     }
   }
