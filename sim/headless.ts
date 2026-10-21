@@ -14,6 +14,7 @@ import { afterRailShot, fireRailguns } from './railgun';
 import { fireHornetRockets, landSalvo, MiniRocket } from './hornet';
 import { fireFlechettes, regenerateShield, shieldedHit } from './kestrel';
 import { markScreened, pruneSmoke, SmokeScreen } from './titan';
+import { detonateMules } from './voltCore';
 import { addUpgrades, advanceResearch, applyResearch, artilleryTierOf, hasUpgrade } from './upgrades';
 import { EmpRocket, empRocketImpact, empRocketTick, mergeUnitUpdates } from './empRocket';
 import { ArtilleryShell, fireArtillery, landShells, shellGroundPos } from './artillery';
@@ -308,7 +309,14 @@ export function stepMatch(m: HeadlessMatch): void {
       });
     }
     return draft;
-  }).filter(u => u.health > 0);
+  });
+  // Battery Mules with the Volt Core detonate as they die (sim/voltCore.ts).
+  const volt = detonateMules(m.units, team => hasUpgrade(m.economy[team], 'volt_core'));
+  if (volt.blasts.length > 0) {
+    m.units = volt.units;
+    recordWeaponHits(m.pacing, { shots: volt.hits }, m.units, m.structures);
+  }
+  m.units = m.units.filter(u => u.health > 0);
 
   // Once a second: income and victory.
   if (now % 1000 === 0) {

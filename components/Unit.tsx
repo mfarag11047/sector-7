@@ -1329,6 +1329,11 @@ const Unit: React.FC<UnitProps> = ({
                       )}
                   </div>
 
+                  {type === 'sun_plate' && (
+                      <div className={`text-[10px] bg-slate-900/60 ${upgrades.includes('volt_core') ? 'text-sky-300' : 'text-slate-500'} px-2 py-1 rounded flex justify-between gap-2`} title="Passive: when the Battery Mule is destroyed it detonates, dealing 220 electrical damage to enemies within 4 tiles, less toward the edge. Researched at Advanced Research (Tier 2).">
+                        <span>Volt Core</span><span className="font-mono">{upgrades.includes('volt_core') ? 'armed' : 'T2 · Research'}</span>
+                      </div>
+                  )}
                   {type === 'attack_drone' && (
                       <>
                         <div className="text-[10px] bg-slate-900/60 text-slate-300 px-2 py-1 rounded flex justify-between gap-2" title="Passive: every 5s alongside its machine gun, a shotgun burst that hits its target hard and peppers enemies beside it. Shreds infantry.">

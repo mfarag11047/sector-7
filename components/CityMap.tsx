@@ -51,6 +51,7 @@ import { UNIT_RULES, isAirType } from '../sim/units';
 import { airPath, fastestPath, sentinelHazardOf } from '../sim/pathfinding';
 import { fireFlechettes, regenerateShield, shieldedHit } from '../sim/kestrel';
 import { markScreened, pruneSmoke, SMOKE, SmokeScreen } from '../sim/titan';
+import { detonateMules, VOLT, VoltBlast } from '../sim/voltCore';
 import { addUpgrades, advanceResearch, applyResearch, artilleryTierOf, hasUpgrade, upgradeDef, type UpgradeId } from '../sim/upgrades';
 import { BUILDING_PADS, freePadsFor, isPad, padKindOf, teamPads, TURRET_PADS } from '../sim/baseLayout';
 import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
@@ -1389,6 +1390,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const [miniRockets, setMiniRockets] = useState<MiniRocket[]>([]);
   // Tank Smoke Screens on the ground (sim/titan.ts), ahead of state for the tick.
   const smokeRef = useRef<SmokeScreen[]>([]);
+  // Volt Core detonations waiting to be drawn, by mule (sim/voltCore.ts).
+  const voltBlastsRef = useRef(new Map<string, VoltBlast>());
   const [smokeScreens, setSmokeScreens] = useState<SmokeScreen[]>([]);
   const miniRocketsRef = useRef<MiniRocket[]>([]);
   // Thunderhead shells in flight. The ref is the authority; the state is for drawing them.
@@ -3152,6 +3155,16 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               });
           }
           let newExplosions: Explosion[] = [];
+          // Volt Core detonations from the last tick: a big blue discharge.
+          if (voltBlastsRef.current.size > 0) {
+              for (const b of voltBlastsRef.current.values()) {
+                  newExplosions.push({
+                      id: `volt-${b.muleId}`, style: 'emp', radius: VOLT.radius * tileSize, duration: 900, createdAt: now,
+                      position: { x: b.at.x * tileSize - offset, y: 1.5, z: b.at.z * tileSize - offset },
+                  });
+              }
+              voltBlastsRef.current.clear();
+          }
           // Units in a friendly Smoke Screen are screened this tick (sim/titan.ts): enemy ground
           // fire can't pick them out, and aircraft do half damage.
           if (smokeRef.current.some(s => s.until <= now)) {
@@ -3793,6 +3806,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       });
                   }
                   
+                  // Battery Mules with the Volt Core detonate as they die (sim/voltCore.ts). The
+                  // blasts are drawn on the next tick, outside this updater.
+                  const volt = detonateMules(nextUnits, team => hasUpgrade(economyRef.current[team], 'volt_core'));
+                  if (volt.blasts.length > 0) {
+                      nextUnits = volt.units;
+                      for (const b of volt.blasts) voltBlastsRef.current.set(b.muleId, b);
+                      if (pacingRef.current) recordWeaponHits(pacingRef.current, { shots: volt.hits }, nextUnits, structuresRef.current);
+                  }
                   // Cloaking Fields (sim/cloak.ts): who is hidden after this tick's fire.
                   const living = nextUnits.filter(u => u.health > 0);
                   const finalUnits = applyFieldCloak(living, fieldCloakedIds(living, now));

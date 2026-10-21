@@ -162,6 +162,7 @@ everything, so what you research commits you to the units you mean to build.
 | | Hunter-Killer Rockets | T3 | 400 | 45 s | Its passive anti-vehicle rocket |
 | Kestrel | Regenerative Shield | T2 | 250 | 30 s | Shield worth 25% of its health (see Kestrel abilities) |
 | Titan MBT | Piercing Rail Round | T3 | 400 | 45 s | Unlocks the ability (see Tank rail gun) |
+| Battery Mule | Volt Core | T2 | 250 | 30 s | Passive: detonates when destroyed (see Battery Mule Volt Core) |
 
 **Why research and not "hold N nodes":** in the first version, your tier was however many server
 nodes you held right now. All four sat in the centre, so whoever won the middle got every tier and
@@ -266,7 +267,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 |---|---|---|---|---|---|---|---|
 | **Razorback** (new) | 200 | 2 | T1 | 300 | Light | Rifle 10 / 0.5 s / 3, hits air | Fast raider, anti-infantry |
 | **Thunderhead** (new) | 320 | 3 | T1 | 240 | Light | Explosive 70 / 5 s / 12–20, splash 1.6, ground only | Mobile artillery; fires only when anchored |
-| **Battery Mule** | 250 | 2 | T1 | 500 | Heavy | None | Mobile power for vehicles |
+| **Battery Mule** | 250 | 2 | T1 | 500 | Heavy | None | Mobile power for vehicles; Volt Core (T2, researched) |
 | **Titan MBT** | 420 | 3 | T2 | 600 | Heavy | Explosive 50 / 2.2 s / 4, splash 1 (10%); rail gun AP 120 / 5 s / 14 | Main battle tank, automatic rail gun; Smoke Screen, Piercing Rail Round (T3, researched) |
 | **Aegis** (new) | 240 | 2 | T2 | 300 | Light | Flak 30 / 1.2 s / 5, air only | Anti-air escort |
 
@@ -377,6 +378,15 @@ replaced the old manually aimed Main Cannon:
   cloaked units.
 - Drawn as a white-hot core in a cyan glow from muzzle to target, with a flash where it strikes.
 
+
+## Battery Mule Volt Core
+
+`sim/voltCore.ts`. Researched at Advanced Research (T2, 250 cores, 30 s), then passive on every
+Battery Mule the side has. When a mule is destroyed it detonates in a blue electrical discharge:
+220 damage at the centre to every enemy unit within 4 tiles, ground or air, falling off evenly to
+25% (55) at the rim. Friendly units and structures are spared. A mule killed by another's blast
+detonates in turn, so a cluster of enemy mules can chain. The mule's menu shows "Volt Core: armed"
+once researched. A planted mule behind the army turns from a liability into a trap: dive it and pay.
 
 ## Tank abilities
 
