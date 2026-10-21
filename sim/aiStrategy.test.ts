@@ -217,6 +217,25 @@ describe('researching upgrades', () => {
   });
 });
 
+describe('Core Refineries', () => {
+  it('upgrades its refinery at Tier 2 with cores to spare', () => {
+    const m = createHeadlessMatch({ seed: 1, difficulty: { blue: 'normal', red: 'normal' }, doctrine: { blue: null, red: null } });
+    const ctx: AiContext = {
+      gridSize: m.gridSize, bases: { blue: { x: 4, z: 4 }, red: { x: 74, z: 74 } }, difficulty: 'normal', doctrine: null,
+      canBuildOn: () => false, isOpenGround: () => false, isWalkable: () => true,
+      doctrineCooldowns: { tier2: 0, tier3: 0 }, random: () => 0.1,
+    };
+    const refinery: StructureData = { id: 'ref', type: 'refinery', team: 'blue', gridPos: { x: 5, z: 1 }, isBlueprint: false, constructionProgress: 100, maxProgress: 100, health: 900, maxHealth: 900 };
+    const think = (tier: 1 | 2, cores: number) => aiThink({
+      units: m.units, structures: [...m.structures, refinery], buildings: m.buildings,
+      economy: { ...m.economy, blue: { ...m.economy.blue, tier, cores } }, elapsedMs: 8 * 60_000,
+    }, 'blue', freshAiMemory(), ctx).actions.some(a => a.kind === 'order' && a.command.type === 'UPGRADE_REFINERY');
+    expect(think(2, 5000)).toBe(true);
+    expect(think(1, 5000)).toBe(false);
+    expect(think(2, 200)).toBe(false);
+  });
+});
+
 describe('a full base', () => {
   it('keeps training when every building pad is taken, instead of saving for a building it cannot place', () => {
     const m = createHeadlessMatch({ seed: 1, difficulty: { blue: 'normal', red: 'normal' }, doctrine: { blue: null, red: null } });

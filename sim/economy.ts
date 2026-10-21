@@ -9,6 +9,7 @@ import type { BuildingData, DoctrineType, StructureData, StructureType, TeamStat
 import type { Team, Warhead } from './commands';
 import { COMPUTE_PER_SERVER_NODE, HQ_COMPUTE, popCap, popUsed, Tier, TIER_RESEARCH_COST } from './units';
 import { gridTiles } from './energy';
+import { refineryIncome, type RefineryIncome } from './refinery';
 import type { UpgradeId } from './upgrades';
 
 export const STARTING_CORES = 2500;
@@ -95,22 +96,30 @@ export function takeWarhead(economy: Economy, team: Team, warhead: Warhead): Eco
 // Every HQ pays a small trickle so a side that loses all its nodes can still rebuild.
 export const HQ_INCOME = 3;
 
-// The HQ trickle plus core nodes. Other captured buildings extend the energy grid instead.
-export function incomeFor(buildings: readonly BuildingData[], team: Team): number {
-  let income = HQ_INCOME;
+export interface IncomeBreakdown { hq: number; nodes: number; refineries: RefineryIncome; total: number }
+
+// The HQ trickle, core nodes, and Core Refineries: their flat income plus their share of the node
+// income (sim/refinery.ts). Other captured buildings extend the energy grid instead.
+export function incomeBreakdown(buildings: readonly BuildingData[], team: Team, structures: readonly StructureData[] = []): IncomeBreakdown {
+  let nodes = 0;
   for (const b of buildings) {
-    if (b.owner === team && !b.destroyed) income += BUILDING_VALUES[b.type].income;
+    if (b.owner === team && !b.destroyed) nodes += BUILDING_VALUES[b.type].income;
   }
-  return income;
+  const refineries = refineryIncome(structures, team, nodes);
+  return { hq: HQ_INCOME, nodes, refineries, total: HQ_INCOME + nodes + refineries.flat + refineries.bonus };
 }
 
+export const incomeFor = (buildings: readonly BuildingData[], team: Team, structures: readonly StructureData[] = []) =>
+  incomeBreakdown(buildings, team, structures).total;
+
 // One economy tick. Always returns a new object so listeners refresh once per tick.
-// `multiplier` scales a team's income, which is how the AI difficulty levels are set.
-export function payIncome(economy: Economy, buildings: readonly BuildingData[], multiplier: Partial<Record<Team, number>> = {}): Economy {
+// `multiplier` scales a team's income, which is how the AI difficulty levels are set; it applies
+// to the total, after the refineries. `structures` are for the Core Refineries.
+export function payIncome(economy: Economy, buildings: readonly BuildingData[], multiplier: Partial<Record<Team, number>> = {}, structures: readonly StructureData[] = []): Economy {
   const next = { ...economy };
   for (const team of TEAMS) {
     const scale = multiplier[team] ?? 1;
-    const income = incomeFor(buildings, team) * scale;
+    const income = incomeFor(buildings, team, structures) * scale;
     const compute = computeRateFor(buildings, team) * scale;
     next[team] = {
       ...economy[team],
@@ -198,7 +207,7 @@ export function teamStats(
   const grid = gridTiles(buildings, team);
   return {
     resources: economy[team].cores,
-    income: incomeFor(buildings, team),
+    income: incomeFor(buildings, team, structures),
     compute: economy[team].compute,
     computeRate: computeRateFor(buildings, team),
     tier: economy[team].tier,

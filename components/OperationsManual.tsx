@@ -524,7 +524,7 @@ const UnitsTab: React.FC<{ color: string; open: UnitType | null; onOpen: (t: Uni
   );
 };
 
-const STRUCTURE_ORDER: StructureType[] = ['infantry', 'armor', 'air', 'support', 'builder', 'ordnance_fab', 'research_lab', 'wall_tier1', 'wall_tier2', 'defense', 'aa_turret', 'hq'];
+const STRUCTURE_ORDER: StructureType[] = ['infantry', 'armor', 'air', 'support', 'builder', 'ordnance_fab', 'research_lab', 'refinery', 'wall_tier1', 'wall_tier2', 'defense', 'aa_turret', 'hq'];
 const STRUCTURE_TEXT: Partial<Record<StructureType, string>> = {
   infantry: 'Trains infantry.',
   armor: 'Trains vehicles.',
@@ -532,6 +532,7 @@ const STRUCTURE_TEXT: Partial<Record<StructureType, string>> = {
   support: 'Trains support units and the Ballista.',
   builder: 'Trains Masons and unlocks walls and turrets.',
   ordnance_fab: 'Builds EMP and HE warheads for Ballistas, and trains Field Fabricators.',
+  refinery: 'Core Refinery: makes cores at home. Each pays 1.5 cores/s plus 10% of your core node income (the multiplier stacks to +40% across refineries). Up to 2 per Command HQ, on a building pad. Upgrade one to level 2 at Tier 2 (500 cores) for 4 cores/s from that refinery; the multiplier stays the same.',
   research_lab: 'Advanced Research: researches unit upgrades, one at a time, for cores, compute and time. Each upgrade also gives that unit type +20% health and +15% damage. A unit\'s second ability, the Ghost\'s Dampener and Phantom Decoy, the Thunderhead\'s longer range and the Hornet\'s rockets all need researching here after reaching their tier.',
   wall_tier1: 'Cheap tank traps that block a lane. One Mason haul.',
   wall_tier2: 'A heavy wall. Three Mason hauls.',

@@ -9,6 +9,7 @@ import type { StructureType, UnitClass } from '../types';
 import { BASE_BUILDINGS, BASE_TURRETS, type PadKind } from '../sim/baseLayout';
 import type { GridPos } from '../sim/commands';
 import { STRUCTURE_RULES } from '../sim/units';
+import { REFINERY } from '../sim/refinery';
 
 // What each base building is for, so a new player knows what to build.
 export const STRUCTURE_PURPOSE: Partial<Record<StructureType, string>> = {
@@ -19,6 +20,7 @@ export const STRUCTURE_PURPOSE: Partial<Record<StructureType, string>> = {
   builder: 'Masons; walls',
   ordnance_fab: 'Warheads and Field Fabricators',
   research_lab: 'Unit upgrades',
+  refinery: `Cores: +${REFINERY.flat[1]}/s and +${Math.round(REFINERY.multiplier * 100)}% of node income`,
   defense: 'Anti-vehicle cannon · ground only',
   aa_turret: 'Anti-air CIWS · weak vs ground',
 };
@@ -31,8 +33,8 @@ const TURRET_COLOR = '#fbbf24';
 const Z_OPEN: [number, number] = [190, 0];
 
 const PadMenu: React.FC<{
-  kind: PadKind; cores: number; hasDepot: boolean; hasMason: boolean; onBuild: (type: StructureType) => void;
-}> = ({ kind, cores, hasDepot, hasMason, onBuild }) => {
+  kind: PadKind; cores: number; hasDepot: boolean; hasMason: boolean; refineryRoom: number; onBuild: (type: StructureType) => void;
+}> = ({ kind, cores, hasDepot, hasMason, refineryRoom, onBuild }) => {
   const options = kind === 'building' ? BASE_BUILDINGS : BASE_TURRETS;
   // Turrets are put up by Masons from a Depot.
   const turretBlock = kind === 'turret' ? (!hasDepot ? 'Needs a finished Depot' : !hasMason ? 'Needs a Mason (train one at the Depot)' : null) : null;
@@ -45,7 +47,9 @@ const PadMenu: React.FC<{
       {turretBlock && <div className="px-2 text-[9px] font-mono text-red-400">{turretBlock}</div>}
       {options.map(type => {
         const info = STRUCTURE_INFO[type];
-        const ok = cores >= info.cost && !turretBlock;
+        // Core Refineries: REFINERY.perHq per Command HQ.
+        const full = type === 'refinery' && refineryRoom <= 0;
+        const ok = cores >= info.cost && !turretBlock && !full;
         const time = kind === 'turret'
           ? (() => { const trips = Math.max(1, Math.ceil(info.maxProgress / ABILITY_CONFIG.MASON_BUILD_AMOUNT)); return `${trips} Mason ${trips === 1 ? 'trip' : 'trips'}`; })()
           : `${STRUCTURE_RULES[type].buildTimeMs / 1000}s`;
@@ -61,6 +65,7 @@ const PadMenu: React.FC<{
               <div className="flex flex-col">
                 <span className="text-xs font-mono font-bold whitespace-nowrap">{info.label}</span>
                 <span className="text-[9px] font-mono text-slate-500">{STRUCTURE_PURPOSE[type]} · {time}</span>
+                {full && <span className="text-[9px] font-mono text-amber-300">{REFINERY.perHq} per Command HQ: all built</span>}
               </div>
             </div>
             <span className={`text-[10px] font-mono ${cores >= info.cost ? 'text-cyan-500' : 'text-red-400'}`}>{info.cost}</span>
@@ -149,8 +154,10 @@ const BuildPads: React.FC<{
   cores: number;
   hasDepot: boolean;
   hasMason: boolean;
+  // Core Refineries the side can still build.
+  refineryRoom: number;
   onBuild: (type: StructureType, at: GridPos) => void;
-}> = ({ pads, hidden = false, tileSize, offset, teamColor, openKey, onToggle, cores, hasDepot, hasMason, onBuild }) => (
+}> = ({ pads, hidden = false, tileSize, offset, teamColor, openKey, onToggle, cores, hasDepot, hasMason, refineryRoom, onBuild }) => (
   <>
     {pads.map(p => {
       const key = padKey(p.at);
@@ -160,7 +167,7 @@ const BuildPads: React.FC<{
           tileSize={tileSize} offset={offset} onToggle={() => onToggle(key)}>
           <Html position={[0, 1, 0]} zIndexRange={Z_OPEN}>
             <BesidePad>
-              <PadMenu kind={p.kind} cores={cores} hasDepot={hasDepot} hasMason={hasMason} onBuild={type => onBuild(type, p.at)} />
+              <PadMenu kind={p.kind} cores={cores} hasDepot={hasDepot} hasMason={hasMason} refineryRoom={refineryRoom} onBuild={type => onBuild(type, p.at)} />
             </BesidePad>
           </Html>
         </PadMarker>

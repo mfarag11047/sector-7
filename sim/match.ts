@@ -93,7 +93,7 @@ export function sandboxRoster(gridSize: number): UnitData[] {
 // The sandbox also starts each side with one of every base building, finished, on the free
 // tiles along the outer edge of its base (clear of the starting units). Mirrored for red.
 const SANDBOX_LAYOUT: [StructureType, number, number][] = [
-  ['infantry', 1, 1], ['armor', 3, 1], ['air', 5, 1], ['support', 7, 2], ['builder', 1, 3], ['ordnance_fab', 1, 7], ['research_lab', 2, 7],
+  ['infantry', 1, 1], ['armor', 3, 1], ['air', 5, 1], ['support', 7, 2], ['builder', 1, 3], ['ordnance_fab', 1, 7], ['research_lab', 2, 7], ['refinery', 3, 7],
 ];
 export function sandboxStructures(gridSize: number): StructureData[] {
   const last = gridSize - 1;

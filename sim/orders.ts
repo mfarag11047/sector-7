@@ -13,6 +13,7 @@ import { Economy, research, researchCost, spend, spendCompute, structureCost, un
 import { Blackout, gridTiles, isBlackedOut, isInsideEnergyGrid } from './energy';
 import { baseOrder } from './bases';
 import { researchBlocker, upgradeDef, type UpgradeId } from './upgrades';
+import { REFINERY, refineriesOf, refineryLimit, upgradeBlocker } from './refinery';
 import { BUILDING_PADS, freePadsFor, isPad, padKindOf, TURRET_PADS } from './baseLayout';
 import { isAirType, popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from './units';
 import { tetheredIds, unjammedIds } from './jamming';
@@ -39,9 +40,9 @@ export const isOperational = (s: StructureData) => !s.isBlueprint && !((s.buildR
 
 // --- Commands ---
 
-export type OrderCommand = Extract<PlayerCommand, { type: 'MOVE' | 'TRAIN_UNIT' | 'PLACE_STRUCTURE' | 'SET_RALLY' | 'RESEARCH_TIER' | 'BUILD_BASE' | 'BUILD_WARHEAD' | 'RESEARCH_UPGRADE' }>;
+export type OrderCommand = Extract<PlayerCommand, { type: 'MOVE' | 'TRAIN_UNIT' | 'PLACE_STRUCTURE' | 'SET_RALLY' | 'RESEARCH_TIER' | 'BUILD_BASE' | 'BUILD_WARHEAD' | 'RESEARCH_UPGRADE' | 'UPGRADE_REFINERY' }>;
 export const isOrderCommand = (c: PlayerCommand): c is OrderCommand =>
-  c.type === 'MOVE' || c.type === 'TRAIN_UNIT' || c.type === 'PLACE_STRUCTURE' || c.type === 'SET_RALLY' || c.type === 'RESEARCH_TIER' || c.type === 'BUILD_BASE' || c.type === 'BUILD_WARHEAD' || c.type === 'RESEARCH_UPGRADE';
+  c.type === 'MOVE' || c.type === 'TRAIN_UNIT' || c.type === 'PLACE_STRUCTURE' || c.type === 'SET_RALLY' || c.type === 'RESEARCH_TIER' || c.type === 'BUILD_BASE' || c.type === 'BUILD_WARHEAD' || c.type === 'RESEARCH_UPGRADE' || c.type === 'UPGRADE_REFINERY';
 
 export interface OrdersView {
   units: readonly UnitData[];
@@ -95,6 +96,7 @@ export function orderEffects(view: OrdersView, team: Team, command: OrderCommand
     case 'RESEARCH_TIER': return researchOrder(view, team, command.tier);
     case 'BUILD_WARHEAD': return warheadOrder(view, team, command.structureId, command.warhead);
     case 'RESEARCH_UPGRADE': return upgradeOrder(view, team, command.structureId, command.upgrade);
+    case 'UPGRADE_REFINERY': return refineryUpgradeOrder(view, team, command.structureId);
     case 'BUILD_BASE': {
       const outcome = baseOrder(view, team, command.at, ctx.newId);
       if ('reason' in outcome) return reject(outcome.reason);
@@ -132,6 +134,19 @@ function upgradeOrder(view: OrdersView, team: Team, structureId: string, upgrade
   return effects({
     economy: e => { const paid = spend(e, team, def.cost); return paid && spendCompute(paid, team, def.compute); },
     structureUpdates: new Map([[s.id, x => ({ ...x, research: { upgrade, remainingMs: def.researchMs, totalMs: def.researchMs } })]]),
+  });
+}
+
+// A Core Refinery starts its upgrade to level 2: more flat income from that one refinery.
+function refineryUpgradeOrder(view: OrdersView, team: Team, structureId: string): OrderOutcome {
+  const s = view.structures.find(x => x.id === structureId);
+  const blocked = upgradeBlocker(s, team, view.economy[team].tier);
+  if (blocked) return reject(blocked);
+  if (!spend(view.economy, team, REFINERY.upgrade.cost)) return reject(`needs ${REFINERY.upgrade.cost} cores`);
+  const totalMs = REFINERY.upgrade.ms;
+  return effects({
+    economy: e => spend(e, team, REFINERY.upgrade.cost),
+    structureUpdates: new Map([[s!.id, x => ({ ...x, refineryUpgrade: { remainingMs: totalMs, totalMs } })]]),
   });
 }
 
@@ -189,6 +204,10 @@ function placeOrder(view: OrdersView, team: Team, type: StructureType, at: GridP
     return reject(padKindOf(type) === 'turret'
       ? `every turret corner is taken: ${TURRET_PADS} per Command HQ`
       : `every building pad is taken: ${BUILDING_PADS} per Command HQ. Build another Command HQ for more`);
+  }
+  // Core Refineries: REFINERY.perHq for each Command HQ (sim/refinery.ts).
+  if (type === 'refinery' && refineriesOf(view.structures, team).length >= refineryLimit(view.structures, team)) {
+    return reject(`at most ${REFINERY.perHq} Core Refineries per Command HQ: build another Command HQ for more`);
   }
   const cost = structureCost(type);
   if (!spend(view.economy, team, cost)) return reject('not enough cores');

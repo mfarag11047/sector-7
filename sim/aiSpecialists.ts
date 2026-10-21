@@ -316,7 +316,7 @@ function ballistaTarget(u: UnitData, c: AbilityContext2, enemy: Team): GridPos |
   const reach = (p: GridPos) => dist(p, u.gridPos) <= ABILITY_CONFIG.BALLISTA_RANGE;
   const inReach = c.theirs.filter(t => t.type !== 'defense_drone' && reach(t.gridPos));
   const structure = c.structures.filter(s => s.team === enemy && s.health > 0 && s.type !== 'hq' && !s.isBlueprint && reach(s.gridPos))
-    .sort((a, b) => dist(a.gridPos, c.home) - dist(b.gridPos, c.home))[0];
+    .sort((a, b) => strikeOrder(a) - strikeOrder(b) || dist(a.gridPos, c.home) - dist(b.gridPos, c.home))[0];
   if (u.loadedAmmo === 'wp') {
     // The gas only burns infantry, and it covers a wide area: the thickest crowd of them.
     const crowd = densest(inReach.filter(t => UNIT_RULES[t.type].armor === 'infantry'), WP.radius * 0.6);
@@ -348,11 +348,15 @@ function ballistaMoves(u: UnitData, c: AbilityContext2, enemy: Team): Action[] {
   return stocked ? [{ kind: 'ability', command: { type: 'TAKE_WARHEAD', unitId: u.id, warhead: stocked } }] : [];
 }
 
+// Which enemy structures to hit first: an upgraded Core Refinery, then any refinery, then the rest,
+// the HQ last (sim/refinery.ts).
+const strikeOrder = (s: StructureData) => (s.type === 'refinery' ? (s.refineryLevel === 2 ? 0 : 1) : s.type === 'hq' ? 3 : 2);
+
 function bombardTarget(c: AbilityContext2, enemy: Team): GridPos | null {
   // Not on top of our own units.
   const clear = (p: GridPos) => !c.mine.some(u => u.type !== 'bombard' && dist(u.gridPos, p) <= 3);
   const structures = c.structures.filter(s => s.team === enemy && s.health > 0 && !s.isBlueprint && clear(s.gridPos))
-    .sort((a, b) => (a.type === 'hq' ? 1 : 0) - (b.type === 'hq' ? 1 : 0) || dist(a.gridPos, c.home) - dist(b.gridPos, c.home));
+    .sort((a, b) => strikeOrder(a) - strikeOrder(b) || dist(a.gridPos, c.home) - dist(b.gridPos, c.home));
   return structures[0] ? { ...structures[0].gridPos } : null;
 }
 

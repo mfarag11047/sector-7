@@ -15,6 +15,7 @@ import { fireHornetRockets, landSalvo, MiniRocket } from './hornet';
 import { fireFlechettes, regenerateShield, shieldedHit } from './kestrel';
 import { markScreened, pruneSmoke, SmokeScreen } from './titan';
 import { armMules, dueCharges, VoltCharge, voltBlasts } from './voltCore';
+import { advanceRefineryUpgrades } from './refinery';
 import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade } from './upgrades';
 import { EmpRocket, empRocketImpact, empRocketTick, mergeUnitUpdates } from './empRocket';
 import { ArtilleryShell, fireArtillery, landShells, shellGroundPos } from './artillery';
@@ -269,6 +270,8 @@ export function stepMatch(m: HeadlessMatch): void {
   const lab = advanceResearch(m.structures, team => productionStep(team === 'blue' || team === 'red' ? m.opts.doctrine[team] : null));
   m.structures = applyResearch(m.structures, lab);
   m.economy = addUpgrades(m.economy, lab.finished);
+  // Core Refinery upgrades (sim/refinery.ts).
+  m.structures = advanceRefineryUpgrades(m.structures, team => productionStep(team === 'blue' || team === 'red' ? m.opts.doctrine[team] : null)).structures;
   for (const { structure, unitType } of build.trained) {
     const taken = new Set(m.units.map(u => key(u.gridPos.x, u.gridPos.z)));
     let spawn = { ...structure.gridPos };
@@ -328,7 +331,7 @@ export function stepMatch(m: HeadlessMatch): void {
 
   // Once a second: income and victory.
   if (now % 1000 === 0) {
-    m.economy = payIncome(m.economy, m.buildings, m.opts.income ?? {});
+    m.economy = payIncome(m.economy, m.buildings, m.opts.income ?? {}, m.structures);
     const victory = checkVictory(m.structures);
     if (victory && !m.victory) {
       m.victory = victory;

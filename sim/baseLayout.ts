@@ -15,7 +15,7 @@ import type { StructureData, StructureType } from '../types';
 import type { GridPos, Team } from './commands';
 
 // Production and tech structures, Advanced Research included: these take the six base pads.
-export const BASE_BUILDINGS: readonly StructureType[] = ['infantry', 'armor', 'air', 'support', 'ordnance_fab', 'builder', 'research_lab'];
+export const BASE_BUILDINGS: readonly StructureType[] = ['infantry', 'armor', 'air', 'support', 'ordnance_fab', 'builder', 'research_lab', 'refinery'];
 // Turrets: these take the four corner pads.
 export const BASE_TURRETS: readonly StructureType[] = ['defense', 'aa_turret'];
 

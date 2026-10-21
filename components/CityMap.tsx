@@ -56,11 +56,12 @@ import { canisterSpots, HE, WARHEAD_LIST, WP, wpGasDamage } from '../sim/warhead
 import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade, upgradeDef, upgradeTitle, type UpgradeId } from '../sim/upgrades';
 import { teamPads } from '../sim/baseLayout';
 import BuildPads, { FreePad } from './BuildPads';
+import { advanceRefineryUpgrades, REFINERY, refineriesOf, refineryLimit } from '../sim/refinery';
 import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
 import { applyFieldCloak, CLOAK_FIELD, fieldCloakedIds, generatorsReplacedBy, isCloakFieldUp, isHidden } from '../sim/cloak';
 import { Victory, checkVictory } from '../sim/victory';
 import type { MatchSummary } from './MatchScreens';
-import { Economy, createEconomy, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
+import { Economy, createEconomy, incomeBreakdown, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
 import { dampenedUnits } from '../sim/ghost';
 import { heliosBeams, microwaveDamage } from '../sim/helios';
@@ -3032,7 +3033,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (didDragRef.current) return;
 
       const struct = structuresState.find(s => s.id === id);
-      const validTypes = ['support', 'infantry', 'armor', 'ordnance', 'air', 'builder', 'ordnance_fab', 'research_lab'];
+      const validTypes = ['support', 'infantry', 'armor', 'ordnance', 'air', 'builder', 'ordnance_fab', 'research_lab', 'refinery'];
       if (struct && validTypes.includes(struct.type) && struct.team === playerTeam && !struct.isBlueprint) {
           setDepotMenuOpenId(id);
       }
@@ -3043,6 +3044,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       const struct = structuresState.find(s => s.id === depotMenuOpenId);
       if (!struct) return;
 
+      if (action === 'UPGRADE_REFINERY' && struct.type === 'refinery') {
+          if (dispatchOrder({ type: 'UPGRADE_REFINERY', structureId: struct.id })) onNotice?.(`Core Refinery upgrading: level 2 in ${REFINERY.upgrade.ms / 1000}s`);
+          return;
+      }
       if (action === 'BUILD_WARHEAD' && struct.type === 'ordnance_fab' && !struct.isBlueprint) {
           const item = payload as Warhead;
           if (!WARHEAD_LIST.includes(item)) return;
@@ -3177,7 +3182,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setEconomy(prev => payIncome(prev, buildingsRef.current, incomeMultipliers(matchRef.current)));
+      setEconomy(prev => payIncome(prev, buildingsRef.current, incomeMultipliers(matchRef.current), structuresRef.current));
     }, ECONOMY_TICK_MS);
     return () => clearInterval(timer);
   }, []);
@@ -3767,6 +3772,18 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               }
           }
 
+          // Core Refinery upgrades to level 2 (sim/refinery.ts).
+          const refits = advanceRefineryUpgrades(structuresRef.current, team => productionStep(team === 'blue' || team === 'red' ? aiHelpersRef.current.doctrines?.[team]?.selected : null));
+          if (refits.structures !== structuresRef.current) {
+              const now2 = new Map(refits.structures.filter(s => s.type === 'refinery').map(s => [s.id, s]));
+              structuresRef.current = refits.structures;
+              setStructuresState(prev => prev.map(s => {
+                  const r = now2.get(s.id);
+                  return r ? { ...s, refineryLevel: r.refineryLevel, refineryUpgrade: r.refineryUpgrade } : s;
+              }));
+              if (refits.finished.some(s => s.team === playerTeam)) onNotice?.(`Core Refinery upgraded to level 2: +${REFINERY.flat[2]} cores/s`);
+          }
+
           // Construction and training queues (sim/production.ts), same pattern as the fabs.
           const build = advanceProduction(structuresRef.current, team => aiHelpersRef.current.doctrines?.[team]?.selected);
           if (build.updates.size > 0) {
@@ -4158,6 +4175,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 cores={economy[playerTeam === 'red' ? 'red' : 'blue'].cores}
                 hasDepot={structuresState.some(s => s.team === playerTeam && s.type === 'builder' && isOperational(s))}
                 hasMason={hasMason}
+                refineryRoom={playerTeam === 'blue' || playerTeam === 'red' ? refineryLimit(structuresState, playerTeam) - refineriesOf(structuresState, playerTeam).length : 0}
                 onBuild={(type, at) => {
                     // Masons pick up new turret blueprints on their own (the Mason loop).
                     if (dispatchOrder({ type: 'PLACE_STRUCTURE', structureType: type, at })) setPadMenuKey(null);
@@ -4202,6 +4220,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 upgrades={s.type === 'research_lab' ? playerUpgrades : undefined}
                 compute={s.type === 'research_lab' && (playerTeam === 'blue' || playerTeam === 'red') ? economy[playerTeam].compute : undefined}
                 upgradesUnderway={s.type === 'research_lab' ? upgradesUnderway : undefined}
+                income={s.type === 'refinery' && depotMenuOpenId === s.id && s.team === playerTeam ? incomeBreakdown(buildings, playerTeam, structuresState) : undefined}
             /> 
         ))}
         {/* Only a fully held block shows a status; the rest drew nothing but still re-rendered every tick. */}

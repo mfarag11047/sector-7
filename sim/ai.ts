@@ -35,6 +35,7 @@ import { abilitiesFor, abilityCooldownLeft, hasBuff } from './unitAbilities';
 import { artilleryRange, inArtilleryReach } from './artillery';
 import { freePadsFor } from './baseLayout';
 import { abilityUnlocked, artilleryTierOf, researchBlocker, UPGRADES, type UpgradeId } from './upgrades';
+import { REFINERY, upgradeBlocker } from './refinery';
 import { baseMoves, ESCORTS, SCOUT_REPLACE_MS, specialistAbilities, specialistMoves, specialistPick, SPECIALIST_MOVERS } from './aiSpecialists';
 import { freshStrategyMemory, lossMix, STRATEGY_PLANS, StrategyMemory, updateStrategy } from './aiStrategy';
 
@@ -236,7 +237,10 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   // doesn't fit waits for a second HQ.
   const wants: StructureType[] = ['infantry', 'armor'];
   // Air and drone plans want an Airpad at Tier 1 for Kestrel attack drones.
+  // A Core Refinery once the first producers are up (sim/refinery.ts), and on Hard a second at Tier 2.
+  if (now > 90_000) wants.push('refinery');
   if (tier >= 2 || plan.earlyAirpad) wants.push('air');
+  if (tier >= 2 && profile.secondBarracks) wants.push('refinery');
   // The strategy's own extra production structure.
   // Sooner if cores are piling up, as they do for an army of cheap units.
   if (tier >= plan.extra.tier && (now > 4 * 60_000 || cores >= structureCost(plan.extra.type) + 300)) wants.push(plan.extra.type);
@@ -542,6 +546,13 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     started.add(pick.u.id);
     cores -= pick.u.cost;
     compute -= pick.u.compute;
+  }
+
+  // --- Core Refinery upgrades: with cores to spare at Tier 2 (sim/refinery.ts) ---
+  for (const r of myStructures.filter(s => s.type === 'refinery')) {
+    if (upgradeBlocker(r, team, tier) || spendable() < REFINERY.upgrade.cost + 300) continue;
+    actions.push({ kind: 'order', command: { type: 'UPGRADE_REFINERY', structureId: r.id } });
+    cores -= REFINERY.upgrade.cost;
   }
 
   // --- 5. Abilities and doctrine powers ---

@@ -117,6 +117,8 @@ export const STRUCTURE_RULES: Record<StructureType, StructureRules> = {
   ordnance_fab: { buildable: true, buildTimeMs: 30000, weapon: null },
   // Researches unit upgrades (sim/upgrades.ts); trains nothing.
   research_lab: { buildable: true, buildTimeMs: 20000, weapon: null },
+  // Makes cores at home (sim/refinery.ts).
+  refinery: { buildable: true, buildTimeMs: 30000, weapon: null },
   ordnance: { buildable: false, buildTimeMs: 0, weapon: null },
   // Mason-built: their build time is the Mason's hauls.
   wall_tier1: { buildable: false, buildTimeMs: 0, weapon: null },

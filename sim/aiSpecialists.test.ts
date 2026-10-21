@@ -92,6 +92,16 @@ describe('computer opponent: abilities', () => {
     expect(strike?.command).toMatchObject({ target: { x: 10, z: 10 } });
     expect(abilities({ mine: [bombard, unit('t', { gridPos: { x: 11, z: 10 } })], structures: [factory] }).find(a => a.command.type === 'BOMBARD')).toBeUndefined();
   });
+
+  it('strikes an upgraded Core Refinery first, then any refinery, before nearer production', () => {
+    const bombard = unit('bm', { type: 'bombard', unitClass: 'air' });
+    const factory = structure('f', 'armor', { team: 'blue', gridPos: { x: 60, z: 60 } });
+    const plain = structure('r1', 'refinery', { team: 'blue', gridPos: { x: 20, z: 20 } });
+    const upgraded = structure('r2', 'refinery', { team: 'blue', gridPos: { x: 10, z: 10 }, refineryLevel: 2 });
+    const aim = (structures: StructureData[]) => abilities({ mine: [bombard], structures }).find(a => a.command.type === 'BOMBARD')?.command;
+    expect(aim([factory, plain])).toMatchObject({ target: { x: 20, z: 20 } });
+    expect(aim([factory, plain, upgraded])).toMatchObject({ target: { x: 10, z: 10 } });
+  });
 });
 
 describe('computer opponent: specialist movement and the base', () => {

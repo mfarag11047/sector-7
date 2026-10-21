@@ -11,6 +11,8 @@ import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { MAX_QUEUE } from '../sim/orders';
 import { TIER_REQUIREMENT, UNIT_RULES, unitsProducedBy } from '../sim/units';
 import { UPGRADE_BONUS } from '../sim/unitAbilities';
+import { REFINERY } from '../sim/refinery';
+import type { IncomeBreakdown } from '../sim/economy';
 import { WARHEAD_LABEL } from '../sim/warheads';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
@@ -35,6 +37,8 @@ interface StructureProps {
   // The owner's researched upgrades and those under way at any of its labs, for Advanced Research.
   upgrades?: readonly UpgradeId[];
   upgradesUnderway?: readonly UpgradeId[];
+  // The side's income, for a Core Refinery's menu (sim/economy.ts incomeBreakdown).
+  income?: IncomeBreakdown;
 }
 
 const CommLinkModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
@@ -505,6 +509,59 @@ const ResearchLabModel = ({ color, teamColor, active }: { color: string, teamCol
     );
 };
 
+// Core Refinery (sim/refinery.ts): a glowing core column between storage silos. Level 2 adds two
+// more silos, a taller core and stacked energy rings, so an upgraded one stands out as a target.
+const RefineryModel = ({ color, teamColor, level, upgrading }: { color: string, teamColor: string, level: 1 | 2, upgrading: boolean }) => {
+    const coreRef = useRef<THREE.Mesh>(null);
+    const ringsRef = useRef<THREE.Group>(null);
+    useFrame(({ clock }, delta) => {
+        if (!coreRef.current || !isObjectInFrustum(coreRef.current, 6)) return;
+        const pulse = 0.6 + 0.4 * Math.sin(clock.elapsedTime * (level === 2 ? 4 : 2.5));
+        (coreRef.current.material as THREE.MeshStandardMaterial).emissiveIntensity = (level === 2 ? 1.4 : 0.8) * pulse;
+        if (ringsRef.current) ringsRef.current.rotation.y += delta * (upgrading ? 3 : level === 2 ? 1.2 : 0.5);
+    });
+    const coreHeight = level === 2 ? 5.2 : 3.6;
+    const silos: [number, number][] = level === 2 ? [[-2.3, -2.3], [2.3, -2.3], [-2.3, 2.3], [2.3, 2.3]] : [[-2.3, -2.3], [2.3, 2.3]];
+    return (
+        <group>
+            <mesh position={[0, 0.4, 0]}>
+                <boxGeometry args={[7, 0.8, 7]} />
+                <meshStandardMaterial color="#1e293b" />
+                <Edges color={teamColor} />
+            </mesh>
+            {silos.map(([x, z]) => (
+                <group key={`${x},${z}`} position={[x, 0.8, z]}>
+                    <mesh position={[0, 1.3, 0]}>
+                        <cylinderGeometry args={[0.95, 0.95, 2.6, 16]} />
+                        <meshStandardMaterial color="#334155" metalness={0.7} roughness={0.35} />
+                    </mesh>
+                    <mesh position={[0, 2.65, 0]}>
+                        <cylinderGeometry args={[0.6, 0.95, 0.3, 16]} />
+                        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.4} />
+                    </mesh>
+                </group>
+            ))}
+            <mesh position={[0, 0.8 + coreHeight / 2, 0]}>
+                <cylinderGeometry args={[1.4, 1.7, coreHeight, 20]} />
+                <meshStandardMaterial color="#0f172a" metalness={0.6} roughness={0.4} transparent opacity={0.55} />
+                <Edges color={color} />
+            </mesh>
+            <mesh ref={coreRef} position={[0, 0.8 + coreHeight / 2, 0]}>
+                <cylinderGeometry args={[0.7, 0.7, coreHeight - 0.4, 16]} />
+                <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} toneMapped={false} />
+            </mesh>
+            <group ref={ringsRef}>
+                {(level === 2 ? [1.6, 3.2, 4.8] : [2.2]).map(y => (
+                    <mesh key={y} position={[0, 0.8 + y, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                        <torusGeometry args={[1.95, 0.1, 8, 28]} />
+                        <meshBasicMaterial color={upgrading ? teamColor : color} toneMapped={false} />
+                    </mesh>
+                ))}
+            </group>
+        </group>
+    );
+};
+
 const DepotModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
     const label = useMemo(getLoadingZoneTexture, []);
     return (
@@ -915,7 +972,7 @@ const WallTier2Model = ({ teamColor, tileSize }: { color: string, teamColor: str
     );
 };
 
-const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES }) => {
+const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES, income }) => {
   // Advanced Research menu: a unit class, then a unit, then its upgrades.
   const [labClass, setLabClass] = React.useState<UnitClass | null>(null);
   const [labUnit, setLabUnit] = React.useState<UnitType | null>(null);
@@ -962,6 +1019,49 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
       e.stopPropagation();
       if (onClick) onClick(data.id);
   }
+
+  // Core Refinery (sim/refinery.ts): what it and the side's refineries make, and its upgrade.
+  const renderRefinery = () => {
+    const level = data.refineryLevel === 2 ? 2 : 1;
+    const constructing = (data.buildRemainingMs || 0) > 0;
+    const up = data.refineryUpgrade;
+    const blocked = level === 2 ? null
+        : constructing ? 'Under construction'
+        : up ? null
+        : tier < REFINERY.upgrade.tier ? `🔒 Tier ${REFINERY.upgrade.tier}`
+        : resources < REFINERY.upgrade.cost ? `${REFINERY.upgrade.cost} cores` : null;
+    const r = income?.refineries;
+    return (
+        <div className="flex flex-col gap-1 px-1 mt-1 text-[10px] font-mono">
+            <div className="flex justify-between"><span className="text-slate-400 uppercase">Level</span><span className="text-amber-300">{level}</span></div>
+            <div className="flex justify-between"><span className="text-slate-400">This refinery</span><span className="text-emerald-300">+{REFINERY.flat[level]} cores/s</span></div>
+            {r && income && (
+                <>
+                    <div className="flex justify-between"><span className="text-slate-400">All refineries ({r.count})</span><span className="text-emerald-300">+{(r.flat + r.bonus).toFixed(1)}/s</span></div>
+                    <div className="text-[9px] text-slate-500 leading-snug">+{Math.round(r.multiplier * 100)}% of node income ({income.nodes}/s){r.multiplier >= REFINERY.maxMultiplier ? ' · at the cap' : ''}. Each refinery adds {Math.round(REFINERY.multiplier * 100)}%, up to {Math.round(REFINERY.maxMultiplier * 100)}%.</div>
+                </>
+            )}
+            {up && (
+                <div className="mt-1">
+                    <div className="text-[9px] text-yellow-300 uppercase">Upgrading to level 2 {Math.min(100, Math.floor((1 - up.remainingMs / up.totalMs) * 100))}%</div>
+                    <div className="hud-meter w-full h-1.5 mt-1"><div className="hud-meter-cell h-full" style={{ width: `${Math.max(4, Math.min(100, (1 - up.remainingMs / up.totalMs) * 100))}%` }} /></div>
+                </div>
+            )}
+            {level === 1 && !up && (
+                <button disabled={!!blocked}
+                    onClick={(e) => { e.stopPropagation(); onAction && onAction('UPGRADE_REFINERY'); }}
+                    className={`mt-1 flex items-center justify-between gap-2 px-2 py-2 text-left rounded border ${!blocked ? 'border-amber-400/60 hover:bg-amber-900/30 text-slate-200' : 'border-slate-700 text-slate-500 cursor-not-allowed'}`}>
+                    <div className="flex flex-col">
+                        <span className="text-xs font-bold">Upgrade to level 2</span>
+                        <span className="text-[9px] text-slate-400">+{REFINERY.flat[2]} cores/s from this refinery (from +{REFINERY.flat[1]}). Multiplier unchanged.</span>
+                        <span className="text-[9px] text-slate-500">{blocked ?? `${REFINERY.upgrade.ms / 1000}s`}</span>
+                    </div>
+                    <span className={resources >= REFINERY.upgrade.cost ? 'text-cyan-400' : 'text-red-400'}>{REFINERY.upgrade.cost}</span>
+                </button>
+            )}
+        </div>
+    );
+  };
 
   // Advanced Research: unit classes, then their units, then each unit's upgrades (sim/upgrades.ts).
   const renderResearch = () => {
@@ -1156,6 +1256,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                     )}
 
                     {data.type === 'research_lab' && renderResearch()}
+                    {data.type === 'refinery' && renderRefinery()}
 
                     {/* Engineering Section (Depot Only) */}
                     {data.type === 'builder' && (
@@ -1258,6 +1359,9 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
     }
     if (data.type === 'ordnance_fab') {
         return <group scale={[2.5, 2.5, 2.5]}><OrdnanceFabModel color={config.color} teamColor={teamColor} /></group>;
+    }
+    if (data.type === 'refinery') {
+        return <group scale={[1.9, 1.9, 1.9]}><RefineryModel color={config.color} teamColor={teamColor} level={data.refineryLevel === 2 ? 2 : 1} upgrading={!!data.refineryUpgrade} /></group>;
     }
     if (data.type === 'research_lab') {
         return <group scale={[1.9, 1.9, 1.9]}><ResearchLabModel color={config.color} teamColor={teamColor} active={!!data.research} /></group>;

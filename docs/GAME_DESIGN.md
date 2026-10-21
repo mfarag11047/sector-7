@@ -33,6 +33,30 @@ The intended arc:
 |---|---|
 | Command HQ (always) | 3 cores/s |
 | Each core node held | 5 cores/s |
+| Each Core Refinery | 1.5 cores/s (4 at level 2), plus 10% of your core node income |
+
+### Core Refinery
+
+Rules: `sim/refinery.ts`. A base building (600 cores, 30 s, 900 HP) that makes cores at home, so a
+side can invest in its economy instead of only fighting for nodes.
+
+- It takes a **building pad**, so it competes with production: at most **2 per Command HQ**. More
+  refineries and more production at once means more bases.
+- Each working refinery pays a **flat 1.5 cores/s** plus **+10% of your core node income**. The
+  multiplier stacks additively across refineries and is capped at **+40%**. It multiplies only node
+  income (not the HQ trickle or other refineries), so holding more of the map makes every refinery
+  worth more, while a refinery is never worthless to a side holding nothing. The AI difficulty
+  income bonus applies to the total, after the refineries.
+- **Level 2** (Tier 2, 500 cores, 25 s, from the refinery's own menu) raises only that refinery's
+  flat income, to 4 cores/s. The multiplier doesn't change. An upgraded refinery is a bigger loss,
+  and the computer's Bombardment Drones and Ballistas strike upgraded refineries first, then any
+  refinery, before other buildings.
+- The refinery's menu shows its level and income, what all your refineries add, and the
+  multiplier against your node income.
+- The computer builds one once its Barracks and Factory are up (Hard: a second at Tier 2) and
+  upgrades them at Tier 2 with cores to spare.
+- AI-vs-AI over 8 seeds: matches ran about 27 min on average (25 before), total income about
+  20-25% higher, Tier 2 timing unchanged.
 
 - Start with 1000 cores.
 - Structures must be placed **inside your energy grid**: around your HQ or near buildings you have

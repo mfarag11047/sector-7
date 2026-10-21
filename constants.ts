@@ -262,6 +262,8 @@ export const STRUCTURE_INFO: Record<StructureType, { label: string, color: strin
     builder: { label: 'Depot', color: '#fbbf24', height: 6, cost: 200, maxProgress: 0, maxHealth: 700 },
     ordnance_fab: { label: 'Ordnance Fab', color: '#be185d', height: 7, cost: 800, maxProgress: 0, maxHealth: 900 },
     research_lab: { label: 'Advanced Research', color: '#14b8a6', height: 8, cost: 400, maxProgress: 0, maxHealth: 800 },
+    // Makes cores at home (sim/refinery.ts).
+    refinery: { label: 'Core Refinery', color: '#facc15', height: 7, cost: 600, maxProgress: 0, maxHealth: 900 },
     // Built by Masons
     wall_tier1: { label: "Dragons Teeth", color: '#475569', height: 1.5, cost: 150, maxProgress: 100, maxHealth: 400 }, // 1 Trip
     wall_tier2: { label: "Bulwark Wall", color: '#334155', height: 4, cost: 400, maxProgress: 300, maxHealth: 1800 }, // 3 Trips
