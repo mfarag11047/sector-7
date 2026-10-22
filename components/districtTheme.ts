@@ -14,7 +14,7 @@ import { District, districtAt, districtOfBlock } from '../sim/districts';
 // street with one ground and filled in the middle with another (see groundOfTile):
 //   courtyard  light concrete 'paving' round a 'lawn'
 //   carpark    dark 'walkway' pavers round empty 'parking' bays
-export type GroundStyle = 'plaza' | 'courtyard' | 'paving' | 'lawn' | 'carpark' | 'walkway' | 'parking' | 'yard' | 'scorched' | 'hex';
+export type GroundStyle = 'plaza' | 'courtyard' | 'paving' | 'lawn' | 'carpark' | 'walkway' | 'parking' | 'yard' | 'slab' | 'hex';
 type SplitGround = 'courtyard' | 'carpark';
 export type TileGround = Exclude<GroundStyle, SplitGround>;
 export type GroundTexture = Exclude<TileGround, 'hex'>;
@@ -35,10 +35,11 @@ export const DISTRICT_THEMES: Record<District, DistrictTheme> = {
   midtown: { ground: 'courtyard', streetTint: '#98a6b8', sidewalks: true, crosswalks: false },
   // Industrial: stained concrete yards, warmer and dirtier streets.
   industrial: { ground: 'yard', streetTint: '#a39a8c', sidewalks: false, crosswalks: false },
-  // Outskirts: dark paved walkways along the streets round parking lots. Fringe: scorched rubble
-  // toward the Blackwall.
+  // Outskirts: dark paved walkways along the streets round parking lots. Fringe: old concrete
+  // slabs by the Blackwall, cracked here and there with the Blackwall glitching through
+  // (BlackwallCracks.tsx).
   outskirts: { ground: 'carpark', streetTint: '#8f98a6', sidewalks: false, crosswalks: false },
-  fringe: { ground: 'scorched', streetTint: '#8a8486', sidewalks: false, crosswalks: false },
+  fringe: { ground: 'slab', streetTint: '#8a8486', sidewalks: false, crosswalks: false },
   // The bases keep the hex-grid ground they always had.
   base: { ground: 'hex', streetTint: '#94a3b8', sidewalks: false, crosswalks: false },
 };
@@ -251,24 +252,31 @@ const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => nu
     crack(ctx, rand, '#1a1d22', 1.5, 4);
   },
   parking: (ctx, rand) => drawParking(ctx, rand),
-  // Rubble and scorch marks: the war-torn edge by the Blackwall.
-  scorched: (ctx, rand) => {
-    ctx.fillStyle = '#2a2729';
+  // Big weathered concrete slabs: four to a tile, each a slightly different shade, with wide
+  // joints, dust, a few hairline cracks and chipped corners.
+  slab: (ctx, rand) => {
+    ctx.fillStyle = '#26282c';
     ctx.fillRect(0, 0, SIZE, SIZE);
-    grime(ctx, rand, ['#1c1a1b', '#3a3537', '#463b35'], 5000, 5, 0.35);
-    for (let k = 0; k < 4; k++) blot(ctx, rand() * SIZE, rand() * SIZE, 50 + rand() * 70, '#050404', 0.7);
-    for (let k = 0; k < 6; k++) crack(ctx, rand, '#121011', 3, 8);
-    // Chunks of broken concrete.
-    for (let k = 0; k < 45; k++) {
-      const x = rand() * SIZE, y = rand() * SIZE, s = 4 + rand() * 12;
-      ctx.fillStyle = rand() > 0.5 ? '#4b4547' : '#3c3739';
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + s, y + s * 0.3); ctx.lineTo(x + s * 0.6, y + s); ctx.closePath(); ctx.fill();
+    const n = 2, s = SIZE / n;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const shade = 66 + Math.floor(rand() * 14);
+      ctx.fillStyle = `rgb(${shade}, ${shade + 1}, ${shade + 4})`;
+      ctx.fillRect(i * s + 6, j * s + 6, s - 12, s - 12);
+      // A chipped corner.
+      if (rand() < 0.5) {
+        const cx = i * s + (rand() < 0.5 ? 6 : s - 6), cy = j * s + (rand() < 0.5 ? 6 : s - 6), r = 10 + rand() * 14;
+        ctx.fillStyle = '#2a2c30';
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + (cx > i * s + s / 2 ? -r : r), cy); ctx.lineTo(cx, cy + (cy > j * s + s / 2 ? -r : r)); ctx.closePath(); ctx.fill();
+      }
     }
+    grime(ctx, rand, ['#3e4146', '#5a5d63', '#4a4642'], 5000, 3, 0.3);
+    for (let k = 0; k < 4; k++) blot(ctx, rand() * SIZE, rand() * SIZE, 40 + rand() * 50, '#33353a', 0.35);
+    for (let k = 0; k < 3; k++) crack(ctx, rand, 'rgba(24, 25, 28, 0.8)', 1.5, 4);
   },
 };
 
 export const createGroundTexture = (style: GroundTexture) =>
-  canvasTexture(DRAW[style], { plaza: 11, paving: 23, lawn: 29, walkway: 31, parking: 41, yard: 37, scorched: 53 }[style]);
+  canvasTexture(DRAW[style], { plaza: 11, paving: 23, lawn: 29, walkway: 31, parking: 41, yard: 37, slab: 53 }[style]);
 
 // --- Streetscape textures ---
 

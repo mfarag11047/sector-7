@@ -943,7 +943,12 @@ Drop, or Masons.
   painted over each whole zone (`components/IndustrialYard.tsx`): a yellow-and-black hazard band
   along every yard edge onto the street, tyre tracks from each shed's door through its yard to
   the nearest street (the band breaks there for a gate), an oil stain at every door and a few
-  more scattered about. Painted once for blue's zone and shown turned round over red's.
+  more scattered about. Painted once for blue's zone and shown turned round over red's. The
+  Blackwall fringe is old weathered concrete slabs, slightly corrupted by the wall
+  (`components/BlackwallCorruption.tsx`): about one slab in four has a crack glowing with the
+  Blackwall's red, magenta and blue static, tearing and flickering, and every fringe building
+  flickers with patches of glitching scanlines on its walls, static on its roof and a glow round
+  its base, gone once the building is destroyed.
 - A building bigger than one tile is drawn as one building (`components/FootprintBuilding.tsx`),
   though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
   run along its outside faces only, a dark roof slab with a lit rim covers it (in the owner's
