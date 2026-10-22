@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CITY_CONFIG, TEAM_BASES } from '../constants';
 import { generateCity } from '../sim/mapgen';
-import { districtOfTile, DISTRICT_THEMES } from './districtTheme';
+import { districtOfTile, DISTRICT_THEMES, groundOfTile } from './districtTheme';
 import { streetscapeLayout } from './Streetscape';
 
 const { gridSize, tileSize } = CITY_CONFIG;
@@ -32,5 +32,22 @@ describe('streetscape', () => {
     const walked = new Set(layout.sidewalks.map(w => key(w.x, w.z)));
     const last = gridSize - 1;
     for (const w of layout.sidewalks) expect(walked.has(key(last - w.x, last - w.z))).toBe(true);
+  });
+});
+
+describe('midtown courtyards', () => {
+  it('paves the open ground along the street and grasses the middle of each block', () => {
+    const open = city.roadTiles.filter(t => t.type === 'open' && districtOfTile(t.x, t.z, gridSize) === 'midtown');
+    const styles = open.map(t => groundOfTile(t.x, t.z, gridSize));
+    expect(styles.filter(s => s === 'lawn').length).toBeGreaterThan(50);
+    expect(styles.filter(s => s === 'paving').length).toBeGreaterThan(50);
+    for (const t of open) {
+      const lot = (c: number) => c % 6;
+      const edge = [lot(t.x), lot(t.z)].some(c => c === 1 || c === 5) || [t.x, t.z].some(c => Math.abs(c - 39) === 1);
+      expect(groundOfTile(t.x, t.z, gridSize), `${t.x},${t.z}`).toBe(edge ? 'paving' : 'lawn');
+      expect(groundOfTile(78 - t.x, 78 - t.z, gridSize)).toBe(groundOfTile(t.x, t.z, gridSize));
+    }
+    // Other districts keep their own ground.
+    expect(groundOfTile(27, 27, gridSize)).toBe('plaza');
   });
 });

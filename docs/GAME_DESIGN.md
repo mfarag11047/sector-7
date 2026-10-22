@@ -934,6 +934,10 @@ Drop, or Masons.
   open ground is ever sealed off from the streets. Every building is a rectangle with a matching
   twin across the centre. Overall about a third of lot tiles are built; the centre is the
   tightest and the edges the most open.
+- The open ground in each district has its own texture (`components/districtTheme.ts`). In
+  midtown every block is a green courtyard: open tiles beside a street or the boulevard are light
+  concrete paving, the rest are lawn laid edge to edge, with a low pale kerb where lawn meets
+  paving (`groundOfTile`).
 - A building bigger than one tile is drawn as one building (`components/FootprintBuilding.tsx`),
   though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
   run along its outside faces only, a dark roof slab with a lit rim covers it (in the owner's

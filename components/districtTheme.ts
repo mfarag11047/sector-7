@@ -8,9 +8,12 @@
 // top of them, and free of blue and red, the team colours.
 
 import * as THREE from 'three';
-import { District, districtOfBlock } from '../sim/districts';
+import { District, districtAt, districtOfBlock } from '../sim/districts';
 
-export type GroundStyle = 'plaza' | 'courtyard' | 'yard' | 'lot' | 'scorched' | 'hex';
+// 'courtyard' is a district's choice, not a texture: its blocks are ringed with light paving
+// along the street ('paving') round a lawn in the middle ('lawn'); see groundOfTile.
+export type GroundStyle = 'plaza' | 'courtyard' | 'paving' | 'lawn' | 'yard' | 'lot' | 'scorched' | 'hex';
+export type GroundTexture = Exclude<GroundStyle, 'hex' | 'courtyard'>;
 
 export interface DistrictTheme {
   ground: GroundStyle;
@@ -24,7 +27,7 @@ export const DISTRICT_THEMES: Record<District, DistrictTheme> = {
   // Corporate core and downtown: paved plazas, sidewalks, crosswalks.
   core: { ground: 'plaza', streetTint: '#a5b4c8', sidewalks: true, crosswalks: true },
   downtown: { ground: 'plaza', streetTint: '#9fb0c4', sidewalks: true, crosswalks: true },
-  // Midtown: block-paved courtyards and sidewalks, no crosswalks.
+  // Midtown: grass courtyards inside a ring of light paving, sidewalks, no crosswalks.
   midtown: { ground: 'courtyard', streetTint: '#98a6b8', sidewalks: true, crosswalks: false },
   // Industrial: stained concrete yards, warmer and dirtier streets.
   industrial: { ground: 'yard', streetTint: '#a39a8c', sidewalks: false, crosswalks: false },
@@ -47,6 +50,16 @@ function blockOf(c: number, gridSize: number): number {
 export const districtOfTile = (x: number, z: number, gridSize: number): District =>
   districtOfBlock(blockOf(x, gridSize), blockOf(z, gridSize), gridSize);
 export const themeOfTile = (x: number, z: number, gridSize: number) => DISTRICT_THEMES[districtOfTile(x, z, gridSize)];
+
+// The ground drawn on an open lot tile. In a courtyard district, a tile beside the street (or the
+// boulevard) is paving and any other is lawn, so each block reads as a green courtyard inside a
+// paved edge.
+export function groundOfTile(x: number, z: number, gridSize: number): Exclude<GroundStyle, 'courtyard'> {
+  const ground = themeOfTile(x, z, gridSize).ground;
+  if (ground !== 'courtyard') return ground;
+  const onStreet = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => districtAt(x + dx, z + dz, gridSize) === null);
+  return onStreet ? 'paving' : 'lawn';
+}
 
 // --- Ground textures ---
 
@@ -109,7 +122,7 @@ function blot(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, co
   ctx.globalAlpha = 1;
 }
 
-const DRAW: Record<Exclude<GroundStyle, 'hex'>, (ctx: CanvasRenderingContext2D, rand: () => number) => void> = {
+const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => number) => void> = {
   // Large paving slabs with tight joints and a faint inlaid light line: corporate plaza.
   plaza: (ctx, rand) => {
     ctx.fillStyle = '#2c3545';
@@ -137,27 +150,49 @@ const DRAW: Record<Exclude<GroundStyle, 'hex'>, (ctx: CanvasRenderingContext2D, 
     ctx.lineWidth = 2;
     for (let k = 0; k < 6; k++) { ctx.beginPath(); ctx.moveTo(SIZE * 0.68 + 6 + k * 9, SIZE * 0.68 + 4); ctx.lineTo(SIZE * 0.68 + 6 + k * 9, SIZE * 0.68 + 22); ctx.stroke(); }
   },
-  // Small block pavers in two tones with a planted bed: residential courtyards.
-  courtyard: (ctx, rand) => {
-    ctx.fillStyle = '#30343f';
+  // Light concrete slabs in a 2x2 grid with a fine border joint: the paved edge of a midtown block.
+  paving: (ctx, rand) => {
+    ctx.fillStyle = '#5a606b';
     ctx.fillRect(0, 0, SIZE, SIZE);
-    const s = SIZE / 12;
-    for (let i = 0; i < 12; i++) for (let j = 0; j < 12; j++) {
-      const offsetX = (j % 2) * s / 2;
-      const shade = 46 + Math.floor(rand() * 12);
-      ctx.fillStyle = `rgb(${shade + 6}, ${shade + 2}, ${shade})`;
-      ctx.fillRect(i * s + offsetX + 1, j * s + 1, s - 2, s - 2);
+    const n = 2, s = SIZE / n;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const shade = 104 + Math.floor(rand() * 10);
+      ctx.fillStyle = `rgb(${shade}, ${shade + 3}, ${shade + 9})`;
+      ctx.fillRect(i * s + 4, j * s + 4, s - 8, s - 8);
     }
-    grime(ctx, rand, ['#23262e', '#4a4c55'], 1800, 3, 0.25);
-    // A planted bed with a low kerb.
-    const bx = SIZE * 0.12, by = SIZE * 0.14, bw = SIZE * 0.3, bh = SIZE * 0.22;
-    ctx.fillStyle = '#4a4f5a';
-    ctx.fillRect(bx - 6, by - 6, bw + 12, bh + 12);
-    ctx.fillStyle = '#1f3027';
-    ctx.fillRect(bx, by, bw, bh);
-    for (let k = 0; k < 220; k++) {
-      ctx.fillStyle = rand() > 0.5 ? '#2c4a36' : '#3a6146';
-      ctx.fillRect(bx + rand() * bw, by + rand() * bh, 3, 3);
+    grime(ctx, rand, ['#5d636e', '#868c97', '#767b84'], 4000, 3, 0.35);
+    // Scored lines across each slab, and a few weathered stains.
+    ctx.strokeStyle = 'rgba(70, 76, 86, 0.5)';
+    ctx.lineWidth = 2;
+    for (let i = 0; i < n; i++) {
+      ctx.beginPath(); ctx.moveTo(i * s + s / 2, 4); ctx.lineTo(i * s + s / 2, SIZE - 4); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(4, i * s + s / 2); ctx.lineTo(SIZE - 4, i * s + s / 2); ctx.stroke();
+    }
+    for (let k = 0; k < 3; k++) blot(ctx, rand() * SIZE, rand() * SIZE, 30 + rand() * 40, '#4a4f58', 0.25);
+  },
+  // Grass, seamless so a courtyard of several tiles reads as one lawn: blades in three greens over
+  // soft patches, nothing that lines up with the tile edge.
+  lawn: (ctx, rand) => {
+    ctx.fillStyle = '#2f4b2f';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    // Soft lighter and darker patches, drawn wrapped round the edges so tiles join without a seam.
+    for (let k = 0; k < 10; k++) {
+      const x = rand() * SIZE, y = rand() * SIZE, r = 50 + rand() * 80;
+      const color = rand() > 0.5 ? '#3d6239' : '#243d26';
+      for (const ox of [-SIZE, 0, SIZE]) for (const oy of [-SIZE, 0, SIZE]) blot(ctx, x + ox, y + oy, r, color, 0.45);
+    }
+    // Blades: short strokes leaning every way.
+    ctx.lineWidth = 1.5;
+    for (let k = 0; k < 9000; k++) {
+      const x = rand() * SIZE, y = rand() * SIZE, a = rand() * Math.PI * 2, l = 3 + rand() * 4;
+      const c = rand();
+      ctx.strokeStyle = c > 0.66 ? 'rgba(92, 140, 80, 0.55)' : c > 0.33 ? 'rgba(62, 104, 58, 0.55)' : 'rgba(30, 52, 32, 0.5)';
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); ctx.stroke();
+    }
+    // A few small flowers and clover.
+    for (let k = 0; k < 40; k++) {
+      ctx.fillStyle = rand() > 0.5 ? 'rgba(214, 220, 160, 0.5)' : 'rgba(150, 190, 120, 0.5)';
+      ctx.fillRect(rand() * SIZE, rand() * SIZE, 2, 2);
     }
   },
   // Stained concrete with expansion joints, oil spots, tyre tracks and a hazard-striped edge.
@@ -223,8 +258,8 @@ const DRAW: Record<Exclude<GroundStyle, 'hex'>, (ctx: CanvasRenderingContext2D, 
   },
 };
 
-export const createGroundTexture = (style: Exclude<GroundStyle, 'hex'>) =>
-  canvasTexture(DRAW[style], { plaza: 11, courtyard: 23, yard: 37, lot: 41, scorched: 53 }[style]);
+export const createGroundTexture = (style: GroundTexture) =>
+  canvasTexture(DRAW[style], { plaza: 11, paving: 23, lawn: 29, yard: 37, lot: 41, scorched: 53 }[style]);
 
 // --- Streetscape textures ---
 

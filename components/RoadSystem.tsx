@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useRef, useLayoutEffect, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
 import { RoadTileData } from '../types';
-import { createGroundTexture, DISTRICT_THEMES, districtOfTile, GroundStyle, themeOfTile } from './districtTheme';
+import { createGroundTexture, DISTRICT_THEMES, districtOfTile, GroundStyle, groundOfTile } from './districtTheme';
 
 // --- PROCEDURAL TEXTURES ---
 
@@ -359,6 +359,44 @@ const COLOR_MAIN = new THREE.Color('#ffffff');
 const COLOR_STREET = new THREE.Color('#94a3b8');
 const COLOR_OPEN = new THREE.Color('#ffffff');
 
+// A low pale kerb along each lawn edge that meets other open ground (the paving round a
+// courtyard); edges against a building need none.
+const LawnKerbs: React.FC<{ lawn: RoadTileData[]; open: RoadTileData[]; tileSize: number; offset: number }> = ({ lawn, open, tileSize, offset }) => {
+    const meshRef = useRef<THREE.InstancedMesh>(null);
+    const kerbs = useMemo(() => {
+        const isLawn = new Set(lawn.map(t => `${t.x},${t.z}`));
+        const isOpen = new Set(open.map(t => `${t.x},${t.z}`));
+        const out: { x: number; z: number; alongX: boolean }[] = [];
+        for (const t of lawn) {
+            for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+                const k = `${t.x + dx},${t.z + dz}`;
+                if (isLawn.has(k) || !isOpen.has(k)) continue;
+                out.push({ x: (t.x + dx * 0.47) * tileSize - offset, z: (t.z + dz * 0.47) * tileSize - offset, alongX: dz !== 0 });
+            }
+        }
+        return out;
+    }, [lawn, open, tileSize, offset]);
+    useLayoutEffect(() => {
+        const mesh = meshRef.current;
+        if (!mesh) return;
+        const o = new THREE.Object3D();
+        kerbs.forEach((k, i) => {
+            o.position.set(k.x, 0.3, k.z);
+            o.rotation.set(0, k.alongX ? 0 : Math.PI / 2, 0);
+            o.updateMatrix();
+            mesh.setMatrixAt(i, o.matrix);
+        });
+        mesh.instanceMatrix.needsUpdate = true;
+    }, [kerbs]);
+    if (kerbs.length === 0) return null;
+    return (
+        <instancedMesh ref={meshRef} args={[undefined, undefined, kerbs.length]} raycast={() => null}>
+            <boxGeometry args={[tileSize, 0.4, tileSize * 0.06]} />
+            <meshStandardMaterial color="#9aa1ab" roughness={0.9} />
+        </instancedMesh>
+    );
+};
+
 // --- MAIN EXPORTED COMPONENT ---
 export const InstancedRoads: React.FC<{ 
     tiles: RoadTileData[]; 
@@ -390,7 +428,7 @@ export const InstancedRoads: React.FC<{
             if (t.type === 'main') main.push(t);
             else if (t.type === 'street') street.push(t);
             else {
-                const style = themeOfTile(t.x, t.z, gridSize).ground;
+                const style = groundOfTile(t.x, t.z, gridSize);
                 if (!open.has(style)) open.set(style, []);
                 open.get(style)!.push(t);
             }
@@ -398,7 +436,7 @@ export const InstancedRoads: React.FC<{
         return { mainTiles: main, streetTiles: street, openByStyle: [...open.entries()] };
     }, [tiles, gridSize]);
     const groundTextures = useMemo(() => new Map<GroundStyle, THREE.Texture>(
-        (['plaza', 'courtyard', 'yard', 'lot', 'scorched'] as const).map(s => [s, createGroundTexture(s)])), []);
+        (['plaza', 'paving', 'lawn', 'yard', 'lot', 'scorched'] as const).map(s => [s, createGroundTexture(s)])), []);
     // Streets take their district's cast.
     const streetColorOf = useMemo(() => {
         const tints = new Map(Object.entries(DISTRICT_THEMES).map(([d, t]) => [d, new THREE.Color(t.streetTint)]));
@@ -452,10 +490,12 @@ export const InstancedRoads: React.FC<{
                     tiles={open} tileSize={tileSize} offset={offset}
                     texture={style === 'hex' ? texHex : groundTextures.get(style)!} baseColor={COLOR_OPEN}
                     onClick={onClick} onRightClick={onRightClick} onHover={handleHover}
-                    tileScale={tileScale}
+                    // Lawn tiles meet edge to edge, so a courtyard reads as one lawn.
+                    tileScale={style === 'lawn' ? 1 : tileScale}
                     randomRotation={true}
                 />
             ))}
+            <LawnKerbs lawn={openByStyle.find(([style]) => style === 'lawn')?.[1] ?? []} open={tiles} tileSize={tileSize} offset={offset} />
         </group>
     );
 };
