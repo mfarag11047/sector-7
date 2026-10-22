@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CITY_CONFIG, TEAM_BASES } from '../constants';
 import { generateCity } from '../sim/mapgen';
-import { districtOfTile, DISTRICT_THEMES, groundOfTile } from './districtTheme';
+import { districtOfTile, DISTRICT_THEMES, groundOfTile, roadPieceOf } from './districtTheme';
 import { streetscapeLayout } from './Streetscape';
 
 const { gridSize, tileSize } = CITY_CONFIG;
@@ -61,6 +61,24 @@ describe('outskirts car parks', () => {
       const edge = [t.x % 6, t.z % 6].some(c => c === 1 || c === 5) || [t.x, t.z].some(c => Math.abs(c - 39) === 1);
       expect(groundOfTile(t.x, t.z, gridSize) === 'walkway', `${t.x},${t.z}`).toBe(edge);
       expect(groundOfTile(78 - t.x, 78 - t.z, gridSize)).toBe(groundOfTile(t.x, t.z, gridSize));
+    }
+  });
+});
+
+describe('road pieces', () => {
+  it('marks city streets in the middle districts and suburban ones further out, turned along their road', () => {
+    expect(roadPieceOf(30, 27, 'street', gridSize)).toEqual({ piece: 'cityStraight', alongX: false });
+    expect(roadPieceOf(27, 30, 'street', gridSize)).toEqual({ piece: 'cityStraight', alongX: true });
+    expect(roadPieceOf(30, 30, 'street', gridSize)).toMatchObject({ piece: 'cityJunction' });
+    expect(roadPieceOf(36, 9, 'street', gridSize)).toEqual({ piece: 'suburbStraight', alongX: false });
+    expect(roadPieceOf(39, 21, 'main', gridSize)).toEqual({ piece: 'avenue', alongX: false });
+    expect(roadPieceOf(21, 39, 'main', gridSize)).toEqual({ piece: 'avenue', alongX: true });
+    // Same both sides of the map.
+    for (const t of city.roadTiles.filter(t => t.type !== 'open')) {
+      const a = roadPieceOf(t.x, t.z, t.type as 'main' | 'street', gridSize);
+      const b = roadPieceOf(78 - t.x, 78 - t.z, t.type as 'main' | 'street', gridSize);
+      expect(b.piece).toBe(a.piece);
+      if (!a.piece.endsWith('Junction')) expect(b.alongX).toBe(a.alongX);
     }
   });
 });

@@ -934,6 +934,12 @@ Drop, or Masons.
   open ground is ever sealed off from the streets. Every building is a rectangle with a matching
   twin across the centre. Overall about a third of lot tiles are built; the centre is the
   tightest and the edges the most open.
+- Roads are asphalt (`roadPieceOf` in `components/districtTheme.ts`), each straight piece turned
+  to run along its road and laid edge to edge so the lines run on unbroken. City streets (core,
+  downtown, midtown) are dark asphalt with a double yellow centre line and white edge lines; the
+  main boulevard adds a dashed lane line either side. Suburban streets (outskirts, industrial,
+  fringe, bases) are paler worn asphalt with cracks, a few patches and a faded dashed yellow
+  centre line. Junctions are unmarked.
 - The open ground in each district has its own texture (`components/districtTheme.ts`). In
   midtown every block is a green courtyard: open tiles beside a street or the boulevard are light
   concrete paving, the rest are lawn laid edge to edge, with a low pale kerb where lawn meets

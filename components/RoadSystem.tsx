@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useRef, useLayoutEffect, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
 import { RoadTileData } from '../types';
-import { createGroundTexture, DISTRICT_THEMES, districtOfTile, groundOfTile, TileGround } from './districtTheme';
+import { createGroundTexture, createRoadTexture, groundOfTile, RoadPiece, roadPieceOf, TileGround } from './districtTheme';
 
 // --- PROCEDURAL TEXTURES ---
 
@@ -56,164 +56,6 @@ const createHexTexture = () => {
     const tex = new THREE.CanvasTexture(canvas);
     tex.wrapS = THREE.RepeatWrapping;
     tex.wrapT = THREE.RepeatWrapping;
-    return tex;
-};
-
-// 2. Concrete Texture (Normal/Street) - UPDATED VISUALS
-const createConcreteTexture = () => {
-    if (typeof document === 'undefined') return new THREE.Texture();
-    const canvas = document.createElement('canvas');
-    canvas.width = 512; // Increased resolution for details
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-        // Helper for rounded rects
-        const drawRoundRect = (x: number, y: number, w: number, h: number, r: number) => {
-            ctx.beginPath();
-            ctx.moveTo(x + r, y);
-            ctx.lineTo(x + w - r, y);
-            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
-            ctx.lineTo(x + w, y + h - r);
-            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-            ctx.lineTo(x + r, y + h);
-            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
-            ctx.lineTo(x, y + r);
-            ctx.quadraticCurveTo(x, y, x + r, y);
-            ctx.closePath();
-        };
-
-        // 1. Asphalt Base (Different from city base)
-        ctx.fillStyle = '#334155'; // Slate 700
-        ctx.fillRect(0, 0, 512, 512);
-        
-        // 2. Heavy Noise / Grime
-        for(let i=0; i<8000; i++) {
-            ctx.fillStyle = Math.random() > 0.5 ? '#1e293b' : '#475569';
-            ctx.globalAlpha = 0.15;
-            const s = Math.random() * 6;
-            ctx.fillRect(Math.random() * 512, Math.random() * 512, s, s);
-        }
-        ctx.globalAlpha = 1.0;
-
-        // 3. Concrete Cracks
-        ctx.strokeStyle = '#0f172a';
-        ctx.lineWidth = 2;
-        ctx.globalAlpha = 0.7;
-        for(let i=0; i<4; i++) {
-            ctx.beginPath();
-            let cx = Math.random() * 512;
-            let cy = Math.random() * 512;
-            ctx.moveTo(cx, cy);
-            for(let j=0; j<6; j++) {
-                cx += (Math.random() - 0.5) * 100;
-                cy += (Math.random() - 0.5) * 100;
-                ctx.lineTo(cx, cy);
-            }
-            ctx.stroke();
-        }
-        ctx.globalAlpha = 1.0;
-
-        // 4. Maintenance Hatch (The "Panel")
-        const hx = 80, hy = 120, hw = 160, hh = 240;
-        
-        // Hatch Shadow/Inset
-        ctx.fillStyle = 'rgba(0,0,0,0.4)';
-        drawRoundRect(hx+5, hy+5, hw, hh, 15);
-        ctx.fill();
-
-        // Hatch Body
-        ctx.fillStyle = '#475569'; 
-        drawRoundRect(hx, hy, hw, hh, 15);
-        ctx.fill();
-        ctx.strokeStyle = '#1e293b';
-        ctx.lineWidth = 3;
-        ctx.stroke();
-        
-        // Hatch Hinge Line
-        ctx.beginPath();
-        ctx.moveTo(hx + 20, hy + hh/2);
-        ctx.lineTo(hx + hw - 20, hy + hh/2);
-        ctx.strokeStyle = '#334155';
-        ctx.lineWidth = 2;
-        ctx.stroke();
-        
-        // Hatch Handle
-        ctx.fillStyle = '#1e293b';
-        drawRoundRect(hx + hw - 40, hy + hh/2 - 25, 20, 50, 5);
-        ctx.fill();
-
-        // 5. Panel Cut Lines (Grid)
-        ctx.strokeStyle = '#0f172a';
-        ctx.lineWidth = 3;
-        ctx.globalAlpha = 0.4;
-        ctx.beginPath();
-        ctx.moveTo(0, 380); ctx.lineTo(512, 380); 
-        ctx.moveTo(350, 0); ctx.lineTo(350, 512); 
-        ctx.stroke();
-        ctx.globalAlpha = 1.0;
-        
-        // 6. Worn Edges
-        ctx.strokeStyle = '#475569';
-        ctx.lineWidth = 8;
-        ctx.strokeRect(0,0,512,512);
-    }
-    const tex = new THREE.CanvasTexture(canvas);
-    return tex;
-};
-
-// 3. Highway Glow Texture (Fast/Main)
-const createHighwayGlowTexture = () => {
-    if (typeof document === 'undefined') return new THREE.Texture();
-    const canvas = document.createElement('canvas');
-    canvas.width = 256;
-    canvas.height = 256;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-        ctx.fillStyle = '#1e293b';
-        ctx.fillRect(0, 0, 256, 256);
-        
-        // Glow Settings
-        ctx.shadowColor = '#06b6d4'; // Cyan
-        ctx.shadowBlur = 20;
-        ctx.strokeStyle = '#22d3ee'; // Light Cyan
-        ctx.lineWidth = 4;
-        
-        // 1. Center Double Lines (Vertical on texture)
-        ctx.beginPath();
-        ctx.moveTo(120, 0); ctx.lineTo(120, 256);
-        ctx.stroke();
-        
-        ctx.beginPath();
-        ctx.moveTo(136, 0); ctx.lineTo(136, 256);
-        ctx.stroke();
-        
-        // 2. Side Dashed Lines
-        ctx.lineWidth = 2;
-        ctx.setLineDash([20, 20]);
-        
-        ctx.beginPath();
-        ctx.moveTo(40, 0); ctx.lineTo(40, 256);
-        ctx.stroke();
-        
-        ctx.beginPath();
-        ctx.moveTo(216, 0); ctx.lineTo(216, 256);
-        ctx.stroke();
-        
-        ctx.setLineDash([]);
-        
-        // 3. Edge Markers
-        ctx.fillStyle = '#06b6d4';
-        ctx.shadowBlur = 10;
-        // Left Edge
-        ctx.fillRect(5, 20, 5, 40);
-        ctx.fillRect(5, 100, 5, 40);
-        ctx.fillRect(5, 180, 5, 40);
-        // Right Edge
-        ctx.fillRect(246, 20, 5, 40);
-        ctx.fillRect(246, 100, 5, 40);
-        ctx.fillRect(246, 180, 5, 40);
-    }
-    const tex = new THREE.CanvasTexture(canvas);
     return tex;
 };
 
@@ -355,8 +197,7 @@ const SingleTypeRoads: React.FC<{
 
 // Stable across renders: passing freshly built Colors in JSX invalidates the
 // instance-matrix effect below and rewrites every road tile on each render.
-const COLOR_MAIN = new THREE.Color('#ffffff');
-const COLOR_STREET = new THREE.Color('#94a3b8');
+const COLOR_ROAD = new THREE.Color('#ffffff');
 const COLOR_OPEN = new THREE.Color('#ffffff');
 
 // A low pale kerb along each lawn edge that meets other open ground (the paving round a
@@ -410,8 +251,6 @@ export const InstancedRoads: React.FC<{
     
     // Generate Textures (Once)
     const texHex = useMemo(() => createHexTexture(), []);
-    const texConcrete = useMemo(() => createConcreteTexture(), []);
-    const texGlow = useMemo(() => createHighwayGlowTexture(), []);
 
     // Calculate grid properties to determine orientation for Main roads
     // offset = (gridSize * tileSize) / 2
@@ -420,44 +259,31 @@ export const InstancedRoads: React.FC<{
 
     // Split tiles by type for specialized rendering, and open ground by its district's style
     // (components/districtTheme.ts): one instanced mesh per ground style.
-    const { mainTiles, streetTiles, openByStyle } = useMemo(() => {
-        const main: RoadTileData[] = [];
-        const street: RoadTileData[] = [];
+    // Roads by piece (components/districtTheme.ts roadPieceOf): city or suburb, straight or
+    // junction, and the main boulevard; straight pieces turned to run along their road.
+    const { roadsByPiece, openByStyle } = useMemo(() => {
+        const roads = new Map<RoadPiece, RoadTileData[]>();
         const open = new Map<TileGround, RoadTileData[]>();
         tiles.forEach(t => {
-            if (t.type === 'main') main.push(t);
-            else if (t.type === 'street') street.push(t);
-            else {
+            if (t.type === 'main' || t.type === 'street') {
+                const { piece } = roadPieceOf(t.x, t.z, t.type, gridSize);
+                if (!roads.has(piece)) roads.set(piece, []);
+                roads.get(piece)!.push(t);
+            } else {
                 const style = groundOfTile(t.x, t.z, gridSize);
                 if (!open.has(style)) open.set(style, []);
                 open.get(style)!.push(t);
             }
         });
-        return { mainTiles: main, streetTiles: street, openByStyle: [...open.entries()] };
+        return { roadsByPiece: [...roads.entries()], openByStyle: [...open.entries()] };
     }, [tiles, gridSize]);
     const groundTextures = useMemo(() => new Map<TileGround, THREE.Texture>(
         (['granite', 'plazaStone', 'paving', 'lawn', 'walkway', 'parking', 'yard', 'slab'] as const).map(s => [s, createGroundTexture(s)])), []);
-    // Streets take their district's cast.
-    const streetColorOf = useMemo(() => {
-        const tints = new Map(Object.entries(DISTRICT_THEMES).map(([d, t]) => [d, new THREE.Color(t.streetTint)]));
-        return (t: RoadTileData) => tints.get(districtOfTile(t.x, t.z, gridSize))!;
-    }, [gridSize]);
-    const mid = Math.floor(gridSize / 2);
-
-    const getMainRotation = useCallback((tile: RoadTileData) => {
-        // Texture has vertical lines.
-        // Rotation 0 aligns texture lines with World Z (North-South).
-        // Rotation 90 aligns texture lines with World X (East-West).
-        
-        // If Z is approximately the middle row, it's an East-West road (varying X).
-        if (Math.abs(tile.z - mid) <= 1) return Math.PI / 2;
-        
-        // If X is approximately the middle column, it's a North-South road (varying Z).
-        if (Math.abs(tile.x - mid) <= 1) return 0;
-        
-        // Default
-        return 0;
-    }, [mid]);
+    const roadTextures = useMemo(() => new Map<RoadPiece, THREE.Texture>(
+        (['cityStraight', 'cityJunction', 'suburbStraight', 'suburbJunction', 'avenue'] as const).map(p => [p, createRoadTexture(p)])), []);
+    // Markings are drawn up the texture: turned a quarter for a road running along x.
+    const roadRotation = useCallback((t: RoadTileData) =>
+        (roadPieceOf(t.x, t.z, t.type as 'main' | 'street', gridSize).alongX ? Math.PI / 2 : 0), [gridSize]);
 
     // Handler wrapper
     const onHoverRef = useRef(onHover);
@@ -466,24 +292,18 @@ export const InstancedRoads: React.FC<{
 
     return (
         <group>
-            {mainTiles.length > 0 && (
-                <SingleTypeRoads 
-                    tiles={mainTiles} tileSize={tileSize} offset={offset} 
-                    texture={texGlow} baseColor={COLOR_MAIN}
+            {roadsByPiece.map(([piece, roads]) => (
+                <SingleTypeRoads
+                    key={piece}
+                    tiles={roads} tileSize={tileSize} offset={offset}
+                    texture={roadTextures.get(piece)!} baseColor={COLOR_ROAD}
                     onClick={onClick} onRightClick={onRightClick} onHover={handleHover}
-                    getRotation={getMainRotation}
-                    tileScale={tileScale}
+                    // Roads meet edge to edge, so their lines run on unbroken.
+                    tileScale={1}
+                    getRotation={piece.endsWith('Junction') ? undefined : roadRotation}
+                    randomRotation={piece.endsWith('Junction')}
                 />
-            )}
-            {streetTiles.length > 0 && (
-                <SingleTypeRoads 
-                    tiles={streetTiles} tileSize={tileSize} offset={offset} 
-                    texture={texConcrete} baseColor={COLOR_STREET} colorOf={streetColorOf}
-                    onClick={onClick} onRightClick={onRightClick} onHover={handleHover}
-                    tileScale={tileScale}
-                    randomRotation={true}
-                />
-            )}
+            ))}
             {openByStyle.map(([style, open]) => (
                 <SingleTypeRoads
                     key={style}

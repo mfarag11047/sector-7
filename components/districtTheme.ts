@@ -20,10 +20,15 @@ type SplitGround = 'courtyard' | 'carpark' | 'corporate';
 export type TileGround = Exclude<GroundStyle, SplitGround>;
 export type GroundTexture = Exclude<TileGround, 'hex'>;
 
+export type RoadStyle = 'city' | 'suburb';
+// The road textures: a straight piece (markings run along it), a junction (unmarked), and the
+// main boulevard's own straight piece.
+export type RoadPiece = 'cityStraight' | 'cityJunction' | 'suburbStraight' | 'suburbJunction' | 'avenue';
+
 export interface DistrictTheme {
   ground: GroundStyle;
-  // Multiplies the street texture: a cast for the district.
-  streetTint: string;
+  // How its roads are surfaced and marked: 'city' or 'suburb' (see roadPieceOf).
+  road: RoadStyle;
   sidewalks: boolean;
   crosswalks: boolean;
 }
@@ -31,19 +36,19 @@ export interface DistrictTheme {
 export const DISTRICT_THEMES: Record<District, DistrictTheme> = {
   // Corporate core and downtown: polished granite along the streets round patterned stone plazas
   // (neon kerb lines and planters by DowntownDressing.tsx), sidewalks, crosswalks.
-  core: { ground: 'corporate', streetTint: '#a5b4c8', sidewalks: true, crosswalks: true },
-  downtown: { ground: 'corporate', streetTint: '#9fb0c4', sidewalks: true, crosswalks: true },
+  core: { ground: 'corporate', road: 'city', sidewalks: true, crosswalks: true },
+  downtown: { ground: 'corporate', road: 'city', sidewalks: true, crosswalks: true },
   // Midtown: grass courtyards inside a ring of light paving, sidewalks, no crosswalks.
-  midtown: { ground: 'courtyard', streetTint: '#98a6b8', sidewalks: true, crosswalks: false },
+  midtown: { ground: 'courtyard', road: 'city', sidewalks: true, crosswalks: false },
   // Industrial: stained concrete yards, warmer and dirtier streets.
-  industrial: { ground: 'yard', streetTint: '#a39a8c', sidewalks: false, crosswalks: false },
+  industrial: { ground: 'yard', road: 'suburb', sidewalks: false, crosswalks: false },
   // Outskirts: dark paved walkways along the streets round parking lots. Fringe: old concrete
   // slabs by the Blackwall, cracked here and there with the Blackwall glitching through
   // (BlackwallCracks.tsx).
-  outskirts: { ground: 'carpark', streetTint: '#8f98a6', sidewalks: false, crosswalks: false },
-  fringe: { ground: 'slab', streetTint: '#8a8486', sidewalks: false, crosswalks: false },
+  outskirts: { ground: 'carpark', road: 'suburb', sidewalks: false, crosswalks: false },
+  fringe: { ground: 'slab', road: 'suburb', sidewalks: false, crosswalks: false },
   // The bases keep the hex-grid ground they always had.
-  base: { ground: 'hex', streetTint: '#94a3b8', sidewalks: false, crosswalks: false },
+  base: { ground: 'hex', road: 'suburb', sidewalks: false, crosswalks: false },
 };
 
 const ROAD_STRIDE = 6;
@@ -70,6 +75,99 @@ export function groundOfTile(x: number, z: number, gridSize: number): TileGround
   if (ground === 'corporate') return onStreet ? 'granite' : 'plazaStone';
   return onStreet ? 'walkway' : 'parking';
 }
+
+// Which road piece a road tile takes, and whether it runs along x (else along z). A tile on one
+// road line is a straight piece of it; where lines cross, or off the lines (the paved squares
+// round the starting bases), it is a junction. The district picks city or suburb; the main
+// boulevard is always the avenue.
+export function roadPieceOf(x: number, z: number, type: 'main' | 'street', gridSize: number): { piece: RoadPiece; alongX: boolean } {
+  const centre = Math.floor(gridSize / 2);
+  const onX = x % ROAD_STRIDE === 0 || x === centre; // A road running along z.
+  const onZ = z % ROAD_STRIDE === 0 || z === centre; // A road running along x.
+  const style = themeOfTile(x, z, gridSize).road;
+  if (onX === onZ) return { piece: style === 'city' || type === 'main' ? 'cityJunction' : 'suburbJunction', alongX: false };
+  const alongX = onZ;
+  if (type === 'main') return { piece: 'avenue', alongX };
+  return { piece: style === 'city' ? 'cityStraight' : 'suburbStraight', alongX };
+}
+
+// --- Road textures: drawn with the road running up the canvas ---
+
+function asphalt(ctx: CanvasRenderingContext2D, rand: () => number, style: RoadStyle) {
+  if (style === 'city') {
+    // Dark, well-kept asphalt, the lanes polished a shade darker by traffic.
+    ctx.fillStyle = '#2a2b2e';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    grime(ctx, rand, ['#222326', '#35363a', '#414247'], 9000, 2, 0.45);
+    ctx.fillStyle = 'rgba(10, 10, 12, 0.12)';
+    for (const x of [0.32, 0.68]) ctx.fillRect(SIZE * x - 40, 0, 80, SIZE);
+  } else {
+    // Older, paler asphalt: cracks, tar-sealed repairs, and crumbling edges.
+    ctx.fillStyle = '#3d3e40';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    grime(ctx, rand, ['#303134', '#4a4b4e', '#45433f'], 9000, 3, 0.45);
+    for (let k = 0; k < 1; k++) {
+      ctx.fillStyle = 'rgba(32, 33, 36, 0.25)';
+      ctx.fillRect(SIZE * (0.15 + rand() * 0.5), SIZE * rand(), 60 + rand() * 90, 40 + rand() * 70);
+    }
+    for (let k = 0; k < 5; k++) crack(ctx, rand, 'rgba(22, 22, 24, 0.75)', 2, 5);
+    for (const edge of [0, SIZE]) for (let k = 0; k < 6; k++) blot(ctx, edge, rand() * SIZE, 20 + rand() * 30, '#26272a', 0.5);
+  }
+}
+
+// A painted line up the canvas at `x`, solid or dashed (dash and gap divide the tile, so dashes
+// run on unbroken from tile to tile), with a little wear.
+function paintLine(ctx: CanvasRenderingContext2D, rand: () => number, x: number, width: number, color: string, dash?: [number, number]) {
+  ctx.fillStyle = color;
+  if (!dash) ctx.fillRect(x - width / 2, 0, width, SIZE);
+  else for (let y = dash[1] / 2; y < SIZE; y += dash[0] + dash[1]) ctx.fillRect(x - width / 2, y, width, dash[0]);
+  // Worn spots.
+  ctx.fillStyle = 'rgba(40, 40, 42, 0.5)';
+  for (let k = 0; k < 40; k++) ctx.fillRect(x - width / 2 + rand() * width, rand() * SIZE, 2 + rand() * 3, 2 + rand() * 4);
+}
+
+const YELLOW = 'rgba(222, 176, 52, 0.9)';
+const WHITE = 'rgba(226, 229, 233, 0.75)';
+
+const ROAD_DRAW: Record<RoadPiece, (ctx: CanvasRenderingContext2D, rand: () => number) => void> = {
+  // City street: a double yellow line down the middle, white lines along the lane edges (just
+  // clear of the sidewalks).
+  cityStraight: (ctx, rand) => {
+    asphalt(ctx, rand, 'city');
+    paintLine(ctx, rand, SIZE / 2 - 9, 8, YELLOW);
+    paintLine(ctx, rand, SIZE / 2 + 9, 8, YELLOW);
+    paintLine(ctx, rand, SIZE * 0.2, 7, WHITE);
+    paintLine(ctx, rand, SIZE * 0.8, 7, WHITE);
+  },
+  // The main boulevard: the city street's markings with a dashed lane line either side.
+  avenue: (ctx, rand) => {
+    asphalt(ctx, rand, 'city');
+    paintLine(ctx, rand, SIZE / 2 - 9, 8, YELLOW);
+    paintLine(ctx, rand, SIZE / 2 + 9, 8, YELLOW);
+    paintLine(ctx, rand, SIZE * 0.35, 6, WHITE, [64, 64]);
+    paintLine(ctx, rand, SIZE * 0.65, 6, WHITE, [64, 64]);
+    paintLine(ctx, rand, SIZE * 0.2, 7, WHITE);
+    paintLine(ctx, rand, SIZE * 0.8, 7, WHITE);
+  },
+  // City junction: no markings, a manhole cover.
+  cityJunction: (ctx, rand) => {
+    asphalt(ctx, rand, 'city');
+    ctx.fillStyle = '#1c1d20';
+    ctx.beginPath(); ctx.arc(SIZE * 0.62, SIZE * 0.4, 26, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#3c3d42';
+    ctx.lineWidth = 3;
+    for (let r = 8; r < 26; r += 7) { ctx.beginPath(); ctx.arc(SIZE * 0.62, SIZE * 0.4, r, 0, Math.PI * 2); ctx.stroke(); }
+  },
+  // Suburban street: one faded dashed yellow line down the middle, no edge lines.
+  suburbStraight: (ctx, rand) => {
+    asphalt(ctx, rand, 'suburb');
+    paintLine(ctx, rand, SIZE / 2, 9, 'rgba(214, 170, 60, 0.65)', [96, 160]);
+  },
+  suburbJunction: (ctx, rand) => asphalt(ctx, rand, 'suburb'),
+};
+
+export const createRoadTexture = (piece: RoadPiece) =>
+  canvasTexture(ROAD_DRAW[piece], { cityStraight: 71, avenue: 73, cityJunction: 79, suburbStraight: 83, suburbJunction: 89 }[piece]);
 
 // --- Ground textures ---
 
