@@ -97,7 +97,7 @@ export const MatchSetup: React.FC<{ initial?: Partial<MatchConfig>; onStart: (co
                 </div>
               </>
             )}
-            <h2 className={`hud-label text-[10px] uppercase ${spectate ? '' : 'mt-2'}`}>Map</h2>
+            <h2 className={`hud-label text-[10px] uppercase ${spectate ? '' : 'mt-2'}`}>Match seed</h2>
             <div className="flex gap-2 items-center">
               <input
                 type="number"
@@ -105,7 +105,7 @@ export const MatchSetup: React.FC<{ initial?: Partial<MatchConfig>; onStart: (co
                 onChange={e => setSeed(Math.max(0, Math.floor(Number(e.target.value) || 0)))}
                 onKeyDown={e => e.stopPropagation()}
                 className="flex-1 bg-black/40 border border-slate-700 rounded px-2 py-1.5 font-mono text-xs text-white"
-                title="Map seed. The same seed always makes the same city."
+                title="Match seed: picks the computer's doctrine and its choices. The city is the same every match."
               />
               <button onClick={() => setSeed(Math.floor(Math.random() * 1e6))} className="px-3 py-1.5 border border-slate-700 rounded font-mono text-xs hover:border-cyan-400">Random</button>
             </div>

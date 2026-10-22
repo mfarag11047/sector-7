@@ -1,16 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { PLAZA_CLEAR_RADIUS, generateCity, seededRandom } from './mapgen';
+import { PLAZA_CLEAR_RADIUS, generateCity, planBuildings, seededRandom } from './mapgen';
+import { CITY_PLAN } from './cityPlan';
 import { districtAt } from './districts';
 
 const SIZE = 79;
 const BLUE = { x: 4, z: 4 };
 const RED = { x: 74, z: 74 };
-const options = (seed: number) => ({ seed, gridSize: SIZE, tileSize: 14, buildingDensity: 1, blueBase: { x: 4, z: 4 }, redBase: { x: 74, z: 74 } });
+const options = () => ({ gridSize: SIZE, tileSize: 14, blueBase: { x: 4, z: 4 }, redBase: { x: 74, z: 74 } });
 const mirror = (x: number, z: number) => `${SIZE - 1 - x},${SIZE - 1 - z}`;
 
 describe('generateCity', () => {
-  it.each([1, 42, 1234567])('is point-symmetric for seed %i', seed => {
-    const city = generateCity(options(seed));
+  it('is point-symmetric', () => {
+    const city = generateCity(options());
     const at = new Map(city.buildings.map(b => [`${b.gridX},${b.gridZ}`, b]));
     for (const b of city.buildings) {
       const twin = at.get(mirror(b.gridX, b.gridZ));
@@ -26,7 +27,7 @@ describe('generateCity', () => {
   });
 
   it('places 6 core nodes and 5 guarded server nodes', () => {
-    const city = generateCity(options(7));
+    const city = generateCity(options());
     expect(city.buildings.filter(b => b.type === 'core_node')).toHaveLength(6);
     const servers = city.buildings.filter(b => b.type === 'server_node');
     expect(servers).toHaveLength(5);
@@ -35,7 +36,7 @@ describe('generateCity', () => {
   });
 
   it('gives each side a server node in its own half, two contested ones and one in the centre', () => {
-    const city = generateCity(options(7));
+    const city = generateCity(options());
     const servers = city.buildings.filter(b => b.type === 'server_node');
     const toBlue = (b: typeof servers[0]) => Math.hypot(b.gridX - BLUE.x, b.gridZ - BLUE.z);
     const toRed = (b: typeof servers[0]) => Math.hypot(b.gridX - RED.x, b.gridZ - RED.z);
@@ -45,7 +46,7 @@ describe('generateCity', () => {
   });
 
   it('rings the centre with four solid, mirrored corporate landmarks', () => {
-    const city = generateCity(options(11));
+    const city = generateCity(options());
     expect(city.landmarks.map(l => l.kind).sort()).toEqual(['axiom', 'nexum', 'tokugen', 'vanta']);
     const centre = (SIZE - 1) / 2;
     const lots = new Set(city.landmarks.map(l => `${l.center.x},${l.center.z}`));
@@ -61,16 +62,14 @@ describe('generateCity', () => {
     }
   });
 
-  it('is reproducible from its seed, and different seeds differ', () => {
-    const a = generateCity(options(99));
-    const b = generateCity(options(99));
-    const c = generateCity(options(100));
-    expect(a.buildings.map(x => x.id)).toEqual(b.buildings.map(x => x.id));
-    expect(a.buildings.map(x => x.id)).not.toEqual(c.buildings.map(x => x.id));
+  it('is the same city every time', () => {
+    const a = generateCity(options());
+    const b = generateCity(options());
+    expect(a.buildings).toEqual(b.buildings);
   });
 
-  it.each([1, 42])('never seals open ground off from the streets (seed %i)', seed => {
-    const city = generateCity(options(seed));
+  it('never seals open ground off from the streets', () => {
+    const city = generateCity(options());
     const seen = new Set(['4,5']);
     const queue = ['4,5'];
     while (queue.length) {
@@ -84,7 +83,7 @@ describe('generateCity', () => {
   });
 
   it('keeps an alley between buildings', () => {
-    const city = generateCity(options(3));
+    const city = generateCity(options());
     const groupAt = new Map(city.buildings.filter(b => b.blockId.startsWith('block-')).map(b => [`${b.gridX},${b.gridZ}`, b.blockId]));
     for (const [k, id] of groupAt) {
       const [x, z] = k.split(',').map(Number);
@@ -96,7 +95,7 @@ describe('generateCity', () => {
   });
 
   it('builds up densest and tallest in the middle, thinning out to the edge', () => {
-    const city = generateCity(options(42));
+    const city = generateCity(options());
     const stats: Record<string, { lots: number; built: number; height: number }> = {};
     const at = new Map(city.buildings.filter(b => b.blockId.startsWith('block-')).map(b => [`${b.gridX},${b.gridZ}`, b]));
     for (let x = 0; x < SIZE; x++) for (let z = 0; z < SIZE; z++) {
@@ -117,7 +116,7 @@ describe('generateCity', () => {
   });
 
   it('lets both bases reach every node', () => {
-    const city = generateCity(options(5));
+    const city = generateCity(options());
     const reach = (from: string) => {
       const seen = new Set([from]);
       const queue = [from];
@@ -152,7 +151,7 @@ it('seededRandom is deterministic and in range', () => {
 });
 
 it('records the whole building on each of its tiles, mirrored', () => {
-  const city = generateCity({ seed: 5, gridSize: 79, tileSize: 14, buildingDensity: 1, blueBase: { x: 4, z: 4 }, redBase: { x: 74, z: 74 } });
+  const city = generateCity(options());
   const at = new Map(city.buildings.map(b => [`${b.gridX},${b.gridZ}`, b]));
   for (const b of city.buildings.filter(x => x.footprint)) {
     const f = b.footprint!;
@@ -168,12 +167,52 @@ it('records the whole building on each of its tiles, mirrored', () => {
   expect(city.buildings.some(b => b.footprint?.tower)).toBe(true);
 });
 
-it.each([1, 7, 42, 99])('builds nothing under the Corpo Plaza roundabout (seed %i)', seed => {
-  const city = generateCity({ seed, gridSize: 79, tileSize: 14, buildingDensity: 1, blueBase: { x: 4, z: 4 }, redBase: { x: 74, z: 74 } });
+it('builds nothing under the Corpo Plaza roundabout', () => {
+  const city = generateCity(options());
   for (const b of city.buildings.filter(x => x.type !== 'server_node')) {
     // The nearest point of the building's tile to the centre of the map, in world units.
     const dx = Math.max(0, Math.abs(b.gridX - 39) - 0.5) * 14;
     const dz = Math.max(0, Math.abs(b.gridZ - 39) - 0.5) * 14;
     expect(Math.hypot(dx, dz), `${b.id}`).toBeGreaterThanOrEqual(PLAZA_CLEAR_RADIUS);
   }
+});
+
+describe('the hand-drawn city plan', () => {
+  const plan = planBuildings(SIZE);
+
+  it('draws every building as a rectangle with a twin across the centre, and puts something in every open block', () => {
+    expect(plan.length).toBeGreaterThan(300);
+    expect(plan.filter(b => b.id.endsWith('-m'))).toHaveLength(plan.length / 2);
+    const city = generateCity(options());
+    // Each plan building is one capture block, all its tiles together.
+    for (const b of plan) expect(city.blocks.find(k => k.id === b.id)!.buildingIds).toHaveLength(b.w * b.d);
+    const lotsWithBuildings = new Set(city.buildings.map(b => `${Math.floor(b.gridX / 6)},${Math.floor(b.gridZ / 6)}`));
+    // The only lots with no building: the two starting bases' paved squares, the three cleared
+    // blocks round each corner core node, and the four landmarks.
+    expect(169 - lotsWithBuildings.size).toBe(2 + 6 + 4);
+  });
+
+  it('keeps every tile drawn off the plan the same turned round', () => {
+    for (let z = 0; z < SIZE; z++) for (let x = 0; x < SIZE; x++) {
+      const c = CITY_PLAN[z][x];
+      const twin = CITY_PLAN[SIZE - 1 - z][SIZE - 1 - x];
+      expect(/[1-9T]/.test(c), `${x},${z}`).toBe(/[1-9T]/.test(twin));
+    }
+  });
+
+  it('rejects a plan that breaks the rules', () => {
+    const blank = Array.from({ length: SIZE }, () => '.'.repeat(SIZE));
+    const draw = (cells: [number, number, string][]) => blank.map((row, z) => row.split('').map((c, x) => cells.find(([cx, cz]) => cx === x && cz === z)?.[2] ?? c).join(''));
+    // An L shape.
+    expect(() => planBuildings(SIZE, draw([[10, 10, '5'], [11, 10, '5'], [10, 11, '5'], [68, 68, '5'], [67, 68, '5'], [68, 67, '5']]))).toThrow(/rectangle/);
+    // No twin.
+    expect(() => planBuildings(SIZE, draw([[10, 10, '5']]))).toThrow(/twin/);
+    // A twin of another height.
+    expect(() => planBuildings(SIZE, draw([[10, 10, '5'], [68, 68, '4']]))).toThrow(/twin/);
+    // Two heights in one building.
+    expect(() => planBuildings(SIZE, draw([[10, 10, '5'], [11, 10, '4'], [68, 68, '5'], [67, 68, '4']]))).toThrow(/height/);
+    // On a road.
+    expect(() => generateCity({ ...options(), plan: draw([[12, 10, '5'], [66, 68, '5']]) })).toThrow(/road/);
+    expect(() => generateCity({ ...options(), plan: draw([[13, 10, '5'], [65, 68, '5']]) })).not.toThrow();
+  });
 });

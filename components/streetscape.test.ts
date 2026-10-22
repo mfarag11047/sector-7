@@ -4,8 +4,8 @@ import { generateCity } from '../sim/mapgen';
 import { districtOfTile, DISTRICT_THEMES } from './districtTheme';
 import { streetscapeLayout } from './Streetscape';
 
-const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
-const city = generateCity({ seed: 7, gridSize, tileSize, buildingDensity, blueBase: TEAM_BASES.blue, redBase: TEAM_BASES.red });
+const { gridSize, tileSize } = CITY_CONFIG;
+const city = generateCity({ gridSize, tileSize, blueBase: TEAM_BASES.blue, redBase: TEAM_BASES.red });
 const layout = streetscapeLayout(city.roadTiles, gridSize);
 const road = new Set(city.roadTiles.filter(t => t.type !== 'open').map(t => `${t.x},${t.z}`));
 

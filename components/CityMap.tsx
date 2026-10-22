@@ -1487,7 +1487,7 @@ export interface MatchInfo {
 }
 
 const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMinimapUpdate, playerTeam = 'blue', interactionMode = 'select', onMapTarget, pendingDoctrineAction, onActionComplete, doctrines, targetingDoctrine, onNotice, onMatchEnd, onMatchInfo, commandRef, onArmyUpdate, armyControlsRef, pacingRef: pacingOut }) => {
-  const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
+  const { gridSize, tileSize } = CITY_CONFIG;
   const { gl, scene, camera } = useThree();
   const cameraRef = useRef(camera);
   cameraRef.current = camera;
@@ -1507,11 +1507,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const baseB_Coord = TEAM_BASES.red;
 
   // Map Generation State
-  // Seeded, mirrored city (sim/mapgen.ts): both sides get the same map.
+  // The hand-drawn, mirrored city (sim/mapgen.ts): the same map every match, the same for both sides.
   const { initialBuildings, initialBlocks, roadTiles, roadTileSet, tileTypeMap, initialDrones, landmarks } = useMemo(() => {
-    const city = generateCity({ seed: match.seed, gridSize, tileSize, buildingDensity, blueBase: baseA_Coord, redBase: baseB_Coord });
+    const city = generateCity({ gridSize, tileSize, blueBase: baseA_Coord, redBase: baseB_Coord });
     return { initialBuildings: city.buildings, initialBlocks: city.blocks, roadTiles: city.roadTiles, roadTileSet: city.roadTileSet, tileTypeMap: city.tileTypeMap, initialDrones: city.sentinels, landmarks: city.landmarks };
-  }, [match.seed, gridSize, tileSize, buildingDensity, baseA_Coord, baseB_Coord]);
+  }, [gridSize, tileSize, baseA_Coord, baseB_Coord]);
 
   useEffect(() => { if (onMapInit) onMapInit({ roadTiles, gridSize }); }, [roadTiles, gridSize, onMapInit]);
 

@@ -96,8 +96,8 @@ export interface HeadlessMatch {
 const key = (x: number, z: number) => `${x},${z}`;
 
 export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
-  const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
-  const city = generateCity({ seed: opts.seed, gridSize, tileSize, buildingDensity, blueBase: TEAM_BASES.blue, redBase: TEAM_BASES.red });
+  const { gridSize, tileSize } = CITY_CONFIG;
+  const city = generateCity({ gridSize, tileSize, blueBase: TEAM_BASES.blue, redBase: TEAM_BASES.red });
   const config: MatchConfig = { mode: 'ai', seed: opts.seed, playerTeam: 'blue', difficulty: 'normal', playerDoctrine: null, aiDoctrine: null };
   const hq = (team: Team): StructureData => ({
     id: `hq-${team}`, type: 'hq', team, gridPos: { ...TEAM_BASES[team] }, isBlueprint: false, constructionProgress: 0,

@@ -399,5 +399,4 @@ export interface Explosion {
 export interface CityConfig {
   gridSize: number;
   tileSize: number;
-  buildingDensity: number;
 }

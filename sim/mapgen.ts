@@ -3,15 +3,14 @@
 // The map is point-symmetric. Whatever stands at tile (x, z) also stands at
 // (size-1-x, size-1-z), so both bases face the same city. That needs the road grid to mirror
 // too: roads run every 6 tiles, so the map is 79 tiles across (roads at 0, 6, ... 78).
-// Generation is seeded, so the same seed always produces the same city.
-//
-// The building rules were moved here from CityMap.tsx; the changes are the mirroring, the
-// seed, and the four fixed server nodes, which used to appear by chance near the centre.
+// The city is the same every match: roads, nodes and landmarks are placed here by rule, and every
+// other building is drawn by hand in sim/cityPlan.ts.
 
 import { BUILDING_COLORS, BUILDING_HEALTH, UNIT_STATS } from '../constants';
 import type { BuildingBlock, BuildingData, RoadTileData, RoadType, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { districtOfBlock, type District } from './districts';
+import { CITY_PLAN } from './cityPlan';
 
 // Small, fast, seedable PRNG (mulberry32). Returns floats in [0, 1).
 export function seededRandom(seed: number): () => number {
@@ -26,11 +25,10 @@ export function seededRandom(seed: number): () => number {
 }
 
 export interface CityOptions {
-  seed: number;
   gridSize: number;
   tileSize: number;
-  // Scales every district's fill: 1 is the standard city.
-  buildingDensity: number;
+  // The buildings, drawn by hand (sim/cityPlan.ts); tests pass their own.
+  plan?: readonly string[];
   blueBase: GridPos;
   redBase: GridPos;
 }
@@ -74,40 +72,96 @@ const ROAD_STRIDE = 6;
 // comes within that reach, plus clearance for the deck's lamps and the towers' signs.
 export const PLAZA_CLEAR_RADIUS = 64;
 
-// How each district builds up its blocks.
-//   fill:       share of a block's lot that gets built on (scaled by CityOptions.buildingDensity)
-//   footprints: building sizes in tiles, picked at random and turned either way
-//   perimeter:  buildings line the street front around an open courtyard
-//   height:     range of building heights
-//   podium:     chance a multi-tile building is a tower on a low podium
+// How tall each district builds and what it builds. The buildings themselves are drawn by hand in
+// sim/cityPlan.ts; a digit there picks a height in its district's range.
 interface DistrictStyle {
-  fill: number;
-  footprints: [number, number][];
-  perimeter: boolean;
   height: [number, number];
   types: BuildingData['type'][];
-  podium: number;
 }
 export const DISTRICT_STYLES: Record<District, DistrictStyle> = {
-  // Megablocks and towers: few, big and very tall.
-  core: { fill: 0.5, footprints: [[2, 2], [2, 3]], perimeter: false, height: [40, 70], types: ['commercial'], podium: 0.4 },
-  downtown: { fill: 0.48, footprints: [[2, 2], [2, 3], [3, 3], [1, 2]], perimeter: false, height: [30, 60], types: ['commercial'], podium: 0.35 },
-  // Mid-rise frontage around open courtyards.
-  midtown: { fill: 0.38, footprints: [[1, 2], [1, 3], [2, 2], [1, 1]], perimeter: true, height: [16, 34], types: ['hightech'], podium: 0 },
-  // Long low sheds with yards around them.
-  industrial: { fill: 0.33, footprints: [[1, 3], [1, 4], [2, 3], [2, 4]], perimeter: false, height: [7, 14], types: ['industrial'], podium: 0 },
-  // Scattered housing with plenty of open ground.
-  outskirts: { fill: 0.25, footprints: [[1, 1], [1, 2], [2, 2]], perimeter: false, height: [10, 22], types: ['residential'], podium: 0 },
-  fringe: { fill: 0.18, footprints: [[1, 1], [1, 2]], perimeter: false, height: [6, 14], types: ['residential', 'industrial'], podium: 0 },
-  base: { fill: 0.15, footprints: [[1, 1], [1, 2]], perimeter: false, height: [8, 16], types: ['residential'], podium: 0 },
+  core: { height: [40, 70], types: ['commercial'] },
+  downtown: { height: [30, 60], types: ['commercial'] },
+  midtown: { height: [16, 34], types: ['hightech'] },
+  industrial: { height: [7, 14], types: ['industrial'] },
+  outskirts: { height: [10, 22], types: ['residential'] },
+  // Shacks, and scrap sheds where a building spans more than one tile.
+  fringe: { height: [6, 14], types: ['residential', 'industrial'] },
+  base: { height: [8, 16], types: ['residential'] },
 };
+// The low base under a tower-on-podium.
+const PODIUM_HEIGHT = 10;
+
+export interface PlanBuilding {
+  // block-N, and block-N-m for its mirror twin.
+  id: string;
+  x: number;
+  z: number;
+  w: number;
+  d: number;
+  // The plan's height digit, 1-9.
+  tier: number;
+  tower?: GridPos;
+}
+
+// The buildings drawn in sim/cityPlan.ts, each with its twin across the centre. Throws if the plan
+// breaks a rule: a building that isn't a rectangle, a tower without a height, or a building
+// without a twin to match it.
+export function planBuildings(gridSize: number, plan: readonly string[] = CITY_PLAN): PlanBuilding[] {
+  if (plan.length !== gridSize || plan.some(row => row.length !== gridSize)) throw new Error(`city plan: must be ${gridSize} x ${gridSize}`);
+  const last = gridSize - 1;
+  const isBuilding = (x: number, z: number) => x >= 0 && z >= 0 && x < gridSize && z < gridSize && /[1-9T]/.test(plan[z][x]);
+  const seen = new Set<string>();
+  const found: Omit<PlanBuilding, 'id'>[] = [];
+  for (let z = 0; z < gridSize; z++) {
+    for (let x = 0; x < gridSize; x++) {
+      if (!isBuilding(x, z) || seen.has(`${x},${z}`)) continue;
+      // The building is every tile joined to this one side to side.
+      const tiles: GridPos[] = [];
+      const queue = [{ x, z }];
+      seen.add(`${x},${z}`);
+      while (queue.length) {
+        const t = queue.pop()!;
+        tiles.push(t);
+        for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const n = { x: t.x + dx, z: t.z + dz };
+          if (isBuilding(n.x, n.z) && !seen.has(`${n.x},${n.z}`)) { seen.add(`${n.x},${n.z}`); queue.push(n); }
+        }
+      }
+      const x0 = Math.min(...tiles.map(t => t.x)), z0 = Math.min(...tiles.map(t => t.z));
+      const w = Math.max(...tiles.map(t => t.x)) - x0 + 1, d = Math.max(...tiles.map(t => t.z)) - z0 + 1;
+      if (tiles.length !== w * d) throw new Error(`city plan: building at ${x0},${z0} is not a rectangle`);
+      const towers = tiles.filter(t => plan[t.z][t.x] === 'T');
+      const digits = new Set(tiles.map(t => plan[t.z][t.x]).filter(c => c !== 'T'));
+      if (towers.length > 1 || digits.size !== 1) throw new Error(`city plan: building at ${x0},${z0} needs one height digit and at most one tower`);
+      found.push({ x: x0, z: z0, w, d, tier: Number([...digits][0]), tower: towers[0] });
+    }
+  }
+  // Pair each building with its twin; the one on blue's side of the map is named first.
+  const blocks = Math.floor(last / ROAD_STRIDE);
+  const blueSide = (b: Omit<PlanBuilding, 'id'>) => {
+    const ix = Math.floor(b.x / ROAD_STRIDE), iz = Math.floor(b.z / ROAD_STRIDE);
+    return ix + iz < blocks - 1 || (ix + iz === blocks - 1 && ix < iz);
+  };
+  const at = new Map(found.map(b => [`${b.x},${b.z}`, b]));
+  const out: PlanBuilding[] = [];
+  let n = 0;
+  for (const b of found.filter(blueSide)) {
+    const twin = at.get(`${last - (b.x + b.w - 1)},${last - (b.z + b.d - 1)}`);
+    const towerTwin = b.tower && { x: last - b.tower.x, z: last - b.tower.z };
+    if (!twin || twin.w !== b.w || twin.d !== b.d || twin.tier !== b.tier || twin.tower?.x !== towerTwin?.x || twin.tower?.z !== towerTwin?.z) {
+      throw new Error(`city plan: building at ${b.x},${b.z} has no matching twin across the centre`);
+    }
+    out.push({ id: `block-${n}`, ...b }, { id: `block-${n}-m`, ...twin });
+    n++;
+  }
+  if (out.length !== found.length) throw new Error('city plan: a building straddles the centre line without a twin');
+  return out;
+}
 
 export function generateCity(opts: CityOptions): City {
-  const { gridSize, tileSize, buildingDensity, blueBase, redBase } = opts;
-  const rng = seededRandom(opts.seed);
+  const { gridSize, tileSize, blueBase, redBase } = opts;
   const offset = (gridSize * tileSize) / 2;
   const last = gridSize - 1;
-  const mirror = (p: GridPos): GridPos => ({ x: last - p.x, z: last - p.z });
   const key = (x: number, z: number) => `${x},${z}`;
 
   // --- Roads ---
@@ -227,100 +281,30 @@ export function generateCity(opts: CityOptions): City {
     }
   }
 
-  // --- Ordinary buildings, laid out block by block in the style of the district the block is in
-  // (DISTRICT_STYLES). Each block of a mirrored pair is laid out once and copied into its twin.
-  // Rules for every block:
-  //   - a building is a footprint of one or more tiles; two buildings never touch side to side, so
-  //     there is always at least a one-tile alley between them;
-  //   - every open tile in the block stays reachable from the street around it, so no courtyard
-  //     is ever sealed in.
-  let blockCounter = 0;
-  for (let ix = 0; ix <= lastBlockIndex; ix++) {
-    for (let iz = 0; iz <= lastBlockIndex; iz++) {
-      // The twin of (ix, iz) is (last-ix, last-iz): lay out the half below the anti-diagonal, and
-      // one of each pair on it. The centre block is its own twin (and is the server node's).
-      if (ix + iz > lastBlockIndex || (ix + iz === lastBlockIndex && ix >= iz)) continue;
-      const style = DISTRICT_STYLES[districtOfBlock(ix, iz, gridSize)];
-      const x0 = ix * ROAD_STRIDE + 1;
-      const z0 = iz * ROAD_STRIDE + 1;
-      const lot: GridPos[] = [];
-      for (let x = x0; x < x0 + 5; x++) for (let z = z0; z < z0 + 5; z++) if (!occupied.has(key(x, z))) lot.push({ x, z });
-      if (lot.length === 0) continue;
-      const lotSet = new Set(lot.map(t => key(t.x, t.z)));
-
-      // Every open tile in the lot can still be walked to from the street.
-      const allReachable = () => {
-        const open = lot.filter(t => !buildingMap.has(key(t.x, t.z)));
-        const seen = new Set<string>();
-        const queue: GridPos[] = [];
-        for (const t of open) {
-          const edge = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => !lotSet.has(key(t.x + dx, t.z + dz)) && !buildingMap.has(key(t.x + dx, t.z + dz)));
-          if (edge) { seen.add(key(t.x, t.z)); queue.push(t); }
-        }
-        while (queue.length) {
-          const t = queue.pop()!;
-          for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-            const k = key(t.x + dx, t.z + dz);
-            if (lotSet.has(k) && !buildingMap.has(k) && !seen.has(k)) { seen.add(k); queue.push({ x: t.x + dx, z: t.z + dz }); }
-          }
-        }
-        return seen.size === open.length;
-      };
-
-      const target = Math.round(lot.length * style.fill * buildingDensity);
-      let built = 0;
-      for (let attempt = 0; attempt < 200 && built < target; attempt++) {
-        let [w, d] = style.footprints[Math.floor(rng() * style.footprints.length)];
-        if (rng() < 0.5) [w, d] = [d, w];
-        const lx = Math.floor(rng() * (6 - w));
-        const lz = Math.floor(rng() * (6 - d));
-        // Perimeter blocks keep their buildings on the street front, leaving the middle open.
-        if (style.perimeter && !(lx === 0 || lz === 0 || lx + w === 5 || lz + d === 5)) continue;
-        if (built + w * d > target + 2) continue;
-        const tiles: GridPos[] = [];
-        for (let x = x0 + lx; x < x0 + lx + w; x++) for (let z = z0 + lz; z < z0 + lz + d; z++) tiles.push({ x, z });
-        const own = new Set(tiles.map(t => key(t.x, t.z)));
-        const fits = tiles.every(t => lotSet.has(key(t.x, t.z)) && !buildingMap.has(key(t.x, t.z)) &&
-          [[1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dz]) => { const k = key(t.x + dx, t.z + dz); return own.has(k) || !buildingMap.has(k); }));
-        if (!fits) continue;
-        const blockId = `block-${blockCounter}`;
-        for (const k of own) buildingMap.set(k, blockId);
-        if (!allReachable()) {
-          for (const k of own) buildingMap.delete(k);
-          continue;
-        }
-        built += tiles.length;
-
-        const type = style.types[Math.floor(rng() * style.types.length)];
-        const [lo, hi] = style.height;
-        const height = lo + rng() * (hi - lo);
-        // Tower on podium: one tall tower on a low base filling the rest of the footprint.
-        const tower = tiles.length > 1 && rng() < style.podium ? Math.floor(rng() * tiles.length) : -1;
-        // Multi-tile buildings fill their tiles so they read as one mass; single tiles stand alone.
-        const width = tileSize * (tiles.length > 1 ? 0.96 : 0.7);
-        const mirrorId = `${blockId}-m`;
-        const footprint: NonNullable<BuildingData['footprint']> = { x: x0 + lx, z: z0 + lz, w, d };
-        if (tower >= 0) footprint.tower = { ...tiles[tower] };
-        const corner = mirror({ x: footprint.x + w - 1, z: footprint.z + d - 1 });
-        const mirroredFootprint: NonNullable<BuildingData['footprint']> = { x: corner.x, z: corner.z, w, d };
-        if (footprint.tower) mirroredFootprint.tower = mirror(footprint.tower);
-        const original: BuildingData[] = [];
-        const mirrored: BuildingData[] = [];
-        tiles.forEach((t, i) => {
-          const h = tower < 0 ? height : i === tower ? Math.min(hi * 1.25, height * 1.2) : 8 + rng() * 4;
-          const m = mirror(t);
-          occupied.add(key(t.x, t.z));
-          occupied.add(key(m.x, m.z));
-          buildingMap.set(key(m.x, m.z), mirrorId);
-          original.push({ ...building(`b-${t.x}-${t.z}`, t.x, t.z, type, h, blockId, [width, h, width]), footprint });
-          mirrored.push({ ...building(`b-${m.x}-${m.z}`, m.x, m.z, type, h, mirrorId, [width, h, width]), footprint: mirroredFootprint });
-        });
-        buildings.push(...original, ...mirrored);
-        blocks.push({ id: blockId, type, buildingIds: original.map(b => b.id), owner: null });
-        blocks.push({ id: mirrorId, type, buildingIds: mirrored.map(b => b.id), owner: null });
-        blockCounter++;
-      }
-    }
+  // --- Ordinary buildings: drawn by hand in sim/cityPlan.ts ---
+  for (const p of planBuildings(gridSize, opts.plan)) {
+    const tiles: GridPos[] = [];
+    for (let x = p.x; x < p.x + p.w; x++) for (let z = p.z; z < p.z + p.d; z++) tiles.push({ x, z });
+    const clash = tiles.find(t => occupied.has(key(t.x, t.z)) || buildingMap.has(key(t.x, t.z)));
+    if (clash) throw new Error(`city plan: building at ${clash.x},${clash.z} stands on a road, node, landmark or the plaza`);
+    const district = districtOfBlock(blockIndexOf(p.x), blockIndexOf(p.z), gridSize);
+    const style = DISTRICT_STYLES[district];
+    const type = style.types.length > 1 && tiles.length > 1 ? style.types[1] : style.types[0];
+    const [lo, hi] = style.height;
+    const height = lo + ((hi - lo) * (p.tier - 1)) / 8;
+    // Multi-tile buildings fill their tiles so they read as one mass; single tiles stand alone.
+    const width = tileSize * (tiles.length > 1 ? 0.96 : 0.7);
+    const footprint: NonNullable<BuildingData['footprint']> = { x: p.x, z: p.z, w: p.w, d: p.d };
+    if (p.tower) footprint.tower = { ...p.tower };
+    const blockId = p.id;
+    const own = tiles.map(t => {
+      const h = !p.tower ? height : t.x === p.tower.x && t.z === p.tower.z ? Math.min(hi * 1.25, height * 1.2) : PODIUM_HEIGHT;
+      occupied.add(key(t.x, t.z));
+      buildingMap.set(key(t.x, t.z), blockId);
+      return { ...building(`b-${t.x}-${t.z}`, t.x, t.z, type, h, blockId, [width, h, width]), footprint };
+    });
+    buildings.push(...own);
+    blocks.push({ id: blockId, type, buildingIds: own.map(b => b.id), owner: null });
   }
 
   // --- Everything that isn't a building can be driven on ---

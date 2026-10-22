@@ -5,7 +5,7 @@ import { sandboxRoster, sandboxStructures } from './match';
 import { STRUCTURE_RULES } from './units';
 
 describe('sandbox start', () => {
-  const { gridSize, tileSize, buildingDensity } = CITY_CONFIG;
+  const { gridSize, tileSize } = CITY_CONFIG;
   const structures = sandboxStructures(gridSize);
   const buildable = Object.entries(STRUCTURE_RULES).filter(([, r]) => r.buildable).map(([t]) => t).sort();
 
@@ -19,7 +19,7 @@ describe('sandbox start', () => {
 
   it('puts them on free ground: off the HQ pad, the starting units and the city', () => {
     const units = sandboxRoster(gridSize);
-    const city = generateCity({ seed: 7, gridSize, tileSize, buildingDensity, blueBase: TEAM_BASES.blue, redBase: TEAM_BASES.red });
+    const city = generateCity({ gridSize, tileSize, blueBase: TEAM_BASES.blue, redBase: TEAM_BASES.red });
     const taken = new Set([...units.map(u => `${u.gridPos.x},${u.gridPos.z}`), ...city.buildings.map(b => `${b.gridX},${b.gridZ}`)]);
     for (const s of structures) {
       const base = TEAM_BASES[s.team as 'blue' | 'red'];

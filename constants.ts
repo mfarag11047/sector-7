@@ -5,7 +5,6 @@ export const CITY_CONFIG: CityConfig = {
   // 79 makes the 6-tile road grid mirror exactly (roads at 0..78), so the map can be symmetric.
   gridSize: 79, 
   tileSize: 14, 
-  buildingDensity: 1, // Scales each district's building fill (sim/mapgen.ts)
 };
 
 // Command bases are always-on energy grid sources for their team.

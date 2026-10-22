@@ -897,7 +897,9 @@ Drop, or Masons.
 - The city is 79×79 tiles. That size makes the road grid mirror exactly, so the map is
   **point-symmetric**: whatever is at a tile near your base is also at the matching tile near the
   enemy's.
-- Generation uses a seeded random number generator, so a seed reproduces a map.
+- The city is the same every match. Roads, nodes and landmarks are placed by rule
+  (`sim/mapgen.ts`); every other building is drawn by hand, tile by tile, in `sim/cityPlan.ts`.
+  The match seed no longer changes the map, only the computer's doctrine and its dice.
 - There are 6 core nodes and 5 server nodes, all in mirrored pairs (the centre node mirrors onto itself).
 - Four corporate megatowers (Tokugen, Nexum, Axiom, Vanta) fill the four diagonal blocks around
   the centre server node. They are landmarks, not targets: each fills its whole block, cannot be
@@ -913,21 +915,25 @@ Drop, or Masons.
   fringe** along it. Two **industrial** patches sit on the flanks of each base. The zoning mirrors
   like the rest of the map, and the minimap outlines each district faintly in its own colour,
   unnamed, leaving the blocks dark so captured buildings stand out.
-- Each district builds up its blocks in its own way (`DISTRICT_STYLES` in `sim/mapgen.ts`). Fill
-  is the share of a block's lot that is built on:
+- Each district is drawn in its own way in the plan, with neighbouring blocks lined up so streets
+  read as continuous frontages. A digit in the plan sets a building's height within its
+  district's range (`DISTRICT_STYLES` in `sim/mapgen.ts`). Fill is the share of a district's lot
+  tiles that is built on:
 
   | District | Fill | Layout | Heights | Building type |
   |---|---|---|---|---|
-  | Core / downtown | ~50% | megablocks of 2×2 to 3×3 tiles, some towers on low podiums | 30–70 | commercial |
-  | Midtown | ~38% | buildings along the street front around an open courtyard | 16–34 | high-tech |
-  | Industrial | ~33% | long low sheds (1×3 to 2×4) with yards | 7–14 | industrial |
-  | Outskirts | ~25% | scattered small housing | 10–22 | residential |
-  | Fringe | ~18% | sparse 1–2 tile shacks and sheds | 6–14 | residential / industrial |
+  | Core / downtown | ~60% | 2×2 to 3×3 towers on podiums and long slabs, tallest towers facing the centre | 30–70 | commercial |
+  | Midtown | ~47% | mid-rise slabs lining the streets round open courtyards, pinwheel blocks, a few data spires | 16–34 | high-tech |
+  | Industrial | ~40% | rows of long sheds lined up across the streets, and tank yards, round the core nodes by each base | 7–14 | industrial |
+  | Outskirts | ~27% | terraces of houses facing the streets, a few apartment blocks | 10–22 | residential |
+  | Fringe | ~19% | shacks along the inner street, scrap sheds, waste ground out to the edge | 6–14 | residential (sheds industrial) |
+  | Base | ~12% | barracks rows beside the starting square | 8–16 | residential |
 
-  Two rules hold everywhere: buildings never touch side to side, so there is always at least a
-  one-tile alley between them, and no open ground is ever sealed off from the streets. Overall
-  about 28% of lot tiles are built and about 80% of the map is walkable; the centre is the
-  tightest and the edges the most open. `CITY_CONFIG.buildingDensity` scales every district's fill.
+  Two rules hold everywhere, and `sim/mapgen.test.ts` checks them against the plan: buildings
+  never touch side to side, so there is always at least a one-tile alley between them, and no
+  open ground is ever sealed off from the streets. Every building is a rectangle with a matching
+  twin across the centre. Overall about a third of lot tiles are built; the centre is the
+  tightest and the edges the most open.
 - A building bigger than one tile is drawn as one building (`components/FootprintBuilding.tsx`),
   though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
   run along its outside faces only, a dark roof slab with a lit rim covers it (in the owner's

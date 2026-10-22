@@ -5,7 +5,7 @@ import { BUILDING_PADS, freePadsFor, hqPads, padKindOf, TURRET_PADS } from './ba
 import { generateCity } from './mapgen';
 
 const N = CITY_CONFIG.gridSize;
-const city = generateCity({ seed: 7, gridSize: N, tileSize: CITY_CONFIG.tileSize, buildingDensity: CITY_CONFIG.buildingDensity, blueBase: TEAM_BASES.blue, redBase: TEAM_BASES.red });
+const city = generateCity({ gridSize: N, tileSize: CITY_CONFIG.tileSize, blueBase: TEAM_BASES.blue, redBase: TEAM_BASES.red });
 const roads = new Set(city.roadTileSet);
 const key = (p: { x: number; z: number }) => `${p.x},${p.z}`;
 const all = (hq: { x: number; z: number }) => [...hqPads(hq, 'building', N), ...hqPads(hq, 'turret', N)];
