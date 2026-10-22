@@ -14,8 +14,8 @@ const low = (id: string, share: number, x = 2, type: UnitData['type'] = 'tank') 
 };
 
 describe('Battery Mule automatic charging', () => {
-  it('charges the friendly vehicles and aircraft in range lowest on battery first', () => {
-    const units = [mule(), low('a', 0.9), low('b', 0.1), low('c', 0.5, 3, 'wasp'), low('d', 0.3), low('e', 0.2), low('full', 1)];
+  it('charges the friendly ground vehicles in range lowest on battery first, never aircraft', () => {
+    const units = [mule(), low('a', 0.9), low('b', 0.1), low('c', 0.5, 3, 'razorback'), low('d', 0.3), low('e', 0.2), low('full', 1), low('air', 0.05, 2, 'wasp'), low('k', 0.05, 2, 'attack_drone')];
     expect(muleLinks(units[0], units)).toEqual(['b', 'e', 'd', 'c']);
     expect(ABILITY_CONFIG.BATTERY_MULE_SLOTS).toBe(4);
   });

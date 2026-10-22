@@ -15,6 +15,7 @@ import type { BuildingData, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { CLOAK_FIELD } from './cloak';
 import { tetheredIds } from './jamming';
+import { isAirType } from './units';
 import { HELIOS, heliosCharge, heliosMode } from './helios';
 
 // Where an EMP missile has knocked out the grid. `team` fired it: only the other side's grid
@@ -134,14 +135,15 @@ export function chargeSources(units: readonly UnitData[]): ChargeSources {
   return sources;
 }
 
-// What a Battery Mule can charge: vehicles and aircraft with a battery. Not infantry, other mules,
-// or the drones that run on their host.
+// What a Battery Mule can charge: ground vehicles with a battery. Not aircraft (the Helios and the
+// grid keep those flying), infantry, other mules, or the drones that run on their host.
 export const isBatteryLinkable = (u: UnitData) =>
-  u.health > 0 && u.maxBattery > 0 && u.unitClass !== 'infantry' && u.type !== 'sun_plate' && u.type !== 'defense_drone' && u.type !== 'crawler_drone';
+  u.health > 0 && u.maxBattery > 0 && u.unitClass !== 'infantry' && !isAirType(u.type)
+  && u.type !== 'sun_plate' && u.type !== 'defense_drone' && u.type !== 'crawler_drone';
 
 // The units a Battery Mule charges, moving or parked, picked automatically like a Guardian's patients: it
 // stays on the ones it is charging until they are full or out of range, and fills its free links
-// (BATTERY_MULE_SLOTS) with the friendly vehicles and aircraft in range lowest on battery, by share
+// (BATTERY_MULE_SLOTS) with the friendly ground vehicles in range lowest on battery, by share
 // of a full battery, nearest first on a tie. A unit another mule is already charging is left to it.
 export function muleLinks(mule: UnitData, units: readonly UnitData[]): string[] {
   if (mule.type !== 'sun_plate' || mule.health <= 0) return [];

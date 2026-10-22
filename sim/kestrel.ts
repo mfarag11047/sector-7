@@ -1,10 +1,10 @@
 // The Kestrel attack drone's two abilities, beyond its machine gun.
 //
-//   - Flechette Burst (Tier 1, passive, comes with the drone): every few seconds, alongside its
+//   - Flechette Burst (Tier 2, researched at Advanced Research, passive): every few seconds, alongside its
 //     machine gun, it fires a shotgun burst of flechettes at the unit it is shooting. The burst
 //     hits that unit hard and peppers enemies right beside it. Flechettes shred infantry and do
 //     much less to armour.
-//   - Regenerative Shield (Tier 2, researched at Advanced Research, sim/upgrades.ts): an energy
+//   - Regenerative Shield (Tier 3, researched at Advanced Research, sim/upgrades.ts): an energy
 //     shield worth a quarter of the drone's health on top of it. Hits drain the shield first, and
 //     it takes 25% less damage than the hull would. Once the drone has gone SHIELD.regenDelayMs
 //     without being hit, the shield recharges on its own.
@@ -48,6 +48,8 @@ export interface FlechetteShot { attackerId: string; targetId: string; team: Uni
 export function fireFlechettes(
   units: readonly UnitData[],
   now: number,
+  // Whether a side has researched Flechette Burst.
+  armed: (team: UnitData['team']) => boolean,
   fields: readonly ForceField[] = [],
 ): { shots: FlechetteShot[]; unitDamage: Map<string, number>; shieldDamage: Map<string, number> } {
   const shots: FlechetteShot[] = [];
@@ -55,7 +57,7 @@ export function fireFlechettes(
   const shieldDamage = new Map<string, number>();
   const add = (m: Map<string, number>, id: string, n: number) => m.set(id, (m.get(id) || 0) + n);
   for (const k of units) {
-    if (k.type !== 'attack_drone' || k.health <= 0 || k.isStunned || isEmpDisabled(k) || !k.combatTargetId) continue;
+    if (k.type !== 'attack_drone' || k.health <= 0 || k.isStunned || isEmpDisabled(k) || !k.combatTargetId || !armed(k.team)) continue;
     if (now - (k.flechetteAt ?? -Infinity) < FLECHETTE.cooldownMs) continue;
     const t = units.find(u => u.id === k.combatTargetId);
     if (!t || t.team === k.team || t.team === 'neutral' || t.health <= 0 || isHidden(t) || tiles(k.gridPos, t.gridPos) > FLECHETTE.range) continue;

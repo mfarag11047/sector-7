@@ -20,7 +20,7 @@ import type { UnitData } from '../types';
 export type UpgradeId =
   | 'nanoweave' | 'dampener' | 'phantom_decoy' | 'emp_rocket'
   | 'overclock' | 'radar' | 'long_range_shells' | 'guided_shells'
-  | 'hellfire' | 'hunter_rockets' | 'regen_shield' | 'piercing_round' | 'volt_core'
+  | 'hellfire' | 'hunter_rockets' | 'flechette_burst' | 'regen_shield' | 'piercing_round' | 'volt_core'
   | RefitId;
 
 // Stat-only refits, so every unit has two upgrades: no new ability (yet), just the upgrade bonus
@@ -37,7 +37,6 @@ export type RefitId =
   | 'aegis_mk2'
   | 'drone_mk2'
   | 'drone_mk3'
-  | 'attack_drone_mk3'
   | 'wasp_mk2'
   | 'wasp_mk3'
   | 'bombard_mk2'
@@ -90,7 +89,8 @@ export const UPGRADES: readonly UpgradeDef[] = [
   { id: 'long_range_shells', unit: 'howitzer', name: 'Long-Range Shells', tier: 2, ...T2, description: 'Thunderhead range from 12 to 16 tiles.' },
   { id: 'guided_shells', unit: 'howitzer', name: 'Guided Shells', tier: 3, ...T3, requires: 'long_range_shells', description: 'Thunderhead range from 16 to 20 tiles.' },
   { id: 'hellfire', unit: 'hornet', name: 'Hellfire Salvo', tier: 3, ...T3, description: 'Ability: a burst of small rockets that blankets an area.' },
-  { id: 'regen_shield', unit: 'attack_drone', name: 'Regenerative Shield', tier: 2, ...T2, description: 'Passive: a shield worth 25% of its health that takes 25% less damage, and recharges after 10s without being hit.' },
+  { id: 'flechette_burst', unit: 'attack_drone', name: 'Flechette Burst', tier: 2, ...T2, description: 'Passive: every 5s alongside its machine gun, a shotgun burst that hits its target hard and peppers enemies beside it. Shreds infantry.' },
+  { id: 'regen_shield', unit: 'attack_drone', name: 'Regenerative Shield', tier: 3, ...T3, description: 'Passive: a shield worth 25% of its health that takes 25% less damage, and recharges after 10s without being hit.' },
   { id: 'hunter_rockets', unit: 'hornet', name: 'Hunter-Killer Rockets', tier: 3, ...T3, description: 'Passive: fires an anti-vehicle rocket at whatever its gun is on.' },
   refit('scout_car_mk2', 'scout_car', 2, 2),
   refit('scout_car_mk3', 'scout_car', 3, 3),
@@ -102,7 +102,6 @@ export const UPGRADES: readonly UpgradeDef[] = [
   refit('aegis_mk2', 'aegis', 2, 2),
   refit('drone_mk2', 'drone', 2, 2),
   refit('drone_mk3', 'drone', 3, 3),
-  refit('attack_drone_mk3', 'attack_drone', 3, 3),
   refit('wasp_mk2', 'wasp', 2, 2),
   refit('wasp_mk3', 'wasp', 3, 3),
   refit('bombard_mk2', 'bombard', 3, 2),

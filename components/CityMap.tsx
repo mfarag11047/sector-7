@@ -3519,7 +3519,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               const t = flechetteShotRef.current.get(u.id);
               return t && t > (u.flechetteAt ?? -Infinity) ? { ...u, flechetteAt: t } : u;
           };
-          const flechettes = fireFlechettes(currentUnitsRef.map(flechetteReady), now, fields);
+          const flechettes = fireFlechettes(currentUnitsRef.map(flechetteReady), now, team => (team === 'blue' || team === 'red') && hasUpgrade(economyRef.current[team], 'flechette_burst'), fields);
           const flechetteFired = new Set(flechettes.shots.map(s => s.attackerId));
           flechetteFired.forEach(id => flechetteShotRef.current.set(id, now));
           flechettes.shieldDamage.forEach((n, id) => addShieldHit(shieldHits, id, n));

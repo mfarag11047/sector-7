@@ -1344,12 +1344,12 @@ const Unit: React.FC<UnitProps> = ({
                   )}
                   {type === 'attack_drone' && (
                       <>
-                        <div className="text-[10px] bg-slate-900/60 text-slate-300 px-2 py-1 rounded flex justify-between gap-2" title="Passive: every 5s alongside its machine gun, a shotgun burst that hits its target hard and peppers enemies beside it. Shreds infantry.">
-                          <span>Flechette Burst</span><span className="font-mono text-slate-500">passive</span>
+                        <div className={`text-[10px] bg-slate-900/60 ${upgrades.includes('flechette_burst') ? 'text-slate-300' : 'text-slate-500'} px-2 py-1 rounded flex justify-between gap-2`} title="Passive: every 5s alongside its machine gun, a shotgun burst that hits its target hard and peppers enemies beside it. Shreds infantry. Researched at Advanced Research (Tier 2).">
+                          <span>Flechette Burst</span><span className="font-mono">{upgrades.includes('flechette_burst') ? 'passive' : 'T2 · Research'}</span>
                         </div>
-                        <div className={`text-[10px] bg-slate-900/60 ${upgrades.includes('regen_shield') ? 'text-slate-300' : 'text-slate-500'} px-2 py-1 rounded flex justify-between gap-2`} title="A shield worth 25% of its health that takes 25% less damage, and recharges after 10s without being hit. Researched at Advanced Research (Tier 2).">
+                        <div className={`text-[10px] bg-slate-900/60 ${upgrades.includes('regen_shield') ? 'text-slate-300' : 'text-slate-500'} px-2 py-1 rounded flex justify-between gap-2`} title="A shield worth 25% of its health that takes 25% less damage, and recharges after 10s without being hit. Researched at Advanced Research (Tier 3).">
                           <span>Regenerative Shield</span>
-                          <span className="font-mono">{upgrades.includes('regen_shield') ? `${Math.round(regenShield ?? 0)}/${shieldMax({ type, maxHealth })}` : 'T2 · Research'}</span>
+                          <span className="font-mono">{upgrades.includes('regen_shield') ? `${Math.round(regenShield ?? 0)}/${shieldMax({ type, maxHealth })}` : 'T3 · Research'}</span>
                         </div>
                       </>
                   )}

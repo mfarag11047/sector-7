@@ -194,7 +194,7 @@ everything, so what you research commits you to the units you mean to build.
   Tier 3 Ballista and Bombard). Where a unit has no ability to unlock yet, the slot is a stat-only
   **Mk II / Mk III Refit**: just the health and damage bonus, no new ability. Refits:
   Scout RC Car, Drone, Wasp, Bombard, Guardian, Helios, Banshee, Ballista, Mason, Field Fabricator
-  and Swarm Host (Mk II and Mk III); Strike Trooper, Razorback, Battery Mule and Kestrel (Mk III,
+  and Swarm Host (Mk II and Mk III); Strike Trooper, Razorback and Battery Mule (Mk III,
   beside their Tier 2 ability); Lancer, Titan and Aegis (Mk II, beside their Tier 3 ability).
 - Each upgrade costs cores **and compute** (T2: 250 cores + 50 compute, T3: 400 + 100), so
   upgrades compete with the next tier for compute. The computer always keeps the compute for its
@@ -221,7 +221,8 @@ everything, so what you research commits you to the units you mean to build.
 | | Guided Shells | T3 | 400 | 45 s | Range 16 → 20 tiles; needs Long-Range Shells |
 | Hornet | Hellfire Salvo | T3 | 400 | 45 s | Unlocks the ability |
 | | Hunter-Killer Rockets | T3 | 400 | 45 s | Its passive anti-vehicle rocket |
-| Kestrel | Regenerative Shield | T2 | 250 | 30 s | Shield worth 25% of its health (see Kestrel abilities) |
+| Kestrel | Flechette Burst | T2 | 250 | 30 s | Passive shotgun burst every 5 s (see Kestrel abilities) |
+| Kestrel | Regenerative Shield | T3 | 400 | 45 s | Shield worth 25% of its health (see Kestrel abilities) |
 | Titan MBT | Piercing Rail Round | T3 | 400 | 45 s | Unlocks the ability (see Tank rail gun) |
 | Battery Mule | Volt Core | T2 | 250 | 30 s | Passive: detonates when destroyed (see Battery Mule Volt Core) |
 
@@ -328,7 +329,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 |---|---|---|---|---|---|---|---|
 | **Razorback** (new) | 200 | 2 | T1 | 300 | Light | Rifle 10 / 0.5 s / 3, hits air | Fast raider, anti-infantry |
 | **Thunderhead** (new) | 320 | 3 | T1 | 240 | Light | Explosive 70 / 5 s / 12–20, splash 1.6, ground only | Mobile artillery; fires only when anchored |
-| **Battery Mule** | 250 | 2 | T1 | 500 | Heavy | None | Mobile power for vehicles, as fast as a Titan (0.7×). Moving or parked (it no longer anchors), it charges up to 4 friendly vehicles and aircraft within 18 tiles automatically, lowest battery first (`muleLinks`, `sim/energy.ts`); Volt Core (T2, researched) |
+| **Battery Mule** | 250 | 2 | T1 | 500 | Heavy | None | Mobile power for vehicles, as fast as a Titan (0.7×). Moving or parked (it no longer anchors), it charges up to 4 friendly ground vehicles (not aircraft) within 18 tiles automatically, lowest battery first (`muleLinks`, `sim/energy.ts`); Volt Core (T2, researched) |
 | **Titan MBT** | 420 | 3 | T2 | 600 | Heavy | Explosive 50 / 2.2 s / 4, splash 1 (10%); rail gun AP 120 / 5 s / 14 | Main battle tank, automatic rail gun; Smoke Screen, Piercing Rail Round (T3, researched) |
 | **Aegis** (new) | 240 | 2 | T2 | 300 | Light | Flak 30 / 1.2 s / 5, air only | Anti-air escort |
 
@@ -337,7 +338,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 | Unit | Cost | Pop | Tier | HP | Armor | Weapon | Role |
 |---|---|---|---|---|---|---|---|
 | **Infiltrator Drone** | 60 | 1 | T1 | 60 | Air | None | Scout, surveillance |
-| **"Kestrel" Attack Drone** (new) | 130 | 1 | T1 | 110 | Air | Machine gun 6 / 0.4 s / 3, hits ground and air | Cheap generalist; fast (1.5×), sees 5, remote-controlled; Flechette Burst (passive), Regenerative Shield (T2, researched) |
+| **"Kestrel" Attack Drone** (new) | 130 | 1 | T1 | 110 | Air | Machine gun 6 / 0.4 s / 3, hits ground and air | Cheap generalist; fast (1.5×), sees 5, remote-controlled; Flechette Burst (T2, researched), Regenerative Shield (T3, researched) |
 | **Wasp** | 240 | 2 | T2 | 160 | Air | Rifle 6 / 0.6 s / 3, hits air | Harasser, swarm volley |
 | **Hornet Gunship** (new) | 320 | 3 | T2 | 320 | Air | AP 32 / 1.6 s / 4; researched T3 rocket AP 60 / 6 s | Anti-vehicle air |
 | **Bombardment Drone** | 480 | 4 | T3 | 260 | Air | None | Levels city blocks; 5 drops, rearms at base |
@@ -493,12 +494,12 @@ the old Smoke (which only hid the tank on the minimap) and APS, both on limited 
 
 `sim/kestrel.ts`. The Kestrel attack drone has two abilities on top of its machine gun:
 
-- **Flechette Burst (T1, passive, comes with the drone):** every 5 s, alongside its machine gun,
+- **Flechette Burst (T2, researched at Advanced Research, passive):** every 5 s, alongside its machine gun,
   it fires a shotgun burst at the unit it is shooting, within 3 tiles. It does 18 to the target and
   8 to each other enemy within 1.3 tiles of it. Damage by armour: infantry full, light 45%, air
   50%, heavy 20%. It fires automatically and is drawn as a spray of three rounds per target. A
   force field soaks it.
-- **Regenerative Shield (T2, researched at Advanced Research):** a shield worth 25% of the drone's
+- **Regenerative Shield (T3, researched at Advanced Research):** a shield worth 25% of the drone's
   health (28) on top of it, shown as a pale blue bar. Hits drain the shield first and it takes 25%
   less damage than the hull would. A hit bigger than the shield breaks it, and the rest lands on
   the hull. After 10 s without being hit, it recharges, filling in 2 s. A drone built after the

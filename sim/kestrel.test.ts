@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { upgradeDef, upgradesFor } from './upgrades';
 import type { UnitData } from '../types';
 import { fireFlechettes, FLECHETTE, regenerateShield, SHIELD, shieldedHit, shieldMax } from './kestrel';
 import { createUnit } from './production';
@@ -6,24 +7,32 @@ import { createUnit } from './production';
 const NOW = 100_000;
 const unit = (id: string, type: UnitData['type'], team: UnitData['team'], x: number, z = 0, patch: Partial<UnitData> = {}) =>
   ({ ...createUnit(type, team, id, { x, z }), ...patch });
+const armed = () => true;
 const kestrel = (patch: Partial<UnitData> = {}) => unit('k', 'attack_drone', 'blue', 0, 0, { combatTargetId: 't', ...patch });
 
 describe('Kestrel Flechette Burst', () => {
   it('fires alongside its gun on a cooldown, hard against infantry and light on armour', () => {
     const trooper = unit('t', 'trooper', 'red', 2);
-    const r = fireFlechettes([kestrel(), trooper], NOW);
+    const r = fireFlechettes([kestrel(), trooper], NOW, armed);
     expect(r.unitDamage.get('t')).toBe(FLECHETTE.damage);
     const tank = unit('t', 'tank', 'red', 2);
-    expect(fireFlechettes([kestrel(), tank], NOW).unitDamage.get('t')).toBeLessThan(FLECHETTE.damage / 2);
+    expect(fireFlechettes([kestrel(), tank], NOW, armed).unitDamage.get('t')).toBeLessThan(FLECHETTE.damage / 2);
     // Recharging, out of range, or not shooting: nothing.
-    expect(fireFlechettes([kestrel({ flechetteAt: NOW - 1000 }), trooper], NOW).shots).toHaveLength(0);
-    expect(fireFlechettes([kestrel({ flechetteAt: NOW - FLECHETTE.cooldownMs }), trooper], NOW).shots).toHaveLength(1);
-    expect(fireFlechettes([kestrel(), unit('t', 'trooper', 'red', 8)], NOW).shots).toHaveLength(0);
-    expect(fireFlechettes([kestrel({ combatTargetId: null }), trooper], NOW).shots).toHaveLength(0);
+    expect(fireFlechettes([kestrel({ flechetteAt: NOW - 1000 }), trooper], NOW, armed).shots).toHaveLength(0);
+    expect(fireFlechettes([kestrel({ flechetteAt: NOW - FLECHETTE.cooldownMs }), trooper], NOW, armed).shots).toHaveLength(1);
+    expect(fireFlechettes([kestrel(), unit('t', 'trooper', 'red', 8)], NOW, armed).shots).toHaveLength(0);
+    expect(fireFlechettes([kestrel({ combatTargetId: null }), trooper], NOW, armed).shots).toHaveLength(0);
+  });
+
+  it('is a Tier 2 research: without it the Kestrel has only its machine gun', () => {
+    expect(fireFlechettes([kestrel(), unit('t', 'trooper', 'red', 2)], NOW, () => false).shots).toHaveLength(0);
+    expect(upgradeDef('flechette_burst')).toMatchObject({ unit: 'attack_drone', tier: 2 });
+    expect(upgradeDef('regen_shield')).toMatchObject({ unit: 'attack_drone', tier: 3 });
+    expect(upgradesFor('attack_drone').map(u => u.id)).toEqual(['flechette_burst', 'regen_shield']);
   });
 
   it('peppers enemies right beside its target, and never its own side', () => {
-    const r = fireFlechettes([kestrel(), unit('t', 'trooper', 'red', 2), unit('n', 'trooper', 'red', 3), unit('far', 'trooper', 'red', 6), unit('f', 'trooper', 'blue', 2, 1)], NOW);
+    const r = fireFlechettes([kestrel(), unit('t', 'trooper', 'red', 2), unit('n', 'trooper', 'red', 3), unit('far', 'trooper', 'red', 6), unit('f', 'trooper', 'blue', 2, 1)], NOW, armed);
     expect(r.unitDamage.get('n')).toBe(FLECHETTE.spreadDamage);
     expect(r.unitDamage.has('far')).toBe(false);
     expect(r.unitDamage.has('f')).toBe(false);

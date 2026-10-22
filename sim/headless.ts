@@ -211,7 +211,7 @@ export function stepMatch(m: HeadlessMatch): void {
   const hornetFired = new Set(hornets.shots.map(s => s.attackerId));
   if (hornetFired.size > 0) m.units = m.units.map(u => hornetFired.has(u.id) ? { ...u, hornetRocketAt: now } : u);
   // Kestrel Flechette Bursts alongside their machine guns (sim/kestrel.ts).
-  const flechettes = fireFlechettes(m.units, now);
+  const flechettes = fireFlechettes(m.units, now, team => (team === 'blue' || team === 'red') && hasUpgrade(m.economy[team], 'flechette_burst'));
   const burst = new Set(flechettes.shots.map(s => s.attackerId));
   if (burst.size > 0) m.units = m.units.map(u => burst.has(u.id) ? { ...u, flechetteAt: now } : u);
   flechettes.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
