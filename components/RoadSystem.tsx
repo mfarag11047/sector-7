@@ -2,7 +2,7 @@
 import React, { useMemo, useState, useRef, useLayoutEffect, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
 import { RoadTileData } from '../types';
-import { createGroundTexture, DISTRICT_THEMES, districtOfTile, GroundStyle, groundOfTile } from './districtTheme';
+import { createGroundTexture, DISTRICT_THEMES, districtOfTile, groundOfTile, TileGround } from './districtTheme';
 
 // --- PROCEDURAL TEXTURES ---
 
@@ -423,7 +423,7 @@ export const InstancedRoads: React.FC<{
     const { mainTiles, streetTiles, openByStyle } = useMemo(() => {
         const main: RoadTileData[] = [];
         const street: RoadTileData[] = [];
-        const open = new Map<GroundStyle, RoadTileData[]>();
+        const open = new Map<TileGround, RoadTileData[]>();
         tiles.forEach(t => {
             if (t.type === 'main') main.push(t);
             else if (t.type === 'street') street.push(t);
@@ -435,8 +435,8 @@ export const InstancedRoads: React.FC<{
         });
         return { mainTiles: main, streetTiles: street, openByStyle: [...open.entries()] };
     }, [tiles, gridSize]);
-    const groundTextures = useMemo(() => new Map<GroundStyle, THREE.Texture>(
-        (['plaza', 'paving', 'lawn', 'yard', 'lot', 'scorched'] as const).map(s => [s, createGroundTexture(s)])), []);
+    const groundTextures = useMemo(() => new Map<TileGround, THREE.Texture>(
+        (['plaza', 'paving', 'lawn', 'walkway', 'parking', 'parkingAlt', 'yard', 'scorched'] as const).map(s => [s, createGroundTexture(s)])), []);
     // Streets take their district's cast.
     const streetColorOf = useMemo(() => {
         const tints = new Map(Object.entries(DISTRICT_THEMES).map(([d, t]) => [d, new THREE.Color(t.streetTint)]));
@@ -490,9 +490,10 @@ export const InstancedRoads: React.FC<{
                     tiles={open} tileSize={tileSize} offset={offset}
                     texture={style === 'hex' ? texHex : groundTextures.get(style)!} baseColor={COLOR_OPEN}
                     onClick={onClick} onRightClick={onRightClick} onHover={handleHover}
-                    // Lawn tiles meet edge to edge, so a courtyard reads as one lawn.
-                    tileScale={style === 'lawn' ? 1 : tileScale}
-                    randomRotation={true}
+                    // Lawn and parking tiles meet edge to edge, so a courtyard reads as one lawn and
+                    // a lot's bays run on unbroken; parking keeps one heading so its aisles line up.
+                    tileScale={style === 'lawn' || style.startsWith('parking') ? 1 : tileScale}
+                    randomRotation={!style.startsWith('parking')}
                 />
             ))}
             <LawnKerbs lawn={openByStyle.find(([style]) => style === 'lawn')?.[1] ?? []} open={tiles} tileSize={tileSize} offset={offset} />

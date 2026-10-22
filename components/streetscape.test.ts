@@ -51,3 +51,16 @@ describe('midtown courtyards', () => {
     expect(groundOfTile(27, 27, gridSize)).toBe('plaza');
   });
 });
+
+describe('outskirts car parks', () => {
+  it('lines the street side with walkways and fills the middle with parking, both looks, mirrored', () => {
+    const open = city.roadTiles.filter(t => t.type === 'open' && districtOfTile(t.x, t.z, gridSize) === 'outskirts');
+    const styles = open.map(t => groundOfTile(t.x, t.z, gridSize));
+    expect(new Set(styles)).toEqual(new Set(['walkway', 'parking', 'parkingAlt']));
+    for (const t of open) {
+      const edge = [t.x % 6, t.z % 6].some(c => c === 1 || c === 5) || [t.x, t.z].some(c => Math.abs(c - 39) === 1);
+      expect(groundOfTile(t.x, t.z, gridSize) === 'walkway', `${t.x},${t.z}`).toBe(edge);
+      expect(groundOfTile(78 - t.x, 78 - t.z, gridSize)).toBe(groundOfTile(t.x, t.z, gridSize));
+    }
+  });
+});

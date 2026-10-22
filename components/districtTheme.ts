@@ -10,10 +10,14 @@
 import * as THREE from 'three';
 import { District, districtAt, districtOfBlock } from '../sim/districts';
 
-// 'courtyard' is a district's choice, not a texture: its blocks are ringed with light paving
-// along the street ('paving') round a lawn in the middle ('lawn'); see groundOfTile.
-export type GroundStyle = 'plaza' | 'courtyard' | 'paving' | 'lawn' | 'yard' | 'lot' | 'scorched' | 'hex';
-export type GroundTexture = Exclude<GroundStyle, 'hex' | 'courtyard'>;
+// 'courtyard' and 'carpark' are a district's choice, not textures: each block is ringed along the
+// street with one ground and filled in the middle with another (see groundOfTile):
+//   courtyard  light concrete 'paving' round a 'lawn'
+//   carpark    dark 'walkway' pavers round 'parking' bays (two looks, so the cars vary)
+export type GroundStyle = 'plaza' | 'courtyard' | 'paving' | 'lawn' | 'carpark' | 'walkway' | 'parking' | 'parkingAlt' | 'yard' | 'scorched' | 'hex';
+type SplitGround = 'courtyard' | 'carpark';
+export type TileGround = Exclude<GroundStyle, SplitGround>;
+export type GroundTexture = Exclude<TileGround, 'hex'>;
 
 export interface DistrictTheme {
   ground: GroundStyle;
@@ -31,8 +35,9 @@ export const DISTRICT_THEMES: Record<District, DistrictTheme> = {
   midtown: { ground: 'courtyard', streetTint: '#98a6b8', sidewalks: true, crosswalks: false },
   // Industrial: stained concrete yards, warmer and dirtier streets.
   industrial: { ground: 'yard', streetTint: '#a39a8c', sidewalks: false, crosswalks: false },
-  // Outskirts and fringe: cracked lots, then scorched rubble toward the Blackwall.
-  outskirts: { ground: 'lot', streetTint: '#8f98a6', sidewalks: false, crosswalks: false },
+  // Outskirts: dark paved walkways along the streets round parking lots. Fringe: scorched rubble
+  // toward the Blackwall.
+  outskirts: { ground: 'carpark', streetTint: '#8f98a6', sidewalks: false, crosswalks: false },
   fringe: { ground: 'scorched', streetTint: '#8a8486', sidewalks: false, crosswalks: false },
   // The bases keep the hex-grid ground they always had.
   base: { ground: 'hex', streetTint: '#94a3b8', sidewalks: false, crosswalks: false },
@@ -51,14 +56,18 @@ export const districtOfTile = (x: number, z: number, gridSize: number): District
   districtOfBlock(blockOf(x, gridSize), blockOf(z, gridSize), gridSize);
 export const themeOfTile = (x: number, z: number, gridSize: number) => DISTRICT_THEMES[districtOfTile(x, z, gridSize)];
 
-// The ground drawn on an open lot tile. In a courtyard district, a tile beside the street (or the
-// boulevard) is paving and any other is lawn, so each block reads as a green courtyard inside a
-// paved edge.
-export function groundOfTile(x: number, z: number, gridSize: number): Exclude<GroundStyle, 'courtyard'> {
+// The ground drawn on an open lot tile. In a district whose ground is split, a tile beside the
+// street (or the boulevard) takes the edge ground and any other the middle one: a green courtyard
+// inside a paved edge in midtown, parking lots inside dark walkways in the outskirts.
+export function groundOfTile(x: number, z: number, gridSize: number): TileGround {
   const ground = themeOfTile(x, z, gridSize).ground;
-  if (ground !== 'courtyard') return ground;
+  if (ground !== 'courtyard' && ground !== 'carpark') return ground;
   const onStreet = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => districtAt(x + dx, z + dz, gridSize) === null);
-  return onStreet ? 'paving' : 'lawn';
+  if (ground === 'courtyard') return onStreet ? 'paving' : 'lawn';
+  if (onStreet) return 'walkway';
+  // Two looks of parked cars, picked the same for a tile and its mirror twin.
+  const m = Math.min(x * gridSize + z, (gridSize - 1 - x) * gridSize + (gridSize - 1 - z));
+  return (m * 2654435761) % 7 < 4 ? 'parking' : 'parkingAlt';
 }
 
 // --- Ground textures ---
@@ -120,6 +129,44 @@ function blot(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, co
   ctx.arc(x, y, r, 0, Math.PI * 2);
   ctx.fill();
   ctx.globalAlpha = 1;
+}
+
+// A tile of parking lot: asphalt with a driving aisle down the middle and a row of bays either
+// side, painted lines, and cars in the bays listed (0-7: four bays a row, top row then bottom).
+// Laid out on the tile's own edges so bays run on unbroken from tile to tile.
+function drawParking(ctx: CanvasRenderingContext2D, rand: () => number, parked: number[]) {
+  ctx.fillStyle = '#2a2d33';
+  ctx.fillRect(0, 0, SIZE, SIZE);
+  grime(ctx, rand, ['#202328', '#363a41'], 4000, 4, 0.3);
+  for (let k = 0; k < 3; k++) blot(ctx, rand() * SIZE, rand() * SIZE, 20 + rand() * 25, '#121417', 0.45);
+  const bay = SIZE / 4, depth = SIZE * 0.34;
+  ctx.strokeStyle = 'rgba(214, 218, 210, 0.5)';
+  ctx.lineWidth = 5;
+  for (const [y0, y1] of [[0, depth], [SIZE - depth, SIZE]]) {
+    for (let i = 0; i <= 4; i++) { ctx.beginPath(); ctx.moveTo(i * bay, y0); ctx.lineTo(i * bay, y1); ctx.stroke(); }
+  }
+  // Bay ends along the aisle, and faded arrows down it.
+  ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.moveTo(0, depth); ctx.lineTo(SIZE, depth); ctx.moveTo(0, SIZE - depth); ctx.lineTo(SIZE, SIZE - depth); ctx.stroke();
+  ctx.fillStyle = 'rgba(214, 218, 210, 0.22)';
+  ctx.beginPath(); ctx.moveTo(SIZE * 0.42, SIZE * 0.47); ctx.lineTo(SIZE * 0.55, SIZE * 0.47); ctx.lineTo(SIZE * 0.55, SIZE * 0.44); ctx.lineTo(SIZE * 0.6, SIZE * 0.5); ctx.lineTo(SIZE * 0.55, SIZE * 0.56); ctx.lineTo(SIZE * 0.55, SIZE * 0.53); ctx.lineTo(SIZE * 0.42, SIZE * 0.53); ctx.closePath(); ctx.fill();
+  // Parked cars, seen from above: a dull body, a darker glass roof, a little headlight glint.
+  const paints = ['#4b5563', '#5b4a43', '#3f4b45', '#6b6f78', '#45404f', '#5f5a4a'];
+  for (const b of parked) {
+    const row = b < 4 ? 0 : 1, col = b % 4;
+    const w = bay * 0.62, h = depth * 0.78;
+    const x = col * bay + (bay - w) / 2, y = row === 0 ? depth * 0.1 : SIZE - depth + depth * 0.12;
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+    ctx.fillRect(x + 4, y + 5, w, h);
+    ctx.fillStyle = paints[Math.floor(rand() * paints.length)];
+    ctx.fillRect(x, y, w, h);
+    ctx.fillStyle = '#1c2027';
+    ctx.fillRect(x + w * 0.14, y + h * 0.28, w * 0.72, h * 0.42);
+    ctx.fillStyle = 'rgba(253, 230, 170, 0.45)';
+    const front = row === 0 ? y + h - 5 : y + 1;
+    ctx.fillRect(x + 4, front, 8, 4);
+    ctx.fillRect(x + w - 12, front, 8, 4);
+  }
 }
 
 const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => number) => void> = {
@@ -226,22 +273,22 @@ const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => nu
     ctx.restore();
     crack(ctx, rand, '#1d1e20', 2, 6);
   },
-  // Old cracked asphalt with dirt and weeds coming through.
-  lot: (ctx, rand) => {
-    ctx.fillStyle = '#2f333b';
+  // Small dark-grey square pavers with a darker border band: the walkways round an outskirts block.
+  walkway: (ctx, rand) => {
+    ctx.fillStyle = '#1f2329';
     ctx.fillRect(0, 0, SIZE, SIZE);
-    grime(ctx, rand, ['#262a31', '#3b4049'], 4000, 4, 0.3);
-    for (let k = 0; k < 4; k++) blot(ctx, rand() * SIZE, rand() * SIZE, 40 + rand() * 60, '#4a3d2c', 0.45);
-    for (let k = 0; k < 7; k++) crack(ctx, rand, '#181b20', 2 + rand() * 2, 7);
-    for (let k = 0; k < 160; k++) {
-      ctx.fillStyle = rand() > 0.5 ? '#3b5236' : '#2d4229';
-      ctx.fillRect(rand() * SIZE, rand() * SIZE, 2 + rand() * 3, 2 + rand() * 3);
+    const n = 8, s = SIZE / n;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const shade = 52 + Math.floor(rand() * 9);
+      ctx.fillStyle = `rgb(${shade}, ${shade + 3}, ${shade + 8})`;
+      ctx.fillRect(i * s + 3, j * s + 3, s - 6, s - 6);
     }
-    // Faded parking lines.
-    ctx.strokeStyle = 'rgba(200, 200, 190, 0.18)';
-    ctx.lineWidth = 5;
-    for (let k = 0; k < 4; k++) { ctx.beginPath(); ctx.moveTo(60 + k * 110, 40); ctx.lineTo(60 + k * 110, 200); ctx.stroke(); }
+    grime(ctx, rand, ['#2a2e35', '#4b5059'], 3000, 3, 0.3);
+    for (let k = 0; k < 3; k++) blot(ctx, rand() * SIZE, rand() * SIZE, 25 + rand() * 35, '#15181c', 0.3);
+    crack(ctx, rand, '#1a1d22', 1.5, 4);
   },
+  parking: (ctx, rand) => drawParking(ctx, rand, [1, 3, 4, 6]),
+  parkingAlt: (ctx, rand) => drawParking(ctx, rand, [0, 2, 5]),
   // Rubble and scorch marks: the war-torn edge by the Blackwall.
   scorched: (ctx, rand) => {
     ctx.fillStyle = '#2a2729';
@@ -259,7 +306,7 @@ const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => nu
 };
 
 export const createGroundTexture = (style: GroundTexture) =>
-  canvasTexture(DRAW[style], { plaza: 11, paving: 23, lawn: 29, yard: 37, lot: 41, scorched: 53 }[style]);
+  canvasTexture(DRAW[style], { plaza: 11, paving: 23, lawn: 29, walkway: 31, parking: 41, parkingAlt: 43, yard: 37, scorched: 53 }[style]);
 
 // --- Streetscape textures ---
 

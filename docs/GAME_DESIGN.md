@@ -937,7 +937,9 @@ Drop, or Masons.
 - The open ground in each district has its own texture (`components/districtTheme.ts`). In
   midtown every block is a green courtyard: open tiles beside a street or the boulevard are light
   concrete paving, the rest are lawn laid edge to edge, with a low pale kerb where lawn meets
-  paving (`groundOfTile`).
+  paving (`groundOfTile`). The outskirts work the same way with darker ground: small dark-grey
+  pavers along the streets round parking lots of marked bays and parked cars, laid edge to edge
+  with their aisles all one way.
 - A building bigger than one tile is drawn as one building (`components/FootprintBuilding.tsx`),
   though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
   run along its outside faces only, a dark roof slab with a lit rim covers it (in the owner's
