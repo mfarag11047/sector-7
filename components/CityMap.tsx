@@ -11,6 +11,7 @@ import BlackWall from './BlackWall';
 import Unit from './Unit';
 import BlockStatus from './BlockStatus';
 import { InstancedRoads } from './RoadSystem';
+import Streetscape from './Streetscape';
 import BuildingHitProxies from './BuildingHitProxies';
 import * as THREE from 'three';
 import { Edges, Html, Line, Float, Instance, Instances } from '@react-three/drei';
@@ -4176,6 +4177,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
         {/* Street Lights */}
         <StreetLights tiles={roadTiles} tileSize={CITY_CONFIG.tileSize} offset={offset} />
+        {/* Sidewalks and crosswalks, by district (components/districtTheme.ts). */}
+        <Streetscape tiles={roadTiles} tileSize={CITY_CONFIG.tileSize} offset={offset} tileScale={0.95} />
 
         {/* Selection Box Visual */}
 

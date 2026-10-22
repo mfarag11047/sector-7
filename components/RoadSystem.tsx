@@ -2,6 +2,7 @@
 import React, { useMemo, useState, useRef, useLayoutEffect, useEffect, useCallback } from 'react';
 import * as THREE from 'three';
 import { RoadTileData } from '../types';
+import { createGroundTexture, DISTRICT_THEMES, districtOfTile, GroundStyle, themeOfTile } from './districtTheme';
 
 // --- PROCEDURAL TEXTURES ---
 
@@ -227,9 +228,11 @@ const SingleTypeRoads: React.FC<{
     onRightClick: (x: number, z: number) => void;
     onHover: (x: number, z: number) => void;
     getRotation?: (tile: RoadTileData) => number;
+    // A colour per tile (a district's tint), else baseColor for all.
+    colorOf?: (tile: RoadTileData) => THREE.Color;
     tileScale?: number;
     randomRotation?: boolean;
-}> = ({ tiles, tileSize, offset, texture, baseColor, onClick, onRightClick, onHover, getRotation, tileScale = 0.95, randomRotation = false }) => {
+}> = ({ tiles, tileSize, offset, texture, baseColor, onClick, onRightClick, onHover, getRotation, colorOf, tileScale = 0.95, randomRotation = false }) => {
     const meshRef = useRef<THREE.InstancedMesh>(null);
     const [hoveredId, setHoveredId] = useState<number | null>(null);
     const tempObject = useMemo(() => new THREE.Object3D(), []);
@@ -258,11 +261,11 @@ const SingleTypeRoads: React.FC<{
             
             tempObject.updateMatrix();
             meshRef.current!.setMatrixAt(i, tempObject.matrix);
-            meshRef.current!.setColorAt(i, baseColor);
+            meshRef.current!.setColorAt(i, colorOf ? colorOf(tile) : baseColor);
         });
         meshRef.current.instanceMatrix.needsUpdate = true;
         if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
-    }, [tiles, tileSize, offset, baseColor, getRotation, randomRotation]);
+    }, [tiles, tileSize, offset, baseColor, getRotation, randomRotation, colorOf]);
 
     // Road tiles sit on a regular grid, so the tile under a ray is found by meeting the
     // road surface and rounding, instead of three.js testing every one of the thousands of
@@ -296,11 +299,11 @@ const SingleTypeRoads: React.FC<{
         }
         return () => {
             if (meshRef.current && hoveredId !== null && hoveredId < tiles.length) {
-                meshRef.current.setColorAt(hoveredId, baseColor);
+                meshRef.current.setColorAt(hoveredId, colorOf ? colorOf(tiles[hoveredId]) : baseColor);
                 if (meshRef.current.instanceColor) meshRef.current.instanceColor.needsUpdate = true;
             }
         };
-    }, [hoveredId, tiles, baseColor, hoverColor]);
+    }, [hoveredId, tiles, baseColor, hoverColor, colorOf]);
 
     const handlePointerMove = (e: any) => {
         if (e.instanceId !== undefined) {
@@ -372,23 +375,35 @@ export const InstancedRoads: React.FC<{
     const texConcrete = useMemo(() => createConcreteTexture(), []);
     const texGlow = useMemo(() => createHighwayGlowTexture(), []);
 
-    // Split tiles by type for specialized rendering
-    const { mainTiles, streetTiles, openTiles } = useMemo(() => {
-        const main: RoadTileData[] = [];
-        const street: RoadTileData[] = [];
-        const open: RoadTileData[] = [];
-        tiles.forEach(t => {
-            if (t.type === 'main') main.push(t);
-            else if (t.type === 'street') street.push(t);
-            else open.push(t);
-        });
-        return { mainTiles: main, streetTiles: street, openTiles: open };
-    }, [tiles]);
-
     // Calculate grid properties to determine orientation for Main roads
     // offset = (gridSize * tileSize) / 2
     // gridSize = (offset * 2) / tileSize
     const gridSize = Math.round((offset * 2) / tileSize);
+
+    // Split tiles by type for specialized rendering, and open ground by its district's style
+    // (components/districtTheme.ts): one instanced mesh per ground style.
+    const { mainTiles, streetTiles, openByStyle } = useMemo(() => {
+        const main: RoadTileData[] = [];
+        const street: RoadTileData[] = [];
+        const open = new Map<GroundStyle, RoadTileData[]>();
+        tiles.forEach(t => {
+            if (t.type === 'main') main.push(t);
+            else if (t.type === 'street') street.push(t);
+            else {
+                const style = themeOfTile(t.x, t.z, gridSize).ground;
+                if (!open.has(style)) open.set(style, []);
+                open.get(style)!.push(t);
+            }
+        });
+        return { mainTiles: main, streetTiles: street, openByStyle: [...open.entries()] };
+    }, [tiles, gridSize]);
+    const groundTextures = useMemo(() => new Map<GroundStyle, THREE.Texture>(
+        (['plaza', 'courtyard', 'yard', 'lot', 'scorched'] as const).map(s => [s, createGroundTexture(s)])), []);
+    // Streets take their district's cast.
+    const streetColorOf = useMemo(() => {
+        const tints = new Map(Object.entries(DISTRICT_THEMES).map(([d, t]) => [d, new THREE.Color(t.streetTint)]));
+        return (t: RoadTileData) => tints.get(districtOfTile(t.x, t.z, gridSize))!;
+    }, [gridSize]);
     const mid = Math.floor(gridSize / 2);
 
     const getMainRotation = useCallback((tile: RoadTileData) => {
@@ -425,21 +440,22 @@ export const InstancedRoads: React.FC<{
             {streetTiles.length > 0 && (
                 <SingleTypeRoads 
                     tiles={streetTiles} tileSize={tileSize} offset={offset} 
-                    texture={texConcrete} baseColor={COLOR_STREET} // Lighten the concrete slightly
+                    texture={texConcrete} baseColor={COLOR_STREET} colorOf={streetColorOf}
                     onClick={onClick} onRightClick={onRightClick} onHover={handleHover}
                     tileScale={tileScale}
                     randomRotation={true}
                 />
             )}
-            {openTiles.length > 0 && (
-                <SingleTypeRoads 
-                    tiles={openTiles} tileSize={tileSize} offset={offset} 
-                    texture={texHex} baseColor={COLOR_OPEN}
+            {openByStyle.map(([style, open]) => (
+                <SingleTypeRoads
+                    key={style}
+                    tiles={open} tileSize={tileSize} offset={offset}
+                    texture={style === 'hex' ? texHex : groundTextures.get(style)!} baseColor={COLOR_OPEN}
                     onClick={onClick} onRightClick={onRightClick} onHover={handleHover}
                     tileScale={tileScale}
                     randomRotation={true}
                 />
-            )}
+            ))}
         </group>
     );
 };
