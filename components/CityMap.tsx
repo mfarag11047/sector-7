@@ -14,6 +14,7 @@ import { InstancedRoads } from './RoadSystem';
 import Streetscape from './Streetscape';
 import IndustrialYard from './IndustrialYard';
 import BlackwallCorruption from './BlackwallCorruption';
+import DowntownDressing from './DowntownDressing';
 import BuildingHitProxies from './BuildingHitProxies';
 import * as THREE from 'three';
 import { Edges, Html, Line, Float, Instance, Instances } from '@react-three/drei';
@@ -4185,6 +4186,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         <IndustrialYard tiles={roadTiles} buildings={initialBuildings} tileSize={CITY_CONFIG.tileSize} offset={offset} />
         {/* The fringe, corrupted by the Blackwall: glitching cracks in the slabs and on the buildings. */}
         <BlackwallCorruption tiles={roadTiles} buildings={buildings} tileSize={CITY_CONFIG.tileSize} offset={offset} />
+        {/* Downtown: neon along the kerbs, planters at the foot of the towers. */}
+        <DowntownDressing tiles={roadTiles} buildings={initialBuildings} tileSize={CITY_CONFIG.tileSize} offset={offset} />
 
         {/* Selection Box Visual */}
 

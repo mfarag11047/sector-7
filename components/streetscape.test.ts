@@ -48,7 +48,7 @@ describe('midtown courtyards', () => {
       expect(groundOfTile(78 - t.x, 78 - t.z, gridSize)).toBe(groundOfTile(t.x, t.z, gridSize));
     }
     // Other districts keep their own ground.
-    expect(groundOfTile(27, 27, gridSize)).toBe('plaza');
+    expect(['granite', 'plazaStone']).toContain(groundOfTile(27, 27, gridSize));
   });
 });
 

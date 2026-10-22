@@ -948,7 +948,10 @@ Drop, or Masons.
   (`components/BlackwallCorruption.tsx`): about one slab in four has a crack glowing with the
   Blackwall's red, magenta and blue static, tearing and flickering, and every fringe building
   flickers with patches of glitching scanlines on its walls, static on its roof and a glow round
-  its base, gone once the building is destroyed.
+  its base, gone once the building is destroyed. Downtown and the corporate core are a corporate
+  plaza (`components/DowntownDressing.tsx`): polished dark granite along the streets with a
+  magenta neon line inlaid at the kerb, plaza stone laid in a two-tone diamond lattice inside
+  each block, and long planters with clipped hedges along the foot of every tower.
 - A building bigger than one tile is drawn as one building (`components/FootprintBuilding.tsx`),
   though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
   run along its outside faces only, a dark roof slab with a lit rim covers it (in the owner's

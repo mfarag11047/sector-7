@@ -14,8 +14,9 @@ import { District, districtAt, districtOfBlock } from '../sim/districts';
 // street with one ground and filled in the middle with another (see groundOfTile):
 //   courtyard  light concrete 'paving' round a 'lawn'
 //   carpark    dark 'walkway' pavers round empty 'parking' bays
-export type GroundStyle = 'plaza' | 'courtyard' | 'paving' | 'lawn' | 'carpark' | 'walkway' | 'parking' | 'yard' | 'slab' | 'hex';
-type SplitGround = 'courtyard' | 'carpark';
+//   corporate  polished 'granite' round patterned 'plazaStone'
+export type GroundStyle = 'corporate' | 'granite' | 'plazaStone' | 'courtyard' | 'paving' | 'lawn' | 'carpark' | 'walkway' | 'parking' | 'yard' | 'slab' | 'hex';
+type SplitGround = 'courtyard' | 'carpark' | 'corporate';
 export type TileGround = Exclude<GroundStyle, SplitGround>;
 export type GroundTexture = Exclude<TileGround, 'hex'>;
 
@@ -28,9 +29,10 @@ export interface DistrictTheme {
 }
 
 export const DISTRICT_THEMES: Record<District, DistrictTheme> = {
-  // Corporate core and downtown: paved plazas, sidewalks, crosswalks.
-  core: { ground: 'plaza', streetTint: '#a5b4c8', sidewalks: true, crosswalks: true },
-  downtown: { ground: 'plaza', streetTint: '#9fb0c4', sidewalks: true, crosswalks: true },
+  // Corporate core and downtown: polished granite along the streets round patterned stone plazas
+  // (neon kerb lines and planters by DowntownDressing.tsx), sidewalks, crosswalks.
+  core: { ground: 'corporate', streetTint: '#a5b4c8', sidewalks: true, crosswalks: true },
+  downtown: { ground: 'corporate', streetTint: '#9fb0c4', sidewalks: true, crosswalks: true },
   // Midtown: grass courtyards inside a ring of light paving, sidewalks, no crosswalks.
   midtown: { ground: 'courtyard', streetTint: '#98a6b8', sidewalks: true, crosswalks: false },
   // Industrial: stained concrete yards, warmer and dirtier streets.
@@ -62,9 +64,10 @@ export const themeOfTile = (x: number, z: number, gridSize: number) => DISTRICT_
 // inside a paved edge in midtown, parking lots inside dark walkways in the outskirts.
 export function groundOfTile(x: number, z: number, gridSize: number): TileGround {
   const ground = themeOfTile(x, z, gridSize).ground;
-  if (ground !== 'courtyard' && ground !== 'carpark') return ground;
+  if (ground !== 'courtyard' && ground !== 'carpark' && ground !== 'corporate') return ground;
   const onStreet = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => districtAt(x + dx, z + dz, gridSize) === null);
   if (ground === 'courtyard') return onStreet ? 'paving' : 'lawn';
+  if (ground === 'corporate') return onStreet ? 'granite' : 'plazaStone';
   return onStreet ? 'walkway' : 'parking';
 }
 
@@ -151,32 +154,49 @@ function drawParking(ctx: CanvasRenderingContext2D, rand: () => number) {
 }
 
 const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => number) => void> = {
-  // Large paving slabs with tight joints and a faint inlaid light line: corporate plaza.
-  plaza: (ctx, rand) => {
-    ctx.fillStyle = '#2c3545';
+  // Polished dark granite: two big slabs a tile, flecked grain, a soft sheen across them.
+  granite: (ctx, rand) => {
+    ctx.fillStyle = '#10131a';
     ctx.fillRect(0, 0, SIZE, SIZE);
-    const n = 4, s = SIZE / n;
+    const n = 2, s = SIZE / n;
     for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
-      const shade = 40 + Math.floor(rand() * 10);
-      ctx.fillStyle = `rgb(${shade}, ${shade + 8}, ${shade + 22})`;
+      const shade = 34 + Math.floor(rand() * 6);
+      ctx.fillStyle = `rgb(${shade}, ${shade + 4}, ${shade + 16})`;
       ctx.fillRect(i * s + 2, j * s + 2, s - 4, s - 4);
     }
-    grime(ctx, rand, ['#1e2633', '#3c4759'], 2500, 3, 0.25);
-    ctx.strokeStyle = '#161d29';
-    ctx.lineWidth = 4;
-    for (let i = 0; i <= n; i++) {
-      ctx.beginPath(); ctx.moveTo(i * s, 0); ctx.lineTo(i * s, SIZE); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(0, i * s); ctx.lineTo(SIZE, i * s); ctx.stroke();
+    // Grain: fine light and dark flecks.
+    grime(ctx, rand, ['#5b6378', '#1a1e28', '#3c4356', '#7a7f96'], 9000, 2, 0.35);
+    // A faint sheen, as if the stone catches the city lights.
+    const g = ctx.createLinearGradient(0, 0, SIZE, SIZE);
+    g.addColorStop(0, 'rgba(160, 170, 210, 0)');
+    g.addColorStop(0.5, 'rgba(160, 170, 210, 0.07)');
+    g.addColorStop(1, 'rgba(160, 170, 210, 0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, SIZE, SIZE);
+  },
+  // Plaza stone laid in a diamond lattice in two tones, each diamond with a lighter centre stone:
+  // symmetric every way, so it carries on across tiles however a tile is turned.
+  plazaStone: (ctx, rand) => {
+    ctx.fillStyle = '#262a36';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    const n = 4, s = SIZE / n;
+    const diamond = (cx: number, cy: number, r: number) => {
+      ctx.beginPath(); ctx.moveTo(cx, cy - r); ctx.lineTo(cx + r, cy); ctx.lineTo(cx, cy + r); ctx.lineTo(cx - r, cy); ctx.closePath(); ctx.fill();
+    };
+    // Two lattices of diamonds, one centred on the grid points and one in between.
+    for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) {
+      const shade = 58 + Math.floor(rand() * 6);
+      ctx.fillStyle = `rgb(${shade}, ${shade + 3}, ${shade + 14})`;
+      diamond(i * s, j * s, s / 2 - 3);
+      if (i < n && j < n) {
+        const dark = 44 + Math.floor(rand() * 5);
+        ctx.fillStyle = `rgb(${dark}, ${dark + 3}, ${dark + 12})`;
+        diamond(i * s + s / 2, j * s + s / 2, s / 2 - 3);
+        ctx.fillStyle = 'rgba(140, 150, 180, 0.16)';
+        diamond(i * s + s / 2, j * s + s / 2, s / 6);
+      }
     }
-    // An inlaid light strip across the slabs, and a drain grate.
-    ctx.strokeStyle = 'rgba(103, 232, 249, 0.22)';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.moveTo(0, SIZE * 0.5); ctx.lineTo(SIZE, SIZE * 0.5); ctx.stroke();
-    ctx.fillStyle = '#1a212d';
-    ctx.fillRect(SIZE * 0.68, SIZE * 0.68, 60, 26);
-    ctx.strokeStyle = '#2f3a4c';
-    ctx.lineWidth = 2;
-    for (let k = 0; k < 6; k++) { ctx.beginPath(); ctx.moveTo(SIZE * 0.68 + 6 + k * 9, SIZE * 0.68 + 4); ctx.lineTo(SIZE * 0.68 + 6 + k * 9, SIZE * 0.68 + 22); ctx.stroke(); }
+    grime(ctx, rand, ['#20232d', '#5a6072'], 3000, 2, 0.25);
   },
   // Light concrete slabs in a 2x2 grid with a fine border joint: the paved edge of a midtown block.
   paving: (ctx, rand) => {
@@ -276,7 +296,7 @@ const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => nu
 };
 
 export const createGroundTexture = (style: GroundTexture) =>
-  canvasTexture(DRAW[style], { plaza: 11, paving: 23, lawn: 29, walkway: 31, parking: 41, yard: 37, slab: 53 }[style]);
+  canvasTexture(DRAW[style], { granite: 11, plazaStone: 13, paving: 23, lawn: 29, walkway: 31, parking: 41, yard: 37, slab: 53 }[style]);
 
 // --- Streetscape textures ---
 

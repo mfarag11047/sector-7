@@ -436,7 +436,7 @@ export const InstancedRoads: React.FC<{
         return { mainTiles: main, streetTiles: street, openByStyle: [...open.entries()] };
     }, [tiles, gridSize]);
     const groundTextures = useMemo(() => new Map<TileGround, THREE.Texture>(
-        (['plaza', 'paving', 'lawn', 'walkway', 'parking', 'yard', 'slab'] as const).map(s => [s, createGroundTexture(s)])), []);
+        (['granite', 'plazaStone', 'paving', 'lawn', 'walkway', 'parking', 'yard', 'slab'] as const).map(s => [s, createGroundTexture(s)])), []);
     // Streets take their district's cast.
     const streetColorOf = useMemo(() => {
         const tints = new Map(Object.entries(DISTRICT_THEMES).map(([d, t]) => [d, new THREE.Color(t.streetTint)]));
