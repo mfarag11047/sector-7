@@ -436,7 +436,7 @@ export const InstancedRoads: React.FC<{
         return { mainTiles: main, streetTiles: street, openByStyle: [...open.entries()] };
     }, [tiles, gridSize]);
     const groundTextures = useMemo(() => new Map<TileGround, THREE.Texture>(
-        (['plaza', 'paving', 'lawn', 'walkway', 'parking', 'parkingAlt', 'yard', 'scorched'] as const).map(s => [s, createGroundTexture(s)])), []);
+        (['plaza', 'paving', 'lawn', 'walkway', 'parking', 'yard', 'scorched'] as const).map(s => [s, createGroundTexture(s)])), []);
     // Streets take their district's cast.
     const streetColorOf = useMemo(() => {
         const tints = new Map(Object.entries(DISTRICT_THEMES).map(([d, t]) => [d, new THREE.Color(t.streetTint)]));
@@ -492,8 +492,8 @@ export const InstancedRoads: React.FC<{
                     onClick={onClick} onRightClick={onRightClick} onHover={handleHover}
                     // Lawn and parking tiles meet edge to edge, so a courtyard reads as one lawn and
                     // a lot's bays run on unbroken; parking keeps one heading so its aisles line up.
-                    tileScale={style === 'lawn' || style.startsWith('parking') ? 1 : tileScale}
-                    randomRotation={!style.startsWith('parking')}
+                    tileScale={style === 'lawn' || style === 'parking' ? 1 : tileScale}
+                    randomRotation={style !== 'parking'}
                 />
             ))}
             <LawnKerbs lawn={openByStyle.find(([style]) => style === 'lawn')?.[1] ?? []} open={tiles} tileSize={tileSize} offset={offset} />

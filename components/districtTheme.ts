@@ -13,8 +13,8 @@ import { District, districtAt, districtOfBlock } from '../sim/districts';
 // 'courtyard' and 'carpark' are a district's choice, not textures: each block is ringed along the
 // street with one ground and filled in the middle with another (see groundOfTile):
 //   courtyard  light concrete 'paving' round a 'lawn'
-//   carpark    dark 'walkway' pavers round 'parking' bays (two looks, so the cars vary)
-export type GroundStyle = 'plaza' | 'courtyard' | 'paving' | 'lawn' | 'carpark' | 'walkway' | 'parking' | 'parkingAlt' | 'yard' | 'scorched' | 'hex';
+//   carpark    dark 'walkway' pavers round empty 'parking' bays
+export type GroundStyle = 'plaza' | 'courtyard' | 'paving' | 'lawn' | 'carpark' | 'walkway' | 'parking' | 'yard' | 'scorched' | 'hex';
 type SplitGround = 'courtyard' | 'carpark';
 export type TileGround = Exclude<GroundStyle, SplitGround>;
 export type GroundTexture = Exclude<TileGround, 'hex'>;
@@ -64,10 +64,7 @@ export function groundOfTile(x: number, z: number, gridSize: number): TileGround
   if (ground !== 'courtyard' && ground !== 'carpark') return ground;
   const onStreet = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => districtAt(x + dx, z + dz, gridSize) === null);
   if (ground === 'courtyard') return onStreet ? 'paving' : 'lawn';
-  if (onStreet) return 'walkway';
-  // Two looks of parked cars, picked the same for a tile and its mirror twin.
-  const m = Math.min(x * gridSize + z, (gridSize - 1 - x) * gridSize + (gridSize - 1 - z));
-  return (m * 2654435761) % 7 < 4 ? 'parking' : 'parkingAlt';
+  return onStreet ? 'walkway' : 'parking';
 }
 
 // --- Ground textures ---
@@ -132,9 +129,9 @@ function blot(ctx: CanvasRenderingContext2D, x: number, y: number, r: number, co
 }
 
 // A tile of parking lot: asphalt with a driving aisle down the middle and a row of bays either
-// side, painted lines, and cars in the bays listed (0-7: four bays a row, top row then bottom).
-// Laid out on the tile's own edges so bays run on unbroken from tile to tile.
-function drawParking(ctx: CanvasRenderingContext2D, rand: () => number, parked: number[]) {
+// side, marked with painted lines; the bays are empty. Laid out on the tile's own edges so bays
+// run on unbroken from tile to tile.
+function drawParking(ctx: CanvasRenderingContext2D, rand: () => number) {
   ctx.fillStyle = '#2a2d33';
   ctx.fillRect(0, 0, SIZE, SIZE);
   grime(ctx, rand, ['#202328', '#363a41'], 4000, 4, 0.3);
@@ -150,23 +147,6 @@ function drawParking(ctx: CanvasRenderingContext2D, rand: () => number, parked: 
   ctx.beginPath(); ctx.moveTo(0, depth); ctx.lineTo(SIZE, depth); ctx.moveTo(0, SIZE - depth); ctx.lineTo(SIZE, SIZE - depth); ctx.stroke();
   ctx.fillStyle = 'rgba(214, 218, 210, 0.22)';
   ctx.beginPath(); ctx.moveTo(SIZE * 0.42, SIZE * 0.47); ctx.lineTo(SIZE * 0.55, SIZE * 0.47); ctx.lineTo(SIZE * 0.55, SIZE * 0.44); ctx.lineTo(SIZE * 0.6, SIZE * 0.5); ctx.lineTo(SIZE * 0.55, SIZE * 0.56); ctx.lineTo(SIZE * 0.55, SIZE * 0.53); ctx.lineTo(SIZE * 0.42, SIZE * 0.53); ctx.closePath(); ctx.fill();
-  // Parked cars, seen from above: a dull body, a darker glass roof, a little headlight glint.
-  const paints = ['#4b5563', '#5b4a43', '#3f4b45', '#6b6f78', '#45404f', '#5f5a4a'];
-  for (const b of parked) {
-    const row = b < 4 ? 0 : 1, col = b % 4;
-    const w = bay * 0.62, h = depth * 0.78;
-    const x = col * bay + (bay - w) / 2, y = row === 0 ? depth * 0.1 : SIZE - depth + depth * 0.12;
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
-    ctx.fillRect(x + 4, y + 5, w, h);
-    ctx.fillStyle = paints[Math.floor(rand() * paints.length)];
-    ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = '#1c2027';
-    ctx.fillRect(x + w * 0.14, y + h * 0.28, w * 0.72, h * 0.42);
-    ctx.fillStyle = 'rgba(253, 230, 170, 0.45)';
-    const front = row === 0 ? y + h - 5 : y + 1;
-    ctx.fillRect(x + 4, front, 8, 4);
-    ctx.fillRect(x + w - 12, front, 8, 4);
-  }
 }
 
 const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => number) => void> = {
@@ -287,8 +267,7 @@ const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => nu
     for (let k = 0; k < 3; k++) blot(ctx, rand() * SIZE, rand() * SIZE, 25 + rand() * 35, '#15181c', 0.3);
     crack(ctx, rand, '#1a1d22', 1.5, 4);
   },
-  parking: (ctx, rand) => drawParking(ctx, rand, [1, 3, 4, 6]),
-  parkingAlt: (ctx, rand) => drawParking(ctx, rand, [0, 2, 5]),
+  parking: (ctx, rand) => drawParking(ctx, rand),
   // Rubble and scorch marks: the war-torn edge by the Blackwall.
   scorched: (ctx, rand) => {
     ctx.fillStyle = '#2a2729';
@@ -306,7 +285,7 @@ const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => nu
 };
 
 export const createGroundTexture = (style: GroundTexture) =>
-  canvasTexture(DRAW[style], { plaza: 11, paving: 23, lawn: 29, walkway: 31, parking: 41, parkingAlt: 43, yard: 37, scorched: 53 }[style]);
+  canvasTexture(DRAW[style], { plaza: 11, paving: 23, lawn: 29, walkway: 31, parking: 41, yard: 37, scorched: 53 }[style]);
 
 // --- Streetscape textures ---
 
