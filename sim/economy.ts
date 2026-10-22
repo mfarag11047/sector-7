@@ -105,7 +105,8 @@ export function incomeBreakdown(buildings: readonly BuildingData[], team: Team, 
   for (const b of buildings) {
     if (b.owner === team && !b.destroyed) nodes += BUILDING_VALUES[b.type].income;
   }
-  const refineries = refineryIncome(structures, team, nodes);
+  const coreNodes = buildings.filter(b => b.type === 'core_node' && !b.destroyed).map(b => ({ x: b.gridX, z: b.gridZ }));
+  const refineries = refineryIncome(structures, team, nodes, coreNodes);
   return { hq: HQ_INCOME, nodes, refineries, total: HQ_INCOME + nodes + refineries.flat + refineries.bonus };
 }
 

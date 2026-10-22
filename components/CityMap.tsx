@@ -56,7 +56,7 @@ import { canisterSpots, HE, WARHEAD_LIST, WP, wpGasDamage } from '../sim/warhead
 import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade, upgradeDef, upgradeTitle, type UpgradeId } from '../sim/upgrades';
 import { teamPads } from '../sim/baseLayout';
 import BuildPads, { FreePad } from './BuildPads';
-import { advanceRefineryUpgrades, REFINERY, refineriesOf, refineryLimit } from '../sim/refinery';
+import { advanceRefineryUpgrades, baseProximity, REFINERY, refineriesOf, refineryLimit, refineryMultiplier } from '../sim/refinery';
 import { advanceDismantling } from '../sim/dismantle';
 import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
 import { applyFieldCloak, CLOAK_FIELD, fieldCloakedIds, generatorsReplacedBy, isCloakFieldUp, isHidden } from '../sim/cloak';
@@ -1363,8 +1363,10 @@ const GroundPointer: React.FC<{ handlersRef: React.MutableRefObject<{ down: (e: 
 // ground and a button over it that opens the build menu.
 const BaseSiteMarker: React.FC<{
   site: BaseSite; tileSize: number; offset: number; open: boolean; cores: number; compute: number;
+  // What each Core Refinery at a base here would add (sim/refinery.ts).
+  refinery: { multiplier: number; blocks: number | null };
   onToggle: () => void; onBuild: () => void;
-}> = ({ site, tileSize, offset, open, cores, compute, onToggle, onBuild }) => {
+}> = ({ site, tileSize, offset, open, cores, compute, refinery, onToggle, onBuild }) => {
   const ringRef = useRef<THREE.Mesh>(null);
   useFrame(({ clock }) => {
     const ring = ringRef.current;
@@ -1410,6 +1412,7 @@ const BaseSiteMarker: React.FC<{
                 </span>
               </button>
               <span className="text-[9px] font-mono text-slate-500">Takes {BASE_SITE.buildMs / 1000}s to go up.</span>
+              <span className="text-[9px] font-mono text-emerald-300/90 leading-snug">Core Refineries here: +{Math.round(refinery.multiplier * 100)}% of node income each{refinery.blocks !== null ? ` (core node ${refinery.blocks} block${refinery.blocks === 1 ? '' : 's'} away)` : ''}.</span>
             </div>
           )}
         </div>
@@ -2659,9 +2662,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   }, [handleRightClick]);
 
   // The player's base pads, the free ones marked with a + to build on (components/BuildPads.tsx).
-  const freePads = useMemo<FreePad[]>(() => playerTeam === 'blue' || playerTeam === 'red'
-      ? (['building', 'turret'] as const).flatMap(kind => teamPads(structuresState, playerTeam, kind, gridSize).map(p => ({ at: p.at, kind, taken: p.taken })))
-      : [], [structuresState, playerTeam, gridSize]);
+  const coreNodeTiles = useMemo(() => buildings.filter(b => b.type === 'core_node' && !b.destroyed).map(b => ({ x: b.gridX, z: b.gridZ })), [buildings]);
+  const freePads = useMemo<FreePad[]>(() => {
+      if (playerTeam !== 'blue' && playerTeam !== 'red') return [];
+      // A refinery's share of node income depends on its base's distance to a core node.
+      const share = new Map(structuresState.filter(s => s.type === 'hq').map(h => [h.id, baseProximity(h.gridPos, coreNodeTiles)]));
+      return (['building', 'turret'] as const).flatMap(kind => teamPads(structuresState, playerTeam, kind, gridSize)
+          .map(p => ({ at: p.at, kind, taken: p.taken, refinery: kind === 'building' ? share.get(p.hqId) : undefined })));
+  }, [structuresState, playerTeam, gridSize, coreNodeTiles]);
   // Free base pads per side, for the HQ build menu.
   const freePadsOf = (team: 'blue' | 'red') => ({
       building: teamPads(structuresState, team, 'building', gridSize).filter(p => !p.taken).length,
@@ -4215,6 +4223,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 tileSize={tileSize}
                 offset={offset}
                 open={siteMenuId === site.id}
+                refinery={baseProximity(site.at, coreNodeTiles)}
                 onToggle={() => setSiteMenuId(id => id === site.id ? null : site.id)}
                 cores={economy[playerTeam === 'red' ? 'red' : 'blue'].cores}
                 compute={economy[playerTeam === 'red' ? 'red' : 'blue'].compute}
@@ -4247,6 +4256,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 compute={s.type === 'research_lab' && (playerTeam === 'blue' || playerTeam === 'red') ? economy[playerTeam].compute : undefined}
                 upgradesUnderway={s.type === 'research_lab' ? upgradesUnderway : undefined}
                 income={s.type === 'refinery' && depotMenuOpenId === s.id && s.team === playerTeam ? incomeBreakdown(buildings, playerTeam, structuresState) : undefined}
+                refineryShare={s.type === 'refinery' && depotMenuOpenId === s.id ? refineryMultiplier(s, structuresState, coreNodeTiles) : undefined}
             /> 
         ))}
         {/* Only a fully held block shows a status; the rest drew nothing but still re-rendered every tick. */}

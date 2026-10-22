@@ -20,21 +20,22 @@ export const STRUCTURE_PURPOSE: Partial<Record<StructureType, string>> = {
   builder: 'Masons; walls',
   ordnance_fab: 'Warheads and Field Fabricators',
   research_lab: 'Unit upgrades',
-  refinery: `Cores: +${REFINERY.flat[1]}/s and +${Math.round(REFINERY.multiplier * 100)}% of node income`,
+  refinery: `Cores: +${REFINERY.flat[1]}/s and a share of node income, more the nearer the base is to a core node`,
   defense: 'Anti-vehicle cannon · ground only',
   aa_turret: 'Anti-air CIWS · weak vs ground',
 };
 
 // Taken pads stay listed, hidden.
-export interface FreePad { at: GridPos; kind: PadKind; taken: boolean }
+// refinery: what a Core Refinery on this pad would add, from its base's distance to a core node.
+export interface FreePad { at: GridPos; kind: PadKind; taken: boolean; refinery?: { multiplier: number; blocks: number | null } }
 export const padKey = (p: GridPos) => `${p.x},${p.z}`;
 
 const TURRET_COLOR = '#fbbf24';
 const Z_OPEN: [number, number] = [190, 0];
 
 const PadMenu: React.FC<{
-  kind: PadKind; cores: number; hasDepot: boolean; hasMason: boolean; refineryRoom: number; onBuild: (type: StructureType) => void;
-}> = ({ kind, cores, hasDepot, hasMason, refineryRoom, onBuild }) => {
+  kind: PadKind; cores: number; hasDepot: boolean; hasMason: boolean; refineryRoom: number; refinery?: FreePad['refinery']; onBuild: (type: StructureType) => void;
+}> = ({ kind, cores, hasDepot, hasMason, refineryRoom, refinery, onBuild }) => {
   const options = kind === 'building' ? BASE_BUILDINGS : BASE_TURRETS;
   // Turrets are put up by Masons from a Depot.
   const turretBlock = kind === 'turret' ? (!hasDepot ? 'Needs a finished Depot' : !hasMason ? 'Needs a Mason (train one at the Depot)' : null) : null;
@@ -65,6 +66,7 @@ const PadMenu: React.FC<{
               <div className="flex flex-col">
                 <span className="text-xs font-mono font-bold whitespace-nowrap">{info.label}</span>
                 <span className="text-[9px] font-mono text-slate-500">{STRUCTURE_PURPOSE[type]} · {time}</span>
+                {type === 'refinery' && refinery && <span className="text-[9px] font-mono text-emerald-300/90">Here: +{Math.round(refinery.multiplier * 100)}% of node income{refinery.blocks !== null ? ` (core node ${refinery.blocks} block${refinery.blocks === 1 ? '' : 's'} away)` : ''}</span>}
                 {full && <span className="text-[9px] font-mono text-amber-300">{REFINERY.perHq} per Command HQ: all built</span>}
               </div>
             </div>
@@ -167,7 +169,7 @@ const BuildPads: React.FC<{
           tileSize={tileSize} offset={offset} onToggle={() => onToggle(key)}>
           <Html position={[0, 1, 0]} zIndexRange={Z_OPEN}>
             <BesidePad>
-              <PadMenu kind={p.kind} cores={cores} hasDepot={hasDepot} hasMason={hasMason} refineryRoom={refineryRoom} onBuild={type => onBuild(type, p.at)} />
+              <PadMenu kind={p.kind} cores={cores} hasDepot={hasDepot} hasMason={hasMason} refineryRoom={refineryRoom} refinery={p.refinery} onBuild={type => onBuild(type, p.at)} />
             </BesidePad>
           </Html>
         </PadMarker>

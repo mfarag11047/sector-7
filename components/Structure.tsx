@@ -40,6 +40,8 @@ interface StructureProps {
   upgradesUnderway?: readonly UpgradeId[];
   // The side's income, for a Core Refinery's menu (sim/economy.ts incomeBreakdown).
   income?: IncomeBreakdown;
+  // A Core Refinery's own share of node income, from its base's distance to a core node.
+  refineryShare?: { multiplier: number; blocks: number | null };
 }
 
 const CommLinkModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
@@ -987,7 +989,7 @@ const WallTier2Model = ({ teamColor, tileSize }: { color: string, teamColor: str
     );
 };
 
-const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES, income }) => {
+const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES, income, refineryShare }) => {
   // Advanced Research menu: a unit class, then a unit, then its upgrades.
   const [labClass, setLabClass] = React.useState<UnitClass | null>(null);
   // Disassemble asks twice.
@@ -1090,6 +1092,8 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
         : tier < REFINERY.upgrade.tier ? `🔒 Tier ${REFINERY.upgrade.tier}`
         : resources < REFINERY.upgrade.cost ? `${REFINERY.upgrade.cost} cores` : null;
     const r = income?.refineries;
+    // This refinery's share: from how near its base is to a core node (sim/refinery.ts).
+    const mine = refineryShare ?? r?.each.find(e => e.id === data.id) ?? { multiplier: REFINERY.proximity.min, blocks: null };
     return (
         <div className="flex flex-col gap-1 px-1 mt-1 text-[10px] font-mono">
             <div className="flex justify-between"><span className="text-slate-400 uppercase">Level</span><span className="text-amber-300">{level}</span></div>
@@ -1097,7 +1101,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
             {r && income && (
                 <>
                     <div className="flex justify-between"><span className="text-slate-400">All refineries ({r.count})</span><span className="text-emerald-300">+{(r.flat + r.bonus).toFixed(1)}/s</span></div>
-                    <div className="text-[9px] text-slate-500 leading-snug">+{Math.round(r.multiplier * 100)}% of node income ({income.nodes}/s){r.multiplier >= REFINERY.maxMultiplier ? ' · at the cap' : ''}. Each refinery adds {Math.round(REFINERY.multiplier * 100)}%, up to {Math.round(REFINERY.maxMultiplier * 100)}%.</div>
+                    <div className="text-[9px] text-slate-500 leading-snug">+{Math.round(r.multiplier * 100)}% of node income ({income.nodes}/s){r.multiplier >= REFINERY.maxMultiplier ? ' · at the cap' : ''}. This one adds {Math.round(mine.multiplier * 100)}%{mine.blocks !== null ? `: its base is ${mine.blocks} city block${mine.blocks === 1 ? '' : 's'} from a core node` : ''} ({Math.round(REFINERY.proximity.best * 100)}% next to one, down to {Math.round(REFINERY.proximity.min * 100)}% far away). All together up to {Math.round(REFINERY.maxMultiplier * 100)}%.</div>
                 </>
             )}
             {up && (

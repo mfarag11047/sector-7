@@ -26,6 +26,7 @@ import { isRemoteUnit, isTetherableDrone, MAX_TETHERS, tetheredIds } from './jam
 import type { OrderCommand } from './orders';
 import { isOperational } from './orders';
 import { freePadsFor } from './baseLayout';
+import { baseProximity } from './refinery';
 import { type Tier, UNIT_RULES } from './units';
 import { HE, inventoryOf, missilesHeld, WARHEAD_LIST, WP } from './warheads';
 import type { AiStrategy } from './aiStrategy';
@@ -405,8 +406,11 @@ export function baseMoves(c: BaseContext): { actions: Action[]; spent: number } 
   // sooner once its building pads are all taken.
   const hqs = mineS.filter(s => s.type === 'hq' && s.health > 0).length;
   if ((c.tier >= 3 || (c.tier >= 2 && c.padsFull)) && hqs < c.maxBases && c.cores - spent >= BASE_SITE.cores + 500 && c.economy[c.team].compute >= BASE_SITE.compute) {
-    const site = baseSites(c.buildings, c.structures).find(s => c.mine.some(u => dist(u.gridPos, s.at) <= BASE_SITE.reach - 0.5)
-      && !c.theirs.some(t => dist(t.gridPos, s.at) <= 6));
+    // Nearest a core node first: its Core Refineries will pay more there (sim/refinery.ts).
+    const coreNodes = c.buildings.filter(b => b.type === 'core_node' && !b.destroyed).map(b => ({ x: b.gridX, z: b.gridZ }));
+    const site = baseSites(c.buildings, c.structures).filter(s => c.mine.some(u => dist(u.gridPos, s.at) <= BASE_SITE.reach - 0.5)
+      && !c.theirs.some(t => dist(t.gridPos, s.at) <= 6))
+      .sort((a, b) => baseProximity(b.at, coreNodes).multiplier - baseProximity(a.at, coreNodes).multiplier)[0];
     if (site) {
       actions.push({ kind: 'order', command: { type: 'BUILD_BASE', at: site.at } });
       spent += BASE_SITE.cores;

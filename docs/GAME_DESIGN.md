@@ -33,7 +33,7 @@ The intended arc:
 |---|---|
 | Command HQ (always) | 3 cores/s |
 | Each core node held | 5 cores/s |
-| Each Core Refinery | 1.5 cores/s (4 at level 2), plus 10% of your core node income |
+| Each Core Refinery | 1.5 cores/s (4 at level 2), plus 4–15% of your core node income, more the nearer its base is to a core node |
 
 ### Core Refinery
 
@@ -42,11 +42,19 @@ side can invest in its economy instead of only fighting for nodes.
 
 - It takes a **building pad**, so it competes with production: at most **2 per Command HQ**. More
   refineries and more production at once means more bases.
-- Each working refinery pays a **flat 1.5 cores/s** plus **+10% of your core node income**. The
-  multiplier stacks additively across refineries and is capped at **+40%**. It multiplies only node
-  income (not the HQ trickle or other refineries), so holding more of the map makes every refinery
-  worth more, while a refinery is never worthless to a side holding nothing. The AI difficulty
-  income bonus applies to the total, after the refineries.
+- Each working refinery pays a **flat 1.5 cores/s** plus a **share of your core node income**
+  that depends on how close its base (the Command HQ whose pad it stands on) is to the nearest
+  core node, any core node, counted in city blocks (diagonal neighbours count as next door):
+  **+15%** on the block next to one, **+11%** two blocks away, **+7%** three, and **+4%** (the
+  minimum) four or more. The starting bases are both 2 blocks from their home core node (+11%),
+  so a new base built beside a node is the best place for refineries. The shares stack
+  additively across refineries and are capped at **+40%**. It multiplies only node income (not
+  the HQ trickle or other refineries), so holding more of the map makes every refinery worth more,
+  while a refinery is never worthless to a side holding nothing. The AI difficulty income bonus
+  applies to the total, after the refineries.
+- The base-site menu shows what refineries would add at a new base there, the pad menu what one
+  would add on that pad, and a refinery's menu its own share and its base's distance. The computer
+  builds new bases on the site nearest a core node it can reach.
 - **Level 2** (Tier 2, 500 cores, 25 s, from the refinery's own menu) raises only that refinery's
   flat income, to 4 cores/s. The multiplier doesn't change. An upgraded refinery is a bigger loss,
   and the computer's Bombardment Drones and Ballistas strike upgraded refineries first, then any

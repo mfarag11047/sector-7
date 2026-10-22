@@ -531,7 +531,7 @@ const STRUCTURE_TEXT: Partial<Record<StructureType, string>> = {
   support: 'Trains support units and the Ballista.',
   builder: 'Trains Masons and unlocks walls and turrets.',
   ordnance_fab: 'Builds EMP and HE warheads for Ballistas, and trains Field Fabricators.',
-  refinery: 'Core Refinery: makes cores at home. Each pays 1.5 cores/s plus 10% of your core node income (the multiplier stacks to +40% across refineries). Up to 2 per Command HQ, on a building pad. Upgrade one to level 2 at Tier 2 (500 cores) for 4 cores/s from that refinery; the multiplier stays the same.',
+  refinery: 'Core Refinery: makes cores at home. Each pays 1.5 cores/s plus a share of your core node income: 15% if its base is on the city block next to a core node, 4% fewer for each block further, down to 4% (the shares stack to +40% across refineries). Build new bases beside core nodes for the best refineries. Up to 2 per Command HQ, on a building pad. Upgrade one to level 2 at Tier 2 (500 cores) for 4 cores/s from that refinery; the multiplier stays the same.',
   research_lab: 'Advanced Research: researches unit upgrades, one at a time, for cores, compute and time. Each upgrade also gives that unit type +20% health and +15% damage. A unit\'s second ability, the Ghost\'s Dampener and Phantom Decoy, the Thunderhead\'s longer range and the Hornet\'s rockets all need researching here after reaching their tier.',
   wall_tier1: 'Cheap tank traps that block a lane. One Mason haul.',
   wall_tier2: 'A heavy wall. Three Mason hauls.',
