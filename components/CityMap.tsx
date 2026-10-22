@@ -12,6 +12,7 @@ import Unit from './Unit';
 import BlockStatus from './BlockStatus';
 import { InstancedRoads } from './RoadSystem';
 import Streetscape from './Streetscape';
+import IndustrialYard from './IndustrialYard';
 import BuildingHitProxies from './BuildingHitProxies';
 import * as THREE from 'three';
 import { Edges, Html, Line, Float, Instance, Instances } from '@react-three/drei';
@@ -4179,6 +4180,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         <StreetLights tiles={roadTiles} tileSize={CITY_CONFIG.tileSize} offset={offset} />
         {/* Sidewalks and crosswalks, by district (components/districtTheme.ts). */}
         <Streetscape tiles={roadTiles} tileSize={CITY_CONFIG.tileSize} offset={offset} tileScale={0.95} />
+        {/* Hazard stripes, tyre tracks and oil in the industrial yards, laid out from the sheds. */}
+        <IndustrialYard tiles={roadTiles} buildings={initialBuildings} tileSize={CITY_CONFIG.tileSize} offset={offset} />
 
         {/* Selection Box Visual */}
 

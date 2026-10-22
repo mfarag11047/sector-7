@@ -939,7 +939,11 @@ Drop, or Masons.
   concrete paving, the rest are lawn laid edge to edge, with a low pale kerb where lawn meets
   paving (`groundOfTile`). The outskirts work the same way with darker ground: small dark-grey
   pavers along the streets round empty parking lots marked out in bays, laid edge to edge
-  with their aisles all one way.
+  with their aisles all one way. The industrial yards are plain jointed concrete with markings
+  painted over each whole zone (`components/IndustrialYard.tsx`): a yellow-and-black hazard band
+  along every yard edge onto the street, tyre tracks from each shed's door through its yard to
+  the nearest street (the band breaks there for a gate), an oil stain at every door and a few
+  more scattered about. Painted once for blue's zone and shown turned round over red's.
 - A building bigger than one tile is drawn as one building (`components/FootprintBuilding.tsx`),
   though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
   run along its outside faces only, a dark roof slab with a lit rim covers it (in the owner's

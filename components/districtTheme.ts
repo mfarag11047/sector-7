@@ -222,36 +222,19 @@ const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => nu
       ctx.fillRect(rand() * SIZE, rand() * SIZE, 2, 2);
     }
   },
-  // Stained concrete with expansion joints, oil spots, tyre tracks and a hazard-striped edge.
+  // Concrete with expansion joints and fine grime. The tracks, oil and hazard stripes are painted
+  // over the whole yard by IndustrialYard.tsx, so they line up with the sheds.
   yard: (ctx, rand) => {
     ctx.fillStyle = '#3a3c3f';
     ctx.fillRect(0, 0, SIZE, SIZE);
     grime(ctx, rand, ['#2b2c2e', '#4a4b4d', '#403a33'], 5000, 4, 0.3);
     ctx.strokeStyle = '#26282b';
     ctx.lineWidth = 3;
-    for (const p of [SIZE / 3, (2 * SIZE) / 3]) {
+    for (const p of [SIZE / 2]) {
       ctx.beginPath(); ctx.moveTo(p, 0); ctx.lineTo(p, SIZE); ctx.stroke();
       ctx.beginPath(); ctx.moveTo(0, p); ctx.lineTo(SIZE, p); ctx.stroke();
     }
-    for (let k = 0; k < 5; k++) blot(ctx, rand() * SIZE, rand() * SIZE, 25 + rand() * 45, '#0e0f10', 0.55);
-    // Tyre tracks.
-    ctx.strokeStyle = 'rgba(20, 20, 20, 0.22)';
-    ctx.lineWidth = 9;
-    for (const dx of [0, 26]) {
-      ctx.beginPath();
-      ctx.moveTo(SIZE * 0.2 + dx, SIZE);
-      ctx.bezierCurveTo(SIZE * 0.3 + dx, SIZE * 0.6, SIZE * 0.55 + dx, SIZE * 0.45, SIZE * 0.7 + dx, 0);
-      ctx.stroke();
-    }
-    // Faded hazard stripes along one edge.
-    ctx.save();
-    ctx.beginPath(); ctx.rect(0, SIZE - 34, SIZE, 34); ctx.clip();
-    for (let x = -40; x < SIZE + 40; x += 40) {
-      ctx.fillStyle = 'rgba(234, 179, 8, 0.3)';
-      ctx.beginPath(); ctx.moveTo(x, SIZE); ctx.lineTo(x + 20, SIZE); ctx.lineTo(x + 54, SIZE - 34); ctx.lineTo(x + 34, SIZE - 34); ctx.closePath(); ctx.fill();
-    }
-    ctx.restore();
-    crack(ctx, rand, '#1d1e20', 2, 6);
+    for (let k = 0; k < 2; k++) blot(ctx, rand() * SIZE, rand() * SIZE, 40 + rand() * 50, '#2e2f31', 0.35);
   },
   // Small dark-grey square pavers with a darker border band: the walkways round an outskirts block.
   walkway: (ctx, rand) => {
