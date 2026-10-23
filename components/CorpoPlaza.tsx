@@ -2,7 +2,7 @@
 // (components/Landmarks.tsx), in the spirit of Night City's Corpo Plaza.
 //
 // At street level a ring road is painted round the central server node: yellow edge lines, a
-// dashed lane, in-ground blue lights, and a curbed island of glowing pink cherry trees around the node. Above it two
+// dashed lane, in-ground blue lights, and a curbed island of pink-leaved cherry trees around the node. Above it two
 // elevated ring decks stand on pillars, stacked and offset like tiers: dark asphalt with yellow
 // skirts, a blue glow underneath, lamp posts, cherry trees and traffic circling on them.
 //
@@ -49,68 +49,77 @@ const Instances: React.FC<{ geometry: THREE.BufferGeometry; material: THREE.Mate
 const compose = (x: number, y: number, z: number, ry = 0, rx = 0, rz = 0, s = 1) =>
   new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')), new THREE.Vector3(s, s, s));
 
-// Cherry trees at the given spots, Japanese style: a dark, leaning, crooked trunk forking into
-// two branches, under a wide, flat crown of blossom in clouds that glow pink. Only the blossom
-// glows.
-const BLOSSOM = ['#ff5fb8', '#ff8fd2', '#f0479f', '#ffb3e1'].map(c => new THREE.Color(c));
+// Cherry trees at the given spots, Japanese style: a brown trunk that leans and forks into
+// spreading branches and twigs, covered at the ends in individual pink leaves that glow softly.
+const LEAF_PINKS = ['#f9a8d4', '#f472b6', '#fbcfe8', '#ec4899', '#f9a8d4'].map(c => new THREE.Color(c));
 const SakuraTrees: React.FC<{ spots: { x: number; y: number; z: number; s: number }[] }> = ({ spots }) => {
   const parts = useMemo(() => {
-    const trunk = new THREE.CylinderGeometry(0.22, 0.42, 4, 6);
-    trunk.translate(0, 2, 0);
-    const branch = new THREE.CylinderGeometry(0.1, 0.2, 2.8, 5);
-    branch.translate(0, 1.4, 0);
-    const cloud = new THREE.IcosahedronGeometry(1.5, 1);
-    cloud.scale(1.35, 0.7, 1.35);
+    // One tapering limb, base at the origin, one unit long up +y: scaled to every trunk, branch
+    // and twig.
+    const limb = new THREE.CylinderGeometry(0.6, 1, 1, 6);
+    limb.translate(0, 0.5, 0);
+    // A leaf: a small pointed oval.
+    const leaf = new THREE.CircleGeometry(0.42, 6);
+    leaf.scale(1, 0.5, 1);
     return {
-      trunk, branch, cloud,
-      barkMat: new THREE.MeshStandardMaterial({ color: '#2a1c1a', roughness: 0.95 }),
-      blossomMat: new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }),
+      limb, leaf,
+      barkMat: new THREE.MeshStandardMaterial({ color: '#6b4329', roughness: 0.9 }),
+      leafMat: new THREE.MeshStandardMaterial({ color: '#ffffff', emissive: '#d9468f', emissiveIntensity: 0.45, roughness: 0.7, side: THREE.DoubleSide }),
     };
   }, []);
-  useEffect(() => () => {
-    parts.trunk.dispose(); parts.branch.dispose(); parts.cloud.dispose(); parts.barkMat.dispose(); parts.blossomMat.dispose();
-  }, [parts]);
-  const { trunks, branches, clouds, colours } = useMemo(() => {
-    const trunks: THREE.Matrix4[] = [];
-    const branches: THREE.Matrix4[] = [];
-    const clouds: THREE.Matrix4[] = [];
+  useEffect(() => () => { parts.limb.dispose(); parts.leaf.dispose(); parts.barkMat.dispose(); parts.leafMat.dispose(); }, [parts]);
+  const { limbs, leaves, colours } = useMemo(() => {
+    const limbs: THREE.Matrix4[] = [];
+    const leaves: THREE.Matrix4[] = [];
     const colours: THREE.Color[] = [];
+    const up = new THREE.Vector3(0, 1, 0);
+    // A limb from `from` along `dir`: returns where it ends.
+    const limb = (from: THREE.Vector3, dir: THREE.Vector3, length: number, radius: number) => {
+      const q = new THREE.Quaternion().setFromUnitVectors(up, dir.clone().normalize());
+      limbs.push(new THREE.Matrix4().compose(from, q, new THREE.Vector3(radius, length, radius)));
+      return from.clone().addScaledVector(dir.clone().normalize(), length);
+    };
     spots.forEach((p, i) => {
+      let seed = 1 + i * 97;
+      const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
       const s = p.s;
-      const turn = i * 2.39;
-      const lean = 0.14 * Math.sin(i * 1.7);
-      trunks.push(compose(p.x, p.y, p.z, turn, 0, lean, s));
-      // Where the trunk forks, near its top.
-      const fork = new THREE.Vector3(-Math.sin(lean) * 3.6, 3.6, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), turn).multiplyScalar(s);
-      const fx = p.x + fork.x, fy = p.y + fork.y, fz = p.z + fork.z;
-      for (const side of [-1, 1]) branches.push(compose(fx, fy, fz, turn + (side > 0 ? 0 : Math.PI), 0, side * 0.9, s));
-      // The crown: a ring of flattened blossom clouds round the fork and one on top, in a wide
-      // umbrella shape.
-      for (let k = 0; k < 6; k++) {
-        const a = turn + (k / 6) * Math.PI * 2;
-        const r = (2.1 + 0.4 * Math.sin(k * 3.1 + i)) * s;
-        clouds.push(compose(fx + Math.cos(a) * r, fy + (1.3 + 0.5 * Math.cos(k * 2.3 + i)) * s, fz + Math.sin(a) * r, a, 0, 0, s * (0.8 + 0.15 * Math.sin(k + i))));
-        colours.push(BLOSSOM[(k + i) % BLOSSOM.length]);
+      // The trunk leans a little and forks.
+      const lean = new THREE.Vector3(rand() - 0.5, 4, rand() - 0.5).normalize();
+      const fork = limb(new THREE.Vector3(p.x, p.y, p.z), lean, 3.4 * s, 0.32 * s);
+      const branches = 4 + Math.floor(rand() * 2);
+      for (let b = 0; b < branches; b++) {
+        const a = (b / branches) * Math.PI * 2 + rand() * 0.8 + i;
+        const dir = new THREE.Vector3(Math.cos(a), 0.7 + rand() * 0.5, Math.sin(a));
+        const end = limb(fork, dir, (2.2 + rand() * 0.8) * s, 0.15 * s);
+        // Two twigs off each branch end, and leaves all round their tips and along the branch.
+        for (let t = 0; t < 2; t++) {
+          const ta = a + (t ? 0.6 : -0.6) + (rand() - 0.5) * 0.4;
+          const tip = limb(end, new THREE.Vector3(Math.cos(ta), 0.5 + rand() * 0.6, Math.sin(ta)), (1 + rand() * 0.5) * s, 0.07 * s);
+          for (let l = 0; l < 16; l++) {
+            const along = rand();
+            const at = end.clone().lerp(tip, along).add(new THREE.Vector3((rand() - 0.5) * 1.6, (rand() - 0.3) * 1.1, (rand() - 0.5) * 1.6).multiplyScalar(s));
+            const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rand() * Math.PI, rand() * Math.PI * 2, rand() * Math.PI, 'YXZ'));
+            leaves.push(new THREE.Matrix4().compose(at, q, new THREE.Vector3(s, s, s).multiplyScalar(0.8 + rand() * 0.5)));
+            colours.push(LEAF_PINKS[Math.floor(rand() * LEAF_PINKS.length)]);
+          }
+        }
       }
-      clouds.push(compose(fx, fy + 2.2 * s, fz, turn, 0, 0, s * 1.1));
-      colours.push(BLOSSOM[i % 2]);
     });
-    return { trunks, branches, clouds, colours };
+    return { limbs, leaves, colours };
   }, [spots]);
-  const blossomRef = useRef<THREE.InstancedMesh>(null);
+  const leafRef = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
-    const mesh = blossomRef.current;
+    const mesh = leafRef.current;
     if (!mesh) return;
-    clouds.forEach((m, i) => { mesh.setMatrixAt(i, m); mesh.setColorAt(i, colours[i]); });
+    leaves.forEach((m, i) => { mesh.setMatrixAt(i, m); mesh.setColorAt(i, colours[i]); });
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
     mesh.computeBoundingSphere();
-  }, [clouds, colours]);
+  }, [leaves, colours]);
   return (
     <group>
-      <Instances geometry={parts.trunk} material={parts.barkMat} matrices={trunks} />
-      <Instances geometry={parts.branch} material={parts.barkMat} matrices={branches} />
-      <instancedMesh ref={blossomRef} args={[parts.cloud, parts.blossomMat, clouds.length]} raycast={noRaycast} />
+      <Instances geometry={parts.limb} material={parts.barkMat} matrices={limbs} />
+      <instancedMesh ref={leafRef} args={[parts.leaf, parts.leafMat, leaves.length]} raycast={noRaycast} />
     </group>
   );
 };
