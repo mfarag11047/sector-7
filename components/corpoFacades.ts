@@ -19,7 +19,9 @@ import * as THREE from 'three';
 import { CITY_CONFIG } from '../constants';
 import type { BuildingData } from '../types';
 
-export type FacadeName = 'monolith' | 'goldscale' | 'office' | 'brutalist' | 'ticker';
+export type FacadeName = 'monolith' | 'goldscale' | 'office' | 'brutalist' | 'ticker'
+  // Midtown's apartment blocks (midtownLooks.ts).
+  | 'bands' | 'apartment' | 'balcony';
 
 export interface Facade {
   name: FacadeName;
@@ -40,6 +42,8 @@ export interface Facade {
   // The building's own shape (set per building by facadeOf).
   massing?: Massing;
   crown?: Crown;
+  // A ground storey of lit shopfronts under an awning.
+  shops?: boolean;
 }
 
 export const FACADES: Record<FacadeName, Facade> = {
@@ -48,6 +52,10 @@ export const FACADES: Record<FacadeName, Facade> = {
   office: { name: 'office', body: '#243247', bodies: ['#243247', '#29384a', '#26323d'], accent: '#7dd3fc', texW: 6, texH: 4 },
   brutalist: { name: 'brutalist', body: '#383a3f', bodies: ['#383a3f', '#3f3d39', '#353a40'], accent: '#facc15', texW: 8, texH: 3, band: { at: 0.32, color: '#fde047' } },
   ticker: { name: 'ticker', body: '#221f2a', bodies: ['#221f2a', '#272229'], accent: '#ff2d55', texW: 7, texH: 6, strips: { count: 1, color: '#e2e8f0' } },
+  // Midtown: the data-centre bands it always had, apartment windows, balcony floors.
+  bands: { name: 'bands', body: '#1f2d2a', bodies: ['#1f2d2a', '#22302e', '#1d2a2c'], accent: '#2dd4bf', texW: 7, texH: 6 },
+  apartment: { name: 'apartment', body: '#26302e', bodies: ['#26302e', '#2b3330', '#252d33'], accent: '#5eead4', texW: 5, texH: 4 },
+  balcony: { name: 'balcony', body: '#2a3331', bodies: ['#2a3331', '#2e3532', '#283035'], accent: '#a7f3d0', texW: 6, texH: 3.5 },
 };
 
 // How a tower is massed, from the ground up: the heights (shares of its height) where its
@@ -67,7 +75,9 @@ export const MASSING_STEPS: Record<Massing, number[]> = {
 //   helipad   a landing pad with a lit ring and corner lights
 //   antennas  a cluster of masts of different heights
 //   blade     a tall thin fin with a neon edge
-export type Crown = 'spire' | 'stepped' | 'helipad' | 'antennas' | 'blade';
+export type Crown = 'spire' | 'stepped' | 'helipad' | 'antennas' | 'blade'
+  // Apartment roofs: water tanks, a roof garden, plant and an antenna ring.
+  | 'tanks' | 'garden' | 'plant';
 
 // Every corporate tower on blue's side, by the corner of its footprint (sim/cityPlan.ts): its
 // facade, its massing and its crown; its twin across the centre is the same. Laid out so towers
@@ -99,7 +109,7 @@ export function facadeOf(f: Footprint, gridSize = CITY_CONFIG.gridSize): Facade 
   const last = gridSize - 1;
   const tx = last - (f.x + f.w - 1), tz = last - (f.z + f.d - 1);
   // Blue's side of the pair.
-  const [bx, bz] = f.x + f.z <= tx + tz ? [f.x, f.z] : [tx, tz];
+  const [bx, bz] = f.x + f.z < tx + tz || (f.x + f.z === tx + tz && f.x <= tx) ? [f.x, f.z] : [tx, tz];
   const h = Math.sin((bx * gridSize + bz) * 12.9898 + 4.1) * 43758.5453;
   const r = h - Math.floor(h);
   const [name, massing, crown] = CURATED[`${bx},${bz}`] ?? ['monolith', 'straight', 'spire'];
@@ -116,7 +126,7 @@ export function featureSides(f: Footprint): Side[] {
 
 // --- Textures, drawn once each, seeded so every player sees the same ---
 
-function canvas(size: number, draw: (g: CanvasRenderingContext2D, rnd: () => number) => void, seed: number) {
+export function canvas(size: number, draw: (g: CanvasRenderingContext2D, rnd: () => number) => void, seed: number) {
   const c = document.createElement('canvas');
   c.width = c.height = size;
   const g = c.getContext('2d')!;
@@ -184,6 +194,37 @@ const WINDOWS: Record<FacadeName, (g: CanvasRenderingContext2D, rnd: () => numbe
       }
     }
   },
+  // Continuous green window bands with dark spandrels and a few dark bays.
+  bands: (g, rnd) => {
+    for (let row = 0; row < 4; row++) {
+      g.fillStyle = 'rgba(94,234,212,0.55)';
+      g.fillRect(0, row * 32 + 8, 128, 12);
+      for (let col = 0; col < 8; col++) if (rnd() > 0.7) { g.fillStyle = 'rgba(8,20,30,0.9)'; g.fillRect(col * 16, row * 32 + 8, 16, 12); }
+    }
+  },
+  // Flats: a grid of windows, lit warm, white or teal, many dark, a few with curtains drawn.
+  apartment: (g, rnd) => {
+    for (let row = 0; row < 8; row++) for (let col = 0; col < 6; col++) {
+      const lit = rnd();
+      g.fillStyle = lit > 0.82 ? 'rgba(253,224,160,0.85)' : lit > 0.7 ? 'rgba(204,251,241,0.7)' : lit > 0.6 ? 'rgba(244,170,200,0.6)' : 'rgba(100,130,130,0.14)';
+      g.fillRect(col * 21 + 5, row * 16 + 4, 11, 9);
+    }
+  },
+  // Floors of balconies: a pale slab edge and railing under each floor, sliding doors behind.
+  balcony: (g, rnd) => {
+    for (let row = 0; row < 4; row++) {
+      const y = row * 32;
+      for (let col = 0; col < 4; col++) {
+        const lit = rnd();
+        g.fillStyle = lit > 0.6 ? 'rgba(253,230,170,0.75)' : lit > 0.45 ? 'rgba(167,243,208,0.55)' : 'rgba(90,110,110,0.15)';
+        g.fillRect(col * 32 + 4, y + 6, 24, 18);
+      }
+      g.fillStyle = 'rgba(200,214,210,0.45)';
+      g.fillRect(0, y + 26, 128, 3);
+      g.fillStyle = 'rgba(200,214,210,0.25)';
+      for (let x = 0; x < 128; x += 6) g.fillRect(x, y + 20, 1, 6);
+    }
+  },
 };
 
 const windowMaterials = new Map<FacadeName, THREE.MeshBasicMaterial>();
@@ -222,4 +263,32 @@ export function goldScaleMaterial(): THREE.MeshBasicMaterial {
   }, 4242);
   scaleMaterial = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false });
   return scaleMaterial;
+}
+
+// Shopfronts: lit glass bays under a dark fascia, each with a neon sign in its own colour.
+let shopMaterial: THREE.MeshBasicMaterial | null = null;
+export function shopfrontMaterial(): THREE.MeshBasicMaterial {
+  if (shopMaterial) return shopMaterial;
+  const signs = ['#f472b6', '#22d3ee', '#facc15', '#a78bfa', '#4ade80', '#fb923c'];
+  const tex = canvas(128, (g, rnd) => {
+    g.fillStyle = 'rgba(10,12,16,0.9)';
+    g.fillRect(0, 0, 128, 128);
+    for (let bay = 0; bay < 4; bay++) {
+      const x = bay * 32;
+      // Glass, lit warm or cool, with a door and a dark mullion.
+      const warm = rnd() > 0.4;
+      const glass = g.createLinearGradient(0, 40, 0, 128);
+      glass.addColorStop(0, warm ? 'rgba(253,214,150,0.85)' : 'rgba(186,230,253,0.8)');
+      glass.addColorStop(1, warm ? 'rgba(180,120,60,0.6)' : 'rgba(80,140,180,0.55)');
+      g.fillStyle = glass;
+      g.fillRect(x + 3, 44, 26, 84);
+      g.fillStyle = 'rgba(10,12,16,0.9)';
+      g.fillRect(x + 15, 44, 2, 84);
+      // The sign on the fascia above.
+      g.fillStyle = signs[Math.floor(rnd() * signs.length)];
+      g.fillRect(x + 5, 14 + Math.floor(rnd() * 8), 14 + Math.floor(rnd() * 8), 8);
+    }
+  }, 777);
+  shopMaterial = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false });
+  return shopMaterial;
 }

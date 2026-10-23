@@ -979,6 +979,14 @@ Drop, or Masons.
   blocks, a lit helipad, an antenna cluster or a neon-edged blade fin. Downtown blocks are
   each drawn differently in the plan, so towers side by side differ in footprint, height and
   silhouette.
+- Midtown's green blocks are apartment buildings (`components/midtownLooks.ts`). Most blocks are
+  mixed: each building has its own windows (data-centre bands, apartment windows or balcony
+  floors), massing (straight, set back, on a plinth or with a narrower top storey), roof (water
+  tanks on stilts, a roof garden, plant and an antenna ring, or masts) and, on some, a ground
+  storey of lit shopfronts under an awning. Three blocks a side are apartment complexes: four
+  matching buildings of one height and look, joined across the alleys between them by enclosed
+  sky walkways (`components/MidtownSkyways.tsx`). The plan's midtown blocks were redrawn so
+  fewer of them repeat the same four-square layout.
 - A building bigger than one tile is drawn as one building (`components/FootprintBuilding.tsx`),
   though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
   run along its outside faces only, a dark roof slab with a lit rim covers it (in the owner's

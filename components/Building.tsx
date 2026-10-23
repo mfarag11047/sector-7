@@ -5,7 +5,7 @@ import { Edges } from '@react-three/drei';
 import * as THREE from 'three';
 import { TEAM_COLORS, CITY_CONFIG } from '../constants';
 import { FootprintSegment, isFootprintSegment } from './FootprintBuilding';
-import { facadeOf } from './corpoFacades';
+import { lookOf } from './midtownLooks';
 import { useFrame } from '@react-three/fiber';
 import { globalFrustum } from '../frustum';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
@@ -508,8 +508,10 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
   // Calculate colors for different states
   const colors = useMemo(() => {
     const c = new THREE.Color(data.color);
-    // Corporate towers take their body colour from their facade style (corpoFacades.ts).
-    const body = data.type === 'commercial' && data.footprint ? new THREE.Color(facadeOf(data.footprint).body) : null;
+    // Corporate towers and midtown blocks take their body colour from their look
+    // (corpoFacades.ts, midtownLooks.ts).
+    const look = lookOf(data);
+    const body = look ? new THREE.Color(look.body) : null;
     return {
       base: body ?? c.clone().multiplyScalar(0.25), // Dark dimmed state
       hover: body ? body.clone().multiplyScalar(1.6) : c.clone().multiplyScalar(0.4), // Slightly lighter for hover
