@@ -2,9 +2,9 @@
 // (components/Landmarks.tsx), in the spirit of Night City's Corpo Plaza.
 //
 // At street level a ring road is painted round the central server node: yellow edge lines, a
-// dashed lane, in-ground blue lights, and a curbed island of palms around the node. Above it two
+// dashed lane, in-ground blue lights, and a curbed island of glowing pink cherry trees around the node. Above it two
 // elevated ring decks stand on pillars, stacked and offset like tiers: dark asphalt with yellow
-// skirts, a blue glow underneath, lamp posts, palms and traffic circling on them.
+// skirts, a blue glow underneath, lamp posts, cherry trees and traffic circling on them.
 //
 // It is scenery, never in the way of play. The street level is only lines and a low curb, so the
 // tiles under it still light up and take clicks. A deck fades almost to nothing while any ground
@@ -34,7 +34,7 @@ function deckGeometry(inner: number, outer: number, thickness: number) {
 
 const noRaycast = () => null;
 
-// Many copies of one mesh placed once: palms, lamp posts, lane dashes.
+// Many copies of one mesh placed once: trees, lamp posts, lane dashes.
 const Instances: React.FC<{ geometry: THREE.BufferGeometry; material: THREE.Material; matrices: THREE.Matrix4[] }> = ({ geometry, material, matrices }) => {
   const ref = useRef<THREE.InstancedMesh>(null);
   useLayoutEffect(() => {
@@ -49,35 +49,68 @@ const Instances: React.FC<{ geometry: THREE.BufferGeometry; material: THREE.Mate
 const compose = (x: number, y: number, z: number, ry = 0, rx = 0, rz = 0, s = 1) =>
   new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')), new THREE.Vector3(s, s, s));
 
-// Palm trees at the given spots: a leaning trunk and a crown of drooping fronds.
-const Palms: React.FC<{ spots: { x: number; y: number; z: number; s: number }[] }> = ({ spots }) => {
+// Cherry trees at the given spots, Japanese style: a dark, leaning, crooked trunk forking into
+// two branches, under a wide, flat crown of blossom in clouds that glow pink. Only the blossom
+// glows.
+const BLOSSOM = ['#ff5fb8', '#ff8fd2', '#f0479f', '#ffb3e1'].map(c => new THREE.Color(c));
+const SakuraTrees: React.FC<{ spots: { x: number; y: number; z: number; s: number }[] }> = ({ spots }) => {
   const parts = useMemo(() => {
-    const trunk = new THREE.CylinderGeometry(0.22, 0.38, 7, 5);
-    trunk.translate(0, 3.5, 0);
-    const frond = new THREE.BoxGeometry(3.4, 0.08, 0.7);
-    frond.translate(1.7, 0, 0);
+    const trunk = new THREE.CylinderGeometry(0.22, 0.42, 4, 6);
+    trunk.translate(0, 2, 0);
+    const branch = new THREE.CylinderGeometry(0.1, 0.2, 2.8, 5);
+    branch.translate(0, 1.4, 0);
+    const cloud = new THREE.IcosahedronGeometry(1.5, 1);
+    cloud.scale(1.35, 0.7, 1.35);
     return {
-      trunk, frond,
-      trunkMat: new THREE.MeshStandardMaterial({ color: '#3b2f25', roughness: 0.9 }),
-      frondMat: new THREE.MeshStandardMaterial({ color: '#1f5a3a', emissive: '#0b2f1d', emissiveIntensity: 0.6, roughness: 0.8 }),
+      trunk, branch, cloud,
+      barkMat: new THREE.MeshStandardMaterial({ color: '#2a1c1a', roughness: 0.95 }),
+      blossomMat: new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }),
     };
   }, []);
-  useEffect(() => () => { parts.trunk.dispose(); parts.frond.dispose(); parts.trunkMat.dispose(); parts.frondMat.dispose(); }, [parts]);
-  const { trunks, fronds } = useMemo(() => {
+  useEffect(() => () => {
+    parts.trunk.dispose(); parts.branch.dispose(); parts.cloud.dispose(); parts.barkMat.dispose(); parts.blossomMat.dispose();
+  }, [parts]);
+  const { trunks, branches, clouds, colours } = useMemo(() => {
     const trunks: THREE.Matrix4[] = [];
-    const fronds: THREE.Matrix4[] = [];
+    const branches: THREE.Matrix4[] = [];
+    const clouds: THREE.Matrix4[] = [];
+    const colours: THREE.Color[] = [];
     spots.forEach((p, i) => {
-      const lean = 0.08 * Math.sin(i * 2.7);
-      trunks.push(compose(p.x, p.y, p.z, i * 1.3, 0, lean, p.s));
-      const top = new THREE.Vector3(p.x - Math.sin(lean) * 7 * p.s, p.y + 7 * p.s, p.z);
-      for (let k = 0; k < 7; k++) fronds.push(compose(top.x, top.y, top.z, (k / 7) * Math.PI * 2 + i, 0, -0.45, p.s));
+      const s = p.s;
+      const turn = i * 2.39;
+      const lean = 0.14 * Math.sin(i * 1.7);
+      trunks.push(compose(p.x, p.y, p.z, turn, 0, lean, s));
+      // Where the trunk forks, near its top.
+      const fork = new THREE.Vector3(-Math.sin(lean) * 3.6, 3.6, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), turn).multiplyScalar(s);
+      const fx = p.x + fork.x, fy = p.y + fork.y, fz = p.z + fork.z;
+      for (const side of [-1, 1]) branches.push(compose(fx, fy, fz, turn + (side > 0 ? 0 : Math.PI), 0, side * 0.9, s));
+      // The crown: a ring of flattened blossom clouds round the fork and one on top, in a wide
+      // umbrella shape.
+      for (let k = 0; k < 6; k++) {
+        const a = turn + (k / 6) * Math.PI * 2;
+        const r = (2.1 + 0.4 * Math.sin(k * 3.1 + i)) * s;
+        clouds.push(compose(fx + Math.cos(a) * r, fy + (1.3 + 0.5 * Math.cos(k * 2.3 + i)) * s, fz + Math.sin(a) * r, a, 0, 0, s * (0.8 + 0.15 * Math.sin(k + i))));
+        colours.push(BLOSSOM[(k + i) % BLOSSOM.length]);
+      }
+      clouds.push(compose(fx, fy + 2.2 * s, fz, turn, 0, 0, s * 1.1));
+      colours.push(BLOSSOM[i % 2]);
     });
-    return { trunks, fronds };
+    return { trunks, branches, clouds, colours };
   }, [spots]);
+  const blossomRef = useRef<THREE.InstancedMesh>(null);
+  useLayoutEffect(() => {
+    const mesh = blossomRef.current;
+    if (!mesh) return;
+    clouds.forEach((m, i) => { mesh.setMatrixAt(i, m); mesh.setColorAt(i, colours[i]); });
+    mesh.instanceMatrix.needsUpdate = true;
+    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.computeBoundingSphere();
+  }, [clouds, colours]);
   return (
     <group>
-      <Instances geometry={parts.trunk} material={parts.trunkMat} matrices={trunks} />
-      <Instances geometry={parts.frond} material={parts.frondMat} matrices={fronds} />
+      <Instances geometry={parts.trunk} material={parts.barkMat} matrices={trunks} />
+      <Instances geometry={parts.branch} material={parts.barkMat} matrices={branches} />
+      <instancedMesh ref={blossomRef} args={[parts.cloud, parts.blossomMat, clouds.length]} raycast={noRaycast} />
     </group>
   );
 };
@@ -208,7 +241,7 @@ const Deck: React.FC<{ spec: DeckSpec; fade: React.MutableRefObject<number> }> =
     built.deck.dispose();
     Object.values(built.materials).forEach(m => m.dispose());
   }, [built]);
-  // Every material in the deck, plus anything the palms and lamps added, eases to the fade.
+  // Every material in the deck, plus anything the trees and lamps added, eases to the fade.
   useFrame(() => {
     const opacity = 1 - (1 - FADED) * fade.current;
     const solid = opacity > 0.98;
@@ -226,7 +259,7 @@ const Deck: React.FC<{ spec: DeckSpec; fade: React.MutableRefObject<number> }> =
   });
   const { materials } = built;
   const mid = (inner + outer) / 2;
-  const palmSpots = useMemo(() => {
+  const treeSpots = useMemo(() => {
     const count = Math.round(outer / 5);
     return Array.from({ length: count }, (_, i) => {
       const a = (i / count) * Math.PI * 2 + 0.2;
@@ -269,7 +302,7 @@ const Deck: React.FC<{ spec: DeckSpec; fade: React.MutableRefObject<number> }> =
       {/* Blue lights set into the deck along its inner edge. */}
       <Dashes radius={inner + 0.5} count={Math.round(inner * 1.1)} y={height + 0.04} size={[0.9, 0.35]} color={BLUE} glow />
       <Lamps radius={outer - 0.8} count={Math.round(outer / 3.5)} y={height} />
-      <Palms spots={palmSpots} />
+      <SakuraTrees spots={treeSpots} />
       <group ref={traffic}>
         <Traffic lanes={spec.lanes} y={height} />
       </group>
@@ -308,7 +341,7 @@ export const CorpoPlaza: React.FC<{ center: { x: number; z: number }; tileSize: 
     });
   });
 
-  const islandPalms = useMemo(() => Array.from({ length: 10 }, (_, i) => {
+  const islandTrees = useMemo(() => Array.from({ length: 10 }, (_, i) => {
     const a = (i / 10) * Math.PI * 2;
     return { x: Math.cos(a) * 16, y: 0.9, z: Math.sin(a) * 16, s: 1 };
   }), []);
@@ -325,14 +358,14 @@ export const CorpoPlaza: React.FC<{ center: { x: number; z: number }; tileSize: 
         {/* Yellow hazard stripes round the inside of the ring. */}
         <Dashes radius={UPPER.inner - 1.5} count={48} y={0.24} size={[1.2, 1.4]} color={YELLOW} />
       </group>
-      {/* The island: a low curb with a lit edge, planted with palms, round the server node. */}
+      {/* The island: a low curb with a lit edge, planted with cherry trees, round the server node. */}
       <mesh position={[0, 0.5, 0]} raycast={noRaycast}>
         <cylinderGeometry args={[18.5, 18.5, 0.8, 72, 1, true]} />
         <meshStandardMaterial color="#2b3242" metalness={0.4} roughness={0.6} side={THREE.DoubleSide} />
       </mesh>
       <RingLine radius={18.5} width={0.9} y={0.92} color={YELLOW} opacity={0.95} />
       <RingLine radius={17.6} width={0.3} y={0.93} color={BLUE} opacity={1} glow />
-      <Palms spots={islandPalms} />
+      <SakuraTrees spots={islandTrees} />
       <Lamps radius={21} count={12} y={0.2} height={5} />
       {/* The elevated tiers. */}
       {DECKS.map((d, i) => <Deck key={i} spec={d} fade={fades.current[i]} />)}
