@@ -216,3 +216,37 @@ describe('the hand-drawn city plan', () => {
     expect(() => generateCity({ ...options(), plan: draw([[13, 10, '5'], [65, 68, '5']]) })).not.toThrow();
   });
 });
+
+describe('the starting bases\' walls', () => {
+  const city = generateCity(options());
+  it('rings each base on its open sides, leaving gates where the roads cross, mirrored', () => {
+    expect(city.baseWalls.length).toBeGreaterThan(20);
+    expect(city.baseGates).toHaveLength(8);
+    for (const w of city.baseWalls) {
+      expect(city.roadTileSet.has(`${w.at.x},${w.at.z}`), `wall ${w.at.x},${w.at.z}`).toBe(false);
+      expect(city.buildings.some(b => b.gridX === w.at.x && b.gridZ === w.at.z)).toBe(false);
+      expect(city.baseWalls.some(m => m.at.x === SIZE - 1 - w.at.x && m.at.z === SIZE - 1 - w.at.z && m.runs === w.runs)).toBe(true);
+    }
+    for (const g of city.baseGates) expect(city.tileTypeMap[`${g.x},${g.z}`]).toMatch(/street|main/);
+    // Blue's ring: four tiles out from its HQ, on the side facing the map.
+    expect(city.baseWalls.filter(w => w.at.x < 39).every(w => w.at.x === BLUE.x + 4 || w.at.z === BLUE.z + 4)).toBe(true);
+  });
+
+  it('lets the bases out only through the gates', () => {
+    const blocked = new Set(city.baseGates.map(g => `${g.x},${g.z}`));
+    const seen = new Set(['4,4']);
+    const queue = ['4,4'];
+    while (queue.length) {
+      const [x, z] = queue.pop()!.split(',').map(Number);
+      for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const k = `${x + dx},${z + dz}`;
+        if (city.roadTileSet.has(k) && !blocked.has(k) && !seen.has(k)) { seen.add(k); queue.push(k); }
+      }
+    }
+    // With the gates shut, nothing beyond the wall can be reached.
+    for (const k of seen) {
+      const [x, z] = k.split(',').map(Number);
+      expect(x <= 8 && z <= 8, k).toBe(true);
+    }
+  });
+});

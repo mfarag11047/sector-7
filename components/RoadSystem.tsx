@@ -4,61 +4,6 @@ import * as THREE from 'three';
 import { RoadTileData } from '../types';
 import { createGroundTexture, createRoadTexture, groundOfTile, RoadPiece, roadPieceOf, TileGround } from './districtTheme';
 
-// --- PROCEDURAL TEXTURES ---
-
-// 1. Hex Grid Texture (Slow/Open)
-const createHexTexture = () => {
-    if (typeof document === 'undefined') return new THREE.Texture();
-    const canvas = document.createElement('canvas');
-    canvas.width = 512; 
-    canvas.height = 512;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-        // Open ground. Kept in the night palette, without a per-tile vignette that
-        // reads as a shadow whenever the camera isn't looking into the light.
-        ctx.fillStyle = '#334155';
-        ctx.fillRect(0, 0, 512, 512);
-        
-        // Hex Lines
-        ctx.strokeStyle = '#64748b';
-        ctx.lineWidth = 2;
-        
-        const r = 32;
-        const width = r * 2;
-        const height = Math.sqrt(3) * r;
-        
-        const drawHex = (x: number, y: number) => {
-            ctx.beginPath();
-            for (let i = 0; i < 6; i++) {
-                const angle = (Math.PI / 3) * i;
-                const px = x + r * Math.cos(angle);
-                const py = y + r * Math.sin(angle);
-                if (i === 0) ctx.moveTo(px, py);
-                else ctx.lineTo(px, py);
-            }
-            ctx.closePath();
-            ctx.stroke();
-            
-            // Inner highlight
-            ctx.fillStyle = 'rgba(51, 65, 85, 0.3)'; 
-            ctx.fill();
-        };
-
-        // Draw grid
-        for (let y = -height; y < 512 + height; y += height) {
-            for (let x = -width; x < 512 + width; x += width * 1.5) {
-                drawHex(x, y);
-                drawHex(x + width * 0.75, y + height * 0.5);
-            }
-        }
-        
-    }
-    const tex = new THREE.CanvasTexture(canvas);
-    tex.wrapS = THREE.RepeatWrapping;
-    tex.wrapT = THREE.RepeatWrapping;
-    return tex;
-};
-
 // --- SINGLE TYPE INSTANCED MESH ---
 const SingleTypeRoads: React.FC<{
     tiles: RoadTileData[];
@@ -250,7 +195,6 @@ export const InstancedRoads: React.FC<{
 }> = ({ tiles, tileSize, offset, onClick, onRightClick, onHover, tileScale = 0.95 }) => {
     
     // Generate Textures (Once)
-    const texHex = useMemo(() => createHexTexture(), []);
 
     // Calculate grid properties to determine orientation for Main roads
     // offset = (gridSize * tileSize) / 2
@@ -278,9 +222,9 @@ export const InstancedRoads: React.FC<{
         return { roadsByPiece: [...roads.entries()], openByStyle: [...open.entries()] };
     }, [tiles, gridSize]);
     const groundTextures = useMemo(() => new Map<TileGround, THREE.Texture>(
-        (['granite', 'plazaStone', 'paving', 'lawn', 'walkway', 'parking', 'yard', 'slab'] as const).map(s => [s, createGroundTexture(s)])), []);
+        (['granite', 'plazaStone', 'paving', 'lawn', 'walkway', 'parking', 'yard', 'slab', 'gravel'] as const).map(s => [s, createGroundTexture(s)])), []);
     const roadTextures = useMemo(() => new Map<RoadPiece, THREE.Texture>(
-        (['cityStraight', 'cityJunction', 'suburbStraight', 'suburbJunction', 'avenue'] as const).map(p => [p, createRoadTexture(p)])), []);
+        (['cityStraight', 'cityJunction', 'suburbStraight', 'suburbJunction', 'avenue', 'basePad', 'baseLane'] as const).map(p => [p, createRoadTexture(p)])), []);
     // Markings are drawn up the texture: turned a quarter for a road running along x.
     const roadRotation = useCallback((t: RoadTileData) =>
         (roadPieceOf(t.x, t.z, t.type as 'main' | 'street', gridSize).alongX ? Math.PI / 2 : 0), [gridSize]);
@@ -308,7 +252,7 @@ export const InstancedRoads: React.FC<{
                 <SingleTypeRoads
                     key={style}
                     tiles={open} tileSize={tileSize} offset={offset}
-                    texture={style === 'hex' ? texHex : groundTextures.get(style)!} baseColor={COLOR_OPEN}
+                    texture={groundTextures.get(style)!} baseColor={COLOR_OPEN}
                     onClick={onClick} onRightClick={onRightClick} onHover={handleHover}
                     // Lawn and parking tiles meet edge to edge, so a courtyard reads as one lawn and
                     // a lot's bays run on unbroken; parking keeps one heading so its aisles line up.

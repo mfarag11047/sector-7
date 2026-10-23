@@ -934,6 +934,15 @@ Drop, or Masons.
   open ground is ever sealed off from the streets. Every building is a rectangle with a matching
   twin across the centre. Overall about a third of lot tiles are built; the centre is the
   tightest and the edges the most open.
+- Each starting base is a walled military compound (`baseCompound` in `sim/mapgen.ts`, drawn by
+  `components/BaseCompound.tsx`). A blast wall runs four tiles out from the HQ along the two sides
+  facing the map, with the Blackwall at its back: concrete T-wall slabs with a hazard band at the
+  foot and a line of the side's colour along the top, and a watchtower on the corner. The wall
+  can't be crossed. Each of the four roads that run through it has a gate, flanked by
+  hazard-striped pillars with amber beacons, so everything leaves the base through a gate. Inside,
+  the ground is reinforced concrete deck plating with steel joints and bolt plates, with marked
+  lanes (yellow edges, dashed centre) along the roads out to the gates. The base blocks outside
+  the wall are compacted military gravel.
 - Roads are asphalt (`roadPieceOf` in `components/districtTheme.ts`), each straight piece turned
   to run along its road and laid edge to edge so the lines run on unbroken. City streets (core,
   downtown, midtown) are dark asphalt with a double yellow centre line and white edge lines; the

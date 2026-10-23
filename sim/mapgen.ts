@@ -43,6 +43,41 @@ export interface City {
   sentinels: UnitData[];
   // The corporate megatowers around the centre (see LANDMARKS).
   landmarks: Landmark[];
+  // The blast wall round each starting base (see BASE_WALL): tiles nothing can cross, and the
+  // gates where the roads run out through it.
+  baseWalls: BaseWall[];
+  baseGates: GridPos[];
+}
+
+// Each starting base is a walled compound: its paved square and the map-edge roads beside it,
+// ringed on its two open sides by a blast wall BASE_WALL.reach tiles out from the HQ. Wherever a
+// road crosses the ring there is a gate; the rest of the ring can't be crossed, so everything
+// leaves through the gates.
+export const BASE_WALL = { reach: 4 };
+export interface BaseWall {
+  at: GridPos;
+  // The way the wall runs through this tile, or 'corner'.
+  runs: 'x' | 'z' | 'corner';
+}
+
+// The wall and gate tiles round a base at `base`, on a map `gridSize` tiles across. The ring is on
+// the side of the base facing the middle of the map.
+export function baseCompound(base: GridPos, gridSize: number): { walls: BaseWall[]; gates: GridPos[] } {
+  const centre = (gridSize - 1) / 2;
+  const sx = base.x <= centre ? 1 : -1, sz = base.z <= centre ? 1 : -1;
+  const wx = base.x + sx * BASE_WALL.reach, wz = base.z + sz * BASE_WALL.reach;
+  const onRoad = (x: number, z: number) => x % ROAD_STRIDE === 0 || z % ROAD_STRIDE === 0;
+  const walls: BaseWall[] = [];
+  const gates: GridPos[] = [];
+  for (let i = -BASE_WALL.reach; i <= BASE_WALL.reach; i++) {
+    for (const [x, z, runs] of [[wx, base.z - sz * i, 'z'], [base.x - sx * i, wz, 'x']] as [number, number, BaseWall['runs']][]) {
+      if (x < 0 || z < 0 || x >= gridSize || z >= gridSize) continue;
+      if (x === wx && z === wz && runs === 'x') continue; // The corner, once.
+      if (onRoad(x, z)) gates.push({ x, z });
+      else walls.push({ at: { x, z }, runs: x === wx && z === wz ? 'corner' : runs });
+    }
+  }
+  return { walls, gates };
 }
 
 // The four corporate arcologies that ring the central server node, one on each diagonal block.
@@ -272,6 +307,17 @@ export function generateCity(opts: CityOptions): City {
     return { id, kind, center: { x: blockCenter(ix), z: blockCenter(iz) }, tiles };
   });
 
+  // --- The starting bases' blast walls: nothing stands on them or crosses them ---
+  const baseWalls: BaseWall[] = [];
+  const baseGates: GridPos[] = [];
+  for (const base of [blueBase, redBase]) {
+    const c = baseCompound(base, gridSize);
+    baseWalls.push(...c.walls);
+    baseGates.push(...c.gates);
+  }
+  const walled = new Set(baseWalls.map(w => key(w.at.x, w.at.z)));
+  for (const k of walled) occupied.add(k);
+
   // --- Keep the ground under the Corpo Plaza decks clear ---
   for (let x = 0; x < gridSize; x++) {
     for (let z = 0; z < gridSize; z++) {
@@ -314,7 +360,7 @@ export function generateCity(opts: CityOptions): City {
   for (let x = 0; x < gridSize; x++) {
     for (let z = 0; z < gridSize; z++) {
       const k = key(x, z);
-      if (buildingMap.has(k)) continue;
+      if (buildingMap.has(k) || walled.has(k)) continue;
       roadTileSet.add(k);
       const type = reservedTypeMap.get(k) ?? 'open';
       tileTypeMap[k] = type;
@@ -322,5 +368,5 @@ export function generateCity(opts: CityOptions): City {
     }
   }
 
-  return { buildings, blocks, roadTiles, roadTileSet, tileTypeMap, sentinels, landmarks };
+  return { buildings, blocks, roadTiles, roadTileSet, tileTypeMap, sentinels, landmarks, baseWalls, baseGates };
 }

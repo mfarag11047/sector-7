@@ -15,6 +15,7 @@ import Streetscape from './Streetscape';
 import IndustrialYard from './IndustrialYard';
 import BlackwallCorruption from './BlackwallCorruption';
 import DowntownDressing from './DowntownDressing';
+import BaseCompound from './BaseCompound';
 import BuildingHitProxies from './BuildingHitProxies';
 import * as THREE from 'three';
 import { Edges, Html, Line, Float, Instance, Instances } from '@react-three/drei';
@@ -1511,9 +1512,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
   // Map Generation State
   // The hand-drawn, mirrored city (sim/mapgen.ts): the same map every match, the same for both sides.
-  const { initialBuildings, initialBlocks, roadTiles, roadTileSet, tileTypeMap, initialDrones, landmarks } = useMemo(() => {
+  const { initialBuildings, initialBlocks, roadTiles, roadTileSet, tileTypeMap, initialDrones, landmarks, baseWalls, baseGates } = useMemo(() => {
     const city = generateCity({ gridSize, tileSize, blueBase: baseA_Coord, redBase: baseB_Coord });
-    return { initialBuildings: city.buildings, initialBlocks: city.blocks, roadTiles: city.roadTiles, roadTileSet: city.roadTileSet, tileTypeMap: city.tileTypeMap, initialDrones: city.sentinels, landmarks: city.landmarks };
+    return { initialBuildings: city.buildings, initialBlocks: city.blocks, roadTiles: city.roadTiles, roadTileSet: city.roadTileSet, tileTypeMap: city.tileTypeMap, initialDrones: city.sentinels, landmarks: city.landmarks, baseWalls: city.baseWalls, baseGates: city.baseGates };
   }, [gridSize, tileSize, baseA_Coord, baseB_Coord]);
 
   useEffect(() => { if (onMapInit) onMapInit({ roadTiles, gridSize }); }, [roadTiles, gridSize, onMapInit]);
@@ -4188,6 +4189,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         <BlackwallCorruption tiles={roadTiles} buildings={buildings} tileSize={CITY_CONFIG.tileSize} offset={offset} />
         {/* Downtown: neon along the kerbs, planters at the foot of the towers. */}
         <DowntownDressing tiles={roadTiles} buildings={initialBuildings} tileSize={CITY_CONFIG.tileSize} offset={offset} />
+        {/* The blast walls and gates round the starting bases. */}
+        <BaseCompound walls={baseWalls} gates={baseGates} tileSize={CITY_CONFIG.tileSize} offset={offset} />
 
         {/* Selection Box Visual */}
 

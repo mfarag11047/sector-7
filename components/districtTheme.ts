@@ -9,21 +9,23 @@
 
 import * as THREE from 'three';
 import { District, districtAt, districtOfBlock } from '../sim/districts';
+import { BASE_WALL } from '../sim/mapgen';
+import { TEAM_BASES } from '../constants';
 
 // 'courtyard' and 'carpark' are a district's choice, not textures: each block is ringed along the
 // street with one ground and filled in the middle with another (see groundOfTile):
 //   courtyard  light concrete 'paving' round a 'lawn'
 //   carpark    dark 'walkway' pavers round empty 'parking' bays
 //   corporate  polished 'granite' round patterned 'plazaStone'
-export type GroundStyle = 'corporate' | 'granite' | 'plazaStone' | 'courtyard' | 'paving' | 'lawn' | 'carpark' | 'walkway' | 'parking' | 'yard' | 'slab' | 'hex';
+export type GroundStyle = 'corporate' | 'granite' | 'plazaStone' | 'courtyard' | 'paving' | 'lawn' | 'carpark' | 'walkway' | 'parking' | 'yard' | 'slab' | 'gravel';
 type SplitGround = 'courtyard' | 'carpark' | 'corporate';
 export type TileGround = Exclude<GroundStyle, SplitGround>;
-export type GroundTexture = Exclude<TileGround, 'hex'>;
+export type GroundTexture = TileGround;
 
 export type RoadStyle = 'city' | 'suburb';
 // The road textures: a straight piece (markings run along it), a junction (unmarked), and the
 // main boulevard's own straight piece.
-export type RoadPiece = 'cityStraight' | 'cityJunction' | 'suburbStraight' | 'suburbJunction' | 'avenue';
+export type RoadPiece = 'cityStraight' | 'cityJunction' | 'suburbStraight' | 'suburbJunction' | 'avenue' | 'baseLane' | 'basePad';
 
 export interface DistrictTheme {
   ground: GroundStyle;
@@ -47,8 +49,9 @@ export const DISTRICT_THEMES: Record<District, DistrictTheme> = {
   // (BlackwallCracks.tsx).
   outskirts: { ground: 'carpark', road: 'suburb', sidewalks: false, crosswalks: false },
   fringe: { ground: 'slab', road: 'suburb', sidewalks: false, crosswalks: false },
-  // The bases keep the hex-grid ground they always had.
-  base: { ground: 'hex', road: 'suburb', sidewalks: false, crosswalks: false },
+  // The bases: military gravel outside the compound walls (the compound itself is deck plating,
+  // see roadPieceOf).
+  base: { ground: 'gravel', road: 'suburb', sidewalks: false, crosswalks: false },
 };
 
 const ROAD_STRIDE = 6;
@@ -76,6 +79,14 @@ export function groundOfTile(x: number, z: number, gridSize: number): TileGround
   return onStreet ? 'walkway' : 'parking';
 }
 
+// Whether a tile is inside a starting base's walls (sim/mapgen.ts baseCompound), gates included.
+export function inBaseCompound(x: number, z: number, gridSize: number): boolean {
+  const last = gridSize - 1;
+  const [fx, fz] = x + z > last ? [last - x, last - z] : [x, z];
+  const reach = BASE_WALL.reach;
+  return Math.abs(fx - TEAM_BASES.blue.x) <= reach && Math.abs(fz - TEAM_BASES.blue.z) <= reach && fx <= TEAM_BASES.blue.x + reach && fz <= TEAM_BASES.blue.z + reach;
+}
+
 // Which road piece a road tile takes, and whether it runs along x (else along z). A tile on one
 // road line is a straight piece of it; where lines cross, or off the lines (the paved squares
 // round the starting bases), it is a junction. The district picks city or suburb; the main
@@ -84,6 +95,8 @@ export function roadPieceOf(x: number, z: number, type: 'main' | 'street', gridS
   const centre = Math.floor(gridSize / 2);
   const onX = x % ROAD_STRIDE === 0 || x === centre; // A road running along z.
   const onZ = z % ROAD_STRIDE === 0 || z === centre; // A road running along x.
+  // Inside a starting base's walls (gates included): deck plating, with marked lanes out.
+  if (inBaseCompound(x, z, gridSize)) return onX !== onZ ? { piece: 'baseLane', alongX: onZ } : { piece: 'basePad', alongX: false };
   const style = themeOfTile(x, z, gridSize).road;
   if (onX === onZ) return { piece: style === 'city' || type === 'main' ? 'cityJunction' : 'suburbJunction', alongX: false };
   const alongX = onZ;
@@ -126,6 +139,37 @@ function paintLine(ctx: CanvasRenderingContext2D, rand: () => number, x: number,
   for (let k = 0; k < 40; k++) ctx.fillRect(x - width / 2 + rand() * width, rand() * SIZE, 2 + rand() * 3, 2 + rand() * 4);
 }
 
+// Reinforced concrete deck plates, two by two a tile, joined by steel strips with bolt plates
+// at the corners; scuffed, with a faded stencilled number.
+function deck(ctx: CanvasRenderingContext2D, rand: () => number) {
+  ctx.fillStyle = '#4a4d4c';
+  ctx.fillRect(0, 0, SIZE, SIZE);
+  const n = 2, s = SIZE / n;
+  for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+    const shade = 66 + Math.floor(rand() * 8);
+    ctx.fillStyle = `rgb(${shade}, ${shade + 3}, ${shade})`;
+    ctx.fillRect(i * s + 9, j * s + 9, s - 18, s - 18);
+  }
+  grime(ctx, rand, ['#3c3f3e', '#5c605e', '#4a4640'], 7000, 3, 0.35);
+  for (let k = 0; k < 3; k++) blot(ctx, rand() * SIZE, rand() * SIZE, 30 + rand() * 40, '#2c2e2d', 0.35);
+  // Steel joint strips with a lit edge.
+  ctx.fillStyle = '#5d6366';
+  for (let i = 0; i <= n; i++) { ctx.fillRect(i * s - 5, 0, 10, SIZE); ctx.fillRect(0, i * s - 5, SIZE, 10); }
+  ctx.fillStyle = 'rgba(200, 210, 215, 0.25)';
+  for (let i = 0; i <= n; i++) { ctx.fillRect(i * s - 5, 0, 2, SIZE); ctx.fillRect(0, i * s - 5, SIZE, 2); }
+  // Bolt plates where the strips cross.
+  for (let i = 0; i <= n; i++) for (let j = 0; j <= n; j++) {
+    ctx.fillStyle = '#6b7175';
+    ctx.fillRect(i * s - 16, j * s - 16, 32, 32);
+    ctx.fillStyle = '#2a2d2f';
+    for (const [bx, by] of [[-9, -9], [9, -9], [-9, 9], [9, 9]]) { ctx.beginPath(); ctx.arc(i * s + bx, j * s + by, 3, 0, Math.PI * 2); ctx.fill(); }
+  }
+  // A faded stencilled plate number.
+  ctx.fillStyle = 'rgba(214, 220, 214, 0.18)';
+  ctx.font = 'bold 44px monospace';
+  ctx.fillText(`0${1 + Math.floor(rand() * 9)}`, s * 0.25, s * 0.62);
+}
+
 const YELLOW = 'rgba(222, 176, 52, 0.9)';
 const WHITE = 'rgba(226, 229, 233, 0.75)';
 
@@ -164,10 +208,19 @@ const ROAD_DRAW: Record<RoadPiece, (ctx: CanvasRenderingContext2D, rand: () => n
     paintLine(ctx, rand, SIZE / 2, 9, 'rgba(214, 170, 60, 0.65)', [96, 160]);
   },
   suburbJunction: (ctx, rand) => asphalt(ctx, rand, 'suburb'),
+  // Inside a base: deck plating.
+  basePad: (ctx, rand) => deck(ctx, rand),
+  // A lane through the base out to a gate: solid yellow edges and a dashed white centre line.
+  baseLane: (ctx, rand) => {
+    deck(ctx, rand);
+    paintLine(ctx, rand, SIZE * 0.14, 10, YELLOW);
+    paintLine(ctx, rand, SIZE * 0.86, 10, YELLOW);
+    paintLine(ctx, rand, SIZE / 2, 8, WHITE, [96, 160]);
+  },
 };
 
 export const createRoadTexture = (piece: RoadPiece) =>
-  canvasTexture(ROAD_DRAW[piece], { cityStraight: 71, avenue: 73, cityJunction: 79, suburbStraight: 83, suburbJunction: 89 }[piece]);
+  canvasTexture(ROAD_DRAW[piece], { cityStraight: 71, avenue: 73, cityJunction: 79, suburbStraight: 83, suburbJunction: 89, basePad: 97, baseLane: 101 }[piece]);
 
 // --- Ground textures ---
 
@@ -370,6 +423,18 @@ const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => nu
     crack(ctx, rand, '#1a1d22', 1.5, 4);
   },
   parking: (ctx, rand) => drawParking(ctx, rand),
+  // Compacted military gravel: dark crushed stone in greys and browns, with faint track ruts.
+  gravel: (ctx, rand) => {
+    ctx.fillStyle = '#37382f';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    for (let k = 0; k < 7000; k++) {
+      const c = rand();
+      ctx.fillStyle = c > 0.75 ? '#5b5a50' : c > 0.5 ? '#4a4a42' : c > 0.25 ? '#2b2c26' : '#504638';
+      const x = rand() * SIZE, y = rand() * SIZE, r = 1.5 + rand() * 3.5;
+      ctx.beginPath(); ctx.moveTo(x, y - r); ctx.lineTo(x + r, y); ctx.lineTo(x, y + r * 0.8); ctx.lineTo(x - r * 0.9, y); ctx.closePath(); ctx.fill();
+    }
+    for (let k = 0; k < 4; k++) blot(ctx, rand() * SIZE, rand() * SIZE, 40 + rand() * 50, '#25261f', 0.3);
+  },
   // Big weathered concrete slabs: four to a tile, each a slightly different shade, with wide
   // joints, dust, a few hairline cracks and chipped corners.
   slab: (ctx, rand) => {
@@ -394,7 +459,7 @@ const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => nu
 };
 
 export const createGroundTexture = (style: GroundTexture) =>
-  canvasTexture(DRAW[style], { granite: 11, plazaStone: 13, paving: 23, lawn: 29, walkway: 31, parking: 41, yard: 37, slab: 53 }[style]);
+  canvasTexture(DRAW[style], { granite: 11, plazaStone: 13, paving: 23, lawn: 29, walkway: 31, parking: 41, yard: 37, slab: 53, gravel: 59 }[style]);
 
 // --- Streetscape textures ---
 
