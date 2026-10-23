@@ -22,9 +22,10 @@ import { useFrame } from '@react-three/fiber';
 import { TEAM_COLORS } from '../constants';
 import type { BuildingData } from '../types';
 import { AD_COUNT, HoloBillboard } from './HoloBillboard';
-import { type Crown, facadeOf, facadeWindowMaterial, featureSides, goldScaleMaterial, MASSING_STEPS, shopfrontMaterial } from './corpoFacades';
+import { type Crown, facadeOf, stencilMaterial, facadeWindowMaterial, featureSides, goldScaleMaterial, MASSING_STEPS, shopfrontMaterial } from './corpoFacades';
 import { midtownLookOf } from './midtownLooks';
 import { residentialLookOf } from './residentialLooks';
+import { industrialLookOf } from './industrialLooks';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 type Kind = 'commercial' | 'hightech' | 'industrial' | 'residential';
@@ -338,6 +339,31 @@ const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: b
         ))}
       </>
     )}
+    {crown === 'smokestack' && (
+      <group position={[span * 0.2, 0, -span * 0.15]}>
+        <mesh position={[0, 9, 0]} material={stackMaterial} castShadow><cylinderGeometry args={[1.1, 1.6, 18, 12]} /></mesh>
+        {[5, 16].map(y => <mesh key={y} position={[0, y, 0]} material={neonMaterial('#dc2626')}><cylinderGeometry args={[1.25 + (18 - y) * 0.02, 1.25 + (18 - y) * 0.02, 1.2, 12]} /></mesh>)}
+        <mesh position={[0, 18.2, 0]} material={redLight()}><sphereGeometry args={[0.35, 6, 4]} /></mesh>
+        <Smoke y={18} />
+      </group>
+    )}
+    {crown === 'redtanks' && [[-0.2, -0.18, 1.8], [0.2, -0.18, 1.5], [0, 0.22, 1.7]].map(([x, z, r], i) => (
+      <group key={i} position={[x * span, 0, z * span]}>
+        <mesh position={[0, 1.6, 0]} material={redTankMaterial} castShadow><cylinderGeometry args={[r, r, 3.2, 16]} /></mesh>
+        <mesh position={[0, 3.25, 0]} material={stackMaterial}><cylinderGeometry args={[r * 0.98, r, 0.15, 16]} /></mesh>
+      </group>
+    ))}
+    {crown === 'vents' && [[-0.22, -0.2], [0.18, -0.2], [-0.22, 0.2], [0.18, 0.2]].map(([x, z], i) => (
+      <group key={i} position={[x * span, 0, z * span]}>
+        <mesh position={[0, 0.8, 0]} material={acMaterial}><boxGeometry args={[span * 0.28, 1.6, span * 0.28]} /></mesh>
+        <mesh position={[0, 1.62, 0]} rotation={[-Math.PI / 2, 0, 0]} material={escapeMaterial}><circleGeometry args={[span * 0.11, 12]} /></mesh>
+      </group>
+    ))}
+    {crown === 'crane' && (
+      <group position={[-span * 0.25, 0, -span * 0.25]}>
+        <Crane mast={14 + (long % 7) * 1.4} jibAngle={(long * 1.7) % (Math.PI * 2)} />
+      </group>
+    )}
     {crown === 'shack' && (
       <group position={[-span * 0.12, 0, -span * 0.08]}>
         <mesh position={[0, 1.3, 0]} material={tankMaterial} castShadow><boxGeometry args={[span * 0.42, 2.6, span * 0.36]} /></mesh>
@@ -371,6 +397,46 @@ const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: b
     )}
   </group>
 );
+
+// Industry: smokestacks, red tanks, the dark band round a plant's foot, and drifting smoke.
+const stackMaterial = new THREE.MeshStandardMaterial({ color: '#b8b6ae', metalness: 0.2, roughness: 0.8 });
+const redTankMaterial = new THREE.MeshStandardMaterial({ color: '#b91c1c', metalness: 0.4, roughness: 0.5, emissive: '#3f0606' });
+const skirtMaterials = new Map<string, THREE.MeshStandardMaterial>();
+const skirtMaterial = (color: string) => {
+  let m = skirtMaterials.get(color);
+  if (!m) { m = new THREE.MeshStandardMaterial({ color, metalness: 0.4, roughness: 0.7 }); skirtMaterials.set(color, m); }
+  return m;
+};
+// Smoke: two crossed planes above a stack, with billowing noise scrolling up them and fading out.
+const smokeTime = { value: 0 };
+const smokeMaterial = new THREE.ShaderMaterial({
+  uniforms: { uTime: smokeTime },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `
+    uniform float uTime; varying vec2 vUv;
+    float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    float n(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(h(i), h(i + vec2(1, 0)), f.x), mix(h(i + vec2(0, 1)), h(i + vec2(1, 1)), f.x), f.y); }
+    void main() {
+      vec2 p = vec2(vUv.x * 3.0, vUv.y * 5.0 - uTime * 0.6);
+      float d = n(p) * 0.6 + n(p * 2.3) * 0.4;
+      // A plume that widens as it rises and thins out at the top.
+      float width = 0.12 + vUv.y * 0.35;
+      float plume = smoothstep(width, width * 0.3, abs(vUv.x - 0.5 + sin(vUv.y * 3.0 + uTime * 0.3) * 0.08));
+      float a = plume * d * (1.0 - smoothstep(0.6, 1.0, vUv.y)) * smoothstep(0.0, 0.06, vUv.y) * 1.2;
+      if (a < 0.02) discard;
+      gl_FragColor = vec4(vec3(0.32, 0.32, 0.34) * (0.7 + d * 0.5), a);
+    }`,
+  transparent: true, depthWrite: false, side: THREE.DoubleSide,
+});
+const Smoke: React.FC<{ y: number }> = ({ y }) => {
+  useFrame(({ clock }) => { smokeTime.value = clock.elapsedTime; });
+  return (
+    <group position={[0, y + 10, 0]}>
+      {[0, Math.PI / 2].map(r => <mesh key={r} rotation={[0, r, 0]} material={smokeMaterial}><planeGeometry args={[12, 22]} /></mesh>)}
+    </group>
+  );
+};
 
 // Cheap-housing clutter: cloth on a laundry line, AC units, fire escapes.
 const clothMaterials = new Map<string, THREE.MeshStandardMaterial>();
@@ -431,7 +497,7 @@ const FootprintSegmentView: React.FC<{
   const anchor = f.tower ? isTower : lx === Math.floor((f.w - 1) / 2) && lz === Math.floor((f.d - 1) / 2);
   // Corporate towers each wear one of the facade styles (corpoFacades.ts).
   // Midtown blocks have their own looks too (midtownLooks.ts).
-  const facade = useMemo(() => (kind === 'commercial' ? facadeOf(f) : kind === 'hightech' ? midtownLookOf(f) : kind === 'residential' ? residentialLookOf(f) : null), [kind, f]);
+  const facade = useMemo(() => (kind === 'commercial' ? facadeOf(f) : kind === 'hightech' ? midtownLookOf(f) : kind === 'residential' ? residentialLookOf(f) : kind === 'industrial' ? industrialLookOf(f) : null), [kind, f]);
   const accent = data.owner ? TEAM_COLORS[data.owner] : facade?.accent ?? style.accent;
   // The fire escape goes on the broad face toward its own side's camera.
   const blueSide = f.x + f.z + (f.w + f.d) / 2 - 1 < 78;
@@ -612,8 +678,23 @@ const FootprintSegmentView: React.FC<{
 
       {billboard && <HoloBillboard {...billboard} />}
 
-      {/* Pipe runs along the outside walls of every shed, unbroken from tile to tile. */}
-      {kind === 'industrial' && windows.map(w => (
+      {/* Industry: a dark band round the foot of the walls, a code stencilled big on the front. */}
+      {facade?.skirt && windows.filter(w => w.key.endsWith('-0')).map(w => (
+        <mesh key={`skirt-${w.key}`} position={[w.position[0], h * 0.17, w.position[2]]} rotation={[0, w.rot, 0]} material={skirtMaterial(facade.skirt!)}>
+          <boxGeometry args={[w.width + 0.12, h * 0.34, 0.12]} />
+        </mesh>
+      ))}
+      {facade?.stencil && h >= 9 && windows.filter(w => w.key.endsWith('-0') && w.side === escapeSide && (w.alongX ? lx === 0 : lz === 0)).map(w => {
+        const size = Math.min(w.width * 0.8, h * 0.45, 9);
+        return (
+          <group key={`code-${w.key}`} position={[w.position[0], h * 0.62, w.position[2]]} rotation={[0, w.rot, 0]}>
+            <mesh position={[0, 0, 0.1]} material={stencilMaterial(facade.stencil!)}><planeGeometry args={[size, size]} /></mesh>
+          </group>
+        );
+      })}
+
+      {/* Pipe runs along the outside walls of sheds, unbroken from tile to tile. */}
+      {facade?.pipes && windows.map(w => (
         <group key={`pipes-${w.side}`} position={[w.position[0], 0, w.position[2]]} rotation={[0, w.rot, 0]}>
           <mesh position={[0, Math.min(h - 1.5, 5.5), 0.55]} rotation={[0, 0, Math.PI / 2]} material={pipeMaterial}>
             <cylinderGeometry args={[0.35, 0.35, w.width, 8]} />
@@ -629,7 +710,7 @@ const FootprintSegmentView: React.FC<{
       ))}
 
       {/* Sawtooth roof on every shed tile, running along the shed. */}
-      {kind === 'industrial' && [-0.25, 0.25].map(o => (
+      {facade?.sawtooth && [-0.25, 0.25].map(o => (
         <group key={o} position={[longAlongX ? bx : bx + o * T, h, longAlongX ? bz + o * T : bz]} rotation={[0, longAlongX ? 0 : Math.PI / 2, 0]}>
           <mesh position={[0, 1.1, 0]} rotation={[-0.45, 0, 0]} material={sawtoothMaterial}>
             <boxGeometry args={[longAlongX ? bw : bd, 0.25, T * 0.5]} />
@@ -641,39 +722,6 @@ const FootprintSegmentView: React.FC<{
       ))}
 
       {anchor && facade && <TowerCrown crown={facade.crown ?? 'spire'} span={Math.min(bw, bd)} long={Math.max(bw, bd)} alongX={bw >= bd} h={h} accent={accent} position={[bx, h, bz]} />}
-
-      {anchor && kind === 'industrial' && (
-        <>
-          <group position={[bx + T * 0.2, h, bz - T * 0.2]}>
-            <mesh position={[0, 6, 0]} material={plantMaterial} castShadow>
-              <cylinderGeometry args={[1, 1.3, 12, 10]} />
-            </mesh>
-            <mesh position={[0, 11.2, 0]} material={neonMaterial('#ff003c')}>
-              <cylinderGeometry args={[1.05, 1.05, 0.4, 10]} />
-            </mesh>
-          </group>
-          {/* A storage tank, fed by a pipe that climbs from the roof and bends over into it. */}
-          <group position={[bx - T * 0.22, h, bz + T * 0.2]}>
-            <mesh position={[0, 2.2, 0]} material={pipeMaterial} castShadow>
-              <cylinderGeometry args={[2, 2, 4.4, 14]} />
-            </mesh>
-            <mesh position={[0, 4.5, 0]} material={pipeMaterial}>
-              <sphereGeometry args={[2, 14, 6, 0, Math.PI * 2, 0, Math.PI / 2]} />
-            </mesh>
-            <mesh position={[2.9, 2.6, 0]} material={rustMaterial}>
-              <cylinderGeometry args={[0.3, 0.3, 5.2, 8]} />
-            </mesh>
-            <mesh position={[2.45, 5.2, 0]} rotation={[0, 0, Math.PI / 2]} material={rustMaterial}>
-              <cylinderGeometry args={[0.3, 0.3, 1.2, 8]} />
-            </mesh>
-          </group>
-          {tileHash(data.gridX, data.gridZ, 11) < 0.6 && (
-            <group position={[bx - T * 0.25, h, bz - T * 0.25]}>
-              <Crane mast={14 + tileHash(data.gridX, data.gridZ, 12) * 10} jibAngle={tileHash(data.gridX, data.gridZ, 13) * Math.PI * 2} />
-            </group>
-          )}
-        </>
-      )}
 
     </group>
   );

@@ -23,7 +23,9 @@ export type FacadeName = 'monolith' | 'goldscale' | 'office' | 'brutalist' | 'ti
   // Midtown's apartment blocks (midtownLooks.ts).
   | 'bands' | 'apartment' | 'balcony'
   // The outskirts' cheap housing (residentialLooks.ts).
-  | 'tenement' | 'projects' | 'patched';
+  | 'tenement' | 'projects' | 'patched'
+  // Industry (industrialLooks.ts).
+  | 'plant' | 'rustshed' | 'warehouse';
 
 export interface Facade {
   name: FacadeName;
@@ -50,6 +52,12 @@ export interface Facade {
   // building's front.
   clutter?: boolean;
   fireEscape?: boolean;
+  // Industry: a dark band round the foot of the walls (its colour) and a stencilled code painted
+  // big on the front; pipes along the walls; a sawtooth roof.
+  skirt?: string;
+  stencil?: string;
+  pipes?: boolean;
+  sawtooth?: boolean;
 }
 
 export const FACADES: Record<FacadeName, Facade> = {
@@ -66,6 +74,10 @@ export const FACADES: Record<FacadeName, Facade> = {
   tenement: { name: 'tenement', body: '#4a3f38', bodies: ['#4a3f38', '#3f4a48', '#4d4436', '#45394a'], accent: '#38bdf8', texW: 4.5, texH: 3.6 },
   projects: { name: 'projects', body: '#4b4e52', bodies: ['#4b4e52', '#55524b', '#474c55'], accent: '#7dd3fc', texW: 6, texH: 3.4 },
   patched: { name: 'patched', body: '#3c4146', bodies: ['#3c4146', '#463f3b', '#3a4440'], accent: '#f472b6', texW: 7, texH: 7 },
+  // Industry: pale corporate plant concrete, rusty teal and orange sheds, corrugated warehouses.
+  plant: { name: 'plant', body: '#8d8c86', bodies: ['#8d8c86', '#9a978f', '#7f817e'], accent: '#ef4444', texW: 8, texH: 6, skirt: '#26272a' },
+  rustshed: { name: 'rustshed', body: '#5b4335', bodies: ['#5b4335', '#2f4d4a', '#4d3b30'], accent: '#5eead4', texW: 6, texH: 5 },
+  warehouse: { name: 'warehouse', body: '#4a4e53', bodies: ['#4a4e53', '#55585c', '#3f4447'], accent: '#f59e0b', texW: 14, texH: 14 },
 };
 
 // How a tower is massed, from the ground up: at each share of its height, how many steps its
@@ -95,7 +107,10 @@ export type Crown = 'spire' | 'stepped' | 'helipad' | 'antennas' | 'blade' | 'be
   // Apartment roofs: water tanks, a roof garden, plant and an antenna ring.
   | 'tanks' | 'garden' | 'plant'
   // Cheap housing: a shack built on the roof, satellite dishes, a laundry line.
-  | 'shack' | 'dishes' | 'laundry';
+  | 'shack' | 'dishes' | 'laundry'
+  // Industry: a tall smokestack with drifting smoke, red storage tanks, rooftop vents and fans,
+  // a tower crane.
+  | 'smokestack' | 'redtanks' | 'vents' | 'crane';
 
 // Every corporate tower on blue's side, by the corner of its footprint (sim/cityPlan.ts): its
 // facade, its massing, its crown and which of its style's body shades it wears (0 the darkest,
@@ -290,6 +305,29 @@ const WINDOWS: Record<FacadeName, (g: CanvasRenderingContext2D, rnd: () => numbe
     g.fillStyle = 'rgba(34,211,238,0.7)';
     g.fillRect(20 + rnd() * 60, 100, 26, 3);
   },
+  // Big concrete panels with grimy joints and a few small high windows.
+  plant: (g, rnd) => {
+    g.fillStyle = 'rgba(30,30,30,0.35)';
+    for (let x = 0; x <= 128; x += 64) g.fillRect(x, 0, 2, 128);
+    g.fillRect(0, 63, 128, 2);
+    for (let i = 0; i < 6; i++) { g.fillStyle = 'rgba(20,20,20,0.18)'; g.fillRect(rnd() * 120, 0, 3 + rnd() * 5, 40 + rnd() * 80); }
+    for (let col = 0; col < 4; col++) if (rnd() > 0.4) { g.fillStyle = 'rgba(253,230,160,0.7)'; g.fillRect(col * 32 + 8, 12, 14, 6); }
+  },
+  // Painted panels with horizontal louvre vents and the odd lit window.
+  rustshed: (g, rnd) => {
+    g.fillStyle = 'rgba(0,0,0,0.25)';
+    for (let x = 0; x < 128; x += 32) g.fillRect(x, 0, 2, 128);
+    for (let k = 0; k < 2; k++) {
+      const x = Math.floor(rnd() * 3) * 32 + 4, y = 20 + k * 56;
+      for (let i = 0; i < 8; i++) { g.fillStyle = 'rgba(15,15,15,0.55)'; g.fillRect(x, y + i * 4, 56, 2); }
+    }
+    if (rnd() > 0.3) { g.fillStyle = 'rgba(253,214,150,0.75)'; g.fillRect(100, 10, 14, 10); }
+  },
+  // Corrugated sheet: fine vertical ribs, a strip of high windows.
+  warehouse: (g, rnd) => {
+    for (let x = 0; x < 128; x += 4) { g.fillStyle = x % 8 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.2)'; g.fillRect(x, 0, 2, 128); }
+    for (let col = 0; col < 8; col++) { g.fillStyle = rnd() > 0.4 ? 'rgba(251,191,36,0.6)' : 'rgba(251,191,36,0.12)'; g.fillRect(col * 16 + 3, 70, 10, 8); }
+  },
 };
 
 const windowMaterials = new Map<FacadeName, THREE.MeshBasicMaterial>();
@@ -356,4 +394,24 @@ export function shopfrontMaterial(): THREE.MeshBasicMaterial {
   }, 777);
   shopMaterial = new THREE.MeshBasicMaterial({ map: tex, toneMapped: false });
   return shopMaterial;
+}
+
+// A code stencilled big in white on a wall, the way plants mark their buildings.
+const stencilMaterials = new Map<string, THREE.MeshBasicMaterial>();
+export function stencilMaterial(code: string): THREE.MeshBasicMaterial {
+  let m = stencilMaterials.get(code);
+  if (!m) {
+    const tex = canvas(256, g => {
+      g.clearRect(0, 0, 256, 256);
+      g.fillStyle = 'rgba(235,235,228,0.85)';
+      g.font = `bold ${code.length > 3 ? 70 : 110}px monospace`;
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(code, 128, 128);
+    }, 1);
+    tex.wrapS = tex.wrapT = THREE.ClampToEdgeWrapping;
+    m = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false });
+    stencilMaterials.set(code, m);
+  }
+  return m;
 }

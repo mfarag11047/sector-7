@@ -13,6 +13,7 @@ import BlockStatus from './BlockStatus';
 import { InstancedRoads } from './RoadSystem';
 import Streetscape from './Streetscape';
 import IndustrialYard from './IndustrialYard';
+import IndustrialGantries from './IndustrialGantries';
 import BlackwallCorruption from './BlackwallCorruption';
 import DowntownDressing from './DowntownDressing';
 import DowntownBridges from './DowntownBridges';
@@ -4187,6 +4188,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         <Streetscape tiles={roadTiles} tileSize={CITY_CONFIG.tileSize} offset={offset} tileScale={0.95} />
         {/* Hazard stripes, tyre tracks and oil in the industrial yards, laid out from the sheds. */}
         <IndustrialYard tiles={roadTiles} buildings={initialBuildings} tileSize={CITY_CONFIG.tileSize} offset={offset} />
+        {/* Pipe gantries between the industrial buildings. */}
+        <IndustrialGantries buildings={buildings} tileSize={CITY_CONFIG.tileSize} offset={offset} />
         {/* The fringe, corrupted by the Blackwall: glitching cracks in the slabs and on the buildings. */}
         <BlackwallCorruption tiles={roadTiles} buildings={buildings} tileSize={CITY_CONFIG.tileSize} offset={offset} />
         {/* Downtown: neon along the kerbs, planters at the foot of the towers. */}

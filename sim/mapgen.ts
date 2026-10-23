@@ -117,7 +117,7 @@ export const DISTRICT_STYLES: Record<District, DistrictStyle> = {
   core: { height: [40, 70], types: ['commercial'] },
   downtown: { height: [30, 60], types: ['commercial'] },
   midtown: { height: [16, 34], types: ['hightech'] },
-  industrial: { height: [7, 14], types: ['industrial'] },
+  industrial: { height: [8, 22], types: ['industrial'] },
   outskirts: { height: [10, 22], types: ['residential'] },
   // Shacks, and scrap sheds where a building spans more than one tile.
   fringe: { height: [6, 14], types: ['residential', 'industrial'] },

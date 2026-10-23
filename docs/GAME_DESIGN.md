@@ -924,7 +924,7 @@ Drop, or Masons.
   |---|---|---|---|---|
   | Core / downtown | ~60% | 2×2 to 3×3 towers on podiums and long slabs, tallest towers facing the centre | 30–70 | commercial |
   | Midtown | ~47% | mid-rise slabs lining the streets round open courtyards, pinwheel blocks, a few data spires | 16–34 | high-tech |
-  | Industrial | ~40% | rows of long sheds lined up across the streets, and tank yards, round the core nodes by each base | 7–14 | industrial |
+  | Industrial | ~40% | rows of long sheds lined up across the streets, and tank yards, round the core nodes by each base | 8–22 | industrial |
   | Outskirts | ~27% | terraces of houses facing the streets, a few apartment blocks | 10–22 | residential |
   | Fringe | ~19% | shacks along the inner street, scrap sheds, waste ground out to the edge | 6–14 | residential (sheds industrial) |
   | Base | ~12% | barracks rows beside the starting square | 8–16 | residential |
@@ -996,6 +996,14 @@ Drop, or Masons.
   mismatched panels, in weathered paint; mostly sheer, some with a narrower storey added on top;
   AC units bolted on the walls, a zigzag fire escape down the front of most, a corner shop under
   a few, and on the roof a shack, satellite dishes, a laundry line or water tanks.
+- Industry follows Night City's industrial districts (`components/industrialLooks.ts`): pale
+  corporate plant halls with a dark band round their foot and a code stencilled big on the front,
+  rusty teal and orange sheds with louvre vents, wall pipes and external stairs, and corrugated
+  warehouses under sawtooth roofs; on the roofs, smokestacks with drifting smoke, red storage
+  tanks, vents and fans, or tower cranes. Each zone has one big plant hall. Pipe gantries
+  (`components/IndustrialGantries.tsx`) cross every alley and street between facing industrial
+  buildings: red steel trusses carrying pipes from the halls and sheds, bare pipe runs between the
+  small utility blocks. Industrial heights run 8 to 22.
 - A building bigger than one tile is drawn as one building (`components/FootprintBuilding.tsx`),
   though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
   run along its outside faces only, a dark roof slab with a lit rim covers it (in the owner's
