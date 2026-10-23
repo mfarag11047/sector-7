@@ -3,8 +3,8 @@
 // Four megatowers ring the central server node, each a different corp with its own silhouette:
 //   - Tokugen: a defence giant's fortress after Militech's tower: a massive slab with a service
 //     tower bolted on, ribbed floors jutting from its front and green neon throughout.
-//   - Nexum: a black monolith with a raked crown, a huge red neon emblem and a searchlight
-//     sweeping the sky.
+//   - Nexum: a pale concrete slab after Petrochem's tower: fluted stepped ribs, a ribbed tower
+//     behind, louvres down the middle between holo-advert strips, its emblem in neon.
 //   - Axiom: twin spires joined by a sky bridge, a beam of blue light from the roof and a
 //     giant holographic koi circling between them.
 //   - Vanta: an ominous dark slate monolith after Arasaka Tower, its foot flared into
@@ -443,45 +443,98 @@ const Tokugen: React.FC<{ kit: Kit }> = ({ kit }) => {
   );
 };
 
-// Nexum: a black monolith with a raked crown, a red neon emblem and a sweeping searchlight.
+// Nexum: an energy giant's headquarters, after Night City's Petrochem tower. A pale grey concrete
+// slab with fluted, stepped ribs up its corners and a taller ribbed tower rising behind; high on
+// its front a dark recessed panel carries the emblem under a heavy ledge; down the middle a
+// column of dark louvres over a glass grid, flanked by two tall holo-advert strips; rows of vent
+// slits; the emblem again in neon at the foot.
+
+// Pale concrete: tall plates, faint vertical fluting, weathering streaks.
+function concreteTexture(slits: boolean) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 256;
+  const g = c.getContext('2d')!;
+  let seed = slits ? 77 : 61;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  g.fillStyle = '#7d8087';
+  g.fillRect(0, 0, 256, 256);
+  for (let x = 0; x < 256; x += 16) { g.fillStyle = x % 32 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.12)'; g.fillRect(x, 0, 3, 256); }
+  for (let k = 0; k < 10; k++) { g.fillStyle = 'rgba(40,40,44,0.12)'; g.fillRect(rnd() * 256, 0, 2 + rnd() * 6, 60 + rnd() * 196); }
+  g.fillStyle = 'rgba(30,30,34,0.35)';
+  g.fillRect(0, 127, 256, 2);
+  if (slits) {
+    // Vertical rows of small vent slits.
+    for (const x of [40, 120, 200]) for (let y = 10; y < 250; y += 9) { g.fillStyle = 'rgba(15,15,18,0.75)'; g.fillRect(x, y, 14, 3); }
+    for (let k = 0; k < 8; k++) { g.fillStyle = 'rgba(255,220,180,0.55)'; g.fillRect(Math.floor(rnd() * 3) * 80 + 40, rnd() * 250, 14, 3); }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+// Dark louvres: horizontal slats with a faint glow between.
+function louvreTexture() {
+  const c = document.createElement('canvas');
+  c.width = 64; c.height = 128;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#121418';
+  g.fillRect(0, 0, 64, 128);
+  for (let y = 0; y < 128; y += 6) { g.fillStyle = '#2a2d33'; g.fillRect(0, y, 64, 3); g.fillStyle = 'rgba(255,140,100,0.12)'; g.fillRect(0, y + 3, 64, 1); }
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
 const Nexum: React.FC<{ kit: Kit }> = ({ kit }) => {
-  const red = '#ff4a3a';
-  const crown = useMemo(() => {
-    // Side profile: the roof rises from 0 at the back to 26 at the front.
-    const shape = new THREE.Shape();
-    shape.moveTo(-17, 0); shape.lineTo(17, 0); shape.lineTo(17, 26); shape.lineTo(-17, 6); shape.lineTo(-17, 0);
-    const g = new THREE.ExtrudeGeometry(shape, { depth: 34, bevelEnabled: false });
-    g.translate(0, 0, -17);
-    return g;
-  }, []);
-  useEffect(() => () => crown.dispose(), [crown]);
+  const neon = '#ff7a5a';
+  const [plain, slitted, louvre] = useDisposable(() => [concreteTexture(false), concreteTexture(true), louvreTexture()], []);
+  const mats = useMemo(() => {
+    const tiled = (t: THREE.Texture, rx: number, ry: number) => { const c = t.clone(); c.needsUpdate = true; c.repeat.set(rx, ry); return c; };
+    return {
+      slab: new THREE.MeshStandardMaterial({ map: tiled(slitted, 2, 6), color: '#ffffff', metalness: 0.2, roughness: 0.75 }),
+      rib: new THREE.MeshStandardMaterial({ map: tiled(plain, 0.3, 6), color: '#e6e7ea', metalness: 0.2, roughness: 0.7 }),
+      tower: new THREE.MeshStandardMaterial({ map: tiled(slitted, 1, 7), color: '#d9dadf', metalness: 0.25, roughness: 0.7 }),
+      louvre: new THREE.MeshStandardMaterial({ map: tiled(louvre, 2, 6), color: '#ffffff', metalness: 0.5, roughness: 0.5, emissive: '#2a0f08', emissiveIntensity: 0.4 }),
+      dark: new THREE.MeshStandardMaterial({ color: '#16181d', metalness: 0.6, roughness: 0.45 }),
+    };
+  }, [plain, slitted, louvre]);
+  useEffect(() => () => { for (const m of Object.values(mats)) { m.map?.dispose(); m.dispose(); } }, [mats]);
+  const B: React.FC<{ size: [number, number, number]; position: [number, number, number]; m: keyof typeof mats }> = ({ size, position, m }) => (
+    <mesh position={position} material={mats[m]} castShadow receiveShadow><boxGeometry args={size} /></mesh>
+  );
   return (
     <group>
-      <WindowBlock size={[62, 8, 62]} position={[0, 4, 0]} tex={kit.windows.cool} />
-      <NeonFrame w={62} d={62} y={8.2} color={red} />
-      {/* The monolith, turned a little off the street grid. */}
-      <group rotation={[0, Math.PI / 10, 0]}>
-        <WindowBlock size={[34, 190, 34]} position={[0, 103, 0]} tex={kit.windows.cool} />
-        <mesh geometry={crown} position={[0, 198, 0]} rotation={[0, Math.PI / 2, 0]}>
-          <meshStandardMaterial color="#0b0f1a" metalness={0.8} roughness={0.3} />
-        </mesh>
-        <Neon size={[0.6, 0.6, 34.4]} position={[17.2, 198.3, 0]} color={red} />
-        {/* A dark cladding band the emblem hangs on. */}
-        <mesh position={[0, 165, 0]} material={FRAME}><boxGeometry args={[35, 40, 35]} /></mesh>
-        <Sign tex={kit.signs.nexum} glow={kit.glow} color={red} size={[30, 22.5]} position={[0, 165, 17.6]} />
-        <Sign tex={kit.signs.nexum} glow={kit.glow} color={red} size={[30, 22.5]} position={[0, 165, -17.6]} rotationY={Math.PI} />
-        <Sign tex={kit.signs.nexum} glow={kit.glow} color={red} size={[30, 22.5]} position={[17.6, 165, 0]} rotationY={Math.PI / 2} />
-        <Sign tex={kit.signs.nexum} glow={kit.glow} color={red} size={[30, 22.5]} position={[-17.6, 165, 0]} rotationY={-Math.PI / 2} />
-        {[[-17.3, 17.3], [17.3, 17.3], [-17.3, -17.3], [17.3, -17.3]].map(([x, z], i) => (
-          <Neon key={i} size={[0.5, 186, 0.5]} position={[x, 103, z]} color="#ff7a5a" />
-        ))}
-        <Beacon position={[16, 225, 0]} glow={kit.glow} />
-      </group>
-      {/* A low annex with a tall cyan advert facing the boulevard. */}
-      <WindowBlock size={[20, 70, 20]} position={[-20, 43, 20]} tex={kit.windows.warm} />
-      <Billboard tex={kit.adverts[0]} size={[12, 52]} position={[-20, 44, 30.1]} />
-      <Billboard tex={kit.adverts[1]} size={[12, 52]} position={[-30.1, 44, 20]} rotationY={-Math.PI / 2} speed={0.045} />
-      <SkyBeam position={[8, 212, 4]} color="#ffe9c4" radius={3.5} length={420} tilt={0.35} sweep={0.18} strength={0.6} />
+      <B size={[62, 8, 62]} position={[0, 4, 0]} m="dark" />
+      <NeonFrame w={62} d={62} y={8.2} color={neon} thickness={0.35} />
+      {/* The taller ribbed tower rising behind. */}
+      <B size={[22, 218, 24]} position={[14, 117, -12]} m="tower" />
+      {[8, 14, 20].map(x => <B key={x} size={[1.4, 214, 1.2]} position={[x, 117, 0.6]} m="rib" />)}
+      {/* The main slab, its heavy ledge, and the top section above. */}
+      <B size={[44, 196, 32]} position={[0, 106, 4]} m="slab" />
+      <B size={[47, 3, 35]} position={[0, 160, 4]} m="dark" />
+      {/* Fluted, stepped ribs up both front corners. */}
+      {[1, -1].map(side => [0, 1, 2].map(k => (
+        <B key={`${side}${k}`} size={[2.2, 186 - k * 22, 3]} position={[side * (23.2 - k * 2.4), 101 - k * 11, 18.5 - k * 0.6]} m="rib" />
+      )))}
+      {/* The recessed dark panel high on the front, with the emblem. */}
+      <B size={[30, 32, 1]} position={[0, 182, 20.2]} m="dark" />
+      <Sign tex={kit.signs.nexum} glow={kit.glow} color={neon} size={[26, 19.5]} position={[0, 182, 20.4]} />
+      <B size={[30, 32, 1]} position={[0, 182, -12.2]} m="dark" />
+      <Sign tex={kit.signs.nexum} glow={kit.glow} color={neon} size={[26, 19.5]} position={[0, 182, -12.4]} rotationY={Math.PI} />
+      {/* Down the middle: dark louvres over a glass grid. */}
+      <B size={[12, 42, 1]} position={[0, 132, 20.2]} m="louvre" />
+      <WindowBlock size={[12, 80, 1]} position={[0, 70, 20.2]} tex={kit.windows.amber} tint="#ffd9c4" />
+      {/* Two tall holo-advert strips either side of it. */}
+      <Billboard tex={kit.adverts[0]} size={[5, 120]} position={[-10, 92, 20.3]} speed={0.025} />
+      <Billboard tex={kit.adverts[2]} size={[5, 120]} position={[10, 92, 20.3]} speed={0.032} />
+      {/* The emblem in neon at the foot, and rooftop plant. */}
+      <Sign tex={kit.signs.nexum} glow={kit.glow} color={neon} size={[14, 10.5]} position={[0, 20, 20.6]} />
+      <B size={[10, 6, 8]} position={[-10, 207, 6]} m="dark" />
+      <B size={[8, 4, 8]} position={[6, 206, 10]} m="dark" />
+      <mesh position={[14, 236, -12]} material={FRAME}><cylinderGeometry args={[0.4, 0.9, 20, 6]} /></mesh>
+      <Beacon position={[14, 246, -12]} glow={kit.glow} />
+      <Beacon position={[-18, 205, 18]} glow={kit.glow} phase={1.7} />
     </group>
   );
 };
@@ -698,7 +751,7 @@ const Aerodynes: React.FC<{ glow: THREE.Texture }> = ({ glow }) => {
 // units and usually sits around 80: at this scale the tallest roofs are a little over 110.
 const TOWER_SCALE = 0.5;
 const TOWER_TOP = 230 * TOWER_SCALE;
-const LOT_COLORS: Record<LandmarkKind, string> = { tokugen: '#8dff7a', nexum: '#ff4a3a', axiom: '#3ee0ff', vanta: '#cfe6ff' };
+const LOT_COLORS: Record<LandmarkKind, string> = { tokugen: '#8dff7a', nexum: '#ff7a5a', axiom: '#3ee0ff', vanta: '#cfe6ff' };
 
 // A tower's whole city block: a dark plaza edged in its corp colour, with the tower on it. While
 // the camera is down among the floors of a tower, the tower is hidden so it never fills the view.
@@ -732,7 +785,7 @@ export const Landmarks: React.FC<{ landmarks: Landmark[]; tileSize: number; offs
     windowTexture(41, ['#ffd27a', '#fff1cf', '#ffe6b0'], 0.5),
     windowTexture(53, ['#d9ffd2', '#9dff8a', '#f2fff0'], 0.16),
     signTexture('TOKUGEN', '#8dff7a'),
-    signTexture('NEXUM', '#ff4a3a', { emblem: true }),
+    signTexture('NEXUM', '#ff7a5a', { emblem: true }),
     signTexture('AXIOM', '#3ee0ff'),
     signTexture('VANTA', '#cfe6ff'),
     signTexture('AXIOM', '#3ee0ff', { vertical: true }),

@@ -906,6 +906,10 @@ Drop, or Masons.
   tall service tower bolted to one flank under a steel roof lattice, green neon strips the full
   height, ribbed floors jutting from its front between green brackets, banks of green tubes low
   down, outboard modules stacked up the far flank and the wordmark in green high on the slab.
+  Nexum is modelled after Petrochem's tower: a pale grey concrete slab with fluted, stepped ribs
+  up its corners and a taller ribbed tower behind, its emblem in a dark recessed panel high on the
+  front under a heavy ledge, a column of dark louvres over a glass grid down the middle between
+  two tall holo-advert strips, vent slits, and the emblem again in neon at its foot.
   Vanta is modelled after Arasaka Tower: a dark slate monolith on a
   flared, buttressed foot, flanked by tall side wings under a notched stepped crown, cold seams
   up its panels and its own white emblem (a broken ring round a V and a diamond) near its top, with a tall holo-advert column off one corner
