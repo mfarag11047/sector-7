@@ -281,7 +281,7 @@ export function generateCity(opts: CityOptions): City {
     const z = blockCenter(sb.iz);
     const id = `server-${x}-${z}`;
     buildingMap.set(key(x, z), id);
-    buildings.push(building(id, x, z, 'server_node', 8, id, [tileSize * 0.7, 8, tileSize * 0.7]));
+    buildings.push(building(id, x, z, 'server_node', 11, id, [tileSize * 0.86, 11, tileSize * 0.86]));
     blocks.push({ id, type: 'server_node', buildingIds: [id], owner: null });
     sentinels.push({
       id: `drone-${id}`, type: 'defense_drone', unitClass: 'defense', team: 'neutral',

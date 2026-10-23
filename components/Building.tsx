@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { TEAM_COLORS, CITY_CONFIG } from '../constants';
 import { FootprintSegment, isFootprintSegment } from './FootprintBuilding';
 import { lookOf } from './midtownLooks';
+import { ServerNode } from './ServerNode';
 import { useFrame } from '@react-three/fiber';
 import { globalFrustum } from '../frustum';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
@@ -608,7 +609,7 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
     
     // Rotate fans if server node
     if (data.type === 'server_node' && fansRef.current) {
-        fansRef.current.rotation.y += delta * 2;
+        for (const fan of fansRef.current.children) fan.rotation.y += delta * 4;
         refreshSubtree(fansRef.current);
     }
   });
@@ -747,12 +748,6 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
           <meshBasicMaterial color="#ffffff" transparent opacity={0.6} side={THREE.DoubleSide} />
       </mesh>
 
-      {data.owner && data.type === 'server_node' && (
-          <mesh position={[0, data.scale[1] + 0.04, 0]}>
-              <boxGeometry args={[data.scale[0] * 0.92, 0.1, data.scale[2] * 0.92]} />
-              <meshBasicMaterial color={TEAM_COLORS[data.owner]} toneMapped={false} />
-          </mesh>
-      )}
 
       {/* Main Building Body */}
       {isFootprintSegment(data) ? (
@@ -795,6 +790,8 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
               hovered={hovered}
               colors={colors}
           />
+      ) : data.type === 'server_node' ? (
+          <ServerNode data={data} materialRef={materialRef} onBeforeCompile={onBeforeCompile} hovered={hovered} edge={colors.edge} fansRef={fansRef} />
       ) : data.type === 'core_node' ? (
           <CoreCaptureNode
               data={data}
@@ -823,49 +820,6 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
               color={hovered ? '#ffffff' : colors.edge}
             />
           </mesh>
-      )}
-
-      {/* Server Node Details */}
-      {data.type === 'server_node' && (
-          <group position={[0, data.scale[1], 0]}>
-               {/* Server Cooling Fans */}
-               <group ref={fansRef}>
-                   <mesh position={[data.scale[0]*0.25, 0.2, data.scale[2]*0.25]}>
-                        <cylinderGeometry args={[data.scale[0]*0.2, data.scale[0]*0.2, 0.4]} />
-                        <meshStandardMaterial color="#1e293b" />
-                        <mesh position={[0, 0.21, 0]} rotation={[-Math.PI/2, 0, 0]}>
-                             <planeGeometry args={[data.scale[0]*0.3, data.scale[0]*0.1]} />
-                             <meshBasicMaterial color="#334155" side={THREE.DoubleSide} />
-                        </mesh>
-                        <mesh position={[0, 0.21, 0]} rotation={[-Math.PI/2, 0, Math.PI/2]}>
-                             <planeGeometry args={[data.scale[0]*0.3, data.scale[0]*0.1]} />
-                             <meshBasicMaterial color="#334155" side={THREE.DoubleSide} />
-                        </mesh>
-                   </mesh>
-                   <mesh position={[-data.scale[0]*0.25, 0.2, -data.scale[2]*0.25]}>
-                        <cylinderGeometry args={[data.scale[0]*0.2, data.scale[0]*0.2, 0.4]} />
-                        <meshStandardMaterial color="#1e293b" />
-                        <mesh position={[0, 0.21, 0]} rotation={[-Math.PI/2, 0, 0]}>
-                             <planeGeometry args={[data.scale[0]*0.3, data.scale[0]*0.1]} />
-                             <meshBasicMaterial color="#334155" side={THREE.DoubleSide} />
-                        </mesh>
-                        <mesh position={[0, 0.21, 0]} rotation={[-Math.PI/2, 0, Math.PI/2]}>
-                             <planeGeometry args={[data.scale[0]*0.3, data.scale[0]*0.1]} />
-                             <meshBasicMaterial color="#334155" side={THREE.DoubleSide} />
-                        </mesh>
-                   </mesh>
-               </group>
-               
-               {/* Glowing Server Stripes */}
-               <mesh position={[0, -data.scale[1]/2, data.scale[2]/2 + 0.05]}>
-                   <planeGeometry args={[data.scale[0] * 0.8, data.scale[1] * 0.8]} />
-                   <meshStandardMaterial color="#000000" emissive="#2563eb" emissiveIntensity={1} transparent opacity={0.5} />
-               </mesh>
-               <mesh position={[0, -data.scale[1]/2, -data.scale[2]/2 - 0.05]} rotation={[0, Math.PI, 0]}>
-                   <planeGeometry args={[data.scale[0] * 0.8, data.scale[1] * 0.8]} />
-                   <meshStandardMaterial color="#000000" emissive="#2563eb" emissiveIntensity={1} transparent opacity={0.5} />
-               </mesh>
-          </group>
       )}
 
       {/* Rooftop Details for standard buildings (Non-commercial, Non-server, Non-hightech, Non-industrial, Non-residential) */}

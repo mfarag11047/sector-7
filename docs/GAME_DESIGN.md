@@ -1004,6 +1004,11 @@ Drop, or Masons.
   (`components/IndustrialGantries.tsx`) cross every alley and street between facing industrial
   buildings: red steel trusses carrying pipes from the halls and sheds, bare pipe runs between the
   small utility blocks. Industrial heights run 8 to 22.
+- Server nodes are drawn as data centres (`components/ServerNode.tsx`): a gunmetal block whose
+  walls are banks of server racks behind glass with blinking status LEDs, a cooling plant of
+  four spinning fans and exhaust vents on the roof, a status mast and parapet in the owner's
+  colour (cyan when neutral), and glowing fibre conduits down its corners and out along the
+  ground with data pulses running along them.
 - A building bigger than one tile is drawn as one building (`components/FootprintBuilding.tsx`),
   though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
   run along its outside faces only, a dark roof slab with a lit rim covers it (in the owner's
