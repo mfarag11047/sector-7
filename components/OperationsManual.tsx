@@ -71,7 +71,7 @@ interface UnitNote {
 
 const UNIT_NOTES: Record<UnitType, UnitNote> = {
   hero_heavy_metal: { use: 'Heavy Metal\'s doctrine hero, a full-borg juggernaut. A heavy machine gun that hits everything, aircraft included, and every 8s a volley of three grenades from his back onto whatever his gun is on: they burst on and around it. Only a side that picked Heavy Metal can have him: unlock him at Advanced Research, then train him there. One at a time; Mk II (Tier 2) and Mk III (Tier 3) refits make him tougher and hit harder.' },
-  hero_shadow_ops: { use: 'Shadow Ops\' doctrine hero (a placeholder for now). Only a side that picked Shadow Ops can have it: unlock it at Advanced Research, then train it there. One at a time; Mk II (Tier 2) and Mk III (Tier 3) refits make it tougher and hit harder.' },
+  hero_shadow_ops: { use: 'Shadow Ops\' doctrine hero, a cloaking assassin with a black katana. Melee only: he runs at enemy ground units he sees when idle, cuts infantry apart and still bites into vehicles, but can\'t touch aircraft. Optical Camo cloaks him for 15s (25s cooldown): unseen and untargetable, and his first strike from it deals double damage. Only a side that picked Shadow Ops can have him: unlock him at Advanced Research, then train him there. One at a time; Mk II (Tier 2) and Mk III (Tier 3) refits make him tougher and hit harder.' },
   hero_netrunner: { use: 'Netrunner\'s doctrine hero (a placeholder for now). Only a side that picked Netrunner can have it: unlock it at Advanced Research, then train it there. One at a time; Mk II (Tier 2) and Mk III (Tier 3) refits make it tougher and hit harder.' },
   scout_car: { use: `Trained at your Command HQ. A remote-controlled scout car: the fastest unit in the game, sees ${UNIT_STATS.scout_car.visionRange} tiles (most units see 3 to 6) and carries a large ${ABILITY_CONFIG.SCOUT_CAR_BATTERY}-point battery for long runs off the grid. Unarmed and dies to almost anything, so scout and pull back. Being remote-controlled, a Banshee can jam it.` },
   trooper: { use: 'Your bread-and-butter unit. Send squads to capture core nodes and buildings (which grows your energy grid), and keep some with the army to shoot down aircraft.' },
@@ -182,7 +182,7 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
 };
 
 const ARMOR_LABEL: Record<ArmorClass, string> = { infantry: 'Infantry', light: 'Light vehicles', heavy: 'Heavy armour', air: 'Aircraft', structure: 'Structures' };
-const DAMAGE_LABEL: Record<DamageType, string> = { rifle: 'Rifle', ap: 'Anti-vehicle (AP)', flak: 'Flak', explosive: 'High explosive', mg: 'Machine gun' };
+const DAMAGE_LABEL: Record<DamageType, string> = { rifle: 'Rifle', ap: 'Anti-vehicle (AP)', flak: 'Flak', explosive: 'High explosive', mg: 'Machine gun', blade: 'Blade (melee)' };
 const ARMORS: ArmorClass[] = ['infantry', 'light', 'heavy', 'air', 'structure'];
 
 // --- Small pieces ---
@@ -262,7 +262,7 @@ const Bar: React.FC<{ label: React.ReactNode; fraction: number; value: string; c
 
 // Short names for the bar labels.
 const ARMOR_SHORT: Record<ArmorClass, string> = { infantry: 'Infantry', light: 'Light veh.', heavy: 'Heavy armour', air: 'Aircraft', structure: 'Buildings' };
-const DAMAGE_SHORT: Record<DamageType, string> = { rifle: 'Rifles', ap: 'AP rockets', flak: 'Flak', explosive: 'Explosives', mg: 'Machine guns' };
+const DAMAGE_SHORT: Record<DamageType, string> = { rifle: 'Rifles', ap: 'AP rockets', flak: 'Flak', explosive: 'Explosives', mg: 'Machine guns', blade: 'Blades' };
 
 const ATTACK_COLOR = '#fb923c';
 const DEFENSE_COLOR = '#38bdf8';

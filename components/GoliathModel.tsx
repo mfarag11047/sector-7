@@ -8,22 +8,24 @@
 // Built from primitives in world units, standing on y = 0 and facing +Z (the way Unit.tsx turns
 // a unit toward where it is going). The launcher kicks back when a volley goes up.
 
-import React, { useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GOLIATH } from '../sim/heavyMetalHero';
 
-const plate = new THREE.MeshStandardMaterial({ color: '#2a3039', metalness: 0.7, roughness: 0.38 });
-const plateLight = new THREE.MeshStandardMaterial({ color: '#4a525e', metalness: 0.8, roughness: 0.28 });
-const padding = new THREE.MeshStandardMaterial({ color: '#2b3247', metalness: 0.25, roughness: 0.7 });
-const chrome = new THREE.MeshStandardMaterial({ color: '#9aa3ad', metalness: 0.95, roughness: 0.2 });
-const muscle = new THREE.MeshStandardMaterial({ color: '#7a2226', metalness: 0.3, roughness: 0.55 });
-const skin = new THREE.MeshStandardMaterial({ color: '#d9d4cf', metalness: 0.15, roughness: 0.45 });
-const gunMetal = new THREE.MeshStandardMaterial({ color: '#121418', metalness: 0.85, roughness: 0.35 });
-const eyes = new THREE.MeshBasicMaterial({ color: '#ff2020', toneMapped: false });
-const red = new THREE.MeshBasicMaterial({ color: '#ef4444', toneMapped: false });
-const teamMats = new Map<string, THREE.MeshBasicMaterial>();
-const teamMat = (c: string) => { let m = teamMats.get(c); if (!m) { m = new THREE.MeshBasicMaterial({ color: c, toneMapped: false }); teamMats.set(c, m); } return m; };
+// Each Goliath gets his own materials: a cloak (Unit.tsx) tints them in place.
+const makeMaterials = () => ({
+  plate: new THREE.MeshStandardMaterial({ color: '#2a3039', metalness: 0.7, roughness: 0.38 }),
+  plateLight: new THREE.MeshStandardMaterial({ color: '#4a525e', metalness: 0.8, roughness: 0.28 }),
+  padding: new THREE.MeshStandardMaterial({ color: '#2b3247', metalness: 0.25, roughness: 0.7 }),
+  chrome: new THREE.MeshStandardMaterial({ color: '#9aa3ad', metalness: 0.95, roughness: 0.2 }),
+  muscle: new THREE.MeshStandardMaterial({ color: '#7a2226', metalness: 0.3, roughness: 0.55 }),
+  skin: new THREE.MeshStandardMaterial({ color: '#d9d4cf', metalness: 0.15, roughness: 0.45 }),
+  gunMetal: new THREE.MeshStandardMaterial({ color: '#121418', metalness: 0.85, roughness: 0.35 }),
+  eyes: new THREE.MeshBasicMaterial({ color: '#ff2020', toneMapped: false }),
+  red: new THREE.MeshBasicMaterial({ color: '#ef4444', toneMapped: false }),
+});
+type Mats = ReturnType<typeof makeMaterials>;
 
 const Box: React.FC<{ p: [number, number, number]; s: [number, number, number]; r?: [number, number, number]; m: THREE.Material }> = ({ p, s, r, m }) => (
   <mesh position={p} rotation={r} material={m} castShadow><boxGeometry args={s} /></mesh>
@@ -33,7 +35,7 @@ const Cyl: React.FC<{ p: [number, number, number]; rt: number; rb?: number; h: n
 );
 
 // One leg: plated thigh with muscle cable on its inner side, knee plate, shin, clawed foot.
-const Leg: React.FC<{ side: 1 | -1 }> = ({ side }) => (
+const Leg: React.FC<{ side: 1 | -1; M: Mats }> = ({ side, M: { plate, plateLight, muscle, chrome, gunMetal } }) => (
   <group position={[side * 0.72, 0, 0]}>
     <Box p={[0, 2.45, 0]} s={[0.8, 1.35, 0.9]} m={plate} />
     <Box p={[side * 0.08, 2.55, 0.42]} s={[0.55, 0.9, 0.12]} r={[-0.08, 0, 0]} m={plateLight} />
@@ -50,7 +52,11 @@ const Leg: React.FC<{ side: 1 | -1 }> = ({ side }) => (
 
 export const GoliathModel: React.FC<{ teamColor: string; flashRef: React.Ref<THREE.Mesh>; grenadeAt?: number }> = ({ teamColor, flashRef, grenadeAt }) => {
   const launcher = useRef<THREE.Group>(null);
-  const team = teamMat(teamColor);
+  const M = useMemo(makeMaterials, []);
+  const { plate, plateLight, padding, chrome, muscle, skin, gunMetal, eyes, red } = M;
+  const team = useMemo(() => new THREE.MeshBasicMaterial({ color: teamColor, toneMapped: false }), [teamColor]);
+  useEffect(() => () => { Object.values(M).forEach(m => m.dispose()); }, [M]);
+  useEffect(() => () => team.dispose(), [team]);
   useFrame(() => {
     const g = launcher.current;
     if (!g) return;
@@ -62,8 +68,8 @@ export const GoliathModel: React.FC<{ teamColor: string; flashRef: React.Ref<THR
   });
   return (
     <group>
-      <Leg side={1} />
-      <Leg side={-1} />
+      <Leg side={1} M={M} />
+      <Leg side={-1} M={M} />
 
       {/* Pelvis and the exposed muscle-cable waist. */}
       <Box p={[0, 3.25, 0]} s={[1.6, 0.5, 1.0]} m={plate} />

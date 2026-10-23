@@ -28,6 +28,7 @@ import { shieldMax } from '../sim/kestrel';
 import { WARHEAD_LABEL } from '../sim/warheads';
 import { isHeroType } from '../sim/heroes';
 import { GoliathModel } from './GoliathModel';
+import { KageModel } from './KageModel';
 import { GOLIATH } from '../sim/heavyMetalHero';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
@@ -54,7 +55,7 @@ const Rotor: React.FC = () => {
 // Ring colour while an ability's buff runs.
 const BUFF_COLORS: Record<NonNullable<UnitData['buffs']>[number]['kind'], string> = {
   stim: '#f43f5e', nanoweave: '#a3e635', overcharge: '#facc15', nitro: '#fb923c', overclock: '#f97316',
-  barrage: '#38bdf8', radar: '#22d3ee', afterburner: '#fb923c', emp: '#818cf8', smoke: '#94a3b8', piercing_round: '#e879f9',
+  barrage: '#38bdf8', radar: '#22d3ee', afterburner: '#fb923c', emp: '#818cf8', smoke: '#94a3b8', piercing_round: '#e879f9', shadow_cloak: '#22c55e',
 };
 // Aegis air-search radar: a wide green circle. Selected, it also shows range rings and a sweeping
 // beam that leaves a fading trail. Flat on the ground under the vehicle.
@@ -785,6 +786,7 @@ const Unit: React.FC<UnitProps> = ({
     if (isHowitzer) return <ThunderheadModel teamColor={teamColor} deployed={!!isDeployed} aim={aimWorld} />;
     if (isAegis) return <AegisModel teamColor={teamColor} firing={!!ciwsTargetId} />;
     if (isHornet) return <HornetModel teamColor={teamColor} />;
+    if (type === 'hero_shadow_ops') return <KageModel teamColor={teamColor} lastAttackTime={lastAttackTime} />;
     if (type === 'hero_heavy_metal') return <GoliathModel teamColor={teamColor} flashRef={flashRef} grenadeAt={grenadeAt} />;
      if (isDefenseDrone) {
         const bodyColor = "#334155"; const glowColor = firingLaserAt ? "#ff0000" : "#ef4444"; const detailColor = "#1e293b";
@@ -1032,7 +1034,7 @@ const Unit: React.FC<UnitProps> = ({
   const model = useMemo(renderModel, [
     type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
     isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, firingLaserAt, courierPayload, constructionTargetId, ciwsTargetId,
-    grenadeAt,
+    grenadeAt, type === 'hero_shadow_ops' ? lastAttackTime : 0,
   ]);
 
   useFrame(() => {

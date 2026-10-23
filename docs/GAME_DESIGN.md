@@ -229,13 +229,13 @@ everything, so what you research commits you to the units you mean to build.
 ### Doctrine heroes
 
 Each doctrine has one unique **hero** unit, and only a side that picked that doctrine at the start
-of the match can research or train it (`sim/heroes.ts`). Shadow Ops' and Netrunner's are still
-placeholders: stats only, no abilities, and the generic unit model with a gold halo.
+of the match can research or train it (`sim/heroes.ts`). Netrunner's is still a placeholder: stats
+only, no abilities, and the generic unit model with a gold halo.
 
 | Doctrine | Hero | Class | Health | Speed | Weapon |
 |---|---|---|---|---|---|
 | Heavy Metal | Goliath | Armour (heavy) | 1400 | 0.8 | Heavy MG, 16 dmg / 0.3 s, range 5, hits air; grenades |
-| Shadow Ops | Shadow Ops Hero | Infantry (captures ×2) | 600 | 1.2 | Rifle, 28 dmg / 0.7 s, range 4 |
+| Shadow Ops | Kage | Infantry (captures ×2) | 650 | 1.4 | Katana (melee), 60 blade dmg / 0.8 s, range 1.3, ground only; Optical Camo |
 | Netrunner | Netrunner Hero | Support (light) | 800 | 1.0 | MG, 14 dmg / 0.5 s, range 4, hits air |
 
 All cost 600 cores, 4 population and 40 s to train.
@@ -250,6 +250,19 @@ onto it, one on the target and two scattered within 1.2 tiles. Each lands 1.1 s 
 for **40 explosive damage** within 1.5 tiles (half at the edge). They fly and land like Hellfire
 Salvo rockets, so enemy force fields stop them. He turns to face what he is shooting. As heavy
 armour, AP weapons are his counter: a few Titans take him apart.
+
+**Kage (Shadow Ops)** is a cloaking assassin (`sim/shadowHero.ts`, `components/KageModel.tsx`): a
+dark helmet with a four-lens night-vision rig glowing green, a charcoal suit under angular armour
+tiles, red tags on the shoulders, and a **black katana** with its scabbard across his back.
+- **Melee only.** His katana has its own damage type, **blade**: ×1.3 against infantry, ×0.9 light
+  vehicles, ×0.6 heavy, ×0.5 buildings, and it **can't hit aircraft**. With a reach of 1.3 tiles he
+  has to close in, so when he stands idle and uncloaked he **charges** any enemy ground unit he
+  can see within 5 tiles (an attack-move onto it). He is quick (speed 1.4) to make that work.
+- **Optical Camo** (his ability, from Tier 1; 25 s cooldown): he cloaks himself for 15 s with the
+  same cloak as a Cloaking Field: the enemy can't see or target him, though blasts and shelling
+  still hurt, and an Aegis radar shows a blip. Cloaked, he doesn't charge on his own: you pick
+  the ambush. His **first strike from cloak deals double damage** and drops the cloak.
+- He turns to face what he is cutting. The computer cloaks him as enemies come within 7 tiles.
 
 - **Unlock (Tier 1):** research **Hero Unlock** at Advanced Research (300 cores + 25 compute, 25 s).
   It gives no stat bonus; it lets the hero be trained there.

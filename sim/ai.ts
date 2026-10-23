@@ -628,6 +628,8 @@ function unitAbilityMoves(
         case 'afterburner': if (hurt && near(u, 6).length > 0) want(d.id, u); break;
         // Tanks: smoke when hurt or swarmed, a piercing slug when there's a column of ground targets in rail range.
         case 'smoke_screen': if (near(u, 6).length > 0 && (u.health < u.maxHealth * 0.6 || near(u, 6).length >= 4)) want(d.id, u); break;
+        // Kage: slip under Optical Camo as enemies come near, to strike from it.
+        case 'shadow_cloak': if (!hasBuff(u, 'shadow_cloak') && near(u, 7, t => armorOf(t) !== 'air').length > 0) want(d.id, u); break;
         case 'piercing_round': if (!hasBuff(u, 'piercing_round') && near(u, 14, t => armorOf(t) !== 'air').length >= 3) want(d.id, u); break;
         case 'emp_rocket':
         case 'hellfire': {

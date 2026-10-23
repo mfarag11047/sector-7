@@ -36,7 +36,9 @@ import { advanceProduction, applyProduction, createUnit } from './production';
 import { ballistaLoadStep, repairTick } from './support';
 import { isAirType } from './units';
 import { airPath, fastestPath, sentinelHazardOf } from './pathfinding';
-import { hasBuff } from './unitAbilities';
+import { hasBuff, spendOvercharge } from './unitAbilities';
+import { applyFieldCloak, fieldCloakedIds } from './cloak';
+import { kageCharges } from './shadowHero';
 import { checkVictory, Victory } from './victory';
 import { DOCTRINE_CONFIG } from '../constants';
 import { jammingUpdates } from './jamming';
@@ -186,6 +188,8 @@ export function stepMatch(m: HeadlessMatch): void {
     }),
   };
   m.units = m.units.map(u => advanceMover(u, MOVE_TICK_MS, env));
+  // Kage's Optical Camo hides him (sim/cloak.ts; Cloaking Fields aren't modelled here).
+  m.units = applyFieldCloak(m.units, fieldCloakedIds(m.units, now));
 
   // Combat.
   const reloaded = <T extends { id: string; lastAttackTime?: number }>(x: T): T => {
@@ -316,7 +320,7 @@ export function stepMatch(m: HeadlessMatch): void {
     if (volley.fired.has(u.id)) draft.artilleryAim = volley.fired.get(u.id);
     if (attacks.fired.has(u.id)) {
       draft.lastAttackTime = now;
-      if (hasBuff(draft, 'overcharge')) draft.buffs = draft.buffs!.filter(b => b.kind !== 'overcharge');
+      Object.assign(draft, spendOvercharge(draft));
     }
     if (draft.buffs?.length) draft.buffs = draft.buffs.filter(b => b.until > now);
     const hit = (attacks.unitDamage.get(u.id) || 0) + (microwave.get(u.id) || 0);
@@ -409,6 +413,10 @@ function think(m: HeadlessMatch, team: Team, paths: ReturnType<typeof pathfinder
       m.units.push(titan);
       m.log.push(`${Math.round(m.now / 1000)}s ${team} orbital drop`);
     }
+  }
+  // Kage charges what he sees with his blade (sim/shadowHero.ts).
+  for (const c of kageCharges(m.units)) {
+    if (c.team === team) applyOrder(m, team, { type: 'MOVE', unitIds: [c.unitId], target: c.target, attackMove: true }, ctx);
   }
 }
 

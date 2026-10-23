@@ -41,6 +41,7 @@ import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells, s
 import { afterRailShot, fireRailguns, RailShot } from '../sim/railgun';
 import { fireHornetRockets, landSalvo, MiniRocket } from '../sim/hornet';
 import { fireGrenades } from '../sim/heavyMetalHero';
+import { kageCharges } from '../sim/shadowHero';
 import { BASE_SITE, BaseSite, baseSites, clearedBlocks, commandPosts, rubbleCleared } from '../sim/bases';
 import { BLACKWALL, blackwallImpact, blackwallTick } from '../sim/blackwall';
 import { FORCE_FIELD, ForceField, absorbingField, activeFields, addShieldHit, generatorsOf, impactAbsorbed, shieldTick, shockDamage, shockedBy, shotBlocked, shotBlockedBy } from '../sim/forcefield';
@@ -68,7 +69,7 @@ import { teamPads } from '../sim/baseLayout';
 import BuildPads, { FreePad } from './BuildPads';
 import { advanceRefineryUpgrades, baseProximity, REFINERY, refineriesOf, refineryLimit, refineryMultiplier } from '../sim/refinery';
 import { advanceDismantling } from '../sim/dismantle';
-import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, visionOf } from '../sim/unitAbilities';
+import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, spendOvercharge, visionOf } from '../sim/unitAbilities';
 import { applyFieldCloak, CLOAK_FIELD, fieldCloakedIds, generatorsReplacedBy, isCloakFieldUp, isHidden } from '../sim/cloak';
 import { Victory, checkVictory } from '../sim/victory';
 import type { MatchSummary } from './MatchScreens';
@@ -1585,6 +1586,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // When each Kestrel last fired its Flechette Burst (sim/kestrel.ts), the same way.
   const flechetteShotRef = useRef(new Map<string, number>());
   const grenadeShotRef = useRef(new Map<string, number>());
+  const kageChargeAtRef = useRef(0);
   const [miniRockets, setMiniRockets] = useState<MiniRocket[]>([]);
   // Tank Smoke Screens on the ground (sim/titan.ts), ahead of state for the tick.
   const smokeRef = useRef<SmokeScreen[]>([]);
@@ -3572,6 +3574,13 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               const t = grenadeShotRef.current.get(u.id);
               return t && t > (u.grenadeAt ?? -Infinity) ? { ...u, grenadeAt: t } : u;
           };
+          // Kage runs at enemies he sees with his blade, a couple of times a second (sim/shadowHero.ts).
+          if (now - kageChargeAtRef.current >= 500) {
+              kageChargeAtRef.current = now;
+              for (const c of kageCharges(currentUnitsRef)) {
+                  if (c.team === 'blue' || c.team === 'red') asComputer(() => dispatchOrderRef.current({ type: 'MOVE', unitIds: [c.unitId], target: c.target, attackMove: true }, c.team as 'blue' | 'red', true));
+              }
+          }
           const lobbed = fireGrenades(currentUnitsRef.map(grenadeReady), structuresRef.current, now);
           lobbed.fired.forEach(id => grenadeShotRef.current.set(id, now));
           if (lobbed.grenades.length > 0) {
@@ -3792,6 +3801,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   const structure = !shooter;
                   const infantry = shooter ? UNIT_RULES[shooter.type].armor === 'infantry' : false;
                   const goliath = shooter?.type === 'hero_heavy_metal';
+                  // Kage's katana: no projectile, just a flash where the blade bites.
+                  if (shot.type === 'blade') {
+                      const at = { x: shot.to.x * tileSize - offset, y: 2.2, z: shot.to.z * tileSize - offset };
+                      fx.push({ id: `shot-${now}-${i}`, kind: 'flash', createdAt: now, attackerId: shot.attackerId, targetId: shot.targetId, from: at, to: at, flashSize: 1.4 });
+                      return;
+                  }
                   const kind: ShotKind = goliath ? 'round'
                       : shot.type === 'rifle' || shot.type === 'flak' || shot.type === 'mg' ? 'flash'
                       : shot.type === 'ap' ? (shooter?.type === 'lancer' ? 'missile' : 'round')
@@ -4011,8 +4026,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       if (gun) { newUnit = { ...newUnit, ...gun }; uChanged = true; }
                       if (attacks.fired.has(u.id)) {
                           newUnit.lastAttackTime = now;
-                          // A fired Overcharged Warhead is spent.
-                          if (hasBuff(newUnit, 'overcharge')) newUnit.buffs = newUnit.buffs!.filter(b => b.kind !== 'overcharge');
+                          // A fired Overcharged Warhead is spent, and Kage's Optical Camo drops.
+                          newUnit = spendOvercharge(newUnit);
                           uChanged = true;
                       }
                       // Ability buffs run out (sim/unitAbilities.ts).
@@ -4348,8 +4363,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
              const teamCompute = (u.team === 'blue' || u.team === 'red') ? economy[u.team].tier : 0;
              const upgrades = (u.team === 'blue' || u.team === 'red') ? economy[u.team].upgrades : undefined;
              const radarRange = u.team === playerTeam ? radarRangeOf(u) : 0;
-             // Goliath turns to face what he is shooting.
-             const faceAt = u.type === 'hero_heavy_metal' && u.combatTargetId
+             // The heroes turn to face what they are fighting.
+             const faceAt = (u.type === 'hero_heavy_metal' || u.type === 'hero_shadow_ops') && u.combatTargetId
                  ? (units.find(t => t.id === u.combatTargetId) ?? structuresState.find(t => t.id === u.combatTargetId))?.gridPos ?? null : null;
              const ownJammer = u.type === 'banshee' && u.team === playerTeam;
              const selected = selectedUnitIds.has(u.id);

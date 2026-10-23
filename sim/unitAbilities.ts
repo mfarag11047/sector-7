@@ -24,10 +24,10 @@ import type { SmokeScreen } from './titan';
 
 // 'smoke': standing in a friendly Smoke Screen (sim/titan.ts). 'piercing_round': a tank's next rail
 // gun slug goes down the whole lane (sim/railgun.ts).
-export type BuffKind = 'stim' | 'nanoweave' | 'overcharge' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'emp' | 'smoke' | 'piercing_round';
+export type BuffKind = 'stim' | 'nanoweave' | 'overcharge' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'emp' | 'smoke' | 'piercing_round' | 'shadow_cloak';
 export interface Buff { kind: BuffKind; until: number }
 
-export type UnitAbilityId = 'stim' | 'nanoweave' | 'overcharge' | 'emp_rocket' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'hellfire' | 'smoke_screen' | 'piercing_round';
+export type UnitAbilityId = 'stim' | 'nanoweave' | 'overcharge' | 'emp_rocket' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'hellfire' | 'smoke_screen' | 'piercing_round' | 'shadow_cloak';
 
 export interface UnitAbilityDef {
   id: UnitAbilityId;
@@ -72,6 +72,10 @@ export const UNIT_ABILITIES: readonly UnitAbilityDef[] = [
     description: '+70% speed for 5s. Get out of flak range.' },
   { id: 'hellfire', unit: 'hornet', name: 'Hellfire Salvo', tier: 3, cooldownMs: 40_000, durationMs: 0, targeted: { range: 8, radius: 3 },
     description: 'Ripple-fires the rocket pods: a burst of small unguided rockets blankets the area, each with a small blast. Built for area damage: shreds infantry and light vehicles in the open.' },
+
+  // Kage, the Shadow Ops hero (sim/shadowHero.ts).
+  { id: 'shadow_cloak', unit: 'hero_shadow_ops', name: 'Optical Camo', tier: 1, cooldownMs: 25_000, durationMs: 15_000,
+    description: 'Cloaks himself for 15s: the enemy can\'t see or target him, though blasts still hurt. His first strike from cloak deals double damage and drops it.' },
 ];
 
 // The orbital-drop Titan is a main battle tank, with the tank's abilities.
@@ -93,7 +97,10 @@ export const fireRateMultiplier = (u: { buffs?: Buff[] }) =>
 // (sim/upgrades.ts applyUpgradeBonuses keeps UnitData.upgradeLevel and the health up to date).
 export const UPGRADE_BONUS = { health: 0.2, damage: 0.15 };
 export const upgradeDamage = (u: { upgradeLevel?: number }) => 1 + UPGRADE_BONUS.damage * (u.upgradeLevel ?? 0);
-export const damageMultiplier = (u: { buffs?: Buff[]; upgradeLevel?: number }) => (hasBuff(u, 'overcharge') ? OVERCHARGE_MULTIPLIER : 1) * upgradeDamage(u);
+// Kage's strike from Optical Camo: an ambush, double damage (sim/shadowHero.ts).
+const AMBUSH_MULTIPLIER = 2;
+export const damageMultiplier = (u: { buffs?: Buff[]; upgradeLevel?: number }) =>
+  (hasBuff(u, 'overcharge') ? OVERCHARGE_MULTIPLIER : 1) * (hasBuff(u, 'shadow_cloak') ? AMBUSH_MULTIPLIER : 1) * upgradeDamage(u);
 export const damageTakenMultiplier = (u: { buffs?: Buff[] }) => (hasBuff(u, 'nanoweave') ? 0.5 : 1);
 export const speedBuffMultiplier = (u: { buffs?: Buff[] }) =>
   hasBuff(u, 'emp') ? 0 : (hasBuff(u, 'stim') ? 1.3 : 1) * (hasBuff(u, 'nitro') ? 1.8 : 1) * (hasBuff(u, 'afterburner') ? 1.7 : 1);
@@ -115,9 +122,10 @@ export function pruneBuffs<T extends { buffs?: Buff[] }>(u: T, now: number): T {
   return live.length === u.buffs.length ? u : { ...u, buffs: live };
 }
 
-// After a unit fires, an Overcharged Warhead is spent.
+// After a unit fires, an Overcharged Warhead is spent, and Optical Camo drops.
+const SPENT_ON_FIRING: readonly BuffKind[] = ['overcharge', 'shadow_cloak'];
 export const spendOvercharge = <T extends { buffs?: Buff[] }>(u: T): T =>
-  hasBuff(u, 'overcharge') ? { ...u, buffs: u.buffs!.filter(b => b.kind !== 'overcharge') } : u;
+  u.buffs?.some(b => SPENT_ON_FIRING.includes(b.kind)) ? { ...u, buffs: u.buffs.filter(b => !SPENT_ON_FIRING.includes(b.kind)) } : u;
 
 export const addBuff = (u: UnitData, kind: BuffKind, until: number): UnitData =>
   ({ ...u, buffs: [...(u.buffs || []).filter(b => b.kind !== kind), { kind, until }] });

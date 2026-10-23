@@ -16,7 +16,7 @@
 // Pure: CityMap and the headless runner apply the result.
 
 import type { UnitData } from '../types';
-import { isEmpDisabled } from './unitAbilities';
+import { hasBuff, isEmpDisabled } from './unitAbilities';
 
 export const CLOAK_FIELD = {
   // Tiles.
@@ -41,10 +41,12 @@ export const revealedByCombat = (u: UnitData, now: number) =>
 export const isHidden = (u: Pick<UnitData, 'decoyActive' | 'fieldCloaked'>) => !!u.decoyActive || !!u.fieldCloaked;
 
 // Who is cloaked by a field right now: friendly units inside a working generator's field that
-// haven't given themselves away, the generator among them.
+// haven't given themselves away, the generator among them. Kage's Optical Camo (sim/shadowHero.ts)
+// cloaks him the same way, field or not, until it runs out or he strikes.
 export function fieldCloakedIds(units: readonly UnitData[], now: number): Set<string> {
   const fields = units.filter(isCloakFieldUp);
   const cloaked = new Set<string>();
+  for (const u of units) if (u.health > 0 && hasBuff(u, 'shadow_cloak')) cloaked.add(u.id);
   if (fields.length === 0) return cloaked;
   for (const u of units) {
     // The generator hides inside its own field too.
