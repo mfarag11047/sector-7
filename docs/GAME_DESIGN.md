@@ -904,7 +904,7 @@ Drop, or Masons.
 - Four corporate megatowers (Tokugen, Nexum, Axiom, Vanta) fill the four diagonal blocks around
   the centre server node. Vanta is modelled after Arasaka Tower: a dark slate monolith on a
   flared, buttressed foot, flanked by tall side wings under a notched stepped crown, cold seams
-  up its panels and a white emblem near its top, with a tall holo-advert column off one corner
+  up its panels and its own white emblem (a broken ring round a V and a diamond) near its top, with a tall holo-advert column off one corner
   and its orange holographic koi still circling it. They are landmarks, not targets: each fills its whole block, cannot be
   driven through, captured or destroyed, and never becomes a base site. Their lots mirror like
   everything else; only the towers' looks differ.

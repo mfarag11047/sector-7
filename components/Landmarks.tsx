@@ -498,7 +498,7 @@ const Axiom: React.FC<{ kit: Kit }> = ({ kit }) => {
 // Vanta: an ominous corporate monolith after Night City's Arasaka Tower. A sheer dark slate
 // shaft whose foot flares out into sloping buttresses, flanked by tall side wings that step in at
 // their shoulders, under a notched, stepped crown; thin cold seams run up its panels, and a white
-// circular emblem glows near the top of its front and back. A tall holo-advert column stands off
+// emblem of its own (a broken ring round a V) glows near the top of its front and back. A tall holo-advert column stands off
 // one corner, and its orange holographic koi still circles it.
 
 // Dark slate panels: tall plates with fine joints, a few faint lit slits.
@@ -525,8 +525,8 @@ function slateTexture() {
   return t;
 }
 
-// An original emblem in white light: a ring with three linked nodes on stems, like a branching
-// circuit, inside it.
+// Vanta's own emblem in white light: a ring broken at the bottom, a bold V of two blades rising
+// out of the gap, and a small diamond floating in the V.
 function vantaEmblemTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 256;
@@ -534,13 +534,18 @@ function vantaEmblemTexture() {
   g.strokeStyle = '#ffffff';
   g.fillStyle = '#ffffff';
   g.shadowColor = '#cfe6ff';
+  g.lineCap = 'round';
+  g.lineJoin = 'miter';
   for (const blur of [24, 8, 2]) {
     g.shadowBlur = blur;
-    g.lineWidth = 12;
-    g.beginPath(); g.arc(128, 128, 104, 0, Math.PI * 2); g.stroke();
-    g.lineWidth = 10;
-    g.beginPath(); g.moveTo(128, 205); g.lineTo(128, 128); g.lineTo(80, 92); g.moveTo(128, 128); g.lineTo(176, 92); g.moveTo(128, 128); g.lineTo(128, 70); g.stroke();
-    for (const [x, y, r] of [[80, 86, 22], [176, 86, 22], [128, 60, 24]]) { g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); }
+    // The ring, open at the bottom.
+    g.lineWidth = 11;
+    g.beginPath(); g.arc(128, 128, 104, Math.PI / 2 + 0.42, Math.PI / 2 - 0.42 + Math.PI * 2); g.stroke();
+    // The V: two tapered blades meeting at the gap.
+    g.beginPath(); g.moveTo(52, 62); g.lineTo(80, 62); g.lineTo(128, 196); g.lineTo(116, 214); g.closePath(); g.fill();
+    g.beginPath(); g.moveTo(204, 62); g.lineTo(176, 62); g.lineTo(128, 196); g.lineTo(140, 214); g.closePath(); g.fill();
+    // The diamond in the V.
+    g.beginPath(); g.moveTo(128, 78); g.lineTo(146, 102); g.lineTo(128, 126); g.lineTo(110, 102); g.closePath(); g.fill();
   }
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
@@ -571,8 +576,8 @@ const Vanta: React.FC<{ kit: Kit }> = ({ kit }) => {
       </mesh>
       {/* The shaft. */}
       <Block size={[48, 200, 36]} position={[0, 108, 0]} />
-      {/* A recessed dark channel down the middle of front and back. */}
-      {[1, -1].map(side => <Block key={side} size={[3, 150, 1]} position={[0, 120, side * 18.2]} dark />)}
+      {/* A recessed dark channel down the middle of front and back, stopping short of the emblem. */}
+      {[1, -1].map(side => <Block key={side} size={[3, 120, 1]} position={[0, 105, side * 18.2]} dark />)}
       {/* Side wings: tall slabs standing proud of the shaft, stepping in at their shoulders. */}
       {[1, -1].map(side => (
         <group key={side}>
@@ -587,11 +592,11 @@ const Vanta: React.FC<{ kit: Kit }> = ({ kit }) => {
       <Block size={[6, 4, 20]} position={[0, 220, 0]} dark />
       {/* Cold seams up the panels. */}
       {[1, -1].map(side => seams.map(x => (
-        <mesh key={`${side}${x}`} position={[x, 120, side * 18.1]} material={SEAM}><boxGeometry args={[0.35, 150 - Math.abs(x) * 3, 0.2]} /></mesh>
+        <mesh key={`${side}${x}`} position={[x, 110, side * 18.1]} material={SEAM}><boxGeometry args={[0.35, 120 - Math.abs(x) * 3, 0.2]} /></mesh>
       )))}
       {/* The emblem near the top of front and back. */}
       {[1, -1].map(side => (
-        <group key={`e${side}`} position={[0, 188, side * 18.3]} rotation={[0, side > 0 ? 0 : Math.PI, 0]}>
+        <group key={`e${side}`} position={[0, 188, side * 19.2]} rotation={[0, side > 0 ? 0 : Math.PI, 0]}>
           <mesh position={[0, 0, 0.2]}><planeGeometry args={[30, 30]} /><meshBasicMaterial map={kit.glow} color="#cfe6ff" transparent opacity={0.25} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} /></mesh>
           <mesh position={[0, 0, 0.4]}><planeGeometry args={[18, 18]} /><meshBasicMaterial map={emblem} transparent blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} /></mesh>
         </group>
