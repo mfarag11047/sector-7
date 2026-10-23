@@ -1,8 +1,8 @@
 // The corporate arcologies at the heart of the city (sim/mapgen.ts places their lots).
 //
 // Four megatowers ring the central server node, each a different corp with its own silhouette:
-//   - Tokugen: a stepped military-industrial slab, terraces cantilevered off its face, gold neon
-//     strips running its full height and red-lit floors.
+//   - Tokugen: a defence giant's fortress after Militech's tower: a massive slab with a service
+//     tower bolted on, ribbed floors jutting from its front and green neon throughout.
 //   - Nexum: a black monolith with a raked crown, a huge red neon emblem and a searchlight
 //     sweeping the sky.
 //   - Axiom: twin spires joined by a sky bridge, a beam of blue light from the roof and a
@@ -373,49 +373,72 @@ const Billboard: React.FC<{ tex: THREE.Texture; size: [number, number]; position
 
 interface Kit {
   glow: THREE.Texture;
-  windows: Record<'cool' | 'warm' | 'red' | 'amber', THREE.Texture>;
+  windows: Record<'cool' | 'warm' | 'red' | 'amber' | 'green', THREE.Texture>;
   signs: Record<LandmarkKind, THREE.Texture>;
   verticalSigns: Record<'axiom' | 'vanta' | 'tokugen', THREE.Texture>;
   adverts: THREE.Texture[];
 }
 
-// Tokugen: a stepped military-industrial slab with cantilevered terraces and gold neon.
+// Tokugen: a defence giant's fortress, after Night City's Militech tower. A massive dark slab
+// with a tall narrow service tower bolted to one side, a green neon strip running its full height;
+// the wordmark across a band high on the main block under a crown of dotted windows and a steel
+// lattice; ribbed floors jutting out across the middle of the front between green brackets;
+// banks of vertical green tubes low down; stacked outboard modules hung off the far flank.
 const Tokugen: React.FC<{ kit: Kit }> = ({ kit }) => {
-  const gold = '#ffd34d';
-  const terraces = [36, 58, 80, 102, 124];
+  const green = '#8dff7a';
+  const ribs = [92, 106, 120];
   return (
     <group>
-      <WindowBlock size={[64, 10, 64]} position={[0, 5, 0]} tex={kit.windows.amber} />
-      <NeonFrame w={64} d={64} y={10.2} color={gold} />
-      <WindowBlock size={[42, 150, 36]} position={[0, 85, -4]} tex={kit.windows.red} />
-      {/* Terraces jutting from the front, alternating left and right, each edged in gold. */}
-      {terraces.map((y, i) => {
-        const x = i % 2 === 0 ? -5 : 5;
-        return (
-          <group key={y} position={[x, y, 16]}>
-            <WindowBlock size={[46, 12, 14]} position={[0, 0, 0]} tex={kit.windows.red} />
-            <Neon size={[46.2, 0.5, 0.5]} position={[0, 6.2, 7.1]} color={gold} />
-            <Neon size={[46.2, 0.5, 0.5]} position={[0, -6.2, 7.1]} color={gold} />
-          </group>
-        );
-      })}
-      {/* Full-height gold strips down the corners of the core. */}
-      {[[-21.3, 14.3], [21.3, 14.3], [-21.3, -22.3], [21.3, -22.3]].map(([x, z], i) => (
-        <Neon key={i} size={[0.8, 148, 0.8]} position={[x, 85, z]} color={gold} />
+      <WindowBlock size={[64, 10, 64]} position={[0, 5, 0]} tex={kit.windows.green} />
+      <NeonFrame w={64} d={64} y={10.2} color={green} />
+      {/* The main slab, and its crown of dotted windows above the wordmark band. */}
+      <WindowBlock size={[44, 150, 34]} position={[-6, 85, 0]} tex={kit.windows.green} />
+      <WindowBlock size={[38, 24, 30]} position={[-8, 172, 0]} tex={kit.windows.green} tint="#d9ffd2" />
+      <mesh position={[-6, 160.6, 0]} material={FRAME}><boxGeometry args={[46, 1.2, 36]} /></mesh>
+      {/* The tall service tower on the near flank, a green strip the whole way up its front. */}
+      <WindowBlock size={[14, 206, 28]} position={[23, 113, -1]} tex={kit.windows.green} />
+      {[19.5, 26.5].map(x => <Neon key={x} size={[0.9, 196, 0.6]} position={[x, 112, 13.3]} color={green} />)}
+      <Neon size={[0.9, 196, 0.6]} position={[23, 112, -15.3]} color={green} />
+      {/* Ribbed floors jutting from the middle of the front, between green brackets. */}
+      {ribs.map(y => (
+        <group key={y} position={[-6, y, 19]}>
+          <WindowBlock size={[30, 8, 6]} position={[0, 0, 0]} tex={kit.windows.green} tint="#e8ffe2" />
+          <mesh position={[0, -4.4, 0.4]} material={FRAME}><boxGeometry args={[32, 0.8, 7]} /></mesh>
+          {[-15.6, 15.6].map(x => <Neon key={x} size={[0.7, 9, 0.7]} position={[x, 0, 3.2]} color={green} />)}
+        </group>
       ))}
-      <Neon size={[0.6, 120, 0.6]} position={[-8, 70, 23.4]} color={gold} />
-      <Neon size={[0.6, 120, 0.6]} position={[8, 70, 23.4]} color={gold} />
-      {/* Crown and mast. */}
-      <WindowBlock size={[30, 22, 26]} position={[0, 171, -4]} tex={kit.windows.amber} />
-      <mesh position={[0, 182.5, -4]} material={ROOF}><boxGeometry args={[34, 1.5, 30]} /></mesh>
-      <mesh position={[0, 200, -4]} material={FRAME}><cylinderGeometry args={[0.6, 1.2, 36, 6]} /></mesh>
-      <Beacon position={[0, 218.5, -4]} glow={kit.glow} />
-      <Beacon position={[-14, 184, -16]} glow={kit.glow} phase={1.3} />
-      <Beacon position={[14, 184, 8]} glow={kit.glow} phase={2.1} />
-      {/* The wordmark across the crown, front and back, and down one flank. */}
-      <Sign tex={kit.signs.tokugen} glow={kit.glow} color={gold} size={[30, 7.5]} position={[0, 171, 9.1]} />
-      <Sign tex={kit.signs.tokugen} glow={kit.glow} color={gold} size={[30, 7.5]} position={[0, 171, -17.1]} rotationY={Math.PI} />
-      <Sign tex={kit.verticalSigns.tokugen} glow={kit.glow} color={gold} size={[6, 24]} position={[-21.2, 140, -4]} rotationY={-Math.PI / 2} />
+      {/* Banks of vertical green tubes low on the front. */}
+      {[-24, -20.5, -17, -13.5].map(x => <Neon key={x} size={[0.6, 44, 0.6]} position={[x, 36, 17.4]} color={green} />)}
+      {[2, 5.5].map(x => <Neon key={x} size={[0.6, 70, 0.6]} position={[x, 50, 17.4]} color={green} />)}
+      {/* Stacked outboard modules hung off the far flank. */}
+      {[30, 54, 78, 102, 126].map((y, i) => (
+        <group key={y} position={[-31, y, i % 2 ? 4 : -4]}>
+          <WindowBlock size={[6, 16, 22]} position={[0, 0, 0]} tex={kit.windows.green} />
+          <Neon size={[0.5, 0.5, 22.2]} position={[-3.1, 8.2, 0]} color={green} />
+        </group>
+      ))}
+      {/* A steel lattice on the roof of the service tower, and a mast. */}
+      <group position={[23, 216, -1]}>
+        {[[-6, -12], [6, -12], [-6, 12], [6, 12]].map(([x, z], i) => (
+          <mesh key={i} position={[x, 6, z]} material={FRAME}><boxGeometry args={[0.6, 12, 0.6]} /></mesh>
+        ))}
+        {[0, 12].map(y => (
+          <group key={y}>
+            <mesh position={[0, y, -12]} material={FRAME}><boxGeometry args={[12.6, 0.5, 0.5]} /></mesh>
+            <mesh position={[0, y, 12]} material={FRAME}><boxGeometry args={[12.6, 0.5, 0.5]} /></mesh>
+            <mesh position={[-6, y, 0]} material={FRAME}><boxGeometry args={[0.5, 0.5, 24.6]} /></mesh>
+            <mesh position={[6, y, 0]} material={FRAME}><boxGeometry args={[0.5, 0.5, 24.6]} /></mesh>
+          </group>
+        ))}
+        {[-12, 12].map(z => <mesh key={z} position={[0, 6, z]} rotation={[0, 0, 1.1]} material={FRAME}><boxGeometry args={[0.4, 13.5, 0.4]} /></mesh>)}
+      </group>
+      <mesh position={[-14, 196, 0]} material={FRAME}><cylinderGeometry args={[0.5, 1, 24, 6]} /></mesh>
+      <Beacon position={[-14, 208.5, 0]} glow={kit.glow} />
+      <Beacon position={[23, 229, -1]} glow={kit.glow} phase={1.3} />
+      {/* The wordmark across the band high on the main slab, front and back. */}
+      <Sign tex={kit.signs.tokugen} glow={kit.glow} color={green} size={[32, 8]} position={[-6, 150, 17.1]} />
+      <Sign tex={kit.signs.tokugen} glow={kit.glow} color={green} size={[32, 8]} position={[-6, 150, -17.1]} rotationY={Math.PI} />
+      <Sign tex={kit.verticalSigns.tokugen} glow={kit.glow} color={green} size={[6, 24]} position={[30.1, 150, -1]} rotationY={Math.PI / 2} />
     </group>
   );
 };
@@ -675,7 +698,7 @@ const Aerodynes: React.FC<{ glow: THREE.Texture }> = ({ glow }) => {
 // units and usually sits around 80: at this scale the tallest roofs are a little over 110.
 const TOWER_SCALE = 0.5;
 const TOWER_TOP = 230 * TOWER_SCALE;
-const LOT_COLORS: Record<LandmarkKind, string> = { tokugen: '#ffd34d', nexum: '#ff4a3a', axiom: '#3ee0ff', vanta: '#cfe6ff' };
+const LOT_COLORS: Record<LandmarkKind, string> = { tokugen: '#8dff7a', nexum: '#ff4a3a', axiom: '#3ee0ff', vanta: '#cfe6ff' };
 
 // A tower's whole city block: a dark plaza edged in its corp colour, with the tower on it. While
 // the camera is down among the floors of a tower, the tower is hidden so it never fills the view.
@@ -701,30 +724,31 @@ const LandmarkLot: React.FC<{ position: [number, number, number]; rotationY: num
 };
 
 export const Landmarks: React.FC<{ landmarks: Landmark[]; tileSize: number; offset: number }> = ({ landmarks, tileSize, offset }) => {
-  const [glow, cool, warm, red, amber, sTokugen, sNexum, sAxiom, sVanta, vAxiom, vVanta, vTokugen, ad0, ad1, ad2] = useDisposable(() => [
+  const [glow, cool, warm, red, amber, green, sTokugen, sNexum, sAxiom, sVanta, vAxiom, vVanta, vTokugen, ad0, ad1, ad2] = useDisposable(() => [
     glowTexture(),
     windowTexture(11, ['#bfe6ff', '#e8f4ff', '#7fd8ff', '#fff1cf']),
     windowTexture(23, ['#ffd9a0', '#ffc47a', '#fff1cf', '#ff9a5a'], 0.5),
     windowTexture(37, ['#ffe6b0', '#e8f4ff', '#fff1cf'], 0.4, { color: '#ff2a3a', share: 0.18 }),
     windowTexture(41, ['#ffd27a', '#fff1cf', '#ffe6b0'], 0.5),
-    signTexture('TOKUGEN', '#ffd34d'),
+    windowTexture(53, ['#d9ffd2', '#9dff8a', '#f2fff0'], 0.16),
+    signTexture('TOKUGEN', '#8dff7a'),
     signTexture('NEXUM', '#ff4a3a', { emblem: true }),
     signTexture('AXIOM', '#3ee0ff'),
     signTexture('VANTA', '#cfe6ff'),
     signTexture('AXIOM', '#3ee0ff', { vertical: true }),
     signTexture('VANTA', '#ff6a2a', { vertical: true }),
-    signTexture('TOKUGEN', '#ffd34d', { vertical: true }),
+    signTexture('TOKUGEN', '#8dff7a', { vertical: true }),
     advertTexture(5, ['#ff2a8a', '#2ad8ff', '#ffb02a']),
     advertTexture(9, ['#2affc8', '#8a5aff', '#ff4a6a']),
     advertTexture(13, ['#ff7a2a', '#ff2a5a', '#ffd84a']),
   ], []);
   const kit: Kit = useMemo(() => ({
     glow,
-    windows: { cool, warm, red, amber },
+    windows: { cool, warm, red, amber, green },
     signs: { tokugen: sTokugen, nexum: sNexum, axiom: sAxiom, vanta: sVanta },
     verticalSigns: { axiom: vAxiom, vanta: vVanta, tokugen: vTokugen },
     adverts: [ad0, ad1, ad2],
-  }), [glow, cool, warm, red, amber, sTokugen, sNexum, sAxiom, sVanta, vAxiom, vVanta, vTokugen, ad0, ad1, ad2]);
+  }), [glow, cool, warm, red, amber, green, sTokugen, sNexum, sAxiom, sVanta, vAxiom, vVanta, vTokugen, ad0, ad1, ad2]);
 
   // The towers face the middle of the map, so their fronts all look onto the central plaza.
   const centre = useMemo(() => {

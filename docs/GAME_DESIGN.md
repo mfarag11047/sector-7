@@ -902,7 +902,11 @@ Drop, or Masons.
   The match seed no longer changes the map, only the computer's doctrine and its dice.
 - There are 6 core nodes and 5 server nodes, all in mirrored pairs (the centre node mirrors onto itself).
 - Four corporate megatowers (Tokugen, Nexum, Axiom, Vanta) fill the four diagonal blocks around
-  the centre server node. Vanta is modelled after Arasaka Tower: a dark slate monolith on a
+  the centre server node. Tokugen is modelled after Militech's tower: a massive dark slab with a
+  tall service tower bolted to one flank under a steel roof lattice, green neon strips the full
+  height, ribbed floors jutting from its front between green brackets, banks of green tubes low
+  down, outboard modules stacked up the far flank and the wordmark in green high on the slab.
+  Vanta is modelled after Arasaka Tower: a dark slate monolith on a
   flared, buttressed foot, flanked by tall side wings under a notched stepped crown, cold seams
   up its panels and its own white emblem (a broken ring round a V and a diamond) near its top, with a tall holo-advert column off one corner
   and its orange holographic koi still circling it. They are landmarks, not targets: each fills its whole block, cannot be
