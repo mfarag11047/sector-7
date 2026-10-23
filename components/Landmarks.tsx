@@ -3,7 +3,7 @@
 // Four megatowers ring the central server node, each a different corp with its own silhouette:
 //   - Tokugen: a defence giant's fortress after Militech's tower: a massive slab with a service
 //     tower bolted on, ribbed floors jutting from its front and green neon throughout.
-//   - Nexum: a pale concrete slab after Petrochem's tower: fluted stepped ribs, a ribbed tower
+//   - Nexum: a dark concrete slab after Petrochem's tower: fluted stepped ribs, a ribbed tower
 //     behind, louvres down the middle between holo-advert strips, its emblem in neon.
 //   - Axiom: twin spires joined by a sky bridge, a beam of blue light from the roof and a
 //     giant holographic koi circling between them.
@@ -443,20 +443,20 @@ const Tokugen: React.FC<{ kit: Kit }> = ({ kit }) => {
   );
 };
 
-// Nexum: an energy giant's headquarters, after Night City's Petrochem tower. A pale grey concrete
+// Nexum: an energy giant's headquarters, after Night City's Petrochem tower. A dark grey concrete
 // slab with fluted, stepped ribs up its corners and a taller ribbed tower rising behind; high on
 // its front a dark recessed panel carries the emblem under a heavy ledge; down the middle a
 // column of dark louvres over a glass grid, flanked by two tall holo-advert strips; rows of vent
 // slits; the emblem again in neon at the foot.
 
-// Pale concrete: tall plates, faint vertical fluting, weathering streaks.
+// Dark concrete: tall plates, faint vertical fluting, weathering streaks.
 function concreteTexture(slits: boolean) {
   const c = document.createElement('canvas');
   c.width = c.height = 256;
   const g = c.getContext('2d')!;
   let seed = slits ? 77 : 61;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-  g.fillStyle = '#7d8087';
+  g.fillStyle = '#44474e';
   g.fillRect(0, 0, 256, 256);
   for (let x = 0; x < 256; x += 16) { g.fillStyle = x % 32 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.12)'; g.fillRect(x, 0, 3, 256); }
   for (let k = 0; k < 10; k++) { g.fillStyle = 'rgba(40,40,44,0.12)'; g.fillRect(rnd() * 256, 0, 2 + rnd() * 6, 60 + rnd() * 196); }
@@ -493,8 +493,8 @@ const Nexum: React.FC<{ kit: Kit }> = ({ kit }) => {
     const tiled = (t: THREE.Texture, rx: number, ry: number) => { const c = t.clone(); c.needsUpdate = true; c.repeat.set(rx, ry); return c; };
     return {
       slab: new THREE.MeshStandardMaterial({ map: tiled(slitted, 2, 6), color: '#ffffff', metalness: 0.2, roughness: 0.75 }),
-      rib: new THREE.MeshStandardMaterial({ map: tiled(plain, 0.3, 6), color: '#e6e7ea', metalness: 0.2, roughness: 0.7 }),
-      tower: new THREE.MeshStandardMaterial({ map: tiled(slitted, 1, 7), color: '#d9dadf', metalness: 0.25, roughness: 0.7 }),
+      rib: new THREE.MeshStandardMaterial({ map: tiled(plain, 0.3, 6), color: '#c8cad0', metalness: 0.2, roughness: 0.7 }),
+      tower: new THREE.MeshStandardMaterial({ map: tiled(slitted, 1, 7), color: '#a9abb1', metalness: 0.25, roughness: 0.7 }),
       louvre: new THREE.MeshStandardMaterial({ map: tiled(louvre, 2, 6), color: '#ffffff', metalness: 0.5, roughness: 0.5, emissive: '#2a0f08', emissiveIntensity: 0.4 }),
       dark: new THREE.MeshStandardMaterial({ color: '#16181d', metalness: 0.6, roughness: 0.45 }),
     };
@@ -520,8 +520,9 @@ const Nexum: React.FC<{ kit: Kit }> = ({ kit }) => {
       {/* The recessed dark panel high on the front, with the emblem. */}
       <B size={[30, 32, 1]} position={[0, 182, 20.2]} m="dark" />
       <Sign tex={kit.signs.nexum} glow={kit.glow} color={neon} size={[26, 19.5]} position={[0, 182, 20.4]} />
-      <B size={[30, 32, 1]} position={[0, 182, -12.2]} m="dark" />
-      <Sign tex={kit.signs.nexum} glow={kit.glow} color={neon} size={[26, 19.5]} position={[0, 182, -12.4]} rotationY={Math.PI} />
+      {/* On the back, the emblem goes on the ribbed tower, which covers most of the slab's back. */}
+      <B size={[18, 24, 1]} position={[14, 196, -24.2]} m="dark" />
+      <Sign tex={kit.signs.nexum} glow={kit.glow} color={neon} size={[16, 12]} position={[14, 196, -24.4]} rotationY={Math.PI} />
       {/* Down the middle: dark louvres over a glass grid. */}
       <B size={[12, 42, 1]} position={[0, 132, 20.2]} m="louvre" />
       <WindowBlock size={[12, 80, 1]} position={[0, 70, 20.2]} tex={kit.windows.amber} tint="#ffd9c4" />
