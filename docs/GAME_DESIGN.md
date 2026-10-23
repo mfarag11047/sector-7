@@ -1009,6 +1009,10 @@ Drop, or Masons.
   four spinning fans and exhaust vents on the roof, a status mast and parapet in the owner's
   colour (cyan when neutral), and glowing fibre conduits down its corners and out along the
   ground with data pulses running along them.
+- Core nodes are drawn as core extraction reactors (`components/CoreNode.tsx`): an armoured hex
+  housing over the shaft, four pylons holding a glowing amber energy core that turns and pulses
+  inside two tilted containment rings, an energy column down into the shaft, and six conduits on
+  a hex pad with pulses running in. The rim, rings and pylon lights take the holder's colour.
 - A building bigger than one tile is drawn as one building (`components/FootprintBuilding.tsx`),
   though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
   run along its outside faces only, a dark roof slab with a lit rim covers it (in the owner's

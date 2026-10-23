@@ -7,6 +7,7 @@ import { TEAM_COLORS, CITY_CONFIG } from '../constants';
 import { FootprintSegment, isFootprintSegment } from './FootprintBuilding';
 import { lookOf } from './midtownLooks';
 import { ServerNode } from './ServerNode';
+import { CoreNode } from './CoreNode';
 import { useFrame } from '@react-three/fiber';
 import { globalFrustum } from '../frustum';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
@@ -418,69 +419,6 @@ const ResidentialBuilding = ({
 
 // --- Main Building Component ---
 
-const CoreCaptureNode = ({
-    data,
-    materialRef,
-    onBeforeCompile,
-    hovered,
-    colors,
-}: {
-    data: BuildingData;
-    materialRef: any;
-    onBeforeCompile: any;
-    hovered: boolean;
-    colors: any;
-}) => {
-    const tile = CITY_CONFIG.tileSize;
-    const width = data.scale[0];
-    const height = data.scale[1];
-    const depth = data.scale[2];
-    const ringRef = useRef<THREE.Group>(null);
-    const frameColor = data.owner ? TEAM_COLORS[data.owner] : '#fbbf24';
-
-    useFrame((_, delta) => {
-        const ring = ringRef.current;
-        if (!ring || !isSubtreeVisible(ring)) return;
-        ring.rotation.y += delta * 0.6;
-        refreshSubtree(ring);
-    });
-
-    return (
-        <group>
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.04, 0]} receiveShadow>
-                <planeGeometry args={[tile * 0.96, tile * 0.96]} />
-                <meshBasicMaterial color={frameColor} />
-            </mesh>
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.08, 0]} receiveShadow>
-                <planeGeometry args={[tile * 0.82, tile * 0.82]} />
-                <meshStandardMaterial color="#0b1220" metalness={0.65} roughness={0.4} />
-            </mesh>
-            <mesh castShadow receiveShadow position={[0, height / 2, 0]}>
-                <boxGeometry args={[width, height, depth]} />
-                <meshStandardMaterial
-                    ref={materialRef}
-                    metalness={0.85}
-                    roughness={0.2}
-                    emissive={hovered ? '#fbbf24' : '#78350f'}
-                    emissiveIntensity={0.35}
-                    onBeforeCompile={onBeforeCompile}
-                />
-                <Edges threshold={15} color={hovered ? '#ffffff' : colors.edge} />
-            </mesh>
-            <group ref={ringRef} position={[0, height * 0.72, 0]}>
-                <mesh rotation={[Math.PI / 2, 0, 0]}>
-                    <ringGeometry args={[width * 0.85, width * 0.98, 24]} />
-                    <meshBasicMaterial color={frameColor} transparent opacity={0.8} side={THREE.DoubleSide} />
-                </mesh>
-            </group>
-            <mesh position={[0, height + 0.45, 0]}>
-                <octahedronGeometry args={[width * 0.28, 0]} />
-                <meshBasicMaterial color={frameColor} />
-            </mesh>
-        </group>
-    );
-};
-
 const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
   const materialRef = useRef<THREE.MeshStandardMaterial>(null);
   const fansRef = useRef<THREE.Group>(null);
@@ -512,7 +450,8 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
     // Corporate towers and midtown blocks take their body colour from their look
     // (corpoFacades.ts, midtownLooks.ts).
     const look = lookOf(data);
-    const body = look ? new THREE.Color(look.body) : null;
+    // The core node's housing is dark gunmetal; its glow is in its own model (CoreNode.tsx).
+    const body = look ? new THREE.Color(look.body) : data.type === 'core_node' ? new THREE.Color('#2a2f38') : null;
     return {
       base: body ?? c.clone().multiplyScalar(0.25), // Dark dimmed state
       hover: body ? body.clone().multiplyScalar(1.6) : c.clone().multiplyScalar(0.4), // Slightly lighter for hover
@@ -793,13 +732,7 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
       ) : data.type === 'server_node' ? (
           <ServerNode data={data} materialRef={materialRef} onBeforeCompile={onBeforeCompile} hovered={hovered} edge={colors.edge} fansRef={fansRef} />
       ) : data.type === 'core_node' ? (
-          <CoreCaptureNode
-              data={data}
-              materialRef={materialRef}
-              onBeforeCompile={onBeforeCompile}
-              hovered={hovered}
-              colors={colors}
-          />
+          <CoreNode data={data} materialRef={materialRef} onBeforeCompile={onBeforeCompile} hovered={hovered} edge={colors.edge} />
       ) : (
           /* Standard Box Building (Server Node Base) */
           <mesh

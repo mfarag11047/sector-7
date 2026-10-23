@@ -258,7 +258,7 @@ export function generateCity(opts: CityOptions): City {
     const z = blockCenter(node.iz);
     const id = `core-${x}-${z}`;
     buildingMap.set(key(x, z), id);
-    buildings.push(building(id, x, z, 'core_node', 6, id, [3.4, 6, 3.4]));
+    buildings.push(building(id, x, z, 'core_node', 8, id, [tileSize * 0.62, 8, tileSize * 0.62]));
   }
 
   // --- Server nodes: five, each alone in its block and guarded by a Sentinel. They produce
