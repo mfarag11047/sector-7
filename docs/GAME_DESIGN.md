@@ -967,6 +967,13 @@ Drop, or Masons.
   plaza (`components/DowntownDressing.tsx`): polished dark granite along the streets with a
   magenta neon line inlaid at the kerb, plaza stone laid in a two-tone diamond lattice inside
   each block, and long planters with clipped hedges along the foot of every tower.
+- The corporate towers downtown and in the core each wear one of five facades taken from Night
+  City's centre (`components/corpoFacades.ts`), picked by hand for every tower and shared with its
+  twin: **monolith** (near-black, scattered warm windows, full-height white light strips),
+  **gold scale** (dark, glowing panels of gold scales on its two broad faces), **office** (slate
+  blue, dense rows of lit office windows), **brutalist** (charcoal, horizontal louvre fins, an
+  amber light line round it) and **ticker** (dark, bands of red LED readout). Each style comes in
+  a few body shades, so neighbours of the same style still differ.
 - A building bigger than one tile is drawn as one building (`components/FootprintBuilding.tsx`),
   though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
   run along its outside faces only, a dark roof slab with a lit rim covers it (in the owner's

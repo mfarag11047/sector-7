@@ -5,6 +5,7 @@ import { Edges } from '@react-three/drei';
 import * as THREE from 'three';
 import { TEAM_COLORS, CITY_CONFIG } from '../constants';
 import { FootprintSegment, isFootprintSegment } from './FootprintBuilding';
+import { facadeOf } from './corpoFacades';
 import { useFrame } from '@react-three/fiber';
 import { globalFrustum } from '../frustum';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
@@ -507,14 +508,16 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
   // Calculate colors for different states
   const colors = useMemo(() => {
     const c = new THREE.Color(data.color);
+    // Corporate towers take their body colour from their facade style (corpoFacades.ts).
+    const body = data.type === 'commercial' && data.footprint ? new THREE.Color(facadeOf(data.footprint).body) : null;
     return {
-      base: c.clone().multiplyScalar(0.25), // Dark dimmed state
-      hover: c.clone().multiplyScalar(0.4), // Slightly lighter for hover
+      base: body ?? c.clone().multiplyScalar(0.25), // Dark dimmed state
+      hover: body ? body.clone().multiplyScalar(1.6) : c.clone().multiplyScalar(0.4), // Slightly lighter for hover
       glow: c.clone().multiplyScalar(1.8).addScalar(0.1), // Bright glowing state for capture fill
       team: data.owner ? new THREE.Color(TEAM_COLORS[data.owner]) : new THREE.Color(0, 0, 0),
       edge: data.owner ? new THREE.Color(TEAM_COLORS[data.owner]) : c.clone().multiplyScalar(0.8)
     };
-  }, [data.color, data.owner]);
+  }, [data.color, data.owner, data.type, data.footprint]);
 
   // Update shader uniforms every frame for smooth animation
   const worldPos = useMemo(() => {
