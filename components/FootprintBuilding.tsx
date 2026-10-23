@@ -17,6 +17,7 @@
 import React, { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { Edges } from '@react-three/drei';
+import { useFrame } from '@react-three/fiber';
 import { TEAM_COLORS } from '../constants';
 import type { BuildingData } from '../types';
 import { AD_COUNT, HoloBillboard } from './HoloBillboard';
@@ -200,6 +201,61 @@ const Crane: React.FC<{ jibAngle: number; mast: number }> = ({ jibAngle, mast })
 // What stands on a corporate tower's roof (corpoFacades.ts Crown). `span` is the roof's narrow
 // side, `long` its broad one.
 const redLight = () => neonMaterial('#ff003c');
+// --- The beacon crown: a holo-projector throwing a column of light into the sky, ringed by bands
+// of holographic ad glyphs scrolling round it. Shaders shared per colour, driven by one clock. ---
+const beaconTime = { value: 0 };
+const BEAM_HEIGHT = 150;
+const beamMaterials = new Map<string, THREE.ShaderMaterial>();
+const beamMaterial = (color: string) => {
+  let m = beamMaterials.get(color);
+  if (!m) {
+    m = new THREE.ShaderMaterial({
+      uniforms: { uTime: beaconTime, uColor: { value: new THREE.Color(color) } },
+      vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `
+        uniform float uTime; uniform vec3 uColor; varying vec2 vUv;
+        void main() {
+          // Brightest at the projector, fading out high in the sky, with pulses running up it.
+          float fade = pow(1.0 - vUv.y, 1.6);
+          float pulse = 0.6 + 0.4 * smoothstep(0.7, 1.0, sin(vUv.y * 40.0 - uTime * 6.0));
+          float core = 1.0 - abs(vUv.x - 0.5) * 2.0;
+          float a = fade * pulse * (0.35 + 0.65 * core);
+          gl_FragColor = vec4(uColor * a * 2.2, a);
+        }`,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false,
+    });
+    beamMaterials.set(color, m);
+  }
+  return m;
+};
+const adRingMaterials = new Map<string, THREE.ShaderMaterial>();
+const adRingMaterial = (color: string) => {
+  let m = adRingMaterials.get(color);
+  if (!m) {
+    m = new THREE.ShaderMaterial({
+      uniforms: { uTime: beaconTime, uColor: { value: new THREE.Color(color) } },
+      vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+      fragmentShader: `
+        uniform float uTime; uniform vec3 uColor; varying vec2 vUv;
+        float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        void main() {
+          // Rows of glyph blocks scrolling round the ring, between bright edge lines.
+          vec2 g = vec2((vUv.x + uTime * 0.05) * 90.0, vUv.y * 5.0);
+          float glyph = step(0.45, h(floor(g))) * step(0.15, fract(g.x)) * step(0.2, fract(g.y));
+          float edge = step(0.92, vUv.y) + step(vUv.y, 0.08);
+          float flicker = 0.75 + 0.25 * step(0.3, h(vec2(floor(uTime * 12.0), 3.0)));
+          float a = (glyph * 0.8 + edge) * flicker;
+          if (a < 0.02) discard;
+          gl_FragColor = vec4(uColor * a * 1.5, a * 0.9);
+        }`,
+      transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false,
+    });
+    adRingMaterials.set(color, m);
+  }
+  return m;
+};
+const BeaconClock: React.FC = () => { useFrame(({ clock }) => { beaconTime.value = clock.elapsedTime; }); return null; };
+
 const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: boolean; h: number; accent: string; position: [number, number, number] }> = ({ crown, span, long, alongX, h, accent, position }) => (
   <group position={position}>
     {crown === 'spire' && (
@@ -266,6 +322,21 @@ const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: b
         <mesh position={[-span * 0.3, 3.5, span * 0.25]} material={plantMaterial}><cylinderGeometry args={[0.1, 0.1, 7, 4]} /></mesh>
       </>
     )}
+    {crown === 'beacon' && (
+      <>
+        <BeaconClock />
+        <mesh position={[0, 1.2, 0]} material={podiumMaterial}><boxGeometry args={[span * 0.5, 2.4, span * 0.5]} /></mesh>
+        <mesh position={[0, 2.5, 0]} material={neonMaterial(accent)}><cylinderGeometry args={[span * 0.16, span * 0.2, 0.4, 12]} /></mesh>
+        <mesh position={[0, 2.6 + BEAM_HEIGHT / 2, 0]} material={beamMaterial(accent)}>
+          <cylinderGeometry args={[2.6, 0.9, BEAM_HEIGHT, 16, 1, true]} />
+        </mesh>
+        {[[10, 0.55, 4], [24, 0.42, 3]].map(([y, r, band], i) => (
+          <mesh key={i} position={[0, y, 0]} material={adRingMaterial(i ? '#67e8f9' : accent)}>
+            <cylinderGeometry args={[span * r, span * r, band, 32, 1, true]} />
+          </mesh>
+        ))}
+      </>
+    )}
     {crown === 'blade' && (
       <group rotation={[0, alongX ? 0 : Math.PI / 2, 0]}>
         <mesh position={[0, h * 0.075, 0]} material={podiumMaterial}><boxGeometry args={[long * 0.55, h * 0.15, 0.5]} /></mesh>
@@ -326,15 +397,18 @@ const FootprintSegmentView: React.FC<{
     // Shops take the ground storey; the floors above start over them.
     const bottom = tower ? PODIUM_HEIGHT : facade?.shops ? SHOP_HEIGHT + 0.8 : style.groundFloor;
 
-    // Tiers, from the ground up: at each step of the building's massing its outside walls step
-    // in. Steps below the podium or too near the roof are dropped.
-    const breaks = (facade?.massing ? MASSING_STEPS[facade.massing] : []).map(a => a * h).filter(y => y > bottom + 3 && y < h - 2);
+    // Tiers, from the ground up: at each step of the building's massing its outside walls stand
+    // in (or out, overhanging) by that many steps. Steps too near the roof are dropped, and the
+    // ground tier starts at the foot even when a step is set at 0.
+    const steps = (facade?.massing ? MASSING_STEPS[facade.massing] : []).map(([a, n]) => [a * h, n] as const);
+    const footInset = steps.length && steps[0][0] === 0 ? steps[0][1] : 0;
+    const breaks = steps.filter(([y]) => y > 3 && y < h - 2);
     // Shallow steps, so towers stay broad and the streets stay walled in.
     const stepIn = tower ? T * 0.05 : T * 0.07;
-    const tiers = [0, ...breaks].map((y0, k) => {
-      const d = k * stepIn;
+    const tiers = [[0, footInset] as const, ...breaks].map(([y0, n], k) => {
+      const d = n * stepIn;
       const shrink = (s: Side) => (tower || outside[s] ? d : 0);
-      return { y0, y1: breaks[k] ?? h, x0: base.x0 + shrink('west'), x1: base.x1 - shrink('east'), z0: base.z0 + shrink('north'), z1: base.z1 - shrink('south') };
+      return { y0, y1: breaks[k]?.[0] ?? h, x0: base.x0 + shrink('west'), x1: base.x1 - shrink('east'), z0: base.z0 + shrink('north'), z1: base.z1 - shrink('south') };
     });
     const top = tiers[tiers.length - 1];
     // The body, every tier in one mesh centred on half the height, so the capture fill climbs

@@ -58,16 +58,20 @@ export const FACADES: Record<FacadeName, Facade> = {
   balcony: { name: 'balcony', body: '#2a3331', bodies: ['#2a3331', '#2e3532', '#283035'], accent: '#a7f3d0', texW: 6, texH: 3.5 },
 };
 
-// How a tower is massed, from the ground up: the heights (shares of its height) where its
-// outside walls step in.
-//   straight   one sheer box
-//   setback    steps in once, about 60% up
-//   stepped    steps in twice, wedding-cake style
-//   plinth     a broad base a fifth of the way up, then a slimmer shaft
-//   crownstep  sheer almost to the top, then a narrower crown storey
-export type Massing = 'straight' | 'setback' | 'stepped' | 'plinth' | 'crownstep';
-export const MASSING_STEPS: Record<Massing, number[]> = {
-  straight: [], setback: [0.6], stepped: [0.45, 0.75], plinth: [0.22], crownstep: [0.86],
+// How a tower is massed, from the ground up: at each share of its height, how many steps its
+// outside walls stand in from the footprint (negative: out past it, overhanging the street).
+//   straight    one sheer box
+//   setback     steps in once, about 60% up
+//   stepped     steps in twice, wedding-cake style
+//   plinth      a broad base a fifth of the way up, then a slimmer shaft
+//   crownstep   sheer almost to the top, then a narrower crown storey
+//   cantilever  a heavy upper mass overhanging the street from just over halfway up
+//   waist       a deep recessed band of open floors partway up, the mass carrying on above it
+//   topheavy    narrow at the foot, swelling out into a broad mass above a third of the way up
+export type Massing = 'straight' | 'setback' | 'stepped' | 'plinth' | 'crownstep' | 'cantilever' | 'waist' | 'topheavy';
+export const MASSING_STEPS: Record<Massing, [number, number][]> = {
+  straight: [], setback: [[0.6, 1]], stepped: [[0.45, 1], [0.75, 2]], plinth: [[0.22, 1]], crownstep: [[0.86, 1]],
+  cantilever: [[0.58, -4]], waist: [[0.42, 4], [0.54, 0]], topheavy: [[0, 3], [0.32, -2.5]],
 };
 // What stands on the roof.
 //   spire     a crown block, a neon band and a mast with a red light
@@ -75,7 +79,9 @@ export const MASSING_STEPS: Record<Massing, number[]> = {
 //   helipad   a landing pad with a lit ring and corner lights
 //   antennas  a cluster of masts of different heights
 //   blade     a tall thin fin with a neon edge
-export type Crown = 'spire' | 'stepped' | 'helipad' | 'antennas' | 'blade'
+//   beacon    a holo-projector throwing a column of light into the sky, ringed with turning
+//             holographic ad bands
+export type Crown = 'spire' | 'stepped' | 'helipad' | 'antennas' | 'blade' | 'beacon'
   // Apartment roofs: water tanks, a roof garden, plant and an antenna ring.
   | 'tanks' | 'garden' | 'plant';
 
@@ -86,23 +92,26 @@ export type Crown = 'spire' | 'stepped' | 'helipad' | 'antennas' | 'blade'
 // side by side never share a look and a silhouette, with the gold-scaled towers flanking the
 // boulevard into the plaza and on the big corner block.
 const CURATED: Record<string, [FacadeName, Massing, Crown, number]> = {
-  // Corner block (4,4): the gold megablock, a slab and a long low frontage.
-  '25,25': ['goldscale', 'setback', 'spire', 0], '29,25': ['ticker', 'straight', 'blade', 1], '25,29': ['brutalist', 'straight', 'antennas', 1],
-  // Block (5,4).
-  '31,25': ['office', 'crownstep', 'helipad', 1], '31,28': ['monolith', 'stepped', 'spire', 0], '34,28': ['brutalist', 'plinth', 'stepped', 2],
-  // Block (6,4), either side of the boulevard.
-  '37,25': ['monolith', 'setback', 'spire', 1], '40,25': ['office', 'stepped', 'helipad', 0], '37,29': ['ticker', 'straight', 'blade', 0], '40,29': ['brutalist', 'straight', 'antennas', 1],
+  // Corner block (4,4): a gold monolith with a row of three beacon spires beside it.
+  '25,25': ['goldscale', 'cantilever', 'helipad', 0], '29,25': ['ticker', 'straight', 'beacon', 0], '29,27': ['monolith', 'straight', 'blade', 1],
+  '29,29': ['office', 'crownstep', 'beacon', 1], '25,29': ['brutalist', 'straight', 'antennas', 1],
+  // Block (5,4): a long brutalist wall, a spire and a top-heavy mass.
+  '31,25': ['brutalist', 'waist', 'antennas', 2], '31,28': ['ticker', 'straight', 'beacon', 1], '33,28': ['monolith', 'topheavy', 'stepped', 0],
+  // Block (6,4): two masses either side of the boulevard, bridged high over it, and two spires.
+  '37,25': ['monolith', 'cantilever', 'spire', 0], '40,25': ['office', 'waist', 'helipad', 1], '37,29': ['monolith', 'straight', 'beacon', 1], '41,29': ['ticker', 'straight', 'blade', 0],
   // Block (7,4).
-  '43,25': ['ticker', 'straight', 'blade', 1], '45,25': ['monolith', 'stepped', 'helipad', 2], '45,29': ['office', 'straight', 'antennas', 1],
-  // The core, either side of the boulevard into the plaza.
-  '37,31': ['goldscale', 'setback', 'spire', 0], '40,31': ['goldscale', 'stepped', 'helipad', 1], '31,37': ['monolith', 'stepped', 'spire', 1], '31,40': ['monolith', 'setback', 'helipad', 0],
+  '43,25': ['ticker', 'straight', 'beacon', 0], '45,25': ['brutalist', 'topheavy', 'helipad', 1], '43,27': ['monolith', 'straight', 'antennas', 1],
+  '43,29': ['office', 'straight', 'blade', 2], '46,29': ['ticker', 'straight', 'antennas', 1],
+  // The core, either side of the boulevard into the plaza, bridged.
+  '37,31': ['goldscale', 'cantilever', 'spire', 0], '40,31': ['goldscale', 'waist', 'helipad', 1], '31,37': ['monolith', 'topheavy', 'spire', 0], '31,40': ['monolith', 'cantilever', 'helipad', 1],
   // Block (4,5).
-  '25,31': ['office', 'setback', 'antennas', 2], '29,31': ['ticker', 'straight', 'blade', 0], '25,34': ['brutalist', 'stepped', 'helipad', 0], '28,34': ['monolith', 'crownstep', 'spire', 2],
+  '25,31': ['brutalist', 'waist', 'helipad', 0], '29,31': ['ticker', 'straight', 'beacon', 1], '25,35': ['office', 'straight', 'beacon', 2], '27,35': ['monolith', 'straight', 'blade', 1],
   // Block (4,6), either side of the boulevard.
-  '25,37': ['brutalist', 'setback', 'helipad', 1], '28,37': ['office', 'plinth', 'spire', 1], '25,40': ['monolith', 'stepped', 'antennas', 1], '29,40': ['ticker', 'straight', 'blade', 1],
+  '25,37': ['office', 'cantilever', 'antennas', 1], '29,37': ['monolith', 'straight', 'beacon', 0], '25,40': ['brutalist', 'setback', 'helipad', 2], '28,40': ['ticker', 'topheavy', 'blade', 0],
   // Block (4,7).
-  '25,43': ['brutalist', 'crownstep', 'helipad', 2], '25,46': ['ticker', 'straight', 'blade', 0], '27,46': ['office', 'stepped', 'spire', 0],
+  '25,43': ['monolith', 'waist', 'spire', 0], '28,43': ['office', 'cantilever', 'stepped', 1], '25,47': ['ticker', 'straight', 'beacon', 1], '27,47': ['brutalist', 'straight', 'antennas', 2],
 };
+
 
 
 type Footprint = NonNullable<BuildingData['footprint']>;

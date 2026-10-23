@@ -975,12 +975,14 @@ Drop, or Masons.
   amber light line round it) and **ticker** (dark, bands of red LED readout). Each style comes in
   a few body shades, from near-black to dark grey, picked per tower so the district isn't a wall
   of black under the fog. Each tower is also massed
-  and crowned by hand: straight, set back once, stepped twice, on a broad plinth, or with a
-  narrower crown storey, each step lit along its ledge; and topped with a spire, stacked crown
-  blocks, a lit helipad, an antenna cluster or a neon-edged blade fin. Downtown blocks are
-  each drawn differently in the plan with broad full-height towers (2x2 to 5x2, no thin slivers)
-  filling most of each block, and setbacks are shallow, so the streets stay walled in by
-  towers.
+  and crowned by hand. Downtown mixes broad monolithic masses (3x3, 5x2, 2x3) with slim spires
+  (1x1, 1x2). Massing: straight, set back, stepped, on a plinth, a narrower crown storey, a
+  heavy **cantilevered** upper mass overhanging the street, a deep recessed **waist** of open
+  floors, or **top-heavy** (narrow foot, broad mass above). Crowns: spire, stacked blocks, lit
+  helipad, antenna cluster, blade fin, or a **beacon**: a holo-projector throwing a column of
+  light into the sky, ringed by bands of scrolling holographic ad glyphs. Four massive enclosed
+  **sky-bridges** a side (`components/DowntownBridges.tsx`) span the streets between towers high
+  up, two of them over the boulevard into the plaza; a bridge goes when either tower falls.
 - Midtown's green blocks are apartment buildings (`components/midtownLooks.ts`). Most blocks are
   mixed: each building has its own windows (data-centre bands, apartment windows or balcony
   floors), massing (straight, set back, on a plinth or with a narrower top storey), roof (water

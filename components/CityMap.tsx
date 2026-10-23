@@ -15,6 +15,7 @@ import Streetscape from './Streetscape';
 import IndustrialYard from './IndustrialYard';
 import BlackwallCorruption from './BlackwallCorruption';
 import DowntownDressing from './DowntownDressing';
+import DowntownBridges from './DowntownBridges';
 import BaseCompound from './BaseCompound';
 import MidtownSkyways from './MidtownSkyways';
 import BuildingHitProxies from './BuildingHitProxies';
@@ -4190,6 +4191,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         <BlackwallCorruption tiles={roadTiles} buildings={buildings} tileSize={CITY_CONFIG.tileSize} offset={offset} />
         {/* Downtown: neon along the kerbs, planters at the foot of the towers. */}
         <DowntownDressing tiles={roadTiles} buildings={initialBuildings} tileSize={CITY_CONFIG.tileSize} offset={offset} />
+        {/* Megastructure sky-bridges spanning streets between downtown towers. */}
+        <DowntownBridges buildings={buildings} tileSize={CITY_CONFIG.tileSize} offset={offset} />
         {/* Sky walkways between the buildings of midtown's apartment complexes. */}
         <MidtownSkyways buildings={initialBuildings} tileSize={CITY_CONFIG.tileSize} offset={offset} />
         {/* The blast walls and gates round the starting bases. */}
