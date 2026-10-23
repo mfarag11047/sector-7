@@ -973,7 +973,12 @@ Drop, or Masons.
   **gold scale** (dark, glowing panels of gold scales on its two broad faces), **office** (slate
   blue, dense rows of lit office windows), **brutalist** (charcoal, horizontal louvre fins, an
   amber light line round it) and **ticker** (dark, bands of red LED readout). Each style comes in
-  a few body shades, so neighbours of the same style still differ.
+  a few body shades, so neighbours of the same style still differ. Each tower is also massed
+  and crowned by hand: straight, set back once, stepped twice, on a broad plinth, or with a
+  narrower crown storey, each step lit along its ledge; and topped with a spire, stacked crown
+  blocks, a lit helipad, an antenna cluster or a neon-edged blade fin. Downtown blocks are
+  each drawn differently in the plan, so towers side by side differ in footprint, height and
+  silhouette.
 - A building bigger than one tile is drawn as one building (`components/FootprintBuilding.tsx`),
   though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
   run along its outside faces only, a dark roof slab with a lit rim covers it (in the owner's

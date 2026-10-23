@@ -20,7 +20,8 @@ import { Edges } from '@react-three/drei';
 import { TEAM_COLORS } from '../constants';
 import type { BuildingData } from '../types';
 import { AD_COUNT, HoloBillboard } from './HoloBillboard';
-import { facadeOf, facadeWindowMaterial, featureSides, goldScaleMaterial } from './corpoFacades';
+import { type Crown, facadeOf, facadeWindowMaterial, featureSides, goldScaleMaterial, MASSING_STEPS } from './corpoFacades';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 type Kind = 'commercial' | 'hightech' | 'industrial' | 'residential';
 
@@ -195,6 +196,56 @@ const Crane: React.FC<{ jibAngle: number; mast: number }> = ({ jibAngle, mast })
   </group>
 );
 
+// What stands on a corporate tower's roof (corpoFacades.ts Crown). `span` is the roof's narrow
+// side, `long` its broad one.
+const redLight = () => neonMaterial('#ff003c');
+const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: boolean; h: number; accent: string; position: [number, number, number] }> = ({ crown, span, long, alongX, h, accent, position }) => (
+  <group position={position}>
+    {crown === 'spire' && (
+      <>
+        <mesh position={[0, 2, 0]} material={podiumMaterial}><boxGeometry args={[span * 0.6, 4, span * 0.6]} /></mesh>
+        <mesh position={[0, 3.6, 0]} material={neonMaterial(accent)}><boxGeometry args={[span * 0.62, 0.3, span * 0.62]} /></mesh>
+        <mesh position={[0, 4 + h * 0.12, 0]} material={plantMaterial}><cylinderGeometry args={[0.15, 0.3, h * 0.24, 6]} /></mesh>
+        <mesh position={[0, 4 + h * 0.24, 0]} material={redLight()}><sphereGeometry args={[0.45, 8, 6]} /></mesh>
+      </>
+    )}
+    {crown === 'stepped' && [0.75, 0.52, 0.3].map((k, i) => (
+      <group key={i}>
+        <mesh position={[0, 1.4 + i * 2.8, 0]} material={podiumMaterial}><boxGeometry args={[span * k, 2.8, span * k]} /></mesh>
+        <mesh position={[0, 2.7 + i * 2.8, 0]} material={neonMaterial(accent)}><boxGeometry args={[span * k + 0.1, 0.22, span * k + 0.1]} /></mesh>
+      </group>
+    ))}
+    {crown === 'helipad' && (
+      <>
+        <mesh position={[0, 0.5, 0]} material={podiumMaterial}><cylinderGeometry args={[span * 0.38, span * 0.4, 1, 20]} /></mesh>
+        <mesh position={[0, 1.02, 0]} rotation={[-Math.PI / 2, 0, 0]} material={neonMaterial(accent)}><ringGeometry args={[span * 0.3, span * 0.33, 32]} /></mesh>
+        {/* The H. */}
+        {[[-0.09, 0], [0.09, 0]].map(([x], i) => (
+          <mesh key={i} position={[span * x, 1.03, 0]} material={neonMaterial('#e2e8f0')}><boxGeometry args={[span * 0.03, 0.04, span * 0.22]} /></mesh>
+        ))}
+        <mesh position={[0, 1.03, 0]} material={neonMaterial('#e2e8f0')}><boxGeometry args={[span * 0.18, 0.04, span * 0.03]} /></mesh>
+        {[[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([x, z], i) => (
+          <mesh key={`l${i}`} position={[x * span * 0.36, 1.1, z * span * 0.36]} material={redLight()}><sphereGeometry args={[0.3, 6, 4]} /></mesh>
+        ))}
+      </>
+    )}
+    {crown === 'antennas' && [[-0.22, -0.18, 0.2], [0.15, 0.2, 0.12], [0.25, -0.2, 0.07], [-0.1, 0.25, 0.09]].map(([x, z, k], i) => (
+      <group key={i} position={[x * span, 0, z * span]}>
+        <mesh position={[0, (h * k) / 2, 0]} material={plantMaterial}><cylinderGeometry args={[0.12, 0.22, h * k, 5]} /></mesh>
+        <mesh position={[0, h * k, 0]} material={redLight()}><sphereGeometry args={[0.3, 6, 4]} /></mesh>
+        {i === 0 && <mesh position={[0, h * k * 0.6, 0]} material={plantMaterial}><boxGeometry args={[1.6, 0.12, 0.12]} /></mesh>}
+      </group>
+    ))}
+    {crown === 'blade' && (
+      <group rotation={[0, alongX ? 0 : Math.PI / 2, 0]}>
+        <mesh position={[0, h * 0.075, 0]} material={podiumMaterial}><boxGeometry args={[long * 0.55, h * 0.15, 0.5]} /></mesh>
+        <mesh position={[long * 0.275, h * 0.075, 0]} material={neonMaterial(accent)}><boxGeometry args={[0.2, h * 0.15, 0.55]} /></mesh>
+        <mesh position={[0, h * 0.15, 0]} material={neonMaterial(accent)}><boxGeometry args={[long * 0.55, 0.2, 0.55]} /></mesh>
+      </group>
+    )}
+  </group>
+);
+
 // How high the podium under a tower stands (the podium tiles around it are 8-12).
 const PODIUM_HEIGHT = 10;
 
@@ -232,50 +283,75 @@ const FootprintSegmentView: React.FC<{
     };
     // A tower stands slim on its podium; its own body carries windows all round.
     const tower = isTower ? { x0: -T * 0.31, x1: T * 0.31, z0: -T * 0.31, z1: T * 0.31 } : null;
-    const body = tower ?? box;
+    const base = tower ?? box;
     const faces = (Object.keys(outside) as Side[]).filter(s => tower || outside[s]);
     const worldX = data.gridX * T;
     const worldZ = data.gridZ * T;
     const bottom = tower ? PODIUM_HEIGHT : style.groundFloor;
-    const windows = faces.map(side => {
-      const alongX = side === 'north' || side === 'south';
-      const width = alongX ? body.x1 - body.x0 : body.z1 - body.z0;
-      const start = alongX ? worldX + body.x0 : worldZ + body.z0;
-      const height = Math.max(0.5, h - bottom - 0.8);
-      const geometry = faceGeometry(width, height, start / texW, bottom / texH, texW, texH);
-      const cx = alongX ? (body.x0 + body.x1) / 2 : side === 'west' ? body.x0 - 0.04 : body.x1 + 0.04;
-      const cz = alongX ? (side === 'north' ? body.z0 - 0.04 : body.z1 + 0.04) : (body.z0 + body.z1) / 2;
-      const rot = side === 'north' ? Math.PI : side === 'south' ? 0 : side === 'west' ? -Math.PI / 2 : Math.PI / 2;
-      return { side, geometry, position: [cx, bottom + height / 2, cz] as [number, number, number], rot, width, alongX, height, bottom, start };
+
+    // Tiers, from the ground up: at each step of the building's massing its outside walls step
+    // in. Steps below the podium or too near the roof are dropped.
+    const breaks = (facade?.massing ? MASSING_STEPS[facade.massing] : []).map(a => a * h).filter(y => y > bottom + 3 && y < h - 2);
+    const stepIn = tower ? T * 0.07 : T * 0.12;
+    const tiers = [0, ...breaks].map((y0, k) => {
+      const d = k * stepIn;
+      const shrink = (s: Side) => (tower || outside[s] ? d : 0);
+      return { y0, y1: breaks[k] ?? h, x0: base.x0 + shrink('west'), x1: base.x1 - shrink('east'), z0: base.z0 + shrink('north'), z1: base.z1 - shrink('south') };
     });
+    const top = tiers[tiers.length - 1];
+    // The body, every tier in one mesh centred on half the height, so the capture fill climbs
+    // the whole building.
+    const bodyGeometry = mergeGeometries(tiers.map(t => {
+      const g = new THREE.BoxGeometry(t.x1 - t.x0, t.y1 - t.y0, t.z1 - t.z0);
+      g.translate((t.x0 + t.x1) / 2, (t.y0 + t.y1) / 2 - h / 2, (t.z0 + t.z1) / 2);
+      return g;
+    }))!;
+
+    // Windows on each tier's outside faces, lined up in world space.
+    const windows = tiers.flatMap((t, k) => faces.map(side => {
+      const alongX = side === 'north' || side === 'south';
+      const width = alongX ? t.x1 - t.x0 : t.z1 - t.z0;
+      const start = alongX ? worldX + t.x0 : worldZ + t.z0;
+      const wb = Math.max(bottom, t.y0 + 0.4);
+      const wt = t.y1 - (k === tiers.length - 1 ? 0.8 : 0.5);
+      const height = Math.max(0.5, wt - wb);
+      const geometry = faceGeometry(width, height, start / texW, wb / texH, texW, texH);
+      const cx = alongX ? (t.x0 + t.x1) / 2 : side === 'west' ? t.x0 - 0.04 : t.x1 + 0.04;
+      const cz = alongX ? (side === 'north' ? t.z0 - 0.04 : t.z1 + 0.04) : (t.z0 + t.z1) / 2;
+      const rot = side === 'north' ? Math.PI : side === 'south' ? 0 : side === 'west' ? -Math.PI / 2 : Math.PI / 2;
+      return { key: `${side}-${k}`, side, geometry, position: [cx, wb + height / 2, cz] as [number, number, number], rot, width, alongX, height, bottom: wb, top: wt, ledge: t.y1, start };
+    }));
     // The gold scale panels on the building's two broad faces: most of the face's height, the
     // scales lined up in world space across the building's tiles.
     const scaleSides = facade?.scales ? featureSides(f) : [];
-    const scales = windows.filter(w => scaleSides.includes(w.side) && h > 14).map(w => {
-      const y0 = Math.max(w.bottom, h * 0.22), y1 = h * 0.88;
-      return { ...w, geometry: faceGeometry(w.width, y1 - y0, w.start / 5, y0 / 5, 5, 5), y: (y0 + y1) / 2 };
+    const scales = windows.filter(w => scaleSides.includes(w.side) && h > 14).flatMap(w => {
+      const y0 = Math.max(w.bottom, h * 0.22), y1 = Math.min(w.top, h * 0.88);
+      return y1 - y0 < 3 ? [] : [{ ...w, geometry: faceGeometry(w.width, y1 - y0, w.start / 5, y0 / 5, 5, 5), y: (y0 + y1) / 2 }];
     });
     // The roof slab runs on unbroken across tiles and stops short of the outside edges.
     const rim = (side: Side) => (tower || outside[side] ? ROOF_RIM : 0);
-    const cap = { x0: body.x0 + rim('west'), x1: body.x1 - rim('east'), z0: body.z0 + rim('north'), z1: body.z1 - rim('south') };
+    const cap = { x0: top.x0 + rim('west'), x1: top.x1 - rim('east'), z0: top.z0 + rim('north'), z1: top.z1 - rim('south') };
     // Holo billboards on commercial towers tall enough to carry one: at most one a tile, on one
-    // of its outside faces.
+    // of its outside faces, within one tier.
     let billboard: { kind: 'panel' | 'blade'; ad: number; width: number; height: number; position: [number, number, number]; rot: number } | null = null;
     if (kind === 'commercial' && h >= 24) {
-      const face = windows.find((w, i) => tileHash(data.gridX, data.gridZ, i + 1) < 0.45);
+      const blade = tileHash(data.gridX, data.gridZ, 9) < 0.45;
+      const choices = windows.filter(w => w.top - w.bottom > 10);
+      const face = choices.find((w, i) => tileHash(data.gridX, data.gridZ, i + 1) < 0.45);
       if (face) {
-        const blade = tileHash(data.gridX, data.gridZ, 9) < 0.45;
         const width = blade ? 4.5 : Math.min(face.width * 0.85, 11);
-        const height = Math.min(width * 2, h * 0.5);
-        const y = Math.max(bottom + height / 2 + 2, h * 0.62);
-        billboard = { kind: blade ? 'blade' : 'panel', ad: Math.floor(tileHash(data.gridX, data.gridZ, 5) * AD_COUNT), width, height, position: [face.position[0], Math.min(y, h - height / 2 - 1), face.position[2]], rot: face.rot };
+        const height = Math.min(width * 2, h * 0.5, face.top - face.bottom - 2);
+        const y = Math.min(Math.max(face.bottom + height / 2 + 1, h * 0.62), face.top - height / 2 - 1);
+        billboard = { kind: blade ? 'blade' : 'panel', ad: Math.floor(tileHash(data.gridX, data.gridZ, 5) * AD_COUNT), width, height, position: [face.position[0], y, face.position[2]], rot: face.rot };
       }
     }
-    return { box, body, tower, windows, faces, cap, billboard, scales };
+    return { box, body: top, tower, windows, faces, cap, billboard, scales, bodyGeometry };
   }, [T, lx, lz, f, isTower, data.gridX, data.gridZ, h, style, kind, facade, texW, texH]);
 
-  useEffect(() => () => { parts.windows.forEach(w => w.geometry.dispose()); parts.scales.forEach(w => w.geometry.dispose()); }, [parts]);
-  const { box, body, tower, windows, cap, billboard, scales } = parts;
+  useEffect(() => () => {
+    parts.windows.forEach(w => w.geometry.dispose()); parts.scales.forEach(w => w.geometry.dispose()); parts.bodyGeometry.dispose();
+  }, [parts]);
+  const { box, body, tower, windows, cap, billboard, scales, bodyGeometry } = parts;
   const bw = body.x1 - body.x0;
   const bd = body.z1 - body.z0;
   const bx = (body.x0 + body.x1) / 2;
@@ -291,8 +367,7 @@ const FootprintSegmentView: React.FC<{
       )}
 
       {/* The body carries the capture fill. */}
-      <mesh position={[bx, h / 2, bz]} castShadow receiveShadow>
-        <boxGeometry args={[bw, h, bd]} />
+      <mesh position={[0, h / 2, 0]} geometry={bodyGeometry} castShadow receiveShadow>
         <meshStandardMaterial ref={materialRef} metalness={0.6} roughness={0.35} onBeforeCompile={onBeforeCompile} />
         {hovered && <Edges color="#ffffff" threshold={40} />}
       </mesh>
@@ -302,10 +377,10 @@ const FootprintSegmentView: React.FC<{
       </mesh>
 
       {windows.map(w => (
-        <group key={w.side}>
+        <group key={w.key}>
           <mesh geometry={w.geometry} position={w.position} rotation={[0, w.rot, 0]} material={facade ? facadeWindowMaterial(facade.name) : windowMaterial(kind)} />
-          {/* A neon line along the top of each outside face. */}
-          <mesh position={[w.position[0], h - 0.3, w.position[2]]} rotation={[0, w.rot, 0]} material={neonMaterial(accent)}>
+          {/* A neon line along the top of each outside face, and of each setback. */}
+          <mesh position={[w.position[0], w.ledge - 0.3, w.position[2]]} rotation={[0, w.rot, 0]} material={neonMaterial(accent)}>
             <boxGeometry args={[w.width, 0.35, 0.25]} />
           </mesh>
         </group>
@@ -314,7 +389,7 @@ const FootprintSegmentView: React.FC<{
       {/* Facade dressing: full-height light strips, a light line round the building, the gold
           scales. Each sits just proud of its face. */}
       {facade?.strips && windows.map(w => (
-        <group key={`strips-${w.side}`} position={w.position} rotation={[0, w.rot, 0]}>
+        <group key={`strips-${w.key}`} position={w.position} rotation={[0, w.rot, 0]}>
           {Array.from({ length: facade.strips!.count }, (_, i) => (
             <mesh key={i} position={[((i + 1) / (facade.strips!.count + 1) - 0.5) * w.width, 0, 0.12]} material={neonMaterial(facade.strips!.color)}>
               <boxGeometry args={[0.22, w.height, 0.12]} />
@@ -322,13 +397,13 @@ const FootprintSegmentView: React.FC<{
           ))}
         </group>
       ))}
-      {facade?.band && windows.map(w => (
-        <mesh key={`band-${w.side}`} position={[w.position[0], h * facade.band!.at, w.position[2]]} rotation={[0, w.rot, 0]} material={neonMaterial(facade.band!.color)}>
+      {facade?.band && windows.filter(w => w.bottom <= h * facade.band!.at && h * facade.band!.at <= w.top).map(w => (
+        <mesh key={`band-${w.key}`} position={[w.position[0], h * facade.band!.at, w.position[2]]} rotation={[0, w.rot, 0]} material={neonMaterial(facade.band!.color)}>
           <boxGeometry args={[w.width + 0.3, 0.3, 0.3]} />
         </mesh>
       ))}
       {scales.map(w => (
-        <mesh key={`scales-${w.side}`} geometry={w.geometry} position={[w.position[0], w.y, w.position[2]]} rotation={[0, w.rot, 0]} material={goldScaleMaterial()}>
+        <mesh key={`scales-${w.key}`} geometry={w.geometry} position={[w.position[0], w.y, w.position[2]]} rotation={[0, w.rot, 0]} material={goldScaleMaterial()}>
         </mesh>
       ))}
 
@@ -362,23 +437,7 @@ const FootprintSegmentView: React.FC<{
         </group>
       ))}
 
-      {anchor && kind === 'commercial' && (
-        <group position={[bx, h, bz]}>
-          <mesh position={[0, 2, 0]} material={podiumMaterial}>
-            <boxGeometry args={[Math.min(bw, bd) * 0.6, 4, Math.min(bw, bd) * 0.6]} />
-          </mesh>
-          {/* A neon band round the crown, just below its top. */}
-          <mesh position={[0, 3.6, 0]} material={neonMaterial(accent)}>
-            <boxGeometry args={[Math.min(bw, bd) * 0.62, 0.3, Math.min(bw, bd) * 0.62]} />
-          </mesh>
-          <mesh position={[0, 4 + h * 0.12, 0]} material={plantMaterial}>
-            <cylinderGeometry args={[0.15, 0.3, h * 0.24, 6]} />
-          </mesh>
-          <mesh position={[0, 4 + h * 0.24, 0]} material={neonMaterial('#ff003c')}>
-            <sphereGeometry args={[0.45, 8, 6]} />
-          </mesh>
-        </group>
-      )}
+      {anchor && kind === 'commercial' && <TowerCrown crown={facade?.crown ?? 'spire'} span={Math.min(bw, bd)} long={Math.max(bw, bd)} alongX={bw >= bd} h={h} accent={accent} position={[bx, h, bz]} />}
 
       {anchor && kind === 'hightech' && (
         <group position={[bx, h, bz]}>

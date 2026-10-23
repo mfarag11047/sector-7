@@ -1,4 +1,4 @@
-// The faces of the corporate towers downtown and in the core: a handful of styles taken from
+// The look of the corporate towers downtown and in the core: a handful of facade styles taken from
 // Night City's centre, so the towers stand apart from each other while still reading as one
 // district. Each building gets one style for all its tiles, picked by hand for every tower on
 // blue's side (CURATED) and given to its twin across the map too, and one of a few shades of
@@ -9,6 +9,9 @@
 //   office     slate blue, dense rows of cool white office windows
 //   brutalist  charcoal, horizontal louvre fins, an amber light line round it
 //   ticker     dark, bands of red LED readouts between thin white lines
+//
+// Each tower also gets its own massing (how it steps in on the way up) and crown, so towers
+// side by side differ in silhouette as well as dress.
 //
 // Used by FootprintBuilding.tsx; Building.tsx takes the body colour from here.
 
@@ -34,6 +37,9 @@ export interface Facade {
   band?: { at: number; color: string };
   // Gold scale panels on its two broad faces.
   scales?: boolean;
+  // The building's own shape (set per building by facadeOf).
+  massing?: Massing;
+  crown?: Crown;
 }
 
 export const FACADES: Record<FacadeName, Facade> = {
@@ -44,26 +50,46 @@ export const FACADES: Record<FacadeName, Facade> = {
   ticker: { name: 'ticker', body: '#221f2a', bodies: ['#221f2a', '#272229'], accent: '#ff2d55', texW: 7, texH: 6, strips: { count: 1, color: '#e2e8f0' } },
 };
 
-// Every corporate tower on blue's side, by the corner of its footprint (sim/cityPlan.ts), and
-// its style; its twin across the centre wears the same. Laid out so each block mixes styles,
-// with the gold-scaled towers flanking the boulevard into the plaza and on the big corner block.
-const CURATED: Record<string, FacadeName> = {
-  // Corner block (4,4): a megablock and its two slabs.
-  '27,27': 'goldscale', '25,27': 'brutalist', '25,25': 'office', '28,25': 'ticker',
+// How a tower is massed, from the ground up: the heights (shares of its height) where its
+// outside walls step in.
+//   straight   one sheer box
+//   setback    steps in once, about 60% up
+//   stepped    steps in twice, wedding-cake style
+//   plinth     a broad base a fifth of the way up, then a slimmer shaft
+//   crownstep  sheer almost to the top, then a narrower crown storey
+export type Massing = 'straight' | 'setback' | 'stepped' | 'plinth' | 'crownstep';
+export const MASSING_STEPS: Record<Massing, number[]> = {
+  straight: [], setback: [0.6], stepped: [0.45, 0.75], plinth: [0.22], crownstep: [0.86],
+};
+// What stands on the roof.
+//   spire     a crown block, a neon band and a mast with a red light
+//   stepped   three stacked, shrinking blocks
+//   helipad   a landing pad with a lit ring and corner lights
+//   antennas  a cluster of masts of different heights
+//   blade     a tall thin fin with a neon edge
+export type Crown = 'spire' | 'stepped' | 'helipad' | 'antennas' | 'blade';
+
+// Every corporate tower on blue's side, by the corner of its footprint (sim/cityPlan.ts): its
+// facade, its massing and its crown; its twin across the centre is the same. Laid out so towers
+// side by side never share a look and a silhouette, with the gold-scaled towers flanking the
+// boulevard into the plaza and on the big corner block.
+const CURATED: Record<string, [FacadeName, Massing, Crown]> = {
+  // Corner block (4,4).
+  '27,27': ['goldscale', 'setback', 'spire'], '25,25': ['office', 'plinth', 'helipad'], '28,25': ['ticker', 'straight', 'antennas'], '25,28': ['ticker', 'straight', 'blade'],
   // Block (5,4).
-  '31,25': 'monolith', '34,25': 'office', '31,29': 'brutalist',
+  '31,25': ['monolith', 'stepped', 'spire'], '34,25': ['brutalist', 'straight', 'blade'], '34,28': ['office', 'setback', 'antennas'], '31,29': ['brutalist', 'straight', 'helipad'],
   // Block (6,4), either side of the boulevard.
-  '37,25': 'monolith', '40,25': 'office', '37,28': 'brutalist', '40,28': 'monolith',
+  '37,25': ['monolith', 'setback', 'stepped'], '40,25': ['office', 'plinth', 'spire'], '37,28': ['brutalist', 'plinth', 'helipad'], '41,28': ['ticker', 'straight', 'blade'],
   // Block (7,4).
-  '43,25': 'office', '46,25': 'monolith', '43,29': 'ticker',
+  '43,25': ['brutalist', 'crownstep', 'antennas'], '46,25': ['monolith', 'stepped', 'helipad'], '43,28': ['office', 'straight', 'antennas'], '45,28': ['monolith', 'plinth', 'stepped'],
   // The core, either side of the boulevard into the plaza.
-  '37,31': 'goldscale', '40,31': 'goldscale', '31,37': 'monolith', '31,40': 'monolith',
+  '37,31': ['goldscale', 'setback', 'spire'], '40,31': ['goldscale', 'stepped', 'helipad'], '31,37': ['monolith', 'stepped', 'spire'], '31,40': ['monolith', 'setback', 'helipad'],
   // Block (4,5).
-  '25,31': 'monolith', '29,31': 'ticker', '25,34': 'office',
+  '25,31': ['monolith', 'stepped', 'spire'], '29,31': ['ticker', 'straight', 'blade'], '25,34': ['brutalist', 'straight', 'antennas'], '27,34': ['office', 'crownstep', 'stepped'],
   // Block (4,6), either side of the boulevard.
-  '25,37': 'brutalist', '28,37': 'office', '25,40': 'ticker', '28,40': 'monolith',
+  '25,37': ['brutalist', 'setback', 'helipad'], '28,37': ['ticker', 'straight', 'blade'], '26,40': ['office', 'plinth', 'antennas'], '29,40': ['brutalist', 'crownstep', 'antennas'],
   // Block (4,7).
-  '25,43': 'brutalist', '27,43': 'office', '27,46': 'monolith',
+  '25,43': ['ticker', 'straight', 'antennas'], '27,43': ['office', 'stepped', 'spire'], '25,46': ['brutalist', 'plinth', 'stepped'], '29,46': ['monolith', 'straight', 'blade'],
 };
 
 type Footprint = NonNullable<BuildingData['footprint']>;
@@ -76,8 +102,9 @@ export function facadeOf(f: Footprint, gridSize = CITY_CONFIG.gridSize): Facade 
   const [bx, bz] = f.x + f.z <= tx + tz ? [f.x, f.z] : [tx, tz];
   const h = Math.sin((bx * gridSize + bz) * 12.9898 + 4.1) * 43758.5453;
   const r = h - Math.floor(h);
-  const style = FACADES[CURATED[`${bx},${bz}`] ?? 'monolith'];
-  return { ...style, body: style.bodies[Math.floor(r * style.bodies.length)] };
+  const [name, massing, crown] = CURATED[`${bx},${bz}`] ?? ['monolith', 'straight', 'spire'];
+  const style = FACADES[name];
+  return { ...style, body: style.bodies[Math.floor(r * style.bodies.length)], massing, crown };
 }
 
 export type Side = 'west' | 'east' | 'north' | 'south';

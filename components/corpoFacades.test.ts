@@ -27,4 +27,16 @@ describe('corporate tower facades', () => {
     }
     for (const [k, styles] of byBlock) if ([...towers.values()].filter(f => `${Math.floor(f.x / 6)},${Math.floor(f.z / 6)}` === k).length > 2) expect(styles.size, k).toBeGreaterThan(1);
   });
+
+  it('never repeats a tower\'s silhouette within a block', () => {
+    const byBlock = new Map<string, string[]>();
+    for (const f of towers.values()) {
+      const k = `${Math.floor(f.x / 6)},${Math.floor(f.z / 6)}`;
+      const look = facadeOf(f);
+      expect(look.massing, `${f.x},${f.z} is hand-picked`).toBeDefined();
+      if (!byBlock.has(k)) byBlock.set(k, []);
+      byBlock.get(k)!.push(`${f.w}x${f.d} ${look.massing} ${look.crown}`);
+    }
+    for (const [k, shapes] of byBlock) expect(new Set(shapes).size, k).toBe(shapes.length);
+  });
 });
