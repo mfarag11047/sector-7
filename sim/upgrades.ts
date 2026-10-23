@@ -10,7 +10,7 @@
 // finishes; finished upgrades belong to the side (TeamEconomy.upgrades) for the rest of the match.
 
 import { UNIT_STATS } from '../constants';
-import type { StructureData, UnitClass, UnitType } from '../types';
+import type { DoctrineType, StructureData, UnitClass, UnitType } from '../types';
 import type { Team } from './commands';
 import type { Economy, TeamEconomy } from './economy';
 import { Tier, UNIT_RULES } from './units';
@@ -21,7 +21,11 @@ export type UpgradeId =
   | 'nanoweave' | 'dampener' | 'phantom_decoy' | 'emp_rocket'
   | 'overclock' | 'radar' | 'long_range_shells' | 'guided_shells'
   | 'hellfire' | 'hunter_rockets' | 'flechette_burst' | 'regen_shield' | 'piercing_round' | 'volt_core'
-  | RefitId;
+  | RefitId
+  | HeroUpgradeId;
+
+// A doctrine hero's unlock and its two refits (sim/heroes.ts).
+export type HeroUpgradeId = `hero_${DoctrineType}_${'unlock' | 'mk2' | 'mk3'}`;
 
 // Stat-only refits, so every unit has two upgrades: no new ability (yet), just the upgrade bonus
 // of health and damage every upgrade gives (UPGRADE_BONUS). Mk II unlocks at Tier 2, Mk III at
@@ -67,6 +71,10 @@ export interface UpgradeDef {
   researchMs: number;
   requires?: UpgradeId;
   description: string;
+  // Only a side that picked this doctrine can research it (the doctrine heroes').
+  doctrine?: DoctrineType;
+  // Unlocks a unit rather than improving it: gives no upgrade bonus.
+  unlock?: boolean;
 }
 
 const T2 = { cost: 250, compute: 50, researchMs: 30_000 };
@@ -76,6 +84,16 @@ const refit = (id: RefitId, unit: UnitType, tier: Tier, mk: 2 | 3): UpgradeDef =
   id, unit, name: mk === 2 ? 'Mk II Refit' : 'Mk III Refit', tier, ...(tier === 3 ? T3 : T2),
   description: 'Refit: tougher and harder-hitting. No new ability.',
 });
+
+// A doctrine hero's research: the Tier 1 unlock that lets it be trained, then Mk II and Mk III.
+const heroUpgrades = (doctrine: DoctrineType): UpgradeDef[] => {
+  const unit = `hero_${doctrine}` as UnitType;
+  return [
+    { id: `hero_${doctrine}_unlock`, unit, doctrine, unlock: true, name: 'Hero Unlock', tier: 1, cost: 300, compute: 25, researchMs: 25_000, description: 'Unlocks the doctrine hero for training here. One at a time.' },
+    { id: `hero_${doctrine}_mk2`, unit, doctrine, name: 'Hero Mk II', tier: 2, ...T2, requires: `hero_${doctrine}_unlock`, description: 'Refit: tougher and harder-hitting.' },
+    { id: `hero_${doctrine}_mk3`, unit, doctrine, name: 'Hero Mk III', tier: 3, ...T3, requires: `hero_${doctrine}_mk2`, description: 'Refit: tougher and harder-hitting.' },
+  ];
+};
 
 export const UPGRADES: readonly UpgradeDef[] = [
   { id: 'nanoweave', unit: 'trooper', name: 'Nano-Weave Mesh', tier: 2, ...T2, description: 'Ability: takes 50% less damage for 6s.' },
@@ -120,6 +138,9 @@ export const UPGRADES: readonly UpgradeDef[] = [
   refit('mule_mk3', 'mule', 3, 3),
   refit('swarm_host_mk2', 'swarm_host', 2, 2),
   refit('swarm_host_mk3', 'swarm_host', 3, 3),
+  ...heroUpgrades('heavy_metal'),
+  ...heroUpgrades('shadow_ops'),
+  ...heroUpgrades('netrunner'),
 ];
 
 export const upgradeDef = (id: string) => UPGRADES.find(u => u.id === id);
@@ -128,10 +149,12 @@ export const upgradesFor = (unit: UnitType) => UPGRADES.filter(u => u.unit === u
 // An upgrade's name with its unit's, for notices: the refits share their names.
 export const upgradeTitle = (def: UpgradeDef) => `${UNIT_STATS[def.unit].label}: ${def.name}`;
 
-// The unit classes with upgrades, and their units, in menu order.
+// The unit classes with upgrades, and their units, in menu order. The doctrine heroes have a
+// row of their own.
 export function upgradeClasses(): { unitClass: UnitClass; units: UnitType[] }[] {
   const classes: { unitClass: UnitClass; units: UnitType[] }[] = [];
   for (const u of UPGRADES) {
+    if (u.doctrine) continue;
     const unitClass = UNIT_STATS[u.unit].unitClass;
     let c = classes.find(x => x.unitClass === unitClass);
     if (!c) classes.push(c = { unitClass, units: [] });
@@ -153,9 +176,9 @@ export function abilityUnlocked(def: Pick<UnitAbilityDef, 'id' | 'unit' | 'tier'
   return !upgrade || hasUpgrade(team, upgrade);
 }
 
-// How many upgrades a side has researched for one unit type.
+// How many upgrades a side has researched for one unit type (a hero's unlock doesn't count).
 export const upgradeLevelOf = (team: Pick<TeamEconomy, 'upgrades'> | undefined, unit: UnitType) =>
-  UPGRADES.filter(u => u.unit === unit && hasUpgrade(team, u.id)).length;
+  UPGRADES.filter(u => u.unit === unit && !u.unlock && hasUpgrade(team, u.id)).length;
 
 // A unit's maximum health with its side's upgrades: +UPGRADE_BONUS.health of its base per upgrade.
 export const upgradedMaxHealth = (unit: UnitType, level: number) =>
@@ -182,10 +205,14 @@ export function applyUpgradeBonuses(units: UnitData[], economy: Economy): UnitDa
 export const artilleryTierOf = (team: Pick<TeamEconomy, 'upgrades'> | undefined): Tier =>
   hasUpgrade(team, 'guided_shells') ? 3 : hasUpgrade(team, 'long_range_shells') ? 2 : 1;
 
-// Why a side can't start researching an upgrade, or null if it can (cores aside).
-export function researchBlocker(economy: Economy, team: Team, structures: readonly StructureData[], id: UpgradeId): string | null {
+// Why a side can't start researching an upgrade, or null if it can (cores aside). A doctrine's
+// research needs the side's doctrine.
+export function researchBlocker(
+  economy: Economy, team: Team, structures: readonly StructureData[], id: UpgradeId, doctrine?: DoctrineType | null,
+): string | null {
   const def = upgradeDef(id);
   if (!def) return 'unknown upgrade';
+  if (def.doctrine && def.doctrine !== doctrine) return `${def.name} is only for its own doctrine`;
   const e = economy[team];
   if (hasUpgrade(e, id)) return `${def.name} is already researched`;
   if (structures.some(s => s.team === team && s.research?.upgrade === id)) return `${def.name} is already being researched`;

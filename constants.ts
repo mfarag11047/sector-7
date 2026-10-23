@@ -33,6 +33,10 @@ export const COMPUTE_GATES = {
 // Identity, cost, health and movement for every unit. Weapons, armor, pop cost, tier and
 // production live in sim/units.ts; the reasoning is in docs/GAME_DESIGN.md.
 export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: string, visionRange: number, speedMod: number, maxHealth: number, cost: number, unitClass: UnitClass }> = {
+  // Doctrine heroes (sim/heroes.ts): placeholders, one per doctrine, trained at Advanced Research.
+  hero_heavy_metal: { unitClass: 'armor', cost: 600, captureMultiplier: 0.5, label: 'Heavy Metal Hero', visionRange: 6, speedMod: 0.8, maxHealth: 1400 },
+  hero_shadow_ops: { unitClass: 'infantry', cost: 600, captureMultiplier: 2.0, label: 'Shadow Ops Hero', visionRange: 7, speedMod: 1.2, maxHealth: 600 },
+  hero_netrunner: { unitClass: 'support', cost: 600, captureMultiplier: 1.0, label: 'Netrunner Hero', visionRange: 8, speedMod: 1.0, maxHealth: 800 },
   // Command HQ
   scout_car: { unitClass: 'support', cost: 70, captureMultiplier: 0, label: '"Jackrabbit" Scout RC Car', visionRange: 9, speedMod: 2.2, maxHealth: 40 },
   // Barracks

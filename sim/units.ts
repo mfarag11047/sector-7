@@ -94,6 +94,12 @@ export const UNIT_RULES: Record<UnitType, UnitRules> = {
   // Couriers are dispatched by Transfer Warhead, not trained.
   courier: { armor: 'light', weapon: null, pop: 0, tier: 2, producer: null, buildTimeMs: 0, role: 'Runs a warhead to a Ballista.' },
 
+  // --- Advanced Research: doctrine heroes (sim/heroes.ts). Placeholders: one per doctrine, only
+  // for the side that picked it, one at a time, unlocked by research. ---
+  hero_heavy_metal: { armor: 'heavy', weapon: shell(80, 2000, 5, 1.2, 0.3), pop: 4, tier: 1, producer: 'research_lab', buildTimeMs: 40000, role: 'Heavy Metal\'s hero (placeholder). A walking fortress.' },
+  hero_shadow_ops: { armor: 'infantry', weapon: rifle(28, 700, 4), pop: 4, tier: 1, producer: 'research_lab', buildTimeMs: 40000, role: 'Shadow Ops\' hero (placeholder). A lethal operative who takes ground fast.' },
+  hero_netrunner: { armor: 'light', weapon: { damage: 14, cooldownMs: 500, range: 4, type: 'mg', hitsGround: true, hitsAir: true }, pop: 4, tier: 1, producer: 'research_lab', buildTimeMs: 40000, role: 'Netrunner\'s hero (placeholder). Hits ground and air alike.' },
+
   // --- Never trained ---
   defense_drone: { armor: 'heavy', weapon: rifle(14, 500, 3), pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Guards a server node. Hostile to everyone.' },
   titan_dropped: { armor: 'heavy', weapon: shell(60, 2200, 4, 1, 0.1), pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Orbital-drop Titan.' },
@@ -115,7 +121,7 @@ export const STRUCTURE_RULES: Record<StructureType, StructureRules> = {
   support: { buildable: true, buildTimeMs: 20000, weapon: null },
   air: { buildable: true, buildTimeMs: 25000, weapon: null },
   ordnance_fab: { buildable: true, buildTimeMs: 30000, weapon: null },
-  // Researches unit upgrades (sim/upgrades.ts); trains nothing.
+  // Researches unit upgrades (sim/upgrades.ts), and trains its side's doctrine hero (sim/heroes.ts).
   research_lab: { buildable: true, buildTimeMs: 20000, weapon: null },
   // Makes cores at home (sim/refinery.ts).
   refinery: { buildable: true, buildTimeMs: 30000, weapon: null },

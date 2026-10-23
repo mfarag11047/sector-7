@@ -26,6 +26,7 @@ export const UNIT_ROLE: Record<UnitType, UnitRole> = {
   mason: 'engineer',
   defense_drone: 'sentinel',
   swarm_host: 'swarm', crawler_drone: 'swarm',
+  hero_heavy_metal: 'armor', hero_shadow_ops: 'infantry', hero_netrunner: 'support',
 };
 
 export const ROLE_LABEL: Record<UnitRole, string> = {

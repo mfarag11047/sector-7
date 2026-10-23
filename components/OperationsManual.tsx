@@ -70,6 +70,9 @@ interface UnitNote {
 }
 
 const UNIT_NOTES: Record<UnitType, UnitNote> = {
+  hero_heavy_metal: { use: 'Heavy Metal\'s doctrine hero (a placeholder for now). Only a side that picked Heavy Metal can have it: unlock it at Advanced Research, then train it there. One at a time; Mk II (Tier 2) and Mk III (Tier 3) refits make it tougher and hit harder.' },
+  hero_shadow_ops: { use: 'Shadow Ops\' doctrine hero (a placeholder for now). Only a side that picked Shadow Ops can have it: unlock it at Advanced Research, then train it there. One at a time; Mk II (Tier 2) and Mk III (Tier 3) refits make it tougher and hit harder.' },
+  hero_netrunner: { use: 'Netrunner\'s doctrine hero (a placeholder for now). Only a side that picked Netrunner can have it: unlock it at Advanced Research, then train it there. One at a time; Mk II (Tier 2) and Mk III (Tier 3) refits make it tougher and hit harder.' },
   scout_car: { use: `Trained at your Command HQ. A remote-controlled scout car: the fastest unit in the game, sees ${UNIT_STATS.scout_car.visionRange} tiles (most units see 3 to 6) and carries a large ${ABILITY_CONFIG.SCOUT_CAR_BATTERY}-point battery for long runs off the grid. Unarmed and dies to almost anything, so scout and pull back. Being remote-controlled, a Banshee can jam it.` },
   trooper: { use: 'Your bread-and-butter unit. Send squads to capture core nodes and buildings (which grows your energy grid), and keep some with the army to shoot down aircraft.' },
   ghost: {

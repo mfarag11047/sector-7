@@ -5,6 +5,7 @@ import { landShells } from './artillery';
 import { createHeadlessMatch, stepMatch } from './headless';
 import { createUnit } from './production';
 import { UNIT_RULES } from './units';
+import { isHeroType } from './heroes';
 import { createEconomy, Economy } from './economy';
 import { applyOrderToStructures, orderEffects, OrdersContext } from './orders';
 import { abilityDef, damageMultiplier, upgradeDamage } from './unitAbilities';
@@ -31,7 +32,8 @@ describe('unit upgrades', () => {
   });
 
   it('gives every unit you can train two upgrades, a refit where there is no ability for it yet', () => {
-    const trainable = (Object.keys(UNIT_RULES) as UnitData['type'][]).filter(t => UNIT_RULES[t].producer);
+    // The doctrine heroes have their own unlock and refits (sim/heroes.test.ts).
+    const trainable = (Object.keys(UNIT_RULES) as UnitData['type'][]).filter(t => UNIT_RULES[t].producer && !isHeroType(t));
     for (const t of trainable) {
       const ups = upgradesFor(t);
       expect(ups.length, t).toBe(2);

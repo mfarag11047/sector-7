@@ -3,7 +3,8 @@ import StructureStatus from './StructureStatus';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges, Html } from '@react-three/drei';
-import { StructureData, StructureType, UnitClass, UnitType } from '../types';
+import { DoctrineType, StructureData, StructureType, UnitClass, UnitType } from '../types';
+import { heroOf, isHeroType } from '../sim/heroes';
 import { upgradeClasses, upgradeDef, upgradesFor, upgradeTitle, type UpgradeDef, type UpgradeId } from '../sim/upgrades';
 import { ABILITY_CONFIG, STRUCTURE_INFO, TEAM_COLORS, UNIT_CLASSES, UNIT_STATS } from '../constants';
 import * as THREE from 'three';
@@ -38,6 +39,9 @@ interface StructureProps {
   // The owner's researched upgrades and those under way at any of its labs, for Advanced Research.
   upgrades?: readonly UpgradeId[];
   upgradesUnderway?: readonly UpgradeId[];
+  // The owner's doctrine, and why it can't train its hero now (sim/heroes.ts), for Advanced Research.
+  doctrine?: DoctrineType | null;
+  heroBlocked?: string | null;
   // The side's income, for a Core Refinery's menu (sim/economy.ts incomeBreakdown).
   income?: IncomeBreakdown;
   // A Core Refinery's own share of node income, from its base's distance to a core node.
@@ -989,7 +993,7 @@ const WallTier2Model = ({ teamColor, tileSize }: { color: string, teamColor: str
     );
 };
 
-const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES, income, refineryShare }) => {
+const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES, income, refineryShare, doctrine, heroBlocked }) => {
   // Advanced Research menu: a unit class, then a unit, then its upgrades.
   const [labClass, setLabClass] = React.useState<UnitClass | null>(null);
   // Disassemble asks twice.
@@ -1142,6 +1146,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
         </button>
     );
     const running = data.research;
+    const hero = heroOf(doctrine);
     return (
         <>
             <div className="text-[10px] text-slate-400 font-mono uppercase mb-1 px-1">{constructing ? 'Under construction' : 'Unit upgrades'}</div>
@@ -1155,6 +1160,10 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                     </div>
                 </div>
             )}
+            {!labClass && hero && row('hero',
+                <span className="flex gap-2 items-center"><span>★</span>Doctrine Hero</span>,
+                UNIT_STATS[hero.unit].label, tally(upgradesFor(hero.unit)),
+                () => { setLabClass(UNIT_STATS[hero.unit].unitClass); setLabUnit(hero.unit); })}
             {!labClass && upgradeClasses().map(c => row(c.unitClass,
                 <span className="flex gap-2 items-center"><span>{UNIT_CLASSES[c.unitClass].icon}</span>{UNIT_CLASSES[c.unitClass].label}</span>,
                 c.units.map(u => UNIT_STATS[u].label).join(' · '),
@@ -1169,7 +1178,9 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
             )}
             {labClass && labUnit && (
                 <>
-                    {back(() => setLabUnit(null), UNIT_CLASSES[labClass].label)}
+                    {isHeroType(labUnit)
+                        ? back(() => { setLabUnit(null); setLabClass(null); }, 'Classes')
+                        : back(() => setLabUnit(null), UNIT_CLASSES[labClass].label)}
                     <div className="text-[10px] text-slate-300 font-mono uppercase px-1">{UNIT_STATS[labUnit].label}</div>
                     {upgradesFor(labUnit).map(u => {
                         const blocked = done(u.id) ? 'Researched'
@@ -1188,7 +1199,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                 <div className="flex flex-col">
                                     <span className={done(u.id) ? 'text-emerald-300' : ''}>{done(u.id) ? '✓ ' : ''}{u.name} <span className="text-amber-300">T{u.tier}</span></span>
                                     <span className="text-[9px] text-slate-400 max-w-[190px] whitespace-normal">{u.description}</span>
-                                    <span className="text-[9px] text-emerald-300/80">+{UPGRADE_BONUS.health * 100}% health · +{UPGRADE_BONUS.damage * 100}% damage</span>
+                                    {!u.unlock && <span className="text-[9px] text-emerald-300/80">+{UPGRADE_BONUS.health * 100}% health · +{UPGRADE_BONUS.damage * 100}% damage</span>}
                                     <span className="text-[9px] text-slate-500">{blocked ?? `${u.researchMs / 1000}s research`}</span>
                                 </div>
                                 {!done(u.id) && (
@@ -1210,7 +1221,8 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
   const renderMenu = () => {
     if (!menuOpen) return null;
     
-    const buildableUnits = unitsProducedBy(data.type);
+    // Advanced Research trains only its side's own doctrine hero.
+    const buildableUnits = unitsProducedBy(data.type).filter(t => !isHeroType(t) || t === heroOf(doctrine)?.unit);
     const queue = data.queue || [];
     const constructing = (data.buildRemainingMs || 0) > 0;
     // Coming down: it trains and builds nothing more.
@@ -1244,7 +1256,8 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                 const cost = stats.cost || 0;
                                 const locked = rules.tier > tier;
                                 const full = queue.length >= MAX_QUEUE || popUsed + rules.pop > popCap;
-                                const ok = !idle && !locked && !full && (resources || 0) >= cost;
+                                const heroReason = isHeroType(uType) ? heroBlocked ?? null : null;
+                                const ok = !idle && !locked && !full && !heroReason && (resources || 0) >= cost;
                                 const queued = queue.filter(q => q.unitType === uType).length;
                                 return (
                                     <button
@@ -1264,7 +1277,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                                 {queued > 0 && <span className="text-cyan-300">×{queued}</span>}
                                             </div>
                                             <span className="text-[9px] text-slate-500 pl-5">
-                                                {locked ? `🔒 ${TIER_REQUIREMENT[rules.tier]}` : `${rules.buildTimeMs / 1000}s · ${rules.pop} pop`}
+                                                {locked ? `🔒 ${TIER_REQUIREMENT[rules.tier]}` : heroReason ? `🔒 ${heroReason}` : `${rules.buildTimeMs / 1000}s · ${rules.pop} pop`}
                                             </span>
                                         </div>
                                         <span>{cost}</span>

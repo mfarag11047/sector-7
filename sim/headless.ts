@@ -406,7 +406,7 @@ function think(m: HeadlessMatch, team: Team, paths: ReturnType<typeof pathfinder
 }
 
 function applyOrder(m: HeadlessMatch, team: Team, command: OrderCommand, ctx: OrdersContext) {
-  const outcome = orderEffects({ units: m.units, structures: m.structures, buildings: m.buildings, economy: m.economy }, team, command, ctx);
+  const outcome = orderEffects({ units: m.units, structures: m.structures, buildings: m.buildings, economy: m.economy, doctrines: m.opts.doctrine }, team, command, ctx);
   if ('reason' in outcome) return;
   const fx = outcome.effects;
   m.units = applyOrderToUnits(m.units, fx);

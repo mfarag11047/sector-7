@@ -226,6 +226,32 @@ everything, so what you research commits you to the units you mean to build.
 | Titan MBT | Piercing Rail Round | T3 | 400 | 45 s | Unlocks the ability (see Tank rail gun) |
 | Battery Mule | Volt Core | T2 | 250 | 30 s | Passive: detonates when destroyed (see Battery Mule Volt Core) |
 
+### Doctrine heroes
+
+Each doctrine has one unique **hero** unit, and only a side that picked that doctrine at the start
+of the match can research or train it (`sim/heroes.ts`). The heroes are placeholders for now:
+stats only, no abilities, and the generic unit model with a gold halo.
+
+| Doctrine | Hero | Class | Health | Speed | Weapon |
+|---|---|---|---|---|---|
+| Heavy Metal | Heavy Metal Hero | Armour (heavy) | 1400 | 0.8 | Cannon, 80 dmg / 2 s, range 5 |
+| Shadow Ops | Shadow Ops Hero | Infantry (captures ×2) | 600 | 1.2 | Rifle, 28 dmg / 0.7 s, range 4 |
+| Netrunner | Netrunner Hero | Support (light) | 800 | 1.0 | MG, 14 dmg / 0.5 s, range 4, hits air |
+
+All cost 600 cores, 4 population and 40 s to train.
+
+- **Unlock (Tier 1):** research **Hero Unlock** at Advanced Research (300 cores + 25 compute, 25 s).
+  It gives no stat bonus; it lets the hero be trained there.
+- **Train it at Advanced Research.** Its menu lists only your own doctrine's hero. **One hero at a
+  time:** while yours is alive or in training, another can't be queued. When it falls, train another.
+- **Upgrade to Tier 3:** **Hero Mk II** (Tier 2, 250 cores + 50 compute, 30 s, needs the unlock) and
+  **Hero Mk III** (Tier 3, 400 + 100, 45 s, needs Mk II). Each gives the usual upgrade bonus
+  (+20% health, +15% damage), so +40% / +30% at Mk III.
+- In the research menu the hero has its own **Doctrine Hero** row above the unit classes.
+- Orders check all of this (`trainOrder` and `upgradeOrder` in `sim/orders.ts`), so the AI is held to
+  it too. An AI with a doctrine researches its hero's unlock and refits at an idle Advanced Research
+  and keeps its hero in the field.
+
 **Why research and not "hold N nodes":** in the first version, your tier was however many server
 nodes you held right now. All four sat in the centre, so whoever won the middle got every tier and
 the other side lost theirs: the game was over. Now holding more nodes only speeds research up.
@@ -738,7 +764,8 @@ same kind of economy.
    once the base is clear.
    At an idle Advanced Research, with cores to spare after units, it researches the upgrade for
    the units it fields most and its strategy leans on: Overclocked Autogun and the shell upgrades
-   for armour, Nano-Weave, EMP rockets and the Ghost's for infantry.
+   for armour, Nano-Weave, EMP rockets and the Ghost's for infantry. Its doctrine hero's unlock and
+   refits always interest it, and once unlocked it trains the hero at an idle Advanced Research.
 2. **Production:** for each structure, the unit with the best damage per core against the armor mix
    of your army (weighted by value, and by its army strategy below), leaning toward whatever has
    been killing its units lately. It keeps enough infantry for a capture team plus a node squad

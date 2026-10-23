@@ -157,6 +157,7 @@ const UNIT_TYPES = Object.keys({
   drone: 1, tank: 1, ghost: 1, guardian: 1, mule: 1, wasp: 1, mason: 1, helios: 1, sun_plate: 1, ballista: 1, courier: 1,
   banshee: 1, defense_drone: 1, titan_dropped: 1, swarm_host: 1, crawler_drone: 1, bombard: 1,
   trooper: 1, lancer: 1, razorback: 1, aegis: 1, hornet: 1, howitzer: 1, cloak_generator: 1, field_generator: 1, scout_car: 1, attack_drone: 1,
+  hero_heavy_metal: 1, hero_shadow_ops: 1, hero_netrunner: 1,
 } satisfies Record<UnitType, 1>);
 const DOCTRINES = Object.keys({ heavy_metal: 1, shadow_ops: 1, netrunner: 1 } satisfies Record<DoctrineType, 1>);
 const WARHEADS = Object.keys({ emp: 1, he: 1, wp: 1 } satisfies Record<Warhead, 1>);
@@ -167,6 +168,9 @@ const UPGRADE_IDS = Object.keys({
   bombard_mk2: 1, bombard_mk3: 1, guardian_mk2: 1, guardian_mk3: 1, helios_mk2: 1, helios_mk3: 1,
   banshee_mk2: 1, banshee_mk3: 1, ballista_mk2: 1, ballista_mk3: 1, mason_mk2: 1, mason_mk3: 1, mule_mk2: 1,
   mule_mk3: 1, swarm_host_mk2: 1, swarm_host_mk3: 1,
+  hero_heavy_metal_unlock: 1, hero_heavy_metal_mk2: 1, hero_heavy_metal_mk3: 1,
+  hero_shadow_ops_unlock: 1, hero_shadow_ops_mk2: 1, hero_shadow_ops_mk3: 1,
+  hero_netrunner_unlock: 1, hero_netrunner_mk2: 1, hero_netrunner_mk3: 1,
 } satisfies Record<UpgradeId, 1>);
 
 // Large enough for any real selection, small enough to stop a flood.

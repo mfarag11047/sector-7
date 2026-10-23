@@ -61,6 +61,7 @@ import { fireFlechettes, regenerateShield, shieldedHit } from '../sim/kestrel';
 import { markScreened, pruneSmoke, SMOKE, SmokeScreen } from '../sim/titan';
 import { armMules, countdownOf, dueCharges, VOLT, VoltCharge, voltBlasts } from '../sim/voltCore';
 import { canisterSpots, HE, WARHEAD_LIST, WP, wpGasDamage } from '../sim/warheads';
+import { heroBlocker, heroOf } from '../sim/heroes';
 import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade, upgradeDef, upgradeTitle, type UpgradeId } from '../sim/upgrades';
 import { teamPads } from '../sim/baseLayout';
 import BuildPads, { FreePad } from './BuildPads';
@@ -1652,6 +1653,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const playerUpgrades = playerTeam === 'blue' || playerTeam === 'red' ? economy[playerTeam].upgrades : undefined;
   const underwayKey = structuresState.filter(s => s.team === playerTeam && s.research).map(s => s.research!.upgrade).join(',');
   const upgradesUnderway = useMemo(() => (underwayKey ? underwayKey.split(',') as UpgradeId[] : []), [underwayKey]);
+  // The player's doctrine hero and why it can't be trained now (sim/heroes.ts).
+  const playerDoctrine = playerTeam === 'blue' || playerTeam === 'red' ? doctrines?.[playerTeam]?.selected ?? null : null;
+  const playerHero = heroOf(playerDoctrine);
+  const playerHeroBlocked = playerHero && (playerTeam === 'blue' || playerTeam === 'red')
+    ? heroBlocker(playerHero.unit, playerTeam, playerDoctrine, playerUpgrades ?? [], units, structuresState) : null;
 
   // Cheat State
 
@@ -2708,7 +2714,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const dispatchOrder = (command: OrderCommand, team: 'blue' | 'red' = playerTeam, quiet = false): boolean => {
       if (spectatorLocked(quiet)) return false;
       const outcome = orderEffects(
-          { units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, blackouts: activeBlackouts(), unlimitedPop: matchRef.current.mode === 'sandbox' },
+          { units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, blackouts: activeBlackouts(), unlimitedPop: matchRef.current.mode === 'sandbox',
+            doctrines: { blue: aiHelpersRef.current.doctrines?.blue?.selected ?? null, red: aiHelpersRef.current.doctrines?.red?.selected ?? null } },
           team,
           command,
           {
@@ -4279,6 +4286,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 upgrades={s.type === 'research_lab' ? playerUpgrades : undefined}
                 compute={s.type === 'research_lab' && (playerTeam === 'blue' || playerTeam === 'red') ? economy[playerTeam].compute : undefined}
                 upgradesUnderway={s.type === 'research_lab' ? upgradesUnderway : undefined}
+                doctrine={s.type === 'research_lab' ? playerDoctrine : undefined}
+                heroBlocked={s.type === 'research_lab' && depotMenuOpenId === s.id ? playerHeroBlocked : undefined}
                 income={s.type === 'refinery' && depotMenuOpenId === s.id && s.team === playerTeam ? incomeBreakdown(buildings, playerTeam, structuresState) : undefined}
                 refineryShare={s.type === 'refinery' && depotMenuOpenId === s.id ? refineryMultiplier(s, structuresState, coreNodeTiles) : undefined}
             /> 

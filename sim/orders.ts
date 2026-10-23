@@ -7,7 +7,7 @@
 // Also here: the per-team numbers those rules need (population, tech tier, nodes held).
 
 import { ABILITY_CONFIG, BUILDING_VALUES, STRUCTURE_INFO } from '../constants';
-import type { BuildingData, StructureData, StructureType, UnitData } from '../types';
+import type { BuildingData, DoctrineType, StructureData, StructureType, UnitData } from '../types';
 import type { GridPos, PlayerCommand, Team, Warhead } from './commands';
 import { Economy, refund, research, researchCost, spend, spendCompute, structureCost, unitCost, warheadBuildTime, warheadCost } from './economy';
 import { Blackout, gridTiles, isBlackedOut, isInsideEnergyGrid } from './energy';
@@ -18,6 +18,7 @@ import { builtCost, canDismantle, cancelledWork, isUnfinished, startDismantling 
 import { BUILDING_PADS, freePadsFor, isPad, padKindOf, TURRET_PADS } from './baseLayout';
 import { isAirType, popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from './units';
 import { tetheredIds, unjammedIds } from './jamming';
+import { heroBlocker, isHeroType } from './heroes';
 
 export { popUsed };
 
@@ -55,6 +56,8 @@ export interface OrdersView {
   blackouts?: readonly Blackout[];
   // Sandbox play-testing: no population cap.
   unlimitedPop?: boolean;
+  // Each side's doctrine, picked at the start: it decides which hero a side can have.
+  doctrines?: Partial<Record<Team, DoctrineType | null>>;
 }
 
 export interface OrdersContext {
@@ -131,7 +134,7 @@ function upgradeOrder(view: OrdersView, team: Team, structureId: string, upgrade
   if (!s || s.team !== team || s.type !== 'research_lab') return reject('not your Advanced Research');
   if (!isOperational(s)) return reject('Advanced Research is not finished');
   if (s.research) return reject(`already researching ${upgradeDef(s.research.upgrade)?.name ?? 'an upgrade'}`);
-  const blocked = researchBlocker(view.economy, team, view.structures, upgrade);
+  const blocked = researchBlocker(view.economy, team, view.structures, upgrade, view.doctrines?.[team]);
   if (blocked) return reject(blocked);
   const def = upgradeDef(upgrade)!;
   if (!spend(view.economy, team, def.cost)) return reject(`needs ${def.cost} cores`);
@@ -197,6 +200,10 @@ function trainOrder(view: OrdersView, team: Team, structureId: string, unitType:
   if (rules.producer !== s.type) return reject(`${STRUCTURE_INFO[s.type].label} cannot train that`);
   const tier = teamTier(view.economy, team);
   if (rules.tier > tier) return reject(`needs Tier ${rules.tier}`);
+  if (isHeroType(unitType)) {
+    const blocked = heroBlocker(unitType, team, view.doctrines?.[team], view.economy[team].upgrades ?? [], view.units, view.structures);
+    if (blocked) return reject(blocked);
+  }
   if ((s.queue?.length || 0) >= MAX_QUEUE) return reject('queue full');
   const cap = view.unlimitedPop ? Infinity : teamPopCap(view.buildings, team);
   if (popUsed(view.units, view.structures, team) + rules.pop > cap) return reject(`population cap reached (${cap}); spread your grid or hold more core nodes`);

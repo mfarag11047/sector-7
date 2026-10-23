@@ -36,6 +36,7 @@ import { artilleryRange, inArtilleryReach } from './artillery';
 import { freePadsFor } from './baseLayout';
 import { abilityUnlocked, artilleryTierOf, researchBlocker, UPGRADES, type UpgradeId } from './upgrades';
 import { REFINERY, upgradeBlocker } from './refinery';
+import { heroBlocker, heroOf, isHeroType } from './heroes';
 import { baseMoves, ESCORTS, SCOUT_REPLACE_MS, specialistAbilities, specialistMoves, specialistPick, SPECIALIST_MOVERS } from './aiSpecialists';
 import { freshStrategyMemory, lossTypeMix, STRATEGY_PLANS, StrategyMemory, updateStrategy } from './aiStrategy';
 import { blendMix, EnemyMix, matchup, typeMix } from './counters';
@@ -506,7 +507,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const productionRound = banked || now - mem.lastProductionAt >= (threat ? profile.productionCycleMs / 2 : profile.productionCycleMs);
   if (productionRound) mem.lastProductionAt = now;
   for (const s of productionRound ? myStructures : []) {
-    if (!isOperational(s) || unitsProducedBy(s.type).length === 0) continue;
+    if (!isOperational(s) || !unitsProducedBy(s.type).some(t => !isHeroType(t))) continue;
     if ((s.queue?.length || 0) >= Math.min(MAX_QUEUE, profile.queueDepth + (banked ? 1 : 0))) continue;
     // Not every structure gets looked at every time, so production has idle gaps.
     if (ctx.random() > profile.attention) continue;
@@ -543,9 +544,10 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   for (const lab of myStructures.filter(s => s.type === 'research_lab' && isOperational(s) && !s.research)) {
     if (ctx.random() > profile.attention) continue;
     const pick = UPGRADES
-      .filter(u => !started.has(u.id) && !researchBlocker(view.economy, team, view.structures, u.id))
-      .filter(u => fielded(u.unit) > 0 || (plan.units[u.unit] ?? 1) > 1.2)
-      .map(u => ({ u, score: fielded(u.unit) + 3 * ((plan.units[u.unit] ?? 1) - 1) }))
+      .filter(u => !started.has(u.id) && !researchBlocker(view.economy, team, view.structures, u.id, ctx.doctrine))
+      // Its doctrine hero's research always interests it.
+      .filter(u => u.doctrine || fielded(u.unit) > 0 || (plan.units[u.unit] ?? 1) > 1.2)
+      .map(u => ({ u, score: u.doctrine ? 2 : fielded(u.unit) + 3 * ((plan.units[u.unit] ?? 1) - 1) }))
       .sort((a, b) => b.score - a.score)[0];
     // Never at the expense of the army: only with cores to spare. And never at the expense of the
     // next tier: its compute comes first.
@@ -555,6 +557,16 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     started.add(pick.u.id);
     cores -= pick.u.cost;
     compute -= pick.u.compute;
+  }
+
+  // --- Its doctrine hero, once unlocked, at an idle Advanced Research (sim/heroes.ts) ---
+  const hero = heroOf(ctx.doctrine);
+  const heroLab = myStructures.find(s => s.type === 'research_lab' && isOperational(s) && !(s.queue?.length));
+  if (hero && heroLab && !heroBlocker(hero.unit, team, ctx.doctrine, view.economy[team].upgrades ?? [], view.units, view.structures)
+    && spendable() >= unitCost(hero.unit) && pop + UNIT_RULES[hero.unit].pop <= cap) {
+    actions.push({ kind: 'order', command: { type: 'TRAIN_UNIT', structureId: heroLab.id, unitType: hero.unit } });
+    cores -= unitCost(hero.unit);
+    pop += UNIT_RULES[hero.unit].pop;
   }
 
   // --- Core Refinery upgrades: with cores to spare at Tier 2 (sim/refinery.ts) ---

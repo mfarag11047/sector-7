@@ -26,6 +26,7 @@ import { Meter, METER_COLORS, UnitBars } from './UnitBars';
 import { abilityUnlocked, artilleryTierOf, type UpgradeId } from '../sim/upgrades';
 import { shieldMax } from '../sim/kestrel';
 import { WARHEAD_LABEL } from '../sim/warheads';
+import { isHeroType } from '../sim/heroes';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
 
@@ -432,6 +433,7 @@ const Unit: React.FC<UnitProps> = ({
   const fieldUp = isCloakGen && !cloakFieldOff && health > 0 && battery > 0 && !buffs?.some(b => b.kind === 'emp');
   const isAegis = type === 'aegis';
   const isHornet = type === 'hornet';
+  const isHero = isHeroType(type);
   const isAir = isWasp || isDrone || isAttackDrone || isHelios || isBombard || isHornet;
   
   const classConfig = UNIT_CLASSES[unitClass];
@@ -1003,6 +1005,8 @@ const Unit: React.FC<UnitProps> = ({
                  <mesh><octahedronGeometry args={[1.5]} /><meshStandardMaterial color={teamColor} emissive={teamColor} emissiveIntensity={isSelected ? 2 : 0.5} metalness={1} roughness={0} /><Edges color="#ffffff" /></mesh>
                 <mesh position={[0, -0.9, 0]}><boxGeometry args={[0.6, 0.15, 2.4]} /><meshStandardMaterial color="#1e293b" /></mesh>
                 <mesh position={[0, -0.9, 0]} rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[0.6, 0.15, 2.4]} /><meshStandardMaterial color="#1e293b" /></mesh>
+                {/* Doctrine heroes (placeholders, sim/heroes.ts): a gold halo marks them out. */}
+                {isHero && <mesh position={[0, 2.1, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.9, 0.08, 6, 24]} /><meshBasicMaterial color="#fbbf24" toneMapped={false} /></mesh>}
                 <mesh ref={flashRef} position={[0, 0, 1]} visible={false} raycast={() => null}><sphereGeometry args={[0.3, 8, 6]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.85} toneMapped={false} depthWrite={false} /></mesh>
             </group>
         </Float>
