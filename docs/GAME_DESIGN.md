@@ -991,6 +991,11 @@ Drop, or Masons.
   matching buildings of one height and look, joined across the alleys between them by enclosed
   sky walkways (`components/MidtownSkyways.tsx`). The plan's midtown blocks were redrawn so
   fewer of them repeat the same four-square layout.
+- The outskirts' blue buildings are cheap housing (`components/residentialLooks.ts`): tenement
+  windows, concrete housing projects with access balconies and washing on the rails, or patched
+  mismatched panels, in weathered paint; mostly sheer, some with a narrower storey added on top;
+  AC units bolted on the walls, a zigzag fire escape down the front of most, a corner shop under
+  a few, and on the roof a shack, satellite dishes, a laundry line or water tanks.
 - A building bigger than one tile is drawn as one building (`components/FootprintBuilding.tsx`),
   though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
   run along its outside faces only, a dark roof slab with a lit rim covers it (in the owner's

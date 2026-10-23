@@ -12,7 +12,8 @@
 //   hightech (midtown):          banded data-centre floors, rooftop plant
 //   industrial:                  low sawtooth-roofed sheds with pipe runs along the walls, a
 //                                smokestack and storage tank, and on many a tower crane
-//   residential (outskirts):     lit apartment windows, a water tank
+//   residential (outskirts):     cheap housing: tenement windows, AC units, fire escapes and
+//                                rooftop shacks, dishes and laundry (residentialLooks.ts)
 
 import React, { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
@@ -23,6 +24,7 @@ import type { BuildingData } from '../types';
 import { AD_COUNT, HoloBillboard } from './HoloBillboard';
 import { type Crown, facadeOf, facadeWindowMaterial, featureSides, goldScaleMaterial, MASSING_STEPS, shopfrontMaterial } from './corpoFacades';
 import { midtownLookOf } from './midtownLooks';
+import { residentialLookOf } from './residentialLooks';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 type Kind = 'commercial' | 'hightech' | 'industrial' | 'residential';
@@ -102,7 +104,6 @@ const neonMaterial = (color: string) => {
 };
 
 const podiumMaterial = new THREE.MeshStandardMaterial({ color: '#111827', metalness: 0.7, roughness: 0.45 });
-const roofMaterial = new THREE.MeshStandardMaterial({ color: '#1e293b', metalness: 0.6, roughness: 0.5 });
 const plantMaterial = new THREE.MeshStandardMaterial({ color: '#334155', metalness: 0.5, roughness: 0.6 });
 const sawtoothMaterial = new THREE.MeshStandardMaterial({ color: '#64748b', metalness: 0.6, roughness: 0.4 });
 
@@ -337,6 +338,30 @@ const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: b
         ))}
       </>
     )}
+    {crown === 'shack' && (
+      <group position={[-span * 0.12, 0, -span * 0.08]}>
+        <mesh position={[0, 1.3, 0]} material={tankMaterial} castShadow><boxGeometry args={[span * 0.42, 2.6, span * 0.36]} /></mesh>
+        <mesh position={[0, 2.75, 0]} rotation={[0, 0, 0.14]} material={rustMaterial}><boxGeometry args={[span * 0.5, 0.12, span * 0.44]} /></mesh>
+        <mesh position={[span * 0.08, 1.5, span * 0.18 + 0.03]} material={neonMaterial('#fbbf24')}><boxGeometry args={[0.9, 0.7, 0.05]} /></mesh>
+        <mesh position={[-span * 0.14, 3.4, -span * 0.08]} material={pipeMaterial}><cylinderGeometry args={[0.18, 0.18, 1.6, 6]} /></mesh>
+      </group>
+    )}
+    {crown === 'dishes' && [[-0.2, -0.15, 1.3, 0.6], [0.18, 0.12, 0.9, 2.2]].map(([x, z, r, turn], i) => (
+      <group key={i} position={[x * span, 0, z * span]} rotation={[0, turn, 0]}>
+        <mesh position={[0, 0.8, 0]} material={plantMaterial}><cylinderGeometry args={[0.1, 0.12, 1.6, 5]} /></mesh>
+        <mesh position={[0, 1.7, 0]} rotation={[-0.9, 0, 0]} material={pipeMaterial}><sphereGeometry args={[r, 12, 6, 0, Math.PI * 2, 0, Math.PI / 3]} /></mesh>
+      </group>
+    ))}
+    {crown === 'dishes' && <mesh position={[span * 0.3, 2.5, -span * 0.3]} material={plantMaterial}><cylinderGeometry args={[0.07, 0.1, 5, 4]} /></mesh>}
+    {crown === 'laundry' && (
+      <>
+        {[-0.3, 0.3].map(x => <mesh key={x} position={[x * span, 1.2, 0]} material={plantMaterial}><cylinderGeometry args={[0.08, 0.08, 2.4, 4]} /></mesh>)}
+        <mesh position={[0, 2.3, 0]} material={plantMaterial}><boxGeometry args={[span * 0.6, 0.04, 0.04]} /></mesh>
+        {['#f472b6', '#e2e8f0', '#facc15', '#38bdf8', '#a3e635'].map((c, i) => (
+          <mesh key={c} position={[(i - 2) * span * 0.11, 1.75, 0]} material={clothMaterial(c)}><boxGeometry args={[span * 0.08, 1 + (i % 2) * 0.3, 0.04]} /></mesh>
+        ))}
+      </>
+    )}
     {crown === 'blade' && (
       <group rotation={[0, alongX ? 0 : Math.PI / 2, 0]}>
         <mesh position={[0, h * 0.075, 0]} material={podiumMaterial}><boxGeometry args={[long * 0.55, h * 0.15, 0.5]} /></mesh>
@@ -346,6 +371,38 @@ const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: b
     )}
   </group>
 );
+
+// Cheap-housing clutter: cloth on a laundry line, AC units, fire escapes.
+const clothMaterials = new Map<string, THREE.MeshStandardMaterial>();
+const clothMaterial = (color: string) => {
+  let m = clothMaterials.get(color);
+  if (!m) { m = new THREE.MeshStandardMaterial({ color, emissive: color, emissiveIntensity: 0.25, roughness: 0.9, side: THREE.DoubleSide }); clothMaterials.set(color, m); }
+  return m;
+};
+const acMaterial = new THREE.MeshStandardMaterial({ color: '#8a9096', metalness: 0.5, roughness: 0.6 });
+const escapeMaterial = new THREE.MeshStandardMaterial({ color: '#2b2f33', metalness: 0.7, roughness: 0.5 });
+
+// A zigzag fire escape up a face, in the face's own coordinates (+z out of the wall): a landing
+// at every floor with a rail, joined by stair flights running alternately left and right.
+const FireEscape: React.FC<{ x: number; y0: number; y1: number; width: number }> = ({ x, y0, y1, width }) => {
+  const floors: number[] = [];
+  for (let y = y0; y <= y1; y += 3.5) floors.push(y);
+  const rise = 3.5, run = width * 0.8;
+  const angle = Math.atan2(rise, run), length = Math.hypot(rise, run);
+  return (
+    <group position={[x, 0, 0]}>
+      {floors.map((y, i) => (
+        <group key={i}>
+          <mesh position={[0, y, 0.65]} material={escapeMaterial}><boxGeometry args={[width, 0.14, 1.3]} /></mesh>
+          <mesh position={[0, y + 0.45, 1.28]} material={escapeMaterial}><boxGeometry args={[width, 0.08, 0.06]} /></mesh>
+          {i < floors.length - 1 && (
+            <mesh position={[0, y + rise / 2, 0.65]} rotation={[0, 0, i % 2 ? -angle : angle]} material={escapeMaterial}><boxGeometry args={[length, 0.12, 0.8]} /></mesh>
+          )}
+        </group>
+      ))}
+    </group>
+  );
+};
 
 // How tall a ground storey of shops is.
 const SHOP_HEIGHT = 3.4;
@@ -374,8 +431,11 @@ const FootprintSegmentView: React.FC<{
   const anchor = f.tower ? isTower : lx === Math.floor((f.w - 1) / 2) && lz === Math.floor((f.d - 1) / 2);
   // Corporate towers each wear one of the facade styles (corpoFacades.ts).
   // Midtown blocks have their own looks too (midtownLooks.ts).
-  const facade = useMemo(() => (kind === 'commercial' ? facadeOf(f) : kind === 'hightech' ? midtownLookOf(f) : null), [kind, f]);
+  const facade = useMemo(() => (kind === 'commercial' ? facadeOf(f) : kind === 'hightech' ? midtownLookOf(f) : kind === 'residential' ? residentialLookOf(f) : null), [kind, f]);
   const accent = data.owner ? TEAM_COLORS[data.owner] : facade?.accent ?? style.accent;
+  // The fire escape goes on the broad face toward its own side's camera.
+  const blueSide = f.x + f.z + (f.w + f.d) / 2 - 1 < 78;
+  const escapeSide: Side = f.w >= f.d ? (blueSide ? 'north' : 'south') : (blueSide ? 'west' : 'east');
   const texW = facade?.texW ?? style.texW;
   const texH = facade?.texH ?? style.texH;
 
@@ -504,6 +564,23 @@ const FootprintSegmentView: React.FC<{
 
       {/* Facade dressing: full-height light strips, a light line round the building, the gold
           scales. Each sits just proud of its face. */}
+      {/* AC units bolted on the walls of cheap housing, a few to each tile's stretch. */}
+      {facade?.clutter && windows.map(w => (
+        <group key={`ac-${w.key}`} position={[w.position[0], 0, w.position[2]]} rotation={[0, w.rot, 0]}>
+          {[0, 1, 2].filter(i => tileHash(data.gridX, data.gridZ, 20 + i + w.key.length) < 0.7).map(i => {
+            const u = (tileHash(data.gridX, data.gridZ, 30 + i) - 0.5) * w.width * 0.8;
+            const y = w.bottom + 1 + tileHash(data.gridX, data.gridZ, 40 + i + w.key.length) * Math.max(0, w.top - w.bottom - 2);
+            return <mesh key={i} position={[u, y, 0.4]} material={acMaterial}><boxGeometry args={[1.3, 0.85, 0.8]} /></mesh>;
+          })}
+        </group>
+      ))}
+      {/* A fire escape down the front of the taller ones, on the first tile of the face. */}
+      {facade?.fireEscape && h >= 12 && windows.filter(w => w.key.endsWith('-0') && w.side === escapeSide && (w.alongX ? lx === 0 : lz === 0)).map(w => (
+        <group key={`esc-${w.key}`} position={[w.position[0], 0, w.position[2]]} rotation={[0, w.rot, 0]}>
+          <FireEscape x={w.width * (w.side === 'north' || w.side === 'east' ? 0.18 : -0.18)} y0={Math.max(3, w.bottom + 1.5)} y1={h - 2} width={Math.min(T * 0.4, w.width * 0.5)} />
+        </group>
+      ))}
+
       {facade?.strips && windows.map(w => (
         <group key={`strips-${w.key}`} position={w.position} rotation={[0, w.rot, 0]}>
           {Array.from({ length: facade.strips!.count }, (_, i) => (
@@ -598,19 +675,6 @@ const FootprintSegmentView: React.FC<{
         </>
       )}
 
-      {anchor && kind === 'residential' && (
-        <group position={[bx + T * 0.15, h, bz + T * 0.15]}>
-          <mesh position={[0, 1, 0]} material={plantMaterial}>
-            <cylinderGeometry args={[0.15, 0.15, 2, 4]} />
-          </mesh>
-          <mesh position={[0, 3, 0]} material={roofMaterial}>
-            <cylinderGeometry args={[1.6, 1.6, 2.4, 10]} />
-          </mesh>
-          <mesh position={[-T * 0.35, 0.6, -T * 0.3]} material={plantMaterial}>
-            <boxGeometry args={[T * 0.2, 1.2, T * 0.15]} />
-          </mesh>
-        </group>
-      )}
     </group>
   );
 };

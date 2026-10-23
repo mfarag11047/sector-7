@@ -21,7 +21,9 @@ import type { BuildingData } from '../types';
 
 export type FacadeName = 'monolith' | 'goldscale' | 'office' | 'brutalist' | 'ticker'
   // Midtown's apartment blocks (midtownLooks.ts).
-  | 'bands' | 'apartment' | 'balcony';
+  | 'bands' | 'apartment' | 'balcony'
+  // The outskirts' cheap housing (residentialLooks.ts).
+  | 'tenement' | 'projects' | 'patched';
 
 export interface Facade {
   name: FacadeName;
@@ -44,6 +46,10 @@ export interface Facade {
   crown?: Crown;
   // A ground storey of lit shopfronts under an awning.
   shops?: boolean;
+  // Cheap-housing clutter: AC units bolted on the walls, and a zigzag fire escape down the
+  // building's front.
+  clutter?: boolean;
+  fireEscape?: boolean;
 }
 
 export const FACADES: Record<FacadeName, Facade> = {
@@ -56,6 +62,10 @@ export const FACADES: Record<FacadeName, Facade> = {
   bands: { name: 'bands', body: '#1f2d2a', bodies: ['#1f2d2a', '#22302e', '#1d2a2c'], accent: '#2dd4bf', texW: 7, texH: 6 },
   apartment: { name: 'apartment', body: '#26302e', bodies: ['#26302e', '#2b3330', '#252d33'], accent: '#5eead4', texW: 5, texH: 4 },
   balcony: { name: 'balcony', body: '#2a3331', bodies: ['#2a3331', '#2e3532', '#283035'], accent: '#a7f3d0', texW: 6, texH: 3.5 },
+  // Outskirts: weathered paint and bare concrete, cramped lit windows.
+  tenement: { name: 'tenement', body: '#4a3f38', bodies: ['#4a3f38', '#3f4a48', '#4d4436', '#45394a'], accent: '#38bdf8', texW: 4.5, texH: 3.6 },
+  projects: { name: 'projects', body: '#4b4e52', bodies: ['#4b4e52', '#55524b', '#474c55'], accent: '#7dd3fc', texW: 6, texH: 3.4 },
+  patched: { name: 'patched', body: '#3c4146', bodies: ['#3c4146', '#463f3b', '#3a4440'], accent: '#f472b6', texW: 7, texH: 7 },
 };
 
 // How a tower is massed, from the ground up: at each share of its height, how many steps its
@@ -83,7 +93,9 @@ export const MASSING_STEPS: Record<Massing, [number, number][]> = {
 //             holographic ad bands
 export type Crown = 'spire' | 'stepped' | 'helipad' | 'antennas' | 'blade' | 'beacon'
   // Apartment roofs: water tanks, a roof garden, plant and an antenna ring.
-  | 'tanks' | 'garden' | 'plant';
+  | 'tanks' | 'garden' | 'plant'
+  // Cheap housing: a shack built on the roof, satellite dishes, a laundry line.
+  | 'shack' | 'dishes' | 'laundry';
 
 // Every corporate tower on blue's side, by the corner of its footprint (sim/cityPlan.ts): its
 // facade, its massing, its crown and which of its style's body shades it wears (0 the darkest,
@@ -234,6 +246,49 @@ const WINDOWS: Record<FacadeName, (g: CanvasRenderingContext2D, rnd: () => numbe
       g.fillStyle = 'rgba(200,214,210,0.25)';
       for (let x = 0; x < 128; x += 6) g.fillRect(x, y + 20, 1, 6);
     }
+  },
+  // Small cramped windows in a tight grid: warm, pink or flickering blue TV light, many dark,
+  // some with a curtain half drawn.
+  tenement: (g, rnd) => {
+    for (let row = 0; row < 8; row++) for (let col = 0; col < 7; col++) {
+      const lit = rnd();
+      const x = col * 18 + 4, y = row * 16 + 4;
+      g.fillStyle = lit > 0.78 ? 'rgba(253,200,120,0.85)' : lit > 0.66 ? 'rgba(244,114,182,0.7)' : lit > 0.58 ? 'rgba(125,180,255,0.7)' : 'rgba(60,60,70,0.25)';
+      g.fillRect(x, y, 9, 9);
+      if (lit > 0.58 && rnd() > 0.6) { g.fillStyle = 'rgba(40,30,30,0.6)'; g.fillRect(x, y, 4, 9); }
+    }
+  },
+  // Concrete housing project: long access balconies under each floor, doors and windows behind,
+  // washing hung over the rail here and there.
+  projects: (g, rnd) => {
+    const cloth = ['rgba(244,114,182,0.7)', 'rgba(250,204,21,0.7)', 'rgba(125,211,252,0.7)', 'rgba(255,255,255,0.6)'];
+    for (let row = 0; row < 4; row++) {
+      const y = row * 32;
+      for (let col = 0; col < 8; col++) {
+        const lit = rnd();
+        g.fillStyle = lit > 0.7 ? 'rgba(253,214,150,0.8)' : lit > 0.6 ? 'rgba(150,200,255,0.6)' : 'rgba(60,64,70,0.3)';
+        g.fillRect(col * 16 + 3, y + 6, 10, 14);
+      }
+      g.fillStyle = 'rgba(160,165,170,0.5)';
+      g.fillRect(0, y + 23, 128, 4);
+      for (let k = 0; k < 3; k++) if (rnd() > 0.4) { g.fillStyle = cloth[Math.floor(rnd() * cloth.length)]; g.fillRect(rnd() * 120, y + 22, 5, 7); }
+    }
+  },
+  // Mismatched replacement panels in different greys and rust, few windows, a stray neon tag.
+  patched: (g, rnd) => {
+    for (let i = 0; i < 9; i++) {
+      const shade = Math.floor(rnd() * 40);
+      g.fillStyle = rnd() > 0.7 ? `rgba(${120 + shade},${70 + shade / 2},${40},0.22)` : `rgba(${100 + shade},${104 + shade},${110 + shade},0.18)`;
+      g.fillRect(Math.floor(rnd() * 4) * 32, Math.floor(rnd() * 4) * 32, 32 + Math.floor(rnd() * 2) * 32, 32);
+    }
+    for (let row = 0; row < 4; row++) for (let col = 0; col < 4; col++) {
+      const lit = rnd();
+      if (lit < 0.45) continue;
+      g.fillStyle = lit > 0.85 ? 'rgba(244,114,182,0.75)' : 'rgba(253,214,150,0.75)';
+      g.fillRect(col * 32 + 10, row * 32 + 10, 12, 10);
+    }
+    g.fillStyle = 'rgba(34,211,238,0.7)';
+    g.fillRect(20 + rnd() * 60, 100, 26, 3);
   },
 };
 

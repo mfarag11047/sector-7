@@ -11,6 +11,7 @@
 
 import { CITY_CONFIG } from '../constants';
 import type { BuildingData } from '../types';
+import { residentialLookOf } from './residentialLooks';
 import { type Crown, type Facade, FACADES, type FacadeName, facadeOf, type Massing } from './corpoFacades';
 
 type Footprint = NonNullable<BuildingData['footprint']>;
@@ -60,11 +61,12 @@ export function midtownLookOf(f: Footprint, gridSize = CITY_CONFIG.gridSize): Fa
   return { ...style, body: style.bodies[shade], massing: choice.massing, crown: choice.crown, shops: choice.shops };
 }
 
-// The look of any city building that has one: corporate towers and midtown blocks.
+// The look of any city building that has one: corporate towers, midtown blocks and cheap housing.
 export function lookOf(b: Pick<BuildingData, 'type' | 'footprint'>): Facade | null {
   if (!b.footprint) return null;
   if (b.type === 'commercial') return facadeOf(b.footprint);
   if (b.type === 'hightech') return midtownLookOf(b.footprint);
+  if (b.type === 'residential') return residentialLookOf(b.footprint);
   return null;
 }
 
