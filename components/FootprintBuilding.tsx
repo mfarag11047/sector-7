@@ -318,7 +318,7 @@ const FootprintSegmentView: React.FC<{
       z0: outside.north ? -half + inset : -half, z1: outside.south ? half - inset : half,
     };
     // A tower stands slim on its podium; its own body carries windows all round.
-    const tower = isTower ? { x0: -T * 0.31, x1: T * 0.31, z0: -T * 0.31, z1: T * 0.31 } : null;
+    const tower = isTower ? { x0: -T * 0.38, x1: T * 0.38, z0: -T * 0.38, z1: T * 0.38 } : null;
     const base = tower ?? box;
     const faces = (Object.keys(outside) as Side[]).filter(s => tower || outside[s]);
     const worldX = data.gridX * T;
@@ -329,7 +329,8 @@ const FootprintSegmentView: React.FC<{
     // Tiers, from the ground up: at each step of the building's massing its outside walls step
     // in. Steps below the podium or too near the roof are dropped.
     const breaks = (facade?.massing ? MASSING_STEPS[facade.massing] : []).map(a => a * h).filter(y => y > bottom + 3 && y < h - 2);
-    const stepIn = tower ? T * 0.07 : T * 0.12;
+    // Shallow steps, so towers stay broad and the streets stay walled in.
+    const stepIn = tower ? T * 0.05 : T * 0.07;
     const tiers = [0, ...breaks].map((y0, k) => {
       const d = k * stepIn;
       const shrink = (s: Side) => (tower || outside[s] ? d : 0);

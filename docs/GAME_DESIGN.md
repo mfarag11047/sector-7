@@ -973,12 +973,14 @@ Drop, or Masons.
   **gold scale** (dark, glowing panels of gold scales on its two broad faces), **office** (slate
   blue, dense rows of lit office windows), **brutalist** (charcoal, horizontal louvre fins, an
   amber light line round it) and **ticker** (dark, bands of red LED readout). Each style comes in
-  a few body shades, so neighbours of the same style still differ. Each tower is also massed
+  a few body shades, from near-black to dark grey, picked per tower so the district isn't a wall
+  of black under the fog. Each tower is also massed
   and crowned by hand: straight, set back once, stepped twice, on a broad plinth, or with a
   narrower crown storey, each step lit along its ledge; and topped with a spire, stacked crown
   blocks, a lit helipad, an antenna cluster or a neon-edged blade fin. Downtown blocks are
-  each drawn differently in the plan, so towers side by side differ in footprint, height and
-  silhouette.
+  each drawn differently in the plan with broad full-height towers (2x2 to 5x2, no thin slivers)
+  filling most of each block, and setbacks are shallow, so the streets stay walled in by
+  towers.
 - Midtown's green blocks are apartment buildings (`components/midtownLooks.ts`). Most blocks are
   mixed: each building has its own windows (data-centre bands, apartment windows or balcony
   floors), massing (straight, set back, on a plinth or with a narrower top storey), roof (water

@@ -47,11 +47,11 @@ export interface Facade {
 }
 
 export const FACADES: Record<FacadeName, Facade> = {
-  monolith: { name: 'monolith', body: '#262a33', bodies: ['#262a33', '#2d2f35', '#22262f'], accent: '#f8fafc', texW: 5, texH: 5, strips: { count: 2, color: '#f1f5f9' } },
-  goldscale: { name: 'goldscale', body: '#2b2620', bodies: ['#2b2620', '#302a22'], accent: '#fbbf24', texW: 5, texH: 5, scales: true },
-  office: { name: 'office', body: '#243247', bodies: ['#243247', '#29384a', '#26323d'], accent: '#7dd3fc', texW: 6, texH: 4 },
-  brutalist: { name: 'brutalist', body: '#383a3f', bodies: ['#383a3f', '#3f3d39', '#353a40'], accent: '#facc15', texW: 8, texH: 3, band: { at: 0.32, color: '#fde047' } },
-  ticker: { name: 'ticker', body: '#221f2a', bodies: ['#221f2a', '#272229'], accent: '#ff2d55', texW: 7, texH: 6, strips: { count: 1, color: '#e2e8f0' } },
+  monolith: { name: 'monolith', body: '#16181d', bodies: ['#16181d', '#3b3e45', '#2c2f36'], accent: '#f8fafc', texW: 5, texH: 5, strips: { count: 2, color: '#f1f5f9' } },
+  goldscale: { name: 'goldscale', body: '#221e19', bodies: ['#221e19', '#433d35'], accent: '#fbbf24', texW: 5, texH: 5, scales: true },
+  office: { name: 'office', body: '#1e2838', bodies: ['#1e2838', '#3a4352', '#2e3848'], accent: '#7dd3fc', texW: 6, texH: 4 },
+  brutalist: { name: 'brutalist', body: '#2e3034', bodies: ['#2e3034', '#4b4d52', '#575960'], accent: '#facc15', texW: 8, texH: 3, band: { at: 0.32, color: '#fde047' } },
+  ticker: { name: 'ticker', body: '#1a1820', bodies: ['#1a1820', '#3b3740'], accent: '#ff2d55', texW: 7, texH: 6, strips: { count: 1, color: '#e2e8f0' } },
   // Midtown: the data-centre bands it always had, apartment windows, balcony floors.
   bands: { name: 'bands', body: '#1f2d2a', bodies: ['#1f2d2a', '#22302e', '#1d2a2c'], accent: '#2dd4bf', texW: 7, texH: 6 },
   apartment: { name: 'apartment', body: '#26302e', bodies: ['#26302e', '#2b3330', '#252d33'], accent: '#5eead4', texW: 5, texH: 4 },
@@ -80,27 +80,30 @@ export type Crown = 'spire' | 'stepped' | 'helipad' | 'antennas' | 'blade'
   | 'tanks' | 'garden' | 'plant';
 
 // Every corporate tower on blue's side, by the corner of its footprint (sim/cityPlan.ts): its
-// facade, its massing and its crown; its twin across the centre is the same. Laid out so towers
+// facade, its massing, its crown and which of its style's body shades it wears (0 the darkest,
+// near black; the others dark greys, so the district isn't a wall of black from afar); its twin
+// across the centre is the same. Laid out so towers
 // side by side never share a look and a silhouette, with the gold-scaled towers flanking the
 // boulevard into the plaza and on the big corner block.
-const CURATED: Record<string, [FacadeName, Massing, Crown]> = {
-  // Corner block (4,4).
-  '27,27': ['goldscale', 'setback', 'spire'], '25,25': ['office', 'plinth', 'helipad'], '28,25': ['ticker', 'straight', 'antennas'], '25,28': ['ticker', 'straight', 'blade'],
+const CURATED: Record<string, [FacadeName, Massing, Crown, number]> = {
+  // Corner block (4,4): the gold megablock, a slab and a long low frontage.
+  '25,25': ['goldscale', 'setback', 'spire', 0], '29,25': ['ticker', 'straight', 'blade', 1], '25,29': ['brutalist', 'straight', 'antennas', 1],
   // Block (5,4).
-  '31,25': ['monolith', 'stepped', 'spire'], '34,25': ['brutalist', 'straight', 'blade'], '34,28': ['office', 'setback', 'antennas'], '31,29': ['brutalist', 'straight', 'helipad'],
+  '31,25': ['office', 'crownstep', 'helipad', 1], '31,28': ['monolith', 'stepped', 'spire', 0], '34,28': ['brutalist', 'plinth', 'stepped', 2],
   // Block (6,4), either side of the boulevard.
-  '37,25': ['monolith', 'setback', 'stepped'], '40,25': ['office', 'plinth', 'spire'], '37,28': ['brutalist', 'plinth', 'helipad'], '41,28': ['ticker', 'straight', 'blade'],
+  '37,25': ['monolith', 'setback', 'spire', 1], '40,25': ['office', 'stepped', 'helipad', 0], '37,29': ['ticker', 'straight', 'blade', 0], '40,29': ['brutalist', 'straight', 'antennas', 1],
   // Block (7,4).
-  '43,25': ['brutalist', 'crownstep', 'antennas'], '46,25': ['monolith', 'stepped', 'helipad'], '43,28': ['office', 'straight', 'antennas'], '45,28': ['monolith', 'plinth', 'stepped'],
+  '43,25': ['ticker', 'straight', 'blade', 1], '45,25': ['monolith', 'stepped', 'helipad', 2], '45,29': ['office', 'straight', 'antennas', 1],
   // The core, either side of the boulevard into the plaza.
-  '37,31': ['goldscale', 'setback', 'spire'], '40,31': ['goldscale', 'stepped', 'helipad'], '31,37': ['monolith', 'stepped', 'spire'], '31,40': ['monolith', 'setback', 'helipad'],
+  '37,31': ['goldscale', 'setback', 'spire', 0], '40,31': ['goldscale', 'stepped', 'helipad', 1], '31,37': ['monolith', 'stepped', 'spire', 1], '31,40': ['monolith', 'setback', 'helipad', 0],
   // Block (4,5).
-  '25,31': ['monolith', 'stepped', 'spire'], '29,31': ['ticker', 'straight', 'blade'], '25,34': ['brutalist', 'straight', 'antennas'], '27,34': ['office', 'crownstep', 'stepped'],
+  '25,31': ['office', 'setback', 'antennas', 2], '29,31': ['ticker', 'straight', 'blade', 0], '25,34': ['brutalist', 'stepped', 'helipad', 0], '28,34': ['monolith', 'crownstep', 'spire', 2],
   // Block (4,6), either side of the boulevard.
-  '25,37': ['brutalist', 'setback', 'helipad'], '28,37': ['ticker', 'straight', 'blade'], '26,40': ['office', 'plinth', 'antennas'], '29,40': ['brutalist', 'crownstep', 'antennas'],
+  '25,37': ['brutalist', 'setback', 'helipad', 1], '28,37': ['office', 'plinth', 'spire', 1], '25,40': ['monolith', 'stepped', 'antennas', 1], '29,40': ['ticker', 'straight', 'blade', 1],
   // Block (4,7).
-  '25,43': ['ticker', 'straight', 'antennas'], '27,43': ['office', 'stepped', 'spire'], '25,46': ['brutalist', 'plinth', 'stepped'], '29,46': ['monolith', 'straight', 'blade'],
+  '25,43': ['brutalist', 'crownstep', 'helipad', 2], '25,46': ['ticker', 'straight', 'blade', 0], '27,46': ['office', 'stepped', 'spire', 0],
 };
+
 
 type Footprint = NonNullable<BuildingData['footprint']>;
 
@@ -110,11 +113,9 @@ export function facadeOf(f: Footprint, gridSize = CITY_CONFIG.gridSize): Facade 
   const tx = last - (f.x + f.w - 1), tz = last - (f.z + f.d - 1);
   // Blue's side of the pair.
   const [bx, bz] = f.x + f.z < tx + tz || (f.x + f.z === tx + tz && f.x <= tx) ? [f.x, f.z] : [tx, tz];
-  const h = Math.sin((bx * gridSize + bz) * 12.9898 + 4.1) * 43758.5453;
-  const r = h - Math.floor(h);
-  const [name, massing, crown] = CURATED[`${bx},${bz}`] ?? ['monolith', 'straight', 'spire'];
+  const [name, massing, crown, shade] = CURATED[`${bx},${bz}`] ?? ['monolith', 'straight', 'spire', 1];
   const style = FACADES[name];
-  return { ...style, body: style.bodies[Math.floor(r * style.bodies.length)], massing, crown };
+  return { ...style, body: style.bodies[Math.min(shade, style.bodies.length - 1)], massing, crown };
 }
 
 export type Side = 'west' | 'east' | 'north' | 'south';
