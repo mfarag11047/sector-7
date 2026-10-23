@@ -91,6 +91,11 @@ export interface MiniRocket {
   landsAt: number;
   // The Hornet's damage multiplier when it fired (its upgrades).
   power?: number;
+  // Other lobbed rounds that land the same way (Goliath's grenades, sim/heavyMetalHero.ts): their
+  // own damage and blast radius in place of the salvo's.
+  kind?: 'grenade';
+  damage?: number;
+  blast?: number;
 }
 
 // A small deterministic scatter, so the same order gives the same pattern.
@@ -129,22 +134,24 @@ export function landSalvo(rockets: readonly MiniRocket[], now: number, units: re
   const unitDamage = new Map<string, number>();
   const structureDamage = new Map<string, number>();
   const add = (m: Map<string, number>, id: string, n: number) => m.set(id, (m.get(id) || 0) + n);
-  const falloff = (d: number) => 1 - 0.5 * Math.min(1, d / HORNET.salvo.blast);
   for (const r of rockets) {
     if (r.landsAt > now) { flying.push(r); continue; }
+    const blast = r.blast ?? HORNET.salvo.blast;
+    const falloff = (d: number) => 1 - 0.5 * Math.min(1, d / blast);
+    const weapon = r.damage === undefined ? MINI : { ...MINI, damage: r.damage };
     if (impactAbsorbed(fields, r.team, r.at, r.from)) { absorbed.push(r); continue; }
     landed.push(r);
     for (const u of units) {
       if (u.team === r.team || u.health <= 0) continue;
       const armor = UNIT_RULES[u.type].armor;
       const d = tiles(u.gridPos, r.at);
-      if (armor === 'air' || d > HORNET.salvo.blast || shotBlocked(fields, r.team, r.at, u.gridPos)) continue;
-      add(unitDamage, u.id, shotDamage(MINI, armor) * falloff(d) * (r.power ?? 1) * damageTakenMultiplier(u) * airHitMultiplier(u));
+      if (armor === 'air' || d > blast || shotBlocked(fields, r.team, r.at, u.gridPos)) continue;
+      add(unitDamage, u.id, shotDamage(weapon, armor) * falloff(d) * (r.power ?? 1) * damageTakenMultiplier(u) * airHitMultiplier(u));
     }
     for (const s of structures) {
       if (s.team === r.team || s.health <= 0) continue;
       const d = tiles(s.gridPos, r.at);
-      if (d <= HORNET.salvo.blast && !shotBlocked(fields, r.team, r.at, s.gridPos)) add(structureDamage, s.id, shotDamage(MINI, 'structure') * falloff(d) * (r.power ?? 1));
+      if (d <= blast && !shotBlocked(fields, r.team, r.at, s.gridPos)) add(structureDamage, s.id, shotDamage(weapon, 'structure') * falloff(d) * (r.power ?? 1));
     }
   }
   return { landed, flying, absorbed, unitDamage, structureDamage };

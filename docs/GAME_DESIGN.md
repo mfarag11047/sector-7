@@ -229,16 +229,27 @@ everything, so what you research commits you to the units you mean to build.
 ### Doctrine heroes
 
 Each doctrine has one unique **hero** unit, and only a side that picked that doctrine at the start
-of the match can research or train it (`sim/heroes.ts`). The heroes are placeholders for now:
-stats only, no abilities, and the generic unit model with a gold halo.
+of the match can research or train it (`sim/heroes.ts`). Shadow Ops' and Netrunner's are still
+placeholders: stats only, no abilities, and the generic unit model with a gold halo.
 
 | Doctrine | Hero | Class | Health | Speed | Weapon |
 |---|---|---|---|---|---|
-| Heavy Metal | Heavy Metal Hero | Armour (heavy) | 1400 | 0.8 | Cannon, 80 dmg / 2 s, range 5 |
+| Heavy Metal | Goliath | Armour (heavy) | 1400 | 0.8 | Heavy MG, 16 dmg / 0.3 s, range 5, hits air; grenades |
 | Shadow Ops | Shadow Ops Hero | Infantry (captures ×2) | 600 | 1.2 | Rifle, 28 dmg / 0.7 s, range 4 |
 | Netrunner | Netrunner Hero | Support (light) | 800 | 1.0 | MG, 14 dmg / 0.5 s, range 4, hits air |
 
 All cost 600 cores, 4 population and 40 s to train.
+
+**Goliath (Heavy Metal)** is a towering full-borg heavy (`sim/heavyMetalHero.ts`,
+`components/GoliathModel.tsx`): a pale skull face with red eyes and a steel jaw, huge pauldrons,
+red muscle cabling under black plate, and clawed feet. He carries a **heavy machine gun** in both
+hands: a machine gun's damage type, decent against everything and able to hit aircraft. On his
+back, an arm curls over his right shoulder holding a box **grenade launcher**: every **8 s**, while
+his gun is on a ground unit or structure within 7 tiles, it lobs **3 grenades** over his shoulder
+onto it, one on the target and two scattered within 1.2 tiles. Each lands 1.1 s later and bursts
+for **40 explosive damage** within 1.5 tiles (half at the edge). They fly and land like Hellfire
+Salvo rockets, so enemy force fields stop them. He turns to face what he is shooting. As heavy
+armour, AP weapons are his counter: a few Titans take him apart.
 
 - **Unlock (Tier 1):** research **Hero Unlock** at Advanced Research (300 cores + 25 compute, 25 s).
   It gives no stat bonus; it lets the hero be trained there.

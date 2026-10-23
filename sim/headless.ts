@@ -12,6 +12,7 @@ import { abilityEffects, applyUnitEffects } from './abilities';
 import { AiMemory, AI_PROFILES, aiThink, freshAiMemory, nextThinkDelay, thinkOffsets } from './ai';
 import { afterRailShot, fireRailguns } from './railgun';
 import { fireHornetRockets, landSalvo, MiniRocket } from './hornet';
+import { fireGrenades } from './heavyMetalHero';
 import { fireFlechettes, regenerateShield, shieldedHit } from './kestrel';
 import { markScreened, pruneSmoke, SmokeScreen } from './titan';
 import { armMules, dueCharges, VoltCharge, voltBlasts } from './voltCore';
@@ -215,6 +216,12 @@ export function stepMatch(m: HeadlessMatch): void {
   const burst = new Set(flechettes.shots.map(s => s.attackerId));
   if (burst.size > 0) m.units = m.units.map(u => burst.has(u.id) ? { ...u, flechetteAt: now } : u);
   flechettes.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+  // Goliath's grenade volleys go up, and land with the salvo rockets (sim/heavyMetalHero.ts).
+  const lobbed = fireGrenades(m.units, m.structures, now);
+  if (lobbed.fired.size > 0) {
+    m.units = m.units.map(u => lobbed.fired.has(u.id) ? { ...u, grenadeAt: now } : u);
+    m.salvo.push(...lobbed.grenades);
+  }
   // Volt Cores whose countdown is over detonate (sim/voltCore.ts).
   const due = dueCharges(m.volt, now);
   const volt = voltBlasts(m.units, due);

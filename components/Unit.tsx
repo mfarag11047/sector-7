@@ -27,6 +27,8 @@ import { abilityUnlocked, artilleryTierOf, type UpgradeId } from '../sim/upgrade
 import { shieldMax } from '../sim/kestrel';
 import { WARHEAD_LABEL } from '../sim/warheads';
 import { isHeroType } from '../sim/heroes';
+import { GoliathModel } from './GoliathModel';
+import { GOLIATH } from '../sim/heavyMetalHero';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
 
@@ -232,6 +234,10 @@ interface UnitProps {
   upgrades?: readonly UpgradeId[];
   // A Kestrel's Regenerative Shield left (sim/kestrel.ts).
   regenShield?: number;
+  // Goliath (sim/heavyMetalHero.ts): when his grenade launcher last fired.
+  grenadeAt?: number;
+  // Where the unit's gun is pointed, in tiles, for units that turn to face what they shoot (Goliath).
+  faceAt?: { x: number; z: number } | null;
   firingLaserAt?: string | null;
   lastAttackTime?: number;
   combatTargetId?: string | null;
@@ -373,7 +379,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, grenadeAt, faceAt, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -717,6 +723,16 @@ const Unit: React.FC<UnitProps> = ({
                 meshRef.current.quaternion.slerp(scratch.orient.quaternion, 1 - Math.exp(-delta * 14));
             }
         }
+        // Standing and firing: turn to face the target.
+        else if (faceAt) {
+            const scratch = moveScratch.current;
+            scratch.look.set(faceAt.x * tileSize - offset, meshPos.y, faceAt.z * tileSize - offset);
+            if (meshPos.distanceTo(scratch.look) > 0.05) {
+                scratch.orient.position.copy(meshPos);
+                scratch.orient.lookAt(scratch.look);
+                meshRef.current.quaternion.slerp(scratch.orient.quaternion, 1 - Math.exp(-delta * 6));
+            }
+        }
     }
   });
 
@@ -769,6 +785,7 @@ const Unit: React.FC<UnitProps> = ({
     if (isHowitzer) return <ThunderheadModel teamColor={teamColor} deployed={!!isDeployed} aim={aimWorld} />;
     if (isAegis) return <AegisModel teamColor={teamColor} firing={!!ciwsTargetId} />;
     if (isHornet) return <HornetModel teamColor={teamColor} />;
+    if (type === 'hero_heavy_metal') return <GoliathModel teamColor={teamColor} flashRef={flashRef} grenadeAt={grenadeAt} />;
      if (isDefenseDrone) {
         const bodyColor = "#334155"; const glowColor = firingLaserAt ? "#ff0000" : "#ef4444"; const detailColor = "#1e293b";
         return ( <group scale={[3, 3, 3]}> <mesh><sphereGeometry args={[0.6, 16, 16]} /><meshStandardMaterial color={bodyColor} metalness={0.8} roughness={0.3} /></mesh> <mesh rotation={[Math.PI/2, 0, 0]}><torusGeometry args={[0.605, 0.015, 6, 24]} /><meshBasicMaterial color={glowColor} toneMapped={false} /></mesh> <mesh position={[0, 0.35, 0]} rotation={[Math.PI/2, 0, 0]}><torusGeometry args={[0.48, 0.015, 6, 24]} /><meshBasicMaterial color={glowColor} toneMapped={false} /></mesh> <mesh position={[0, -0.35, 0]} rotation={[Math.PI/2, 0, 0]}><torusGeometry args={[0.48, 0.015, 6, 24]} /><meshBasicMaterial color={glowColor} toneMapped={false} /></mesh> <group position={[0, 0, 0.52]} rotation={[Math.PI/2, 0, 0]}> <mesh><cylinderGeometry args={[0.22, 0.25, 0.15, 8]} /><meshStandardMaterial color={detailColor} metalness={0.9} /></mesh> <mesh position={[0, 0.08, 0]}><sphereGeometry args={[0.15, 8, 8, 0, Math.PI * 2, 0, Math.PI * 0.5]} /><meshBasicMaterial color={glowColor} toneMapped={false} /></mesh> <mesh position={[0, 0.2, 0]} rotation={[Math.PI/2, 0, 0]}><ringGeometry args={[0.06, 0.12, 8]} /><meshBasicMaterial color="#ffffff" transparent opacity={0.4} blending={THREE.AdditiveBlending} /></mesh> </group> {[90, 180, 270].map((deg) => { const rad = deg * Math.PI / 180; return ( <group key={deg} rotation={[0, rad, 0]}> <group position={[0, 0, 0.55]} rotation={[Math.PI/2, 0, 0]}> <mesh><cylinderGeometry args={[0.1, 0.12, 0.1, 8]} /><meshStandardMaterial color={detailColor} /></mesh> <mesh position={[0, 0.06, 0]}><sphereGeometry args={[0.06, 8, 8, 0, Math.PI * 2, 0, Math.PI * 0.5]} /><meshBasicMaterial color={glowColor} /></mesh> </group> </group> ); })} {[ [1, 1, 1], [-1, 1, 1], [1, -1, 1], [-1, -1, 1], [1, 1, -1], [-1, 1, -1], [1, -1, -1], [-1, -1, -1] ].map((vec, i) => { const dir = new THREE.Vector3(...vec).normalize(); const pos = dir.clone().multiplyScalar(0.58); const quaternion = new THREE.Quaternion(); quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); return ( <group key={i} position={pos} quaternion={quaternion}> <mesh position={[0, 0.05, 0]}><cylinderGeometry args={[0.06, 0.08, 0.1, 6]} /><meshStandardMaterial color={detailColor} /></mesh> <mesh position={[0, 0.25, 0]}><coneGeometry args={[0.03, 0.4, 8]} /><meshStandardMaterial color="#cbd5e1" metalness={1} roughness={0.1} /></mesh> </group> ); })} <group position={[0.2, 0.55, -0.2]} rotation={[0, 0, -0.2]}> <mesh position={[0, 0.2, 0]}><cylinderGeometry args={[0.02, 0.02, 0.6]} /><meshStandardMaterial color="#94a3b8" metalness={1} /></mesh> <mesh position={[0, 0.5, 0]}><sphereGeometry args={[0.03]} /><meshBasicMaterial color={glowColor} /></mesh> </group> <group position={[-0.2, 0.55, -0.1]} rotation={[0.1, 0, 0.2]}> <mesh position={[0, 0.15, 0]}><cylinderGeometry args={[0.015, 0.015, 0.4]} /><meshStandardMaterial color="#94a3b8" metalness={1} /></mesh> </group> <group position={[0, -0.6, 0]}> <mesh rotation={[Math.PI, 0, 0]}><cylinderGeometry args={[0.2, 0.3, 0.15, 6]} /><meshStandardMaterial color={detailColor} /></mesh> <mesh position={[0, -0.1, 0]}><cylinderGeometry args={[0.1, 0.1, 0.1, 8]} /><meshBasicMaterial color={glowColor} transparent opacity={0.8} /></mesh> </group> </group> );
@@ -1015,6 +1032,7 @@ const Unit: React.FC<UnitProps> = ({
   const model = useMemo(renderModel, [
     type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
     isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, firingLaserAt, courierPayload, constructionTargetId, ciwsTargetId,
+    grenadeAt,
   ]);
 
   useFrame(() => {
@@ -1356,6 +1374,11 @@ const Unit: React.FC<UnitProps> = ({
                           <span className="font-mono">{upgrades.includes('regen_shield') ? `${Math.round(regenShield ?? 0)}/${shieldMax({ type, maxHealth })}` : 'T3 · Research'}</span>
                         </div>
                       </>
+                  )}
+                  {type === 'hero_heavy_metal' && (
+                      <div className="text-[10px] bg-slate-900/60 text-slate-300 px-2 py-1 rounded flex justify-between gap-2" title={`Passive: every ${GOLIATH.grenades.cooldownMs / 1000}s while his gun is on a ground target, a volley of ${GOLIATH.grenades.count} grenades from his back lands on and around it.`}>
+                        <span>Grenade Launcher</span><span className="font-mono">every {GOLIATH.grenades.cooldownMs / 1000}s</span>
+                      </div>
                   )}
                   {isAegis && <CiwsStatus usedMs={ciwsUsedMs ?? 0} reloadUntil={ciwsReloadUntil ?? 0} firing={!!ciwsTargetId} />}
 

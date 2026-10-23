@@ -40,6 +40,7 @@ import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep,
 import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells, shellGroundPos } from '../sim/artillery';
 import { afterRailShot, fireRailguns, RailShot } from '../sim/railgun';
 import { fireHornetRockets, landSalvo, MiniRocket } from '../sim/hornet';
+import { fireGrenades } from '../sim/heavyMetalHero';
 import { BASE_SITE, BaseSite, baseSites, clearedBlocks, commandPosts, rubbleCleared } from '../sim/bases';
 import { BLACKWALL, blackwallImpact, blackwallTick } from '../sim/blackwall';
 import { FORCE_FIELD, ForceField, absorbingField, activeFields, addShieldHit, generatorsOf, impactAbsorbed, shieldTick, shockDamage, shockedBy, shotBlocked, shotBlockedBy } from '../sim/forcefield';
@@ -676,6 +677,31 @@ const MiniRocketMesh: React.FC<{ rocket: MiniRocket; fromY: number; tileSize: nu
                 <coneGeometry args={[0.28, 2.2, 6, 1, true]} />
                 <meshBasicMaterial color="#fb923c" transparent opacity={0.75} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
             </mesh>
+        </group>
+    );
+};
+
+// Goliath's grenades (sim/heavyMetalHero.ts): a dark round with a glowing red band, lobbed on a
+// high arc from the launcher over his shoulder to where it lands.
+const GRENADE_PEAK = 16;
+const GrenadeMesh: React.FC<{ grenade: MiniRocket; tileSize: number; offset: number }> = ({ grenade, tileSize, offset }) => {
+    const ref = useRef<THREE.Group>(null);
+    const from = useMemo(() => new THREE.Vector3(grenade.from.x * tileSize - offset, 9.5, grenade.from.z * tileSize - offset), [grenade, tileSize, offset]);
+    const to = useMemo(() => new THREE.Vector3(grenade.at.x * tileSize - offset, 0.6, grenade.at.z * tileSize - offset), [grenade, tileSize, offset]);
+    useFrame(() => {
+        const g = ref.current;
+        if (!g) return;
+        const t = (Date.now() - grenade.firedAt) / (grenade.landsAt - grenade.firedAt);
+        g.visible = t >= 0 && t <= 1;
+        if (!g.visible) return;
+        g.position.lerpVectors(from, to, t);
+        g.position.y += Math.sin(t * Math.PI) * GRENADE_PEAK;
+        g.rotation.x = t * 12;
+    });
+    return (
+        <group ref={ref} visible={false}>
+            <mesh raycast={() => null}><sphereGeometry args={[0.45, 8, 6]} /><meshStandardMaterial color="#1f2937" metalness={0.7} roughness={0.4} /></mesh>
+            <mesh rotation={[Math.PI / 2, 0, 0]} raycast={() => null}><torusGeometry args={[0.46, 0.08, 4, 12]} /><meshBasicMaterial color="#ef4444" toneMapped={false} /></mesh>
         </group>
     );
 };
@@ -1558,6 +1584,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const hornetShotRef = useRef(new Map<string, number>());
   // When each Kestrel last fired its Flechette Burst (sim/kestrel.ts), the same way.
   const flechetteShotRef = useRef(new Map<string, number>());
+  const grenadeShotRef = useRef(new Map<string, number>());
   const [miniRockets, setMiniRockets] = useState<MiniRocket[]>([]);
   // Tank Smoke Screens on the ground (sim/titan.ts), ahead of state for the tick.
   const smokeRef = useRef<SmokeScreen[]>([]);
@@ -3540,6 +3567,17 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           flechettes.shieldDamage.forEach((n, id) => addShieldHit(shieldHits, id, n));
           flechettes.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
           if (pacing && flechettes.shots.length > 0) recordWeaponHits(pacing, { shots: flechettes.shots }, currentUnitsRef, structuresRef.current);
+          // Goliath's grenade volleys from his back (sim/heavyMetalHero.ts): they fly and land with the salvo rockets.
+          const grenadeReady = (u: UnitData) => {
+              const t = grenadeShotRef.current.get(u.id);
+              return t && t > (u.grenadeAt ?? -Infinity) ? { ...u, grenadeAt: t } : u;
+          };
+          const lobbed = fireGrenades(currentUnitsRef.map(grenadeReady), structuresRef.current, now);
+          lobbed.fired.forEach(id => grenadeShotRef.current.set(id, now));
+          if (lobbed.grenades.length > 0) {
+              miniRocketsRef.current = [...miniRocketsRef.current, ...lobbed.grenades];
+              setMiniRockets(miniRocketsRef.current);
+          }
           // Volt Cores whose countdown is over detonate: a big blue discharge (sim/voltCore.ts).
           const voltDue = dueCharges([...voltRef.current.values()], now);
           if (voltDue.length > 0) {
@@ -3575,7 +3613,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   setExplosions(prev => [...prev, ...salvo.landed.map(r => ({
                       id: `mini-exp-${r.id}`,
                       position: { x: r.at.x * tileSize - offset, y: 1, z: r.at.z * tileSize - offset },
-                      radius: 1.8, duration: 450, createdAt: now,
+                      radius: r.kind === 'grenade' ? 3.2 : 1.8, duration: r.kind === 'grenade' ? 650 : 450, createdAt: now,
                   }))]);
               }
           }
@@ -3753,14 +3791,16 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   if (shooter?.type === 'defense_drone') return;
                   const structure = !shooter;
                   const infantry = shooter ? UNIT_RULES[shooter.type].armor === 'infantry' : false;
-                  const kind: ShotKind = shot.type === 'rifle' || shot.type === 'flak' || shot.type === 'mg' ? 'flash'
+                  const goliath = shooter?.type === 'hero_heavy_metal';
+                  const kind: ShotKind = goliath ? 'round'
+                      : shot.type === 'rifle' || shot.type === 'flak' || shot.type === 'mg' ? 'flash'
                       : shot.type === 'ap' ? (shooter?.type === 'lancer' ? 'missile' : 'round')
                       : 'shell';
                   const targetIsStructure = !currentUnitsRef.some(u => u.id === shot.targetId);
                   fx.push({
                       id: `shot-${now}-${i}`, kind, createdAt: now,
                       attackerId: shot.attackerId, targetId: shot.targetId,
-                      from: { x: shot.from.x * tileSize - offset, y: shot.fromAir ? 74 : structure ? 4 : infantry ? 1.6 : 2.4, z: shot.from.z * tileSize - offset },
+                      from: { x: shot.from.x * tileSize - offset, y: shot.fromAir ? 74 : structure ? 4 : goliath ? 4.2 : infantry ? 1.6 : 2.4, z: shot.from.z * tileSize - offset },
                       to: { x: shot.to.x * tileSize - offset, y: shot.toAir ? 75 : targetIsStructure ? 3 : 1.4, z: shot.to.z * tileSize - offset },
                       flashSize: structure ? 3.5 : shot.fromAir ? 2.6 : infantry ? 1.6 : 2.6,
                   });
@@ -3966,6 +4006,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       if (railFired.has(u.id)) { newUnit = afterRailShot(newUnit, now); uChanged = true; }
                       if (hornetFired.has(u.id)) { newUnit.hornetRocketAt = now; uChanged = true; }
                       if (flechetteFired.has(u.id)) { newUnit.flechetteAt = now; uChanged = true; }
+                      if (lobbed.fired.has(u.id)) { newUnit.grenadeAt = now; uChanged = true; }
                       const gun = ciws.updates.get(u.id);
                       if (gun) { newUnit = { ...newUnit, ...gun }; uChanged = true; }
                       if (attacks.fired.has(u.id)) {
@@ -4307,6 +4348,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
              const teamCompute = (u.team === 'blue' || u.team === 'red') ? economy[u.team].tier : 0;
              const upgrades = (u.team === 'blue' || u.team === 'red') ? economy[u.team].upgrades : undefined;
              const radarRange = u.team === playerTeam ? radarRangeOf(u) : 0;
+             // Goliath turns to face what he is shooting.
+             const faceAt = u.type === 'hero_heavy_metal' && u.combatTargetId
+                 ? (units.find(t => t.id === u.combatTargetId) ?? structuresState.find(t => t.id === u.combatTargetId))?.gridPos ?? null : null;
              const ownJammer = u.type === 'banshee' && u.team === playerTeam;
              const selected = selectedUnitIds.has(u.id);
              const isTargetingMode = !!targetingSourceId;
@@ -4322,7 +4366,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
              if (hit && sameUnitForRender(hit.u, u) && hit.deps.every((d, i) => d === deps[i])) { liveUnitIds.add(u.id); return hit.el; }
              // Motion (moveProgress and friends) goes through the motion registry, not props, and the
              // battery to whole points: both change every tick, and either re-rendered every moving unit.
-             const el = ( <Unit key={u.id} {...u} moveProgress={undefined} moveTarget={undefined} moveSpeed={undefined} battery={Math.round(u.battery)} teamCompute={teamCompute} upgrades={upgrades} radarRange={radarRange} ownJammer={ownJammer} isSelected={selected} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={menuOpen} onAction={stableUnitAction} isTargetingMode={isTargetingMode} showTetherRange={showTetherRange} showBatteryRange={showBatteryRange} isLockCandidate={isLockCandidate} isTetherCandidate={isTetherCandidate} isBatteryLinkCandidate={isBatteryLinkCandidate} warheadStock={warheadStock} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={cores} /> );
+             const el = ( <Unit key={u.id} {...u} moveProgress={undefined} moveTarget={undefined} moveSpeed={undefined} battery={Math.round(u.battery)} teamCompute={teamCompute} upgrades={upgrades} radarRange={radarRange} ownJammer={ownJammer} isSelected={selected} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={menuOpen} onAction={stableUnitAction} isTargetingMode={isTargetingMode} showTetherRange={showTetherRange} showBatteryRange={showBatteryRange} isLockCandidate={isLockCandidate} isTetherCandidate={isTetherCandidate} isBatteryLinkCandidate={isBatteryLinkCandidate} warheadStock={warheadStock} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={cores} faceAt={faceAt} /> );
              unitElementCache.current.set(u.id, { u, deps, el });
              liveUnitIds.add(u.id);
              return el;
@@ -4373,7 +4417,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         )}
 
         {/* Thunderhead shells, and the fire missions of selected batteries */}
-        {miniRockets.map(r => <MiniRocketMesh key={r.id} rocket={r} fromY={74} tileSize={tileSize} offset={offset} />)}
+        {miniRockets.map(r => r.kind === 'grenade'
+            ? <GrenadeMesh key={r.id} grenade={r} tileSize={tileSize} offset={offset} />
+            : <MiniRocketMesh key={r.id} rocket={r} fromY={74} tileSize={tileSize} offset={offset} />)}
         {/* Heavy Metal force fields: the dome, and lightning to every enemy inside. */}
         {(() => {
             const fields = activeFields(units, Date.now());

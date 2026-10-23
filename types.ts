@@ -119,6 +119,8 @@ export interface UnitData {
   hornetRocketAt?: number;
   // Kestrel (sim/kestrel.ts): when its Flechette Burst last fired, and its Regenerative Shield left.
   flechetteAt?: number;
+  // Goliath, the Heavy Metal hero (sim/heavyMetalHero.ts): when his grenade launcher last fired.
+  grenadeAt?: number;
   regenShield?: number;
   // Upgrades its side has researched for its type (sim/upgrades.ts): each adds health and damage.
   upgradeLevel?: number;
