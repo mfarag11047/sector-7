@@ -324,8 +324,8 @@ the Guardian, the Battery Mule, the Thunderhead and the Ballista are done; the r
   on a turntable, nine tubes each with red lights at the muzzle. Anchored, four corner jacks push
   down onto the ground and the launcher turns to its target and raises its pods. Its shots fly as
   rockets (CityMap's `ShellMesh`): from the pods, nose along the arc, a flame behind.
-- **The Ballista** (`components/models/BallistaModel.tsx`): on the move, a large six-wheeled
-  armoured truck: an angular cab with a sloped windscreen, a sensor bar and a front plough, and a
+- **The Ballista** (`components/models/BallistaModel.tsx`): on the move, a large eight-wheeled
+  armoured truck, much longer than a Titan so it makes a big target: an angular cab with a sloped windscreen, a sensor bar and a front plough, and a
   long armoured module on the back hiding the launch tube. Loading or armed and standing still, it
   erects: the module swings up on hydraulic rams about its rear edge (a jack plants under the
   hinge) until the tube's round mouth faces the sky. The missile slides up the tube as it loads,

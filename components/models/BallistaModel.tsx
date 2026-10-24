@@ -1,6 +1,6 @@
 // The Ballista missile launcher, built from the unit kit (components/kit).
 //
-// Simple but military: a large six-wheeled armoured truck. An angular cab with a sloped windscreen,
+// Simple but military: a large eight-wheeled armoured truck, built big to be a big target. An angular cab with a sloped windscreen,
 // side windows, a sensor bar on the roof, a grille and a plough with tow hooks at the front; a
 // composite tank box between the axles; and on the back a long armoured module, stepped at the
 // roof with rails, vents, amber lights and team stripes, that hides the launch tube.
@@ -10,7 +10,7 @@
 // stabiliser jack plants under it. The missile slides up the tube as it loads, and when armed its
 // warhead stands out of the mouth in the colour of its type. Fired, or driving off, it folds down.
 //
-// Built facing +Z, about 3 long in its own units, and scaled up here.
+// Built facing +Z, about 3.9 long in its own units, and scaled up here: a big target.
 
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -18,7 +18,7 @@ import * as THREE from 'three';
 import { glow, kitMaterial, PALETTE, teamPaint } from '../kit/materials';
 import { ContactShadow, Plate, Prism, Strip, Turned, Wheel } from '../kit/shapes';
 
-const SCALE = 2.5;
+const SCALE = 2.9;
 
 // Warhead colours, by missile type.
 export const WARHEAD_COLORS: Record<'emp' | 'he' | 'wp', string> = { emp: '#38bdf8', he: '#ef4444', wp: '#f8fafc' };
@@ -29,11 +29,11 @@ const CAB_W = 1.4;
 const SCREEN_SLOPE = Math.atan2(1.6 - 1.16, 1.44 - 1.02);
 // Front plough, side view.
 const PLOUGH: [number, number][] = [[1.48, 0.3], [1.48, 0.66], [1.62, 0.58], [1.7, 0.36]];
-const WHEELS_Z = [1.05, -0.5, -1.1];
+const WHEELS_Z = [1.05, -0.95, -1.52, -2.09];
 const WHEEL_X = 0.68;
 // The erector: a module hinged at its rear bottom edge on the deck.
-const DECK_Y = 0.78, HINGE_Z = -1.42;
-const MOD = { w: 1.26, h: 0.66, l: 1.98 };
+const DECK_Y = 0.78, HINGE_Z = -2.22;
+const MOD = { w: 1.26, h: 0.66, l: 2.8 };
 const TUBE = { r: 0.32, y: 0.36 };
 // The missile, along the tube: a body and a nose cone. Its nose base sits at the mouth when armed.
 const MISSILE_IN = -0.65;
@@ -75,8 +75,8 @@ export const BallistaModel: React.FC<{
     rams.current.forEach((ram, i) => {
       if (!ram) return;
       const x = i === 0 ? -0.36 : 0.36;
-      scratch.a.set(x, DECK_Y - 0.1, -0.35);
-      scratch.b.set(x, 0, 0.95).applyEuler(e.rotation).add(e.position);
+      scratch.a.set(x, DECK_Y - 0.1, -0.7);
+      scratch.b.set(x, 0, 1.4).applyEuler(e.rotation).add(e.position);
       ram.position.copy(scratch.a);
       ram.scale.z = scratch.a.distanceTo(scratch.b);
       // lookAt takes a world point.
@@ -86,7 +86,7 @@ export const BallistaModel: React.FC<{
 
   return (
     <group scale={SCALE}>
-      <ContactShadow size={[2.3, 3.6]} />
+      <ContactShadow size={[2.3, 4.5]} />
       {/* Six wheels: tyres on metal hubs. */}
       <group ref={wheels}>
         {[-1, 1].flatMap(s => WHEELS_Z.map(z => (
@@ -98,15 +98,15 @@ export const BallistaModel: React.FC<{
       </group>
 
       {/* Chassis, fenders, a tank box between the axles, tail lights. */}
-      <Plate size={[1.0, 0.36, 2.9]} material={dark} position={[0, 0.58, 0.05]} />
+      <Plate size={[1.0, 0.36, 3.75]} material={dark} position={[0, 0.58, -0.375]} />
       {[-1, 1].map(s => (
         <group key={s}>
-          <Plate size={[0.32, 0.05, 1.2]} material={composite} position={[s * WHEEL_X, DECK_Y - 0.01, -0.8]} />
-          <Plate size={[0.3, 0.3, 0.62]} material={composite} position={[s * 0.62, 0.52, 0.32]} />
-          {[0.12, 0.52].map(z => <Plate key={z} size={[0.32, 0.31, 0.05]} material={steel} position={[s * 0.62, 0.52, z]} />)}
+          <Plate size={[0.32, 0.05, 1.8]} material={composite} position={[s * WHEEL_X, DECK_Y - 0.01, -1.52]} />
+          <Plate size={[0.3, 0.3, 1.0]} material={composite} position={[s * 0.62, 0.52, 0.06]} />
+          {[-0.3, 0.06, 0.42].map(z => <Plate key={z} size={[0.32, 0.31, 0.05]} material={steel} position={[s * 0.62, 0.52, z]} />)}
         </group>
       ))}
-      {[-0.42, 0.42].map(x => <Strip key={x} size={[0.1, 0.05, 0.012]} material={glow(PALETTE.warning)} position={[x, 0.6, -1.407]} />)}
+      {[-0.42, 0.42].map(x => <Strip key={x} size={[0.1, 0.05, 0.012]} material={glow(PALETTE.warning)} position={[x, 0.6, -2.257]} />)}
 
       {/* The cab: windscreen and side windows, a grille, a plough with tow hooks, a sensor bar. */}
       <Prism outline={CAB} depth={CAB_W} axis="x" material={armour} />
@@ -166,13 +166,13 @@ export const BallistaModel: React.FC<{
           {[-1, 1].map(s => (
             <group key={s}>
               {/* Roof rails, vents, amber lights and team stripes along the sides. */}
-              <Plate size={[0.03, 0.05, 1.5]} material={steel} position={[s * 0.36, MOD.h + 0.165, 0]} />
-              {[0.36, 0.42, 0.48].map(y => <Plate key={y} size={[0.012, 0.025, 0.32]} material={black} position={[s * (MOD.w / 2 + 0.005), y, -0.55]} />)}
-              <Strip size={[0.012, 0.03, 0.08]} material={amber} position={[s * (MOD.w / 2 + 0.006), MOD.h - 0.08, 0.85]} />
+              <Plate size={[0.03, 0.05, 2.3]} material={steel} position={[s * 0.36, MOD.h + 0.165, 0]} />
+              {[0.36, 0.42, 0.48].map(y => <Plate key={y} size={[0.012, 0.025, 0.32]} material={black} position={[s * (MOD.w / 2 + 0.005), y, -0.9]} />)}
+              <Strip size={[0.012, 0.03, 0.08]} material={amber} position={[s * (MOD.w / 2 + 0.006), MOD.h - 0.08, 1.2]} />
               {[0.12, 0.24].map(z => (
                 <Plate key={z} size={[0.012, 0.5, 0.07]} material={paint} position={[s * (MOD.w / 2 + 0.006), MOD.h / 2, z]} rotation={[-0.35, 0, 0]} />
               ))}
-              {[-0.7, -0.15, 0.4].map(z => <Plate key={z} size={[0.01, MOD.h - 0.06, 0.012]} material={dark} position={[s * (MOD.w / 2 + 0.003), MOD.h / 2, z]} />)}
+              {[-1.0, -0.4, 0.2, 0.8].map(z => <Plate key={z} size={[0.01, MOD.h - 0.06, 0.012]} material={dark} position={[s * (MOD.w / 2 + 0.003), MOD.h / 2, z]} />)}
             </group>
           ))}
           {/* The launch tube's mouth on the front end: a steel rim round a dark bore. */}
@@ -186,7 +186,7 @@ export const BallistaModel: React.FC<{
         {warhead && (
           <group ref={missile} position={[0, TUBE.y, MISSILE_IN - 0.4]}>
             <group position={[0, 0, MOD.l]}>
-              <Turned profile={[[TUBE.r - 0.04, -0.9], [TUBE.r - 0.04, 0]]} segments={12} material={housing} />
+              <Turned profile={[[TUBE.r - 0.04, -1.6], [TUBE.r - 0.04, 0]]} segments={12} material={housing} />
               <Turned profile={[[TUBE.r - 0.04, 0], [TUBE.r - 0.1, 0.22], [0.12, 0.42], [0.001, 0.52]]} segments={12} material={warhead} />
             </group>
           </group>
