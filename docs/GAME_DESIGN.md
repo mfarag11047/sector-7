@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian, the Battery Mule, the Thunderhead, the Ballista and the Aegis are done; the rest of the roster follows by type.
+the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis and the Banshee are done; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -338,6 +338,11 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista and the Aegis are 
   elevate together: a six-barrel rotary cannon under an angular six-sided armoured pod with a dark
   sensor band, a lens and a team-colour band. Firing, it turns and lifts onto its target (CityMap's
   CIWS stream passes each Aegis its target, `ciwsAims`) and the barrels spin; idle, it sweeps.
+- **The Banshee** (`components/models/BansheeModel.tsx`): a six-wheeled EW truck. Right behind
+  its angular armoured cab, a rack of three tether spools, cable drums whose outlets light when
+  their hardline is connected; the tether cables run from those outlets. Over the back three
+  quarters of the bed, a big jamming dish on a turntable, tilted to the sky with an emitter at its
+  focus: it spins and the emitter glows while the jammer is on.
 
 ### Rigged models
 
