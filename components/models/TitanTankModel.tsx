@@ -1,11 +1,12 @@
 // The Titan main battle tank (and the orbital-drop Titan), built from the unit kit
 // (components/kit): the pilot for the kit's look.
 //
-// Clean, defined shapes rather than surface detail: a low wedge hull over dark tracks, armoured
-// side skirts with a sawtooth lower edge, and a faceted turret carrying the rail gun: two long
-// pointed blades round a glowing core, lit along their sides. Team colour on the skirts' top edges,
-// the nose, the turret roof and a collar round the gun; cyan light panels on the glacis and the
-// turret cheeks; a roof gun, a sensor and two whip antennas.
+// Clean, defined shapes rather than surface detail, each part in what it would be made of: a low
+// armoured wedge hull over dark tracks and metal wheels; dark composite side skirts with a sawtooth
+// lower edge, joined to the hull by composite decks over the tracks; and a faceted armoured turret
+// carrying the rail gun: two long bright-metal blades round a glowing core, lit along their sides.
+// Team colour on the skirts' top edges, the nose, the turret roof and a collar round the gun; cyan
+// light panels on the glacis and the turret cheeks; a roof gun, a sensor and two whip antennas.
 //
 // It moves: the turret turns to what the tank is shooting at, the rail gun recoils and its lights
 // flare when it fires, and the tracks run and the hull rocks while it drives.
@@ -46,6 +47,7 @@ export const TitanTankModel: React.FC<{
   decoy?: boolean;
 }> = ({ teamColor, moving, railFiredAt, aimRef, flashRef, decoy }) => {
   const armour = kitMaterial('armour'), dark = kitMaterial('armourDark'), steel = kitMaterial('steel'), black = kitMaterial('black');
+  const composite = kitMaterial('composite'), housing = kitMaterial('housing');
   const paint = teamPaint(teamColor), light = glow(PALETTE.cyan);
   // This tank's own: its tracks scroll, and its rail gun's lights flare.
   const own_ = useMemo(() => ({ tread: own(kitMaterial('tread'), true), core: own(glow(PALETTE.cyan)) as THREE.MeshBasicMaterial }), []);
@@ -94,14 +96,14 @@ export const TitanTankModel: React.FC<{
       {[-1, 1].map(s => (
         <group key={s} position={[s * TRACK_X, 0, 0]}>
           <Plate size={[0.42, 0.5, 2.5]} radius={0.16} material={own_.tread} position={[0, 0.27, 0]} />
-          <Wheel radius={0.17} width={0.1} material={dark} position={[s * 0.2, 0.32, 1.12]} />
-          <Wheel radius={0.17} width={0.1} material={dark} position={[s * 0.2, 0.32, -1.12]} />
+          <Wheel radius={0.17} width={0.1} material={steel} position={[s * 0.2, 0.32, 1.12]} />
+          <Wheel radius={0.17} width={0.1} material={steel} position={[s * 0.2, 0.32, -1.12]} />
         </group>
       ))}
       <group ref={wheels}>
         {[-1, 1].flatMap(s => WHEELS_Z.map(z => (
           <group key={`${s}${z}`} position={[s * (TRACK_X + 0.22), 0.2, z]}>
-            <Wheel radius={0.15} width={0.06} material={dark} />
+            <Wheel radius={0.15} width={0.06} material={steel} />
             <Wheel radius={0.06} width={0.08} material={black} />
           </group>
         )))}
@@ -115,10 +117,10 @@ export const TitanTankModel: React.FC<{
         {/* Side skirts: team colour along the top, a light at the front. */}
         {[-1, 1].map(s => (
           <group key={s} position={[s * 1.04, 0, 0]}>
-            <Prism outline={SKIRT} depth={0.08} axis="x" material={armour} />
+            <Prism outline={SKIRT} depth={0.08} axis="x" material={composite} />
             {/* Track guard: a deck over the track from the hull out to the skirt, sloping down at the front. */}
-            <Plate size={[0.42, 0.05, 2.38]} radius={0.015} material={armour} position={[-s * 0.22, 0.785, -0.09]} />
-            <Plate size={[0.42, 0.05, 0.3]} radius={0.015} material={armour} position={[-s * 0.22, 0.675, 1.19]} rotation={[0.83, 0, 0]} />
+            <Plate size={[0.42, 0.05, 2.38]} radius={0.015} material={composite} position={[-s * 0.22, 0.785, -0.09]} />
+            <Plate size={[0.42, 0.05, 0.3]} radius={0.015} material={composite} position={[-s * 0.22, 0.675, 1.19]} rotation={[0.83, 0, 0]} />
             <Plate size={[0.09, 0.07, 2.2]} radius={0.02} material={paint} position={[0, 0.8, -0.08]} />
             <Strip size={[0.02, 0.06, 0.26]} material={light} position={[s * 0.045, 0.68, 0.86]} />
           </group>
@@ -138,7 +140,7 @@ export const TitanTankModel: React.FC<{
         {[-0.45, 0.45].map(x => (
           <group key={x}>
             <Strip size={[0.12, 0.06, 0.02]} material={glow(PALETTE.headlight)} position={[x, 0.72, 1.135]} rotation={[-0.6, 0, 0]} />
-            <Plate size={[0.08, 0.06, 0.1]} radius={0.015} material={dark} position={[x * 0.7, 0.52, 1.2]} />
+            <Plate size={[0.08, 0.06, 0.1]} radius={0.015} material={steel} position={[x * 0.7, 0.52, 1.2]} />
           </group>
         ))}
 
@@ -153,7 +155,7 @@ export const TitanTankModel: React.FC<{
           <Plate size={[0.8, 0.04, 0.36]} radius={0.015} material={paint} position={[0, 0.42, -0.34]} />
           <Wheel radius={0.14} width={0.06} material={dark} position={[0.2, 0.43, 0.08]} rotation={[0, 0, Math.PI / 2]} />
           <group position={[0.42, 0.45, 0.2]}>
-            <Plate size={[0.18, 0.14, 0.16]} radius={0.025} material={dark} />
+            <Plate size={[0.18, 0.14, 0.16]} radius={0.025} material={housing} />
             <Strip size={[0.1, 0.05, 0.01]} material={light} position={[0, 0, 0.085]} />
           </group>
           <group position={[-0.24, 0.42, 0.02]}>
@@ -167,14 +169,14 @@ export const TitanTankModel: React.FC<{
             </group>
           ))}
           {/* Bustle: a stowage box behind. */}
-          <Plate size={[0.9, 0.2, 0.2]} radius={0.04} material={dark} position={[0, 0.17, -0.72]} />
+          <Plate size={[0.9, 0.2, 0.2]} radius={0.04} material={composite} position={[0, 0.17, -0.72]} />
           {/* Mantlet, and the rail gun on its recoil slide: two pointed blades round a glowing core,
               lit along their sides, a team-colour collar near the base. */}
           <Plate size={[0.46, 0.3, 0.22]} radius={0.05} material={dark} position={[0, 0.2, 0.62]} />
           <group ref={rail} position={[0, 0.22, 0]}>
             <Plate size={[0.4, 0.4, 0.42]} radius={0.05} material={dark} position={[0, 0, 0.86]} />
-            <Prism outline={BLADE} depth={0.14} axis="y" bevel={0.025} material={armour} position={[0, -0.17, 0]} />
-            <Prism outline={BLADE} depth={0.14} axis="y" bevel={0.025} material={armour} position={[0, 0.03, 0]} />
+            <Prism outline={BLADE} depth={0.14} axis="y" bevel={0.025} material={steel} position={[0, -0.17, 0]} />
+            <Prism outline={BLADE} depth={0.14} axis="y" bevel={0.025} material={steel} position={[0, 0.03, 0]} />
             <Strip size={[0.08, 0.035, 1.9]} material={own_.core} position={[0, 0, 1.6]} />
             {[-1, 1].map(s => [-0.1, 0.1].map(y => (
               <Strip key={`${s}${y}`} size={[0.02, 0.05, 1.1]} material={own_.core} position={[s * 0.163, y, 1.6]} />

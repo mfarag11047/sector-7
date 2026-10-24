@@ -297,9 +297,10 @@ roster follows by type.
 - **Parts** (`shapes.tsx`): `Plate` (bevelled box), `Prism` (an outline extruded with bevelled
   edges, for sloped armour and blades), `Turned` (lathe parts: barrels, exhausts), `Wheel`, `Strip`
   (a light) and `ContactShadow`. Geometry is cached and shared.
-- **The Titan** has a wedge hull, side skirts with a sawtooth lower edge joined to the hull by decks
-  over the tracks, cyan panels on the glacis
-  and turret cheeks, a roof gun, and a rail gun of two pointed blades round a glowing core. Its
+- **The Titan** has an armoured wedge hull and turret, dark composite side skirts with a sawtooth
+  lower edge joined to the hull by composite decks over the tracks, metal wheels, cyan panels on
+  the glacis and turret cheeks, a roof gun, and a rail gun of two bright-metal blades round a
+  glowing core. Its
   turret turns to what it is shooting at (`turretAt`, from CityMap), the rail gun recoils and its
   lights flare when it fires, and the tracks run and the hull rocks while it drives.
 - **The Guardian** (`components/models/GuardianModel.tsx`) is a four-wheeled UGV: a wedge nose
