@@ -360,11 +360,12 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   oversized wheels, much smaller than the other vehicles: a low faceted shell in dark stealth
   tones, fender pods, small red and amber lights, a team stripe down the spine, and a sensor array
   on a short mast (a pan-tilt head with three lenses and a dome) that scans to and fro.
-- **The Hornet** (`components/models/HornetModel.tsx`): an armoured VTOL attack drone: an angular
-  hull with a sloped nose, armoured side pods with team stripes, a sensor eye, and four ducted fans
-  on pylons whose rotors spin. Under the nose, a gun bay with an autocannon that turns to what it
-  is shooting at (`turretAt`) and flashes when it fires; with Hunter-Killer Rockets researched, a
-  block of rocket tubes rides on each side pod. It bobs and banks gently as it hovers.
+- **The Hornet** (`components/models/HornetModel.tsx`): an armoured VTOL attack drone: a bulky
+  angular hull with a sloped nose and a sensor eye, carried on four thruster pods on short arms at
+  its corners, hanging below the hull with downward jet nozzles whose exhaust flickers, grab rails
+  and team markings. Under the nose, a gun bay with an autocannon that turns to what it is shooting
+  at (`turretAt`) and flashes when it fires; with Hunter-Killer Rockets researched, a row of four
+  rocket tubes rides on its back. It bobs and banks gently as it hovers.
 
 ### Rigged models
 
