@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian, the Battery Mule and the Thunderhead are done; the rest of the roster follows by type.
+the Guardian, the Battery Mule, the Thunderhead and the Ballista are done; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -324,6 +324,13 @@ the Guardian, the Battery Mule and the Thunderhead are done; the rest of the ros
   on a turntable, nine tubes each with red lights at the muzzle. Anchored, four corner jacks push
   down onto the ground and the launcher turns to its target and raises its pods. Its shots fly as
   rockets (CityMap's `ShellMesh`): from the pods, nose along the arc, a flame behind.
+- **The Ballista** (`components/models/BallistaModel.tsx`): on the move, a large six-wheeled
+  armoured truck: an angular cab with a sloped windscreen, a sensor bar and a front plough, and a
+  long armoured module on the back hiding the launch tube. Loading or armed and standing still, it
+  erects: the module swings up on hydraulic rams about its rear edge (a jack plants under the
+  hinge) until the tube's round mouth faces the sky. The missile slides up the tube as it loads,
+  and when armed its warhead stands out of the mouth in its type's colour (EMP blue, HE red, WP
+  white). Fired, or driving off, it folds down; the missile leaves from the mouth's height.
 
 ### Rigged models
 
