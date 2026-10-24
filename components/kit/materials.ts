@@ -1,18 +1,21 @@
-// The unit kit's palette and materials (the art bible's colours), shared by every unit built from
-// it. Materials are cached and shared between units; a cloak tints copies, never these
-// (Unit.tsx). Anything a unit animates on its own material (a scrolling track, a pulsing core)
-// takes a copy (`own`).
+// The unit kit's palette and materials, shared by every unit built from it. The look is clean and
+// stylised: flat-shaded, untextured plates whose shapes carry the detail, light grey armour over
+// dark running gear, team colour as accent bands, and glowing light panels.
+//
+// Materials are cached and shared between units; a cloak tints copies, never these (Unit.tsx).
+// Anything a unit animates on its own material (a scrolling track, a pulsing core) takes a copy
+// (`own`). Plates are kept matte: the scene has no environment map, so metal has nothing to
+// reflect and very metallic plates render near black.
 
 import * as THREE from 'three';
-import { armourBumpMap, armourDetailMap, grilleMap, hazardMap, treadMap } from './textures';
+import { treadMap } from './textures';
 
 export const PALETTE = {
   // Armour and materials.
-  armour: '#6c7684',        // gunmetal: main plates
-  armourDark: '#434b57',    // charcoal: lower hull, secondary plates
-  steel: '#9aa3ad',         // brushed steel: joints, rails, pistons
-  black: '#17191c',         // rubber, cloth, deep recesses
-  hazard: '#f2c230',
+  armour: '#8d96a3',        // light grey: main plates
+  armourDark: '#4b525d',    // slate: lower hull, secondary plates
+  steel: '#b9c1cb',         // bright metal: rails, pistons, barrels
+  black: '#1c1e22',         // rubber, deep recesses, vents
   // Lights.
   cyan: '#22d3ee',          // standard army
   amber: '#f59e0b',         // Heavy Metal
@@ -22,7 +25,7 @@ export const PALETTE = {
   headlight: '#e0f7ff',
 };
 
-export type KitMaterial = 'armour' | 'armourDark' | 'steel' | 'black' | 'tread' | 'hazard' | 'grille';
+export type KitMaterial = 'armour' | 'armourDark' | 'steel' | 'black' | 'tread';
 
 const cache = new Map<string, THREE.Material>();
 const cached = <T extends THREE.Material>(key: string, make: () => T): T => {
@@ -31,28 +34,24 @@ const cached = <T extends THREE.Material>(key: string, make: () => T): T => {
   return m;
 };
 
-// Painted, worn armour plate in `color`. Kept mostly matte: the scene has no environment map, so
-// metal has nothing to reflect and very metallic plates render near black.
-const armourPlate = (color: string, metalness: number, roughness: number) => new THREE.MeshStandardMaterial({
-  color, metalness, roughness, map: armourDetailMap(), bumpMap: armourBumpMap(), bumpScale: 0.7,
-});
+// A flat-shaded plate: each face one even tone, so edges and bevels read crisply.
+const plate = (color: string, metalness: number, roughness: number) =>
+  new THREE.MeshStandardMaterial({ color, metalness, roughness, flatShading: true });
 
 export function kitMaterial(kind: KitMaterial): THREE.MeshStandardMaterial {
   return cached(kind, () => {
     switch (kind) {
-      case 'armour': return armourPlate(PALETTE.armour, 0.25, 0.55);
-      case 'armourDark': return armourPlate(PALETTE.armourDark, 0.2, 0.6);
-      case 'steel': return new THREE.MeshStandardMaterial({ color: PALETTE.steel, metalness: 0.5, roughness: 0.35, map: armourDetailMap() });
-      case 'black': return new THREE.MeshStandardMaterial({ color: PALETTE.black, metalness: 0.2, roughness: 0.85 });
-      case 'tread': return new THREE.MeshStandardMaterial({ color: '#ffffff', metalness: 0.2, roughness: 0.75, map: treadMap() });
-      case 'hazard': return new THREE.MeshStandardMaterial({ color: '#ffffff', metalness: 0.2, roughness: 0.6, map: hazardMap() });
-      case 'grille': return new THREE.MeshStandardMaterial({ color: '#ffffff', metalness: 0.3, roughness: 0.55, map: grilleMap() });
+      case 'armour': return plate(PALETTE.armour, 0.15, 0.6);
+      case 'armourDark': return plate(PALETTE.armourDark, 0.15, 0.65);
+      case 'steel': return plate(PALETTE.steel, 0.4, 0.4);
+      case 'black': return plate(PALETTE.black, 0.1, 0.85);
+      case 'tread': return new THREE.MeshStandardMaterial({ color: '#ffffff', metalness: 0.1, roughness: 0.85, map: treadMap() });
     }
   }) as THREE.MeshStandardMaterial;
 }
 
-// Team paint: the side's colour on the same worn plate.
-export const teamPaint = (color: string) => cached(`team:${color}`, () => armourPlate(color, 0.15, 0.5));
+// Team paint: the side's colour as a plate.
+export const teamPaint = (color: string) => cached(`team:${color}`, () => plate(color, 0.1, 0.5));
 
 // A light: unlit, full colour, glowing under the scene's tone mapping.
 export const glow = (color: string, opacity = 1) => cached(`glow:${color}:${opacity}`, () =>

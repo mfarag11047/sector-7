@@ -1,9 +1,8 @@
 // The unit kit's parts: bevelled plates, extruded armour with angled faces, turned parts (barrels,
-// wheels, exhausts), light strips and a soft contact shadow. Built from these, a unit reads as
-// solid, panelled armour rather than bare boxes.
+// wheels, exhausts), light strips and a soft contact shadow. With the kit's flat-shaded materials
+// (materials.ts), the shapes themselves carry the detail: every bevel and facet reads as an edge.
 //
-// Every part's geometry is cached by its dimensions and shared between units, and is mapped so
-// each face shows the armour detail texture once (textures.ts): every face is one panel.
+// Every part's geometry is cached by its dimensions and shared between units.
 
 import React from 'react';
 import * as THREE from 'three';
@@ -19,37 +18,12 @@ const cachedGeometry = (key: string, make: () => THREE.BufferGeometry) => {
   return g;
 };
 
-// Gives each triangle UVs from the two axes its face is most square to, spread over the part's
-// bounding box: every face of the part shows the texture once.
-function projectFaceUVs(source: THREE.BufferGeometry): THREE.BufferGeometry {
-  const g = source.index ? source.toNonIndexed() : source;
-  g.computeBoundingBox();
-  const { min, max } = g.boundingBox!;
-  const size = max.clone().sub(min).max(new THREE.Vector3(1e-6, 1e-6, 1e-6));
-  const pos = g.attributes.position;
-  const uv = new Float32Array(pos.count * 2);
-  const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i += 3) {
-    a.fromBufferAttribute(pos, i); b.fromBufferAttribute(pos, i + 1); c.fromBufferAttribute(pos, i + 2);
-    n.crossVectors(b.clone().sub(a), c.clone().sub(a));
-    const ax = Math.abs(n.x), ay = Math.abs(n.y), az = Math.abs(n.z);
-    for (let k = 0; k < 3; k++) {
-      const p = [a, b, c][k];
-      const u = ax >= ay && ax >= az ? (p.z - min.z) / size.z : (p.x - min.x) / size.x;
-      const v = ay >= ax && ay >= az ? (p.z - min.z) / size.z : (p.y - min.y) / size.y;
-      uv[(i + k) * 2] = u; uv[(i + k) * 2 + 1] = v;
-    }
-  }
-  g.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
-  return g;
-}
-
 interface Placed { position?: V3; rotation?: V3; material: THREE.Material; shadow?: boolean }
 
 // A box with rounded edges: the basic armour plate.
 export const Plate: React.FC<Placed & { size: V3; radius?: number }> = ({ size, radius = 0.03, material, position, rotation, shadow = true }) => {
   const r = Math.min(radius, Math.min(...size) / 2 - 1e-4);
-  const geometry = cachedGeometry(`plate:${size.join(',')}:${r}`, () => projectFaceUVs(new RoundedBoxGeometry(size[0], size[1], size[2], 2, Math.max(r, 0.001))));
+  const geometry = cachedGeometry(`plate:${size.join(',')}:${r}`, () => new RoundedBoxGeometry(size[0], size[1], size[2], 2, Math.max(r, 0.001)));
   return <mesh geometry={geometry} material={material} position={position} rotation={rotation} castShadow={shadow} receiveShadow />;
 };
 
@@ -62,7 +36,7 @@ export const Prism: React.FC<Placed & { outline: [number, number][]; depth: numb
     const g = new THREE.ExtrudeGeometry(shape, { depth: depth - bevel * 2, bevelEnabled: bevel > 0, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 1, curveSegments: 4 });
     if (axis === 'x') { g.translate(0, 0, -(depth - bevel * 2) / 2); g.rotateY(-Math.PI / 2); }
     else { g.rotateX(-Math.PI / 2); g.translate(0, bevel, 0); }
-    return projectFaceUVs(g);
+    return g;
   });
   return <mesh geometry={geometry} material={material} position={position} rotation={rotation} castShadow={shadow} receiveShadow />;
 };

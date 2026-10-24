@@ -279,25 +279,26 @@ models** below): he idles in a sword stance, runs, slashes on every cut, and fal
 
 ### The unit kit
 
-Units built in code are moving onto a shared kit (`components/kit/`), for a step up in realism
-without model files. The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop
-Titan) is the first; the rest of the roster follows by type.
-- **Textures** (`textures.ts`), drawn on canvases at load, no image files: a greyscale armour
-  panel (edge seam, two inner seams, rivets, edge wear, speckle, low grime) with a matching bump
-  map; track treads that scroll; hazard stripes; an engine grille; a soft contact shadow.
-- **Materials** (`materials.ts`): the art bible's palette as shared, cached materials: armour,
-  dark armour, steel, black, tread, hazard, grille; team paint on the same worn plate; and lights
-  (`glow`) that ignore tone mapping so they glow. Plates are kept mostly matte: the scene has no
-  environment map, so metallic surfaces have nothing to reflect and render near black. A unit
-  animating its own material (a scrolling track, a pulsing core) takes a copy with `own`.
+Units built in code are moving onto a shared kit (`components/kit/`). The look is clean and
+stylised rather than realistic: clearly defined shapes with flat, untextured tones, so the
+silhouette and bevels carry the detail, plus glowing light panels. The Titan tank
+(`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) is the first; the rest of the
+roster follows by type.
+- **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: light grey
+  armour, slate secondary plates, bright metal, black; team colour as accent bands; and lights
+  (`glow`) that ignore tone mapping so they glow (cyan for the standard army). Plates are matte:
+  the scene has no environment map, so metallic surfaces have nothing to reflect and render near
+  black. A unit animating its own material (a scrolling track, a pulsing light) takes a copy with
+  `own`.
+- **Textures** (`textures.ts`): only two, drawn in code: a soft tread that scrolls so tracks
+  visibly run, and a contact shadow.
 - **Parts** (`shapes.tsx`): `Plate` (bevelled box), `Prism` (an outline extruded with bevelled
-  edges, for sloped armour), `Turned` (lathe parts: barrels, exhausts), `Wheel`, `Strip` (a light)
-  and `ContactShadow`. Geometry is cached and shared, and mapped so each face shows the armour
-  panel once.
-- **The Titan** has a wedge hull, armoured skirts striped in team paint, tracks, an engine deck and
-  a faceted turret with the rail gun. Its turret turns to what it is shooting at (`turretAt`, from
-  CityMap), the rail gun recoils and its core flares when it fires, and the tracks run and the hull
-  rocks while it drives.
+  edges, for sloped armour and blades), `Turned` (lathe parts: barrels, exhausts), `Wheel`, `Strip`
+  (a light) and `ContactShadow`. Geometry is cached and shared.
+- **The Titan** has a wedge hull, side skirts with a sawtooth lower edge, cyan panels on the glacis
+  and turret cheeks, a roof gun, and a rail gun of two pointed blades round a glowing core. Its
+  turret turns to what it is shooting at (`turretAt`, from CityMap), the rail gun recoils and its
+  lights flare when it fires, and the tracks run and the hull rocks while it drives.
 
 ### Rigged models
 
