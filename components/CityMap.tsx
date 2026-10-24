@@ -4382,6 +4382,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
              // The heroes turn to face what they are fighting.
              const faceAt = (u.type === 'hero_heavy_metal' || u.type === 'hero_shadow_ops') && u.combatTargetId
                  ? (units.find(t => t.id === u.combatTargetId) ?? structuresState.find(t => t.id === u.combatTargetId))?.gridPos ?? null : null;
+             // Titans turn their turrets to what they are shooting at.
+             const turretAt = (u.type === 'tank' || u.type === 'titan_dropped') && u.combatTargetId
+                 ? (units.find(t => t.id === u.combatTargetId) ?? structuresState.find(t => t.id === u.combatTargetId))?.gridPos ?? null : null;
              const ownJammer = u.type === 'banshee' && u.team === playerTeam;
              const selected = selectedUnitIds.has(u.id);
              const isTargetingMode = !!targetingSourceId;
@@ -4397,7 +4400,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
              if (hit && sameUnitForRender(hit.u, u) && hit.deps.every((d, i) => d === deps[i])) { liveUnitIds.add(u.id); return hit.el; }
              // Motion (moveProgress and friends) goes through the motion registry, not props, and the
              // battery to whole points: both change every tick, and either re-rendered every moving unit.
-             const el = ( <Unit key={u.id} {...u} moveProgress={undefined} moveTarget={undefined} moveSpeed={undefined} battery={Math.round(u.battery)} teamCompute={teamCompute} upgrades={upgrades} radarRange={radarRange} ownJammer={ownJammer} isSelected={selected} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={menuOpen} onAction={stableUnitAction} isTargetingMode={isTargetingMode} showTetherRange={showTetherRange} showBatteryRange={showBatteryRange} isLockCandidate={isLockCandidate} isTetherCandidate={isTetherCandidate} isBatteryLinkCandidate={isBatteryLinkCandidate} warheadStock={warheadStock} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={cores} faceAt={faceAt} /> );
+             const el = ( <Unit key={u.id} {...u} moveProgress={undefined} moveTarget={undefined} moveSpeed={undefined} battery={Math.round(u.battery)} teamCompute={teamCompute} upgrades={upgrades} radarRange={radarRange} ownJammer={ownJammer} isSelected={selected} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={menuOpen} onAction={stableUnitAction} isTargetingMode={isTargetingMode} showTetherRange={showTetherRange} showBatteryRange={showBatteryRange} isLockCandidate={isLockCandidate} isTetherCandidate={isTetherCandidate} isBatteryLinkCandidate={isBatteryLinkCandidate} warheadStock={warheadStock} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={cores} faceAt={faceAt} turretAt={turretAt} /> );
              unitElementCache.current.set(u.id, { u, deps, el });
              liveUnitIds.add(u.id);
              return el;
