@@ -285,8 +285,8 @@ the plates carry the detail, team colour as stripes and markings, and only a few
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
 the Guardian are done; the rest of the roster follows by type.
-- **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: gunmetal
-  armour, dark gunmetal secondary plates, bright metal, black, dark matte composite (skirts,
+- **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
+  drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
   ignore tone mapping so they glow (cyan for the standard army). A unit isn't one flat colour:
   each part takes the material it would be made of. Plates are matte: the scene has no environment

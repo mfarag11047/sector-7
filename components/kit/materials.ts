@@ -1,5 +1,5 @@
 // The unit kit's palette and materials, shared by every unit built from it. The look is simple but
-// military: flat-shaded, untextured plates whose shapes carry the detail, gunmetal armour over dark
+// military: flat-shaded, untextured plates whose shapes carry the detail, olive drab armour over dark
 // running gear, team colour as stripes and markings, and a few small lights. Parts take the material
 // they would be made of, so a unit isn't one flat colour: armour plate, dark composite fenders and
 // guards, pale equipment housings, bright metal, rubber.
@@ -14,12 +14,12 @@ import { treadMap } from './textures';
 
 export const PALETTE = {
   // Armour and materials.
-  armour: '#7a8189',        // gunmetal: main plates
-  armourDark: '#4d535a',    // dark gunmetal: lower hull, secondary plates
+  armour: '#66704d',        // olive drab: main plates
+  armourDark: '#454d35',    // dark olive: lower hull, secondary plates
   steel: '#aab1b9',         // bright metal: rails, pistons, barrels
   black: '#1c1e22',         // rubber, deep recesses, vents
-  composite: '#3b4046',     // dark matte polymer: fenders, bumpers, guards
-  housing: '#959ca4',       // pale equipment housings: sensor and system modules
+  composite: '#363a2f',     // dark olive-grey polymer: skirts, fenders, bumpers, guards
+  housing: '#8e917a',       // pale khaki-grey: sensor and system housings
   // Lights.
   cyan: '#22d3ee',          // standard army
   amber: '#f59e0b',         // Heavy Metal
