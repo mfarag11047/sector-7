@@ -1,9 +1,10 @@
 // The Ballista missile launcher, built from the unit kit (components/kit).
 //
-// Simple but military: a large eight-wheeled armoured truck, built big to be a big target. An angular cab with a sloped windscreen,
-// side windows, a sensor bar on the roof, a grille and a plough with tow hooks at the front; a
-// composite tank box between the axles; and on the back a long armoured module, stepped at the
-// roof with rails, vents, amber lights and team stripes, that hides the launch tube.
+// Simple but military: a large eight-wheeled armoured truck, built big to be a big target. An
+// angular cab with a sloped windscreen, side windows, a sensor bar on the roof, a grille and a
+// plough with tow hooks at the front; a composite tank box between the axles; and on the back a
+// long armoured module, stepped at the roof with rails, vents, amber lights and team stripes, that
+// hides the launch tube.
 //
 // To load and fire it stands still and erects: the module swings up on its hydraulic rams about
 // its rear edge until its front end, with the round mouth of the launch tube, faces the sky; a
