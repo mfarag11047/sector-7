@@ -36,7 +36,10 @@ const CAB_W = 1.36;
 const WHEELS_Z = [0.98, -0.42, -0.98];
 const WHEEL_X = 0.66;
 const BOX = { z: 0.18, l: 0.86, w: 1.26, h: 0.56 };
-const ARM = { z: -0.86, pivotY: 0.68 };
+const ARM = { z: -0.86 };
+// The boom's hinge, above the turntable; and where the lift ram meets the column and the boom.
+const BOOM_Y = 0.76;
+const RAM_BASE = new THREE.Vector3(0, 0.3, 0.2), RAM_ON_BOOM = new THREE.Vector3(0, -0.09, 0.55);
 
 export const MasonModel: React.FC<{
   teamColor: string;
@@ -59,6 +62,8 @@ export const MasonModel: React.FC<{
   const boom = useRef<THREE.Group>(null);
   const jib = useRef<THREE.Group>(null);
   const claws = useRef<(THREE.Group | null)[]>([]);
+  const liftRam = useRef<THREE.Group>(null);
+  const ramScratch = useMemo(() => ({ b: new THREE.Vector3(), w: new THREE.Vector3() }), []);
   const scratch = useMemo(() => new THREE.Color(), []);
 
   useFrame(({ clock }, delta) => {
@@ -72,6 +77,14 @@ export const MasonModel: React.FC<{
     if (slew.current) slew.current.rotation.y += (want.slew - slew.current.rotation.y) * k;
     if (boom.current) boom.current.rotation.x += (want.boom - boom.current.rotation.x) * k;
     if (jib.current) jib.current.rotation.x += (want.jib - jib.current.rotation.x) * k;
+    // The lift ram runs from the column to the boom, whatever the boom's angle.
+    const ram = liftRam.current, b = boom.current;
+    if (ram && b && ram.parent) {
+      ramScratch.b.copy(RAM_ON_BOOM).applyEuler(b.rotation).add(b.position);
+      ram.position.copy(RAM_BASE);
+      ram.scale.z = RAM_BASE.distanceTo(ramScratch.b);
+      ram.lookAt(ram.parent.localToWorld(ramScratch.w.copy(ramScratch.b)));
+    }
     // The claws open and close while it works; resting, they hang half open.
     const open = working ? 0.5 + 0.35 * Math.sin(t * 1.8) : 0.35;
     claws.current.forEach(c => { if (c) c.rotation.x += (-open - c.rotation.x) * k; });
@@ -173,10 +186,18 @@ export const MasonModel: React.FC<{
       <Plate size={[0.6, 0.3, 0.6]} material={dark} position={[0, DECK_Y + 0.15, ARM.z]} />
       <group ref={slew} position={[0, DECK_Y + 0.3, ARM.z]}>
         <Turned profile={[[0.32, 0], [0.32, 0.08], [0.26, 0.12]]} segments={8} material={armour} rotation={[-Math.PI / 2, 0, 0]} />
-        <Plate size={[0.3, 0.44, 0.36]} material={armour} position={[0, 0.34, 0]} />
-        <Plate size={[0.03, 0.2, 0.2]} material={hazard} position={[0.165, 0.38, 0]} />
-        <group ref={boom} position={[0, ARM.pivotY - 0.3 + 0.38, 0]} rotation={[0.04, 0, 0]}>
-          <Plate size={[0.18, 0.18, 1.2]} material={hazard} position={[0, 0, 0.6]} />
+        {/* A column up to the boom's hinge, yoke plates clamping the boom root, the hinge pin, and
+            the lift ram from the column to the boom's underside. */}
+        <Plate size={[0.34, BOOM_Y - 0.1, 0.42]} material={armour} position={[0, 0.1 + (BOOM_Y - 0.1) / 2, -0.04]} />
+        <Plate size={[0.03, 0.2, 0.2]} material={hazard} position={[0.175, 0.4, -0.04]} />
+        {[-1, 1].map(s => <Plate key={s} size={[0.05, 0.34, 0.36]} material={dark} position={[s * 0.13, BOOM_Y, -0.04]} />)}
+        <Wheel radius={0.08} width={0.34} segments={8} material={steel} position={[0, BOOM_Y, 0]} />
+        <group ref={liftRam}>
+          <Turned profile={[[0.055, 0], [0.055, 0.5]]} segments={6} material={dark} />
+          <Turned profile={[[0.035, 0.5], [0.035, 1]]} segments={6} material={steel} />
+        </group>
+        <group ref={boom} position={[0, BOOM_Y, 0]} rotation={[0.04, 0, 0]}>
+          <Plate size={[0.18, 0.18, 1.4]} material={hazard} position={[0, 0, 0.5]} />
           <Plate size={[0.2, 0.04, 1.0]} material={dark} position={[0, -0.1, 0.55]} />
           {/* The jib's ram, along the top of the boom. */}
           <group position={[0, 0.13, 0.15]}>
