@@ -1,16 +1,16 @@
 // The Aegis air-defence vehicle, built from the unit kit (components/kit).
 //
 // Simple but military: an eight-wheeled truck carrying a close-in weapon system. A boxy angular cab
-// with dark windows, a grille and a bumper; a raised pedestal mid-deck holding the gun mount; a
-// generator housing and a turning search radar at the back. The mount is a yoke that turns, and in
-// it the gun and its pod elevate together: a six-barrel rotary cannon under an angular six-sided
-// armoured pod (ammunition and fire-control radar) with a dark sensor band, a lens, and a band in
-// team colour.
+// with dark windows, a grille and a bumper; a raised pedestal mid-deck holding the gun mount; and a
+// long rear with a generator housing carrying a big search radar, a wide two-faced panel array
+// turning on a tall mast behind the gun. The mount is a yoke that turns, and in it the gun and its
+// pod elevate together: a six-barrel rotary cannon under an angular six-sided armoured pod
+// (ammunition and fire-control radar) with a dark sensor band, a lens, and a band in team colour.
 //
 // It moves: the wheels turn while it drives; firing, the mount turns and the gun lifts onto its
 // target (`aimOf`, from the CIWS stream in CityMap) and the barrels spin; idle, it sweeps slowly.
 //
-// Built facing +Z, about 3 long in its own units, and scaled up here.
+// Built facing +Z, about 3.7 long in its own units, and scaled up here.
 
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -23,7 +23,7 @@ const SCALE = 2.5;
 // Cab side profile: [forward, up], the top of the front cut back.
 const CAB: [number, number][] = [[0.78, 0.55], [0.78, 1.5], [1.32, 1.5], [1.52, 1.3], [1.52, 0.55]];
 const CAB_W = 1.36;
-const WHEELS_Z = [1.12, 0.56, -0.72, -1.28];
+const WHEELS_Z = [1.12, 0.56, -1.12, -1.68];
 const WHEEL_X = 0.66;
 const DECK_Y = 0.8;
 const MOUNT = { z: -0.05, y: DECK_Y + 0.32 };
@@ -52,7 +52,7 @@ export const AegisModel: React.FC<{
   useFrame(({ clock }, delta) => {
     const k = 1 - Math.exp(-Math.min(delta, 0.05) * (firing ? 10 : 2));
     if (moving) wheels.current?.children.forEach(w => { w.rotation.x += delta * 6; });
-    if (radar.current) radar.current.rotation.y += delta * 1.5;
+    if (radar.current) radar.current.rotation.y += delta * 1.2;
     if (barrels.current) barrels.current.rotation.z += delta * (firing ? 40 : 0);
     const y = yaw.current, p = pitch.current;
     if (!y || !p || !y.parent) return;
@@ -72,7 +72,7 @@ export const AegisModel: React.FC<{
 
   return (
     <group scale={SCALE}>
-      <ContactShadow size={[2.2, 3.4]} />
+      <ContactShadow size={[2.2, 4.1]} />
       {/* Eight wheels: tyres on metal hubs. */}
       <group ref={wheels}>
         {[-1, 1].flatMap(s => WHEELS_Z.map(z => (
@@ -84,16 +84,16 @@ export const AegisModel: React.FC<{
       </group>
 
       {/* Chassis, deck and fenders; storage boxes between the axles. */}
-      <Plate size={[1.0, 0.34, 3.0]} material={dark} position={[0, 0.58, 0]} />
-      <Plate size={[1.3, 0.06, 2.3]} material={composite} position={[0, DECK_Y - 0.03, -0.42]} />
+      <Plate size={[1.0, 0.34, 3.6]} material={dark} position={[0, 0.58, -0.3]} />
+      <Plate size={[1.3, 0.06, 2.9]} material={composite} position={[0, DECK_Y - 0.03, -0.72]} />
       {[-1, 1].map(s => (
         <group key={s}>
-          <Plate size={[0.3, 0.05, 1.2]} material={composite} position={[s * WHEEL_X, DECK_Y - 0.06, -1.0]} />
+          <Plate size={[0.3, 0.05, 1.2]} material={composite} position={[s * WHEEL_X, DECK_Y - 0.06, -1.4]} />
           <Plate size={[0.3, 0.05, 1.1]} material={composite} position={[s * WHEEL_X, DECK_Y - 0.06, 0.84]} />
-          <Plate size={[0.26, 0.28, 0.62]} material={armour} position={[s * 0.6, 0.55, -0.08]} />
+          <Plate size={[0.26, 0.28, 0.9]} material={armour} position={[s * 0.6, 0.55, -0.3]} />
         </group>
       ))}
-      {[-0.42, 0.42].map(x => <Strip key={x} size={[0.1, 0.05, 0.012]} material={glow(PALETTE.warning)} position={[x, 0.62, -1.507]} />)}
+      {[-0.42, 0.42].map(x => <Strip key={x} size={[0.1, 0.05, 0.012]} material={glow(PALETTE.warning)} position={[x, 0.62, -2.107]} />)}
 
       {/* The cab: windscreen, side windows, a grille, headlights, a bumper, team stripes. */}
       <Prism outline={CAB} depth={CAB_W} axis="x" material={armour} />
@@ -112,14 +112,27 @@ export const AegisModel: React.FC<{
       <Plate size={[1.4, 0.16, 0.14]} material={composite} position={[0, 0.5, 1.58]} />
       <Plate size={[0.36, 0.012, 0.3]} material={paint} position={[0, 1.506, 1.0]} />
 
-      {/* Rear: a generator housing with vents, and a search radar turning on it. */}
-      <Plate size={[1.24, 0.56, 0.86]} material={housing} position={[0, DECK_Y + 0.28, -1.05]} />
+      {/* Rear: a generator housing with vents, and on it, behind the gun, the search radar: a tall mast
+          carrying a wide two-faced panel array that turns. */}
+      <Plate size={[1.24, 0.5, 1.2]} material={housing} position={[0, DECK_Y + 0.25, -1.45]} />
       {[-1, 1].map(s => [0.12, 0.2, 0.28].map(dy => (
-        <Plate key={`${s}${dy}`} size={[0.012, 0.03, 0.5]} material={black} position={[s * 0.625, DECK_Y + dy, -1.05]} />
+        <Plate key={`${s}${dy}`} size={[0.012, 0.03, 0.7]} material={black} position={[s * 0.625, DECK_Y + dy, -1.45]} />
       )))}
-      <group ref={radar} position={[0.32, DECK_Y + 0.56, -1.2]}>
-        <Turned profile={[[0.04, 0], [0.04, 0.2]]} segments={6} material={steel} rotation={[-Math.PI / 2, 0, 0]} />
-        <Plate size={[0.42, 0.16, 0.03]} material={dark} position={[0, 0.26, 0]} rotation={[-0.25, 0, 0]} />
+      <group position={[0, DECK_Y + 0.5, -1.5]}>
+        <Plate size={[0.4, 0.12, 0.4]} material={dark} position={[0, 0.06, 0]} />
+        <Turned profile={[[0.07, 0.12], [0.07, 0.62], [0.05, 0.62], [0.05, 0.85]]} segments={6} material={steel} rotation={[-Math.PI / 2, 0, 0]} />
+        <group ref={radar} position={[0, 0.85, 0]}>
+          <Turned profile={[[0.16, 0], [0.16, 0.08], [0.1, 0.12]]} segments={8} material={dark} rotation={[-Math.PI / 2, 0, 0]} />
+          {[-1, 1].map(f => (
+            <group key={f} position={[0, 0.42, f * 0.1]} rotation={[f * 0.2, f > 0 ? 0 : Math.PI, 0]}>
+              <Plate size={[1.0, 0.62, 0.06]} material={housing} />
+              <Plate size={[0.9, 0.52, 0.02]} material={dark} position={[0, 0, 0.035]} />
+              {[-0.15, 0, 0.15].map(y => <Plate key={y} size={[0.86, 0.012, 0.012]} material={black} position={[0, y, 0.05]} />)}
+              <Strip size={[0.06, 0.03, 0.012]} material={glow(PALETTE.cyan)} position={[0.38, 0.22, 0.05]} />
+            </group>
+          ))}
+          <Plate size={[0.18, 0.5, 0.16]} material={dark} position={[0, 0.38, 0]} />
+        </group>
       </group>
 
       {/* The gun mount on its pedestal. */}

@@ -332,8 +332,9 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista and the Aegis are 
   and when armed its warhead stands out of the mouth in its type's colour (EMP blue, HE red, WP
   white). Fired, or driving off, it folds down; the missile leaves from the mouth's height.
 - **The Aegis** (`components/models/AegisModel.tsx`): an eight-wheeled truck carrying a close-in
-  weapon system: a boxy angular cab, the gun mount on a pedestal mid-deck, and a generator
-  housing with a turning search radar at the back. The mount turns, and the gun and its pod
+  weapon system: a boxy angular cab, the gun mount on a pedestal mid-deck, and a long rear with a
+  generator housing carrying a big search radar, a wide two-faced panel array turning on a tall
+  mast behind the gun. The mount turns, and the gun and its pod
   elevate together: a six-barrel rotary cannon under an angular six-sided armoured pod with a dark
   sensor band, a lens and a team-colour band. Firing, it turns and lifts onto its target (CityMap's
   CIWS stream passes each Aegis its target, `ciwsAims`) and the barrels spin; idle, it sweeps.
