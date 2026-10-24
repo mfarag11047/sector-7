@@ -343,12 +343,13 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   their hardline is connected; the tether cables run from those outlets. Over the back three
   quarters of the bed, a big jamming dish on a turntable, tilted to the sky with an emitter at its
   focus: it spins and the emitter glows while the jammer is on.
-- **The Mason** (`components/models/MasonModel.tsx`): a six-wheeled combat engineering truck: a
-  sturdy armoured dozer blade on push arms and rams (steel cutting edge, hazard stripes along the
-  top), an armoured cab, an armoured materials box behind it with steel beams strapped on top while
-  it carries materials, and a knuckle-boom lifting arm at the back. Building, the arm rises off its
-  rest, slews and reaches out with its work light flashing, and the construction beam runs from its
-  tip; otherwise it lies folded over the box.
+- **The Mason** (`components/models/MasonModel.tsx`): a six-wheeled combat engineering truck: an
+  aggressive armoured V-blade on push arms and rams (swept back from a ram-spiked point, steel teeth
+  along the cutting edge, hazard stripes on its jutting lip), an armoured cab, an armoured
+  materials box behind it with steel beams strapped on top while it carries materials, and a
+  knuckle-boom lifting arm at the back ending in a big three-claw pincer. Building, the arm rises
+  off its rest, slews and reaches out, its claws working and work light flashing, and the
+  construction beam runs from its tip; otherwise it lies folded over the box.
 
 ### Rigged models
 

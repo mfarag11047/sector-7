@@ -1,14 +1,15 @@
 // The Mason combat engineering vehicle, built from the unit kit (components/kit).
 //
-// Simple but military: a six-wheeled engineer truck. A sturdy armoured dozer blade on push arms
-// and rams at the front, a steel cutting edge along its foot and hazard stripes along its top; an
-// angular armoured cab; right behind it an armoured materials box with latches and team stripes,
-// with steel beams strapped on top while it carries materials; and at the back a knuckle-boom
-// lifting arm on a turntable, with a gripper and a work light at its tip.
+// Simple but military: a six-wheeled engineer truck. An aggressive armoured V-blade on push arms
+// and rams at the front, swept back from a ram-spiked point, with steel teeth along its cutting
+// edge and hazard stripes along its jutting lip; an angular armoured cab; right behind it an
+// armoured materials box with latches and team stripes, with steel beams strapped on top while it
+// carries materials; and at the back a knuckle-boom lifting arm on a turntable, with a big
+// three-claw pincer and a work light at its tip.
 //
 // It moves: the wheels turn while it drives. Building, the arm rises off its rest, slews to and
-// fro and reaches out, its work light flashing; the construction beam (Unit.tsx) runs from its tip
-// (`tipRef`). Otherwise it lies folded forward over the box.
+// fro and reaches out, its claws working and its work light flashing; the construction beam
+// (Unit.tsx) runs from its tip (`tipRef`). Otherwise it lies folded forward over the box.
 //
 // Built facing +Z, about 3 long in its own units, and scaled up here.
 
@@ -22,9 +23,13 @@ const SCALE = 2.6;
 const DECK_Y = 0.8;
 const HAZARD = '#d9a514';
 
-// Dozer blade, side view [forward, up]: a curved mouldboard, thick at the back.
-const BLADE: [number, number][] = [[1.56, 0.08], [1.7, 0.1], [1.66, 0.3], [1.66, 0.62], [1.72, 0.86], [1.6, 0.9], [1.56, 0.62], [1.56, 0.3], [1.5, 0.12]];
-const BLADE_W = 1.72;
+// The V-blade: two halves meeting in a point at the front and swept back, each a mouldboard (side
+// view [forward, up]) whose top lip juts forward over a steel-toothed cutting edge.
+const BLADE: [number, number][] = [[-0.04, 0.06], [0.14, 0.08], [0.06, 0.3], [0.08, 0.6], [0.28, 0.92], [0.1, 0.98], [-0.06, 0.64], [-0.06, 0.3], [-0.12, 0.1]];
+const BLADE_HALF = 1.0, BLADE_SWEEP = 0.7, BLADE_NOSE = 1.9;
+const TOOTH: [number, number][] = [[-0.05, 0], [0.05, 0], [0, 0.15]];
+// The pincer's three claws, round the jib's axis.
+const CLAWS = [0, 1, 2].map(k => (k / 3) * Math.PI * 2);
 // Cab side profile: an angular armoured front.
 const CAB: [number, number][] = [[0.66, 0.55], [0.66, 1.46], [1.08, 1.46], [1.36, 1.16], [1.44, 0.9], [1.44, 0.55]];
 const CAB_W = 1.36;
@@ -53,6 +58,7 @@ export const MasonModel: React.FC<{
   const slew = useRef<THREE.Group>(null);
   const boom = useRef<THREE.Group>(null);
   const jib = useRef<THREE.Group>(null);
+  const claws = useRef<(THREE.Group | null)[]>([]);
   const scratch = useMemo(() => new THREE.Color(), []);
 
   useFrame(({ clock }, delta) => {
@@ -66,6 +72,9 @@ export const MasonModel: React.FC<{
     if (slew.current) slew.current.rotation.y += (want.slew - slew.current.rotation.y) * k;
     if (boom.current) boom.current.rotation.x += (want.boom - boom.current.rotation.x) * k;
     if (jib.current) jib.current.rotation.x += (want.jib - jib.current.rotation.x) * k;
+    // The claws open and close while it works; resting, they hang half open.
+    const open = working ? 0.5 + 0.35 * Math.sin(t * 1.8) : 0.35;
+    claws.current.forEach(c => { if (c) c.rotation.x += (-open - c.rotation.x) * k; });
     const flash = working ? (Math.sin(t * 22) > 0.2 ? 1.6 : 0.3) : 0.08;
     light.color.copy(scratch.set(PALETTE.power)).multiplyScalar(flash);
   });
@@ -89,15 +98,24 @@ export const MasonModel: React.FC<{
       {[-1, 1].map(s => <Plate key={s} size={[0.3, 0.05, 1.2]} material={composite} position={[s * WHEEL_X, DECK_Y - 0.06, -0.7]} />)}
       {[-0.42, 0.42].map(x => <Strip key={x} size={[0.1, 0.05, 0.012]} material={glow(PALETTE.warning)} position={[x, 0.62, -1.257]} />)}
 
-      {/* The dozer blade: mouldboard, cutting edge, hazard stripes along the top, push arms and rams. */}
-      <Prism outline={BLADE} depth={BLADE_W} axis="x" material={armour} />
-      <Plate size={[BLADE_W, 0.06, 0.1]} material={steel} position={[0, 0.08, 1.64]} />
-      {Array.from({ length: 8 }, (_, i) => (
-        <Plate key={i} size={[BLADE_W / 8 - 0.005, 0.05, 0.1]} material={i % 2 ? black : hazard} position={[-BLADE_W / 2 + (i + 0.5) * (BLADE_W / 8), 0.9, 1.65]} />
+      {/* The V-blade: two swept halves meeting in a point, steel teeth along the cutting edge,
+          hazard stripes along the lip; a steel ram-spike on the nose; push arms and rams. */}
+      {[-1, 1].map(s => (
+        <group key={s} position={[0, 0, BLADE_NOSE]} rotation={[0, s * BLADE_SWEEP, 0]}>
+          <Prism outline={BLADE} depth={BLADE_HALF} axis="x" material={armour} position={[s * BLADE_HALF / 2, 0, 0]} />
+          <Prism outline={[[-0.1, 0.1], [0.12, 0.1], [0.22, 0.88], [-0.04, 0.6]]} depth={0.05} axis="x" material={dark} position={[s * (BLADE_HALF - 0.025), 0, 0]} />
+          {[0.14, 0.34, 0.54, 0.74].map(x => (
+            <Prism key={x} outline={TOOTH} depth={0.06} axis="y" material={steel} position={[s * x, 0.04, 0.1]} />
+          ))}
+          {Array.from({ length: 5 }, (_, i) => (
+            <Plate key={i} size={[BLADE_HALF / 5 - 0.005, 0.04, 0.1]} material={i % 2 ? black : hazard}
+              position={[s * (i + 0.5) * (BLADE_HALF / 5), 0.96, 0.19]} rotation={[-0.55, 0, 0]} />
+          ))}
+        </group>
       ))}
+      <Prism outline={[[0, 0.08], [0.22, 0.4], [0, 0.85], [-0.05, 0.45]]} depth={0.1} axis="x" material={steel} position={[0, 0, BLADE_NOSE + 0.04]} />
       {[-1, 1].map(s => (
         <group key={s}>
-          {[-1, 1].map(e => <Plate key={e} size={[0.04, 0.82, 0.14]} material={dark} position={[s * (BLADE_W / 2 - 0.02), 0.5, 1.62]} />)}
           <Plate size={[0.12, 0.12, 0.5]} material={dark} position={[s * 0.55, 0.38, 1.32]} />
           <group position={[s * 0.38, 0.7, 1.32]} rotation={[0.5, 0, 0]}>
             <Turned profile={[[0.045, -0.22], [0.045, 0.02]]} segments={6} material={dark} />
@@ -150,7 +168,7 @@ export const MasonModel: React.FC<{
       {/* Arm rest above the box's front edge. */}
       {[-1, 1].map(s => <Plate key={s} size={[0.05, 0.24, 0.05]} material={dark} position={[s * 0.16, DECK_Y + BOX.h + 0.18, BOX.z + 0.32]} />)}
 
-      {/* The lifting arm: a pedestal, a turntable, a boom, a jib, and at the tip a gripper and a
+      {/* The lifting arm: a pedestal, a turntable, a boom, a jib, and at the tip a three-claw pincer and a
           work light. */}
       <Plate size={[0.6, 0.3, 0.6]} material={dark} position={[0, DECK_Y + 0.15, ARM.z]} />
       <group ref={slew} position={[0, DECK_Y + 0.3, ARM.z]}>
@@ -169,10 +187,21 @@ export const MasonModel: React.FC<{
             <Wheel radius={0.1} width={0.22} segments={8} material={dark} />
             <Plate size={[0.13, 0.13, 0.85]} material={hazard} position={[0, 0, 0.42]} />
             <group position={[0, 0, 0.86]}>
-              <Plate size={[0.18, 0.12, 0.1]} material={dark} />
-              {[-1, 1].map(s => <Plate key={s} size={[0.03, 0.04, 0.16]} material={steel} position={[s * 0.06, 0, 0.1]} />)}
-              <Strip size={[0.06, 0.06, 0.06]} material={light} position={[0, 0.08, 0.02]} />
-              <object3D ref={tipRef} position={[0, 0, 0.18]} />
+              {/* The pincer: a wrist, three big hooked claws round it, a work light between them. */}
+              <Turned profile={[[0.12, -0.06], [0.16, 0.02], [0.16, 0.1], [0.1, 0.14]]} segments={6} material={dark} />
+              {CLAWS.map((a, k) => (
+                <group key={k} rotation={[0, 0, a]}>
+                  <group ref={g => { claws.current[k] = g; }} position={[0, 0.11, 0.1]} rotation={[-0.35, 0, 0]}>
+                    <Plate size={[0.08, 0.07, 0.4]} material={hazard} position={[0, 0, 0.2]} />
+                    <group position={[0, 0, 0.4]} rotation={[0.95, 0, 0]}>
+                      <Plate size={[0.07, 0.06, 0.26]} material={steel} position={[0, 0, 0.12]} />
+                      <Prism outline={[[0, -0.03], [0.12, -0.03], [0, 0.03]]} depth={0.07} axis="x" material={steel} position={[0, 0, 0.25]} />
+                    </group>
+                  </group>
+                </group>
+              ))}
+              <Strip size={[0.06, 0.06, 0.06]} material={light} position={[0, 0, 0.16]} />
+              <object3D ref={tipRef} position={[0, 0, 0.42]} />
             </group>
           </group>
         </group>
