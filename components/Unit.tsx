@@ -28,7 +28,7 @@ import { shieldMax } from '../sim/kestrel';
 import { WARHEAD_LABEL } from '../sim/warheads';
 import { isHeroType } from '../sim/heroes';
 import { GoliathModel } from './GoliathModel';
-import { KageModel } from './KageModel';
+import { KageRig } from './KageRig';
 import { GOLIATH } from '../sim/heavyMetalHero';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
@@ -769,6 +769,8 @@ const Unit: React.FC<UnitProps> = ({
   const trophyCooling = cooldowns.trophySystem !== undefined && cooldowns.trophySystem > 0;
   const carrying = !!cargo && cargo > 0;
   const radarShown = radarRange > 0 || !!surveillance;
+  // Walking somewhere: rigged models play their run (KageRig).
+  const moving = path.length > 0;
   const renderModel = () => {
     if (isTrooper || isLancer) return (
         <group>
@@ -786,7 +788,7 @@ const Unit: React.FC<UnitProps> = ({
     if (isHowitzer) return <ThunderheadModel teamColor={teamColor} deployed={!!isDeployed} aim={aimWorld} />;
     if (isAegis) return <AegisModel teamColor={teamColor} firing={!!ciwsTargetId} />;
     if (isHornet) return <HornetModel teamColor={teamColor} />;
-    if (type === 'hero_shadow_ops') return <KageModel teamColor={teamColor} lastAttackTime={lastAttackTime} />;
+    if (type === 'hero_shadow_ops') return <KageRig teamColor={teamColor} lastAttackTime={lastAttackTime} moving={moving} />;
     if (type === 'hero_heavy_metal') return <GoliathModel teamColor={teamColor} flashRef={flashRef} grenadeAt={grenadeAt} />;
      if (isDefenseDrone) {
         const bodyColor = "#334155"; const glowColor = firingLaserAt ? "#ff0000" : "#ef4444"; const detailColor = "#1e293b";
@@ -1034,7 +1036,7 @@ const Unit: React.FC<UnitProps> = ({
   const model = useMemo(renderModel, [
     type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
     isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, firingLaserAt, courierPayload, constructionTargetId, ciwsTargetId,
-    grenadeAt, type === 'hero_shadow_ops' ? lastAttackTime : 0,
+    grenadeAt, type === 'hero_shadow_ops' ? lastAttackTime : 0, type === 'hero_shadow_ops' ? moving : false,
   ]);
 
   useFrame(() => {

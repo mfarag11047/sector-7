@@ -251,9 +251,10 @@ for **40 explosive damage** within 1.5 tiles (half at the edge). They fly and la
 Salvo rockets, so enemy force fields stop them. He turns to face what he is shooting. As heavy
 armour, AP weapons are his counter: a few Titans take him apart.
 
-**Kage (Shadow Ops)** is a cloaking assassin (`sim/shadowHero.ts`, `components/KageModel.tsx`): a
-dark helmet with a four-lens night-vision rig glowing green, a charcoal suit under angular armour
-tiles, red tags on the shoulders, and a **black katana** with its scabbard across his back.
+**Kage (Shadow Ops)** is a cloaking assassin (`sim/shadowHero.ts`): a dark armoured suit with a
+four-lens night-vision helmet glowing green, red tags, and a **black katana** in his left hand. He is
+the first unit drawn from a rigged, animated 3D model rather than code-built shapes (see **Rigged
+models** below): he idles in a sword stance, runs, slashes on every cut, and falls when he dies.
 - **Melee only.** His katana has its own damage type, **blade**: ×1.3 against infantry, ×0.9 light
   vehicles, ×0.6 heavy, ×0.5 buildings, and it **can't hit aircraft**. With a reach of 1.3 tiles he
   has to close in, so when he stands idle and uncloaked he **charges** any enemy ground unit he
@@ -275,6 +276,40 @@ tiles, red tags on the shoulders, and a **black katana** with its scabbard acros
 - Orders check all of this (`trainOrder` and `upgradeOrder` in `sim/orders.ts`), so the AI is held to
   it too. An AI with a doctrine researches its hero's unlock and refits at an idle Advanced Research
   and keeps its hero in the field.
+
+### Rigged models
+
+Most units are built from shapes in code. A unit can instead use a rigged, animated `.glb` model
+(the asset spec covers what an artist delivers). Kage is the first: `public/models/kage.glb` and
+`public/models/katana.glb`, drawn by `components/KageRig.tsx`.
+- **Clips** in the file: `idle` (loops), `run` (loops, in place: the game moves the unit), `attack`
+  (one strike, as long as the unit's time between hits) and `death` (holds the last pose). The unit's
+  state picks the clip: dead, then striking (within a cut's length of its last hit), then moving,
+  else idle, cross-fading over 0.15 s.
+- **Weapons** are separate models attached to a hand bone in code (Kage's katana on the left hand,
+  which is the hand his slash uses).
+- **Team colour**: the model's texture is painted with blue team bands. A shader recolours clearly
+  blue texels to the side's colour, keeping their shading, and makes clearly green texels (the
+  lenses) glow.
+- **Each instance** gets its own skeleton copy and materials, since a cloak tints materials in place.
+- **Death**: the game removes a unit the moment it dies, so units with a death clip leave a fallen
+  copy where they were drawn (`components/FallenUnits.tsx`). It plays the death, lies there for about
+  6 s, then sinks away. Only units the player could see leave one.
+
+**Importing a Tripo model.** Tripo's FBX export (from its Blender conversion) needed several fixes,
+done once in the browser with three.js and saved as the `.glb`:
+- FBXLoader built 25 nested copies of the skeleton, one per armour piece. Keep the outermost copy,
+  drop the rest, and rebind every piece to it by bone name (all copies had the same bind data).
+- Replace the material (it came with a white emissive) with a standard one on the colour texture,
+  downscaled to 1024².
+- Every clip was padded to the scene length (4.96 s) and had sparse keys. Resample to one key per
+  frame, then cut: `attack` is the swing from wind-up to follow-through (0.4 to 2.0 s) at double
+  speed (0.8 s, Kage's time between cuts); `death` the first 2.8 s; `run` one 0.8 s cycle from the
+  steady middle of a start-run-stop animation, its last frames blended into its first so it loops;
+  `idle` the swing's opening stance with a slow breath added.
+- Root motion: the hips keep their height but stay over their starting spot in `run` and `attack`.
+- Copying these clips onto Tripo's separate `.glb` of the same model doesn't work: the Blender
+  round trip changed the bones' rest orientations. Use the FBX's own mesh and skeleton.
 
 **Why research and not "hold N nodes":** in the first version, your tier was however many server
 nodes you held right now. All four sat in the centre, so whoever won the middle got every tier and

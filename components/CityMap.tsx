@@ -42,6 +42,7 @@ import { afterRailShot, fireRailguns, RailShot } from '../sim/railgun';
 import { fireHornetRockets, landSalvo, MiniRocket } from '../sim/hornet';
 import { fireGrenades } from '../sim/heavyMetalHero';
 import { kageCharges } from '../sim/shadowHero';
+import { FallenUnits, HAS_DEATH_ANIMATION, type FallenUnit } from './FallenUnits';
 import { BASE_SITE, BaseSite, baseSites, clearedBlocks, commandPosts, rubbleCleared } from '../sim/bases';
 import { BLACKWALL, blackwallImpact, blackwallTick } from '../sim/blackwall';
 import { FORCE_FIELD, ForceField, absorbingField, activeFields, addShieldHit, generatorsOf, impactAbsorbed, shieldTick, shockDamage, shockedBy, shotBlocked, shotBlockedBy } from '../sim/forcefield';
@@ -1592,6 +1593,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const smokeRef = useRef<SmokeScreen[]>([]);
   // Battery Mule Volt Cores counting down, by mule (sim/voltCore.ts), and the warnings drawn.
   const voltRef = useRef(new Map<string, VoltCharge>());
+  // Units playing their death after the game has removed them (components/FallenUnits.tsx).
+  const fallenRef = useRef(new Map<string, FallenUnit>());
   const voltCharges = useRef<VoltCharge[]>([]);
   const [voltWarnings, setVoltWarnings] = useState<VoltCharge[]>([]);
   const [smokeScreens, setSmokeScreens] = useState<SmokeScreen[]>([]);
@@ -1908,6 +1911,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           setStructuresState(prev => [...prev, s]);
           return s.id;
       },
+      // Units still playing their death (components/FallenUnits.tsx).
+      fallen: () => [...fallenRef.current.values()],
       state: () => ({ units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, selected: [...selectedUnitIdsRef.current], smoke: smokeRef.current }),
     };
     return () => { (window as any).GAME_CHEATS = undefined; };
@@ -4112,6 +4117,17 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   for (const c of armMules(nextUnits, team => hasUpgrade(economyRef.current[team], 'volt_core'), now)) {
                       if (!voltRef.current.has(c.muleId)) voltRef.current.set(c.muleId, c);
                   }
+                  // Units with a death animation fall where they were drawn, if the player could see
+                  // them. Keyed by unit, so a second run of this updater changes nothing.
+                  for (const u of nextUnits) {
+                      if (u.health > 0 || !HAS_DEATH_ANIMATION.has(u.type) || fallenRef.current.has(u.id)) continue;
+                      const drawn = sceneRef.current.getObjectByName(`unit-${u.id}`);
+                      let shown = !!drawn;
+                      for (let o: THREE.Object3D | null = drawn ?? null; o && shown; o = o.parent) shown = o.visible;
+                      if (!drawn || !shown) continue;
+                      const p = drawn.getWorldPosition(new THREE.Vector3()), q = drawn.getWorldQuaternion(new THREE.Quaternion());
+                      fallenRef.current.set(u.id, { id: u.id, type: u.type, teamColor: TEAM_COLORS[u.team], position: [p.x, p.y, p.z], quaternion: [q.x, q.y, q.z, q.w], diedAt: now });
+                  }
                   // Cloaking Fields (sim/cloak.ts): who is hidden after this tick's fire.
                   const living = nextUnits.filter(u => u.health > 0);
                   const finalUnits = applyFieldCloak(living, fieldCloakedIds(living, now));
@@ -4432,6 +4448,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         )}
 
         {/* Thunderhead shells, and the fire missions of selected batteries */}
+        <FallenUnits fallen={fallenRef} />
         {miniRockets.map(r => r.kind === 'grenade'
             ? <GrenadeMesh key={r.id} grenade={r} tileSize={tileSize} offset={offset} />
             : <MiniRocketMesh key={r.id} rocket={r} fromY={74} tileSize={tileSize} offset={offset} />)}
