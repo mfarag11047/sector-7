@@ -21,7 +21,7 @@ import { MAX_TETHERS } from '../sim/jamming';
 import { JamRange, JamStatic } from './JamStatic';
 import { GlitchField } from './GlitchField';
 import { HeliosField } from './HeliosField';
-import { ScoutCarModel } from './ScoutCarModel';
+import { ScoutCarModel } from './models/ScoutCarModel';
 import { Meter, METER_COLORS, UnitBars } from './UnitBars';
 import { abilityUnlocked, artilleryTierOf, type UpgradeId } from '../sim/upgrades';
 import { shieldMax } from '../sim/kestrel';
@@ -810,7 +810,7 @@ const Unit: React.FC<UnitProps> = ({
         </group>
     );
     if (isRazorback) return <RazorbackModel teamColor={teamColor} moving={moving} aimRef={turretAimRef} flashRef={flashRef} />;
-    if (isScoutCar) return <ScoutCarModel teamColor={teamColor} />;
+    if (isScoutCar) return <ScoutCarModel teamColor={teamColor} moving={moving} />;
     if (isCloakGen) return <CloakGeneratorModel teamColor={teamColor} active={fieldUp} />;
     if (isFieldGen) return <FieldGeneratorModel teamColor={teamColor} active={fieldGenActive} />;
     if (isHowitzer) return <ThunderheadModel teamColor={teamColor} moving={moving} deployed={!!isDeployed} aim={aimWorld} />;
@@ -978,7 +978,7 @@ const Unit: React.FC<UnitProps> = ({
   const model = useMemo(renderModel, [
     type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
     isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, firingLaserAt, courierPayload, constructionTargetId, ciwsTargetId,
-    grenadeAt, isHero ? lastAttackTime : 0, isHero || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback ? moving : false, isTank ? railgunFiredAt : 0,
+    grenadeAt, isHero ? lastAttackTime : 0, isHero || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback || isScoutCar ? moving : false, isTank ? railgunFiredAt : 0,
     isBallista ? Math.floor((loadingProgress || 0) / 10) : 0,
     isBanshee ? `${!!jammerActive && battery > 0}|${tetherTargetIds?.length ?? 0}` : 0,
   ]);
