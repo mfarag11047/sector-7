@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian are done; the rest of the roster follows by type.
+the Guardian and the Battery Mule are done; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -311,6 +311,12 @@ the Guardian are done; the rest of the roster follows by type.
   telescopic mast (a six-sided head with a pulsing green band, where the repair beams start), a
   turning radar panel and the Trophy launcher, whose light turns red while it reloads. Repair green
   (`PALETTE.repair`) is kept for repair, so it reads at a glance.
+- **The Battery Mule** (`components/models/BatteryMuleModel.tsx`, sim type `sun_plate`): a short,
+  wide, heavily armoured tracked carrier with a heavy sloped cab and armoured vision slits, thick
+  composite skirts with armour modules and team stripes, and an armoured bay of six upright battery
+  cells, power yellow (`PALETTE.power`) glowing in the bands between their armoured sections, on
+  their tops (where the charging links start), through vent slits in the bay walls and at the
+  charging port. Anchored, it settles onto four stabiliser jacks and its cells glow brighter.
 
 ### Rigged models
 
