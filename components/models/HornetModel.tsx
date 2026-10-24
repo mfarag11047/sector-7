@@ -12,7 +12,8 @@
 //
 // It moves: its jets flicker under it, and it bobs and banks gently as it hovers.
 //
-// Built facing +Z, about 1.6 long and 1.8 wide in its own units, and scaled up here.
+// Built facing +Z, about 1.6 long and 1.6 wide across its pods in its own units, and scaled up
+// here.
 
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -22,17 +23,17 @@ import { Loft, Plate, Prism, Strip, Turned, Wheel } from '../kit/shapes';
 
 const SCALE = 2.4;
 // The deck, top view [right, forward]: broad, its front drawn in to the prow.
-const DECK: [number, number][] = [[-0.8, -0.7], [0.8, -0.7], [0.96, -0.22], [0.8, 0.4], [0.3, 0.66], [-0.3, 0.66], [-0.8, 0.4], [-0.96, -0.22]];
+const DECK: [number, number][] = [[-0.5, -0.8], [0.5, -0.8], [0.6, -0.3], [0.52, 0.45], [0.24, 0.76], [-0.24, 0.76], [-0.52, 0.45], [-0.6, -0.3]];
 const DECK_TOP = DECK.map(([x, z]) => [x * 0.7, z * 0.78 - 0.06] as [number, number]);
 const DECK_Y = 0.05, DECK_H = 0.14;
 // The hull below the deck tapers in to a narrow keel: the keel's outline, top view, matching the
 // deck's point for point. Its front is a flat face for the sensors, with the gun at its foot.
-const KEEL: [number, number][] = [[-0.2, -0.45], [0.2, -0.45], [0.26, -0.1], [0.26, 0.4], [0.11, 0.66], [-0.11, 0.66], [-0.26, 0.4], [-0.26, -0.1]];
-const KEEL_Y = -0.68, FACE_Z = 0.66;
+const KEEL: [number, number][] = [[-0.16, -0.5], [0.16, -0.5], [0.2, -0.15], [0.2, 0.45], [0.09, 0.74], [-0.09, 0.74], [-0.2, 0.45], [-0.2, -0.15]];
+const KEEL_Y = -0.68, FACE_Z = 0.74;
 // A thruster pod, side view: a tall housing, its top front cut back, its foot drawn in.
 const POD: [number, number][] = [[-0.22, -0.62], [-0.22, 0.02], [0.02, 0.12], [0.22, -0.02], [0.22, -0.5], [0.12, -0.62]];
 const POD_W = 0.3;
-const PODS: [number, number][] = [[-0.86, 0.2], [0.86, 0.2], [-0.9, -0.44], [0.9, -0.44]];
+const PODS: [number, number][] = [[-0.66, 0.22], [0.66, 0.22], [-0.7, -0.48], [0.7, -0.48]];
 // Rocket tubes in each side's cluster: [up, along].
 const TUBES: [number, number][] = [[0, 0], [0, 0.13], [0.11, 0.065], [0.11, 0.195]];
 
@@ -87,15 +88,15 @@ export const HornetModel: React.FC<{
           <Plate size={[0.3, 0.06, 0.24]} material={dark} position={[0, 0.03, 0]} />
           <Turned profile={[[0.12, 0.06], [0.12, 0.1], [0.08, 0.17], [0.001, 0.19]]} segments={8} material={housing} rotation={[-Math.PI / 2, 0, 0]} />
         </group>
-        {[-0.08, 0.08].map(x => <Plate key={x} size={[0.025, 0.025, 0.36]} material={steel} position={[x + 0.28, DECK_Y + DECK_H + 0.1, -0.05]} />)}
-        <group position={[-0.28, DECK_Y + DECK_H + 0.08, 0.18]}>
+        {[-0.04, 0.04].map(x => <Plate key={x} size={[0.025, 0.025, 0.36]} material={steel} position={[x + 0.25, DECK_Y + DECK_H + 0.1, -0.05]} />)}
+        <group position={[-0.24, DECK_Y + DECK_H + 0.08, 0.18]}>
           {[-1, 1].map(e => <Plate key={e} size={[0.02, 0.07, 0.02]} material={steel} position={[e * 0.08, 0.035, 0]} />)}
           <Plate size={[0.18, 0.02, 0.02]} material={steel} position={[0, 0.07, 0]} />
         </group>
-        <group position={[0.32, DECK_Y + DECK_H + 0.08, -0.45]}>
+        <group position={[0.24, DECK_Y + DECK_H + 0.08, -0.58]}>
           <Turned profile={[[0.008, 0], [0.005, 0.45]]} segments={4} material={black} rotation={[-Math.PI / 2 + 0.15, 0, 0]} />
         </group>
-        {[-1, 1].map(s => <Plate key={s} size={[0.24, 0.03, 0.03]} material={black} position={[s * 0.5, DECK_Y + DECK_H - 0.03, 0.56]} rotation={[0, s * 0.62, 0]} />)}
+        {[-1, 1].map(s => <Plate key={s} size={[0.24, 0.03, 0.03]} material={black} position={[s * 0.36, DECK_Y + DECK_H - 0.03, 0.62]} rotation={[0, s * 0.85, 0]} />)}
 
         {/* The hull, sloping in from the deck to the keel. */}
         <Loft top={DECK} bottom={KEEL} height={DECK_Y - 0.06 - KEEL_Y} material={armour} position={[0, KEEL_Y, 0]} />
@@ -130,7 +131,7 @@ export const HornetModel: React.FC<{
 
         {/* Rocket clusters on the deck's sides, angled forward and out, once researched. */}
         {rockets && [-1, 1].map(s => (
-          <group key={s} position={[s * 0.66, DECK_Y + DECK_H + 0.05, -0.3]} rotation={[-0.12, s * 0.35, 0]}>
+          <group key={s} position={[s * 0.46, DECK_Y + DECK_H + 0.05, -0.34]} rotation={[-0.12, s * 0.35, 0]}>
             <Plate size={[0.16, 0.08, 0.36]} material={dark} position={[0, -0.02, 0.05]} />
             {TUBES.map(([y, x]) => (
               <Turned key={`${y}${x}`} profile={[[0.05, 0], [0.05, 0.42], [0.06, 0.42], [0.06, 0.46], [0.035, 0.46]]} segments={8} material={composite}
