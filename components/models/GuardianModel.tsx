@@ -1,9 +1,10 @@
 // The Guardian support UGV, built from the unit kit (components/kit).
 //
-// An unmanned, four-wheeled armoured carrier: a wedge nose with a dark sensor visor, arched fenders
-// striped in team colour over big wheels, and a raised equipment module carrying its repair
-// emitter, a mast of rings round a glowing green core. Green repair crosses on the module's sides;
-// a turning sensor dish; and the Trophy launcher, whose light turns red while it reloads.
+// An unmanned, four-wheeled armoured carrier, each part in what it would be made of: an armoured
+// wedge hull with a dark sensor visor; dark composite fenders (striped in team colour), bumpers and
+// sills; metal-hubbed wheels; and a pale equipment module carrying the repair emitter, a mast of
+// rings round a glowing green core. Green repair crosses on the module's sides; a turning sensor
+// dish; and the Trophy launcher, whose light turns red while it reloads.
 //
 // It moves: the wheels turn while it drives, the dish turns, and the emitter's core pulses.
 //
@@ -35,6 +36,7 @@ export const GuardianModel: React.FC<{
   trophyCooling?: boolean;
 }> = ({ teamColor, moving, trophyCooling }) => {
   const armour = kitMaterial('armour'), dark = kitMaterial('armourDark'), steel = kitMaterial('steel'), black = kitMaterial('black');
+  const composite = kitMaterial('composite'), housing = kitMaterial('housing');
   const paint = teamPaint(teamColor), light = glow(PALETTE.cyan), repair = glow(PALETTE.repair);
   // This Guardian's own: its emitter core pulses.
   const core = useMemo(() => own(glow(PALETTE.repair)) as THREE.MeshBasicMaterial, []);
@@ -59,19 +61,23 @@ export const GuardianModel: React.FC<{
         {WHEELS.map(([x, z]) => (
           <group key={`${x}${z}`} position={[x, 0.34, z]}>
             <Wheel radius={0.34} width={0.28} segments={12} material={black} />
-            <Wheel radius={0.19} width={0.3} segments={6} material={dark} />
+            <Wheel radius={0.19} width={0.3} segments={6} material={steel} />
           </group>
         ))}
       </group>
       {WHEELS.map(([x, z]) => (
         <group key={`${x}${z}`} position={[x * 1.02, 0, z]}>
-          <Prism outline={FENDER} depth={0.34} axis="x" material={armour} />
-          <Plate size={[0.3, 0.03, 0.62]} radius={0.01} material={paint} position={[0, 0.745, 0]} />
+          <Prism outline={FENDER} depth={0.34} axis="x" material={composite} />
+          <Plate size={[0.3, 0.03, 0.62]} radius={0.01} material={paint} position={[0, 0.775, 0]} />
         </group>
       ))}
 
       {/* Hull: the wedge body, a dark visor on the nose with a sensor strip, headlights, tail lights. */}
       <Prism outline={HULL} depth={1.06} axis="x" material={armour} />
+      {/* Composite bumpers front and back, and sills along the sides between the wheels. */}
+      <Plate size={[1.0, 0.14, 0.12]} radius={0.04} material={composite} position={[0, 0.42, 1.2]} />
+      <Plate size={[1.0, 0.14, 0.1]} radius={0.04} material={composite} position={[0, 0.44, -1.17]} />
+      {[-1, 1].map(s => <Plate key={s} size={[0.05, 0.14, 0.62]} radius={0.02} material={composite} position={[s * 0.54, 0.42, 0]} />)}
       <group position={[0, 0.755, 0.96]} rotation={[NOSE_SLOPE, 0, 0]}>
         <Plate size={[0.86, 0.03, 0.42]} radius={0.01} material={black} />
         <Strip size={[0.56, 0.02, 0.05]} material={light} position={[0, 0.02, 0.04]} />
@@ -86,7 +92,7 @@ export const GuardianModel: React.FC<{
       {[-1, 1].map(s => <Strip key={s} size={[0.02, 0.04, 0.5]} material={light} position={[s * 0.535, 0.62, 0]} />)}
 
       {/* Equipment module: team colour band, green repair crosses on its sides. */}
-      <Plate size={[MODULE.w, MODULE.h, MODULE.l]} radius={0.06} material={armour} position={[0, MODULE.y + MODULE.h / 2, MODULE.z]} />
+      <Plate size={[MODULE.w, MODULE.h, MODULE.l]} radius={0.06} material={housing} position={[0, MODULE.y + MODULE.h / 2, MODULE.z]} />
       <Plate size={[MODULE.w + 0.03, 0.08, MODULE.l + 0.03]} radius={0.02} material={paint} position={[0, MODULE.y + 0.1, MODULE.z]} />
       {[-1, 1].map(s => (
         <group key={s} position={[s * (MODULE.w / 2 + 0.006), MODULE.y + 0.28, MODULE.z]}>

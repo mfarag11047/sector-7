@@ -285,8 +285,10 @@ silhouette and bevels carry the detail, plus glowing light panels. The Titan tan
 (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) is the first; the rest of the
 roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: light grey
-  armour, slate secondary plates, bright metal, black; team colour as accent bands; and lights
-  (`glow`) that ignore tone mapping so they glow (cyan for the standard army). Plates are matte:
+  armour, slate secondary plates, bright metal, black, dark matte composite (fenders, bumpers,
+  guards) and pale equipment housings; team colour as accent bands; and lights
+  (`glow`) that ignore tone mapping so they glow (cyan for the standard army). A unit isn't one flat
+  colour: each part takes the material it would be made of. Plates are matte:
   the scene has no environment map, so metallic surfaces have nothing to reflect and render near
   black. A unit animating its own material (a scrolling track, a pulsing light) takes a copy with
   `own`.
@@ -301,7 +303,8 @@ roster follows by type.
   turret turns to what it is shooting at (`turretAt`, from CityMap), the rail gun recoils and its
   lights flare when it fires, and the tracks run and the hull rocks while it drives.
 - **The Guardian** (`components/models/GuardianModel.tsx`) is a four-wheeled UGV: a wedge nose
-  with a dark sensor visor, arched fenders striped in team colour, and a raised module with green
+  with a dark sensor visor, composite fenders topped in team colour, composite bumpers and sills,
+  metal-hubbed wheels, and a pale raised module with green
   repair crosses carrying the repair emitter (a ring cage round a pulsing green core, where the
   repair beams start), a turning sensor dish and the Trophy launcher, whose light turns red while
   it reloads. Repair green (`PALETTE.repair`) is kept for repair, so it reads at a glance.

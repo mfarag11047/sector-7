@@ -1,6 +1,8 @@
 // The unit kit's palette and materials, shared by every unit built from it. The look is clean and
 // stylised: flat-shaded, untextured plates whose shapes carry the detail, light grey armour over
-// dark running gear, team colour as accent bands, and glowing light panels.
+// dark running gear, team colour as accent bands, and glowing light panels. Parts take the material
+// they would be made of, so a unit isn't one flat colour: armour plate, dark composite fenders and
+// guards, pale equipment housings, bright metal, rubber.
 //
 // Materials are cached and shared between units; a cloak tints copies, never these (Unit.tsx).
 // Anything a unit animates on its own material (a scrolling track, a pulsing core) takes a copy
@@ -16,6 +18,8 @@ export const PALETTE = {
   armourDark: '#4b525d',    // slate: lower hull, secondary plates
   steel: '#b9c1cb',         // bright metal: rails, pistons, barrels
   black: '#1c1e22',         // rubber, deep recesses, vents
+  composite: '#3f4650',     // dark matte polymer: fenders, bumpers, guards
+  housing: '#aeb6c0',       // pale equipment housings: sensor and system modules
   // Lights.
   cyan: '#22d3ee',          // standard army
   amber: '#f59e0b',         // Heavy Metal
@@ -26,7 +30,7 @@ export const PALETTE = {
   headlight: '#e0f7ff',
 };
 
-export type KitMaterial = 'armour' | 'armourDark' | 'steel' | 'black' | 'tread';
+export type KitMaterial = 'armour' | 'armourDark' | 'steel' | 'black' | 'composite' | 'housing' | 'tread';
 
 const cache = new Map<string, THREE.Material>();
 const cached = <T extends THREE.Material>(key: string, make: () => T): T => {
@@ -46,6 +50,8 @@ export function kitMaterial(kind: KitMaterial): THREE.MeshStandardMaterial {
       case 'armourDark': return plate(PALETTE.armourDark, 0.15, 0.65);
       case 'steel': return plate(PALETTE.steel, 0.4, 0.4);
       case 'black': return plate(PALETTE.black, 0.1, 0.85);
+      case 'composite': return plate(PALETTE.composite, 0.05, 0.9);
+      case 'housing': return plate(PALETTE.housing, 0.1, 0.5);
       case 'tread': return new THREE.MeshStandardMaterial({ color: '#ffffff', metalness: 0.1, roughness: 0.85, map: treadMap() });
     }
   }) as THREE.MeshStandardMaterial;
