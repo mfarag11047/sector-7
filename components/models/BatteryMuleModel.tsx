@@ -2,8 +2,9 @@
 //
 // Simple but military: a short, wide, heavily armoured tracked carrier. A heavy sloped cab at the
 // front with armoured vision slits; thick composite skirts over the tracks, hung with armour
-// modules and team stripes; and an armoured bay behind holding six upright battery cells, each an
-// armoured six-sided casing with power glowing in the bands between its sections and on top.
+// modules and team stripes; and an armoured bay behind holding three battery cells laid
+// lengthways, each a large glowing core held in an open armoured frame (a tray, end caps, two ribs
+// and top rails), so most of the cell shows.
 // Power-yellow light also shows through the vent slits in the bay walls and at the charging port
 // on the back.
 //
@@ -20,7 +21,7 @@ import { ContactShadow, Plate, Prism, Strip, Turned, Wheel } from '../kit/shapes
 
 const SCALE = 2.35;
 // Where charging links leave the battery cells, in the unit's own (unscaled) space.
-export const BATTERY_MULE_LINK_Y = 1.55 * SCALE;
+export const BATTERY_MULE_LINK_Y = 1.3 * SCALE;
 
 // Hull side profile: [forward, up].
 const HULL: [number, number][] = [[-1.15, 0.3], [-1.15, 0.85], [1.0, 0.85], [1.22, 0.6], [1.22, 0.45], [1.05, 0.3]];
@@ -29,9 +30,9 @@ const SKIRT: [number, number][] = [[-1.2, 0.26], [-1.2, 0.9], [1.0, 0.9], [1.26,
 // Cab, side view: a tall back, a long heavy sloped front.
 const CAB: [number, number][] = [[0.12, 0.85], [0.12, 1.25], [0.5, 1.25], [1.02, 0.86], [1.02, 0.85]];
 const CAB_SLOPE = Math.atan2(1.25 - 0.86, 1.02 - 0.5);
-// Battery cells: upright six-sided armoured casings, three across and two deep.
-const CELLS: [number, number][] = [-0.82, -0.36].flatMap(z => [-0.4, 0, 0.4].map(x => [x, z] as [number, number]));
-const CELL_R = 0.17, CELL_H = 0.62;
+// Battery cells: three laid lengthways in the bay, each a glowing core in an open armoured frame.
+const CELLS_X = [-0.4, 0, 0.4];
+const CELL = { w: 0.32, h: 0.42, l: 0.98, z: -0.55 };
 const BAY = { y: 0.85, h: 0.3, front: 0.12, back: -1.15, x: 0.68 };
 const TRACK_X = 0.82;
 // How far the hull settles when anchored.
@@ -136,20 +137,22 @@ export const BatteryMuleModel: React.FC<{
         <Plate size={[0.3, 0.2, 0.06]} material={dark} position={[0, BAY.y + 0.2, BAY.back - 0.03]} />
         <Strip size={[0.18, 0.06, 0.012]} material={own_.power} position={[0, BAY.y + 0.2, BAY.back - 0.066]} />
 
-        {/* Battery cells: upright armoured casings in sections, power glowing in the bands between
-            them and through the window on top; steel terminals; cables run forward to the cab. */}
-        {CELLS.map(([x, z]) => (
-          <group key={`${x}${z}`} position={[x, BAY.y, z]}>
-            <Turned profile={[[CELL_R, 0], [CELL_R, 0.2], [0.001, 0.2]]} segments={6} material={dark} rotation={[-Math.PI / 2, 0, 0]} />
-            <Turned profile={[[CELL_R - 0.012, 0.2], [CELL_R - 0.012, 0.27]]} segments={6} material={own_.power} rotation={[-Math.PI / 2, 0, 0]} />
-            <Turned profile={[[CELL_R, 0.27], [CELL_R, 0.45], [0.001, 0.45]]} segments={6} material={dark} rotation={[-Math.PI / 2, 0, 0]} />
-            <Turned profile={[[CELL_R - 0.012, 0.45], [CELL_R - 0.012, 0.51]]} segments={6} material={own_.power} rotation={[-Math.PI / 2, 0, 0]} />
-            <Turned profile={[[CELL_R + 0.01, 0.51], [CELL_R + 0.01, CELL_H], [0.001, CELL_H]]} segments={6} material={armour} rotation={[-Math.PI / 2, 0, 0]} />
-            <Turned profile={[[0.07, CELL_H], [0.07, CELL_H + 0.006], [0.001, CELL_H + 0.006]]} segments={6} material={own_.power} rotation={[-Math.PI / 2, 0, 0]} />
-            <Turned profile={[[0.022, CELL_H], [0.022, CELL_H + 0.05]]} segments={6} material={steel} position={[0.1, 0, 0]} rotation={[-Math.PI / 2, 0, 0]} />
+        {/* Battery cells: a glowing core in an open armoured frame; terminals on the front cap,
+            cables forward to the cab. */}
+        {CELLS_X.map(x => (
+          <group key={x} position={[x, BAY.y, CELL.z]}>
+            <Strip size={[CELL.w - 0.04, CELL.h - 0.04, CELL.l - 0.06]} material={own_.power} position={[0, CELL.h / 2, 0]} />
+            <Plate size={[CELL.w, 0.08, CELL.l]} material={dark} position={[0, 0.04, 0]} />
+            {[-1, 1].map(e => <Plate key={e} size={[CELL.w, CELL.h, 0.06]} material={dark} position={[0, CELL.h / 2, e * (CELL.l / 2 - 0.03)]} />)}
+            {[-0.17, 0.17].map(z => <Plate key={z} size={[CELL.w + 0.02, CELL.h + 0.01, 0.04]} material={armour} position={[0, (CELL.h + 0.01) / 2, z]} />)}
+            {[-1, 1].map(e => <Plate key={e} size={[0.035, 0.035, CELL.l]} material={dark} position={[e * (CELL.w / 2 - 0.0175), CELL.h - 0.0175, 0]} />)}
+            {[-0.07, 0.07].map(tx => (
+              <Turned key={tx} profile={[[0.025, 0], [0.025, 0.05], [0.015, 0.05], [0.015, 0.08]]} segments={6} material={steel}
+                position={[tx, CELL.h - 0.12, CELL.l / 2]} />
+            ))}
+            <Plate size={[0.04, 0.04, 0.3]} material={black} position={[0, CELL.h - 0.12, CELL.l / 2 + 0.15]} />
           </group>
         ))}
-        {[-0.4, 0, 0.4].map(x => <Plate key={x} size={[0.04, 0.04, 0.6]} material={black} position={[x, BAY.y + 0.16, -0.18]} />)}
       </group>
     </group>
   );

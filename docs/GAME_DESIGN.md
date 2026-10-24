@@ -313,10 +313,11 @@ the Guardian and the Battery Mule are done; the rest of the roster follows by ty
   (`PALETTE.repair`) is kept for repair, so it reads at a glance.
 - **The Battery Mule** (`components/models/BatteryMuleModel.tsx`, sim type `sun_plate`): a short,
   wide, heavily armoured tracked carrier with a heavy sloped cab and armoured vision slits, thick
-  composite skirts with armour modules and team stripes, and an armoured bay of six upright battery
-  cells, power yellow (`PALETTE.power`) glowing in the bands between their armoured sections, on
-  their tops (where the charging links start), through vent slits in the bay walls and at the
-  charging port. Anchored, it settles onto four stabiliser jacks and its cells glow brighter.
+  composite skirts with armour modules and team stripes, and an armoured bay of three battery cells
+  laid lengthways: each a large core glowing power yellow (`PALETTE.power`) in an open armoured
+  frame (tray, end caps, two ribs, top rails), so most of the cell shows. The charging links start
+  from the cells; yellow light also shows through vent slits in the bay walls and at the charging
+  port. Anchored, it settles onto four stabiliser jacks and its cells glow brighter.
 
 ### Rigged models
 
