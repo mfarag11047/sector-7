@@ -241,7 +241,7 @@ only, no abilities, and the generic unit model with a gold halo.
 All cost 600 cores, 4 population and 40 s to train.
 
 **Goliath (Heavy Metal)** is a towering full-borg heavy (`sim/heavyMetalHero.ts`,
-`components/GoliathModel.tsx`): a pale skull face with red eyes and a steel jaw, huge pauldrons,
+`components/GoliathRig.tsx`, from three 3D models; see **Rigged models** below): a pale skull face with red eyes and a steel jaw, huge pauldrons,
 red muscle cabling under black plate, and clawed feet. He carries a **heavy machine gun** in both
 hands: a machine gun's damage type, decent against everything and able to hit aircraft. On his
 back, an arm curls over his right shoulder holding a box **grenade launcher**: every **8 s**, while
@@ -279,22 +279,39 @@ models** below): he idles in a sword stance, runs, slashes on every cut, and fal
 
 ### Rigged models
 
-Most units are built from shapes in code. A unit can instead use a rigged, animated `.glb` model
-(the asset spec covers what an artist delivers). Kage is the first: `public/models/kage.glb` and
-`public/models/katana.glb`, drawn by `components/KageRig.tsx`.
+Most units are built from shapes in code. A unit can instead use a rigged `.glb` model (the asset
+spec covers what an artist delivers). Two do so far:
+- **Kage**: `public/models/kage.glb` with animation clips, and `katana.glb`, drawn by
+  `components/KageRig.tsx`.
+- **Goliath**: `public/models/goliath.glb` (rigged body, no clips), `goliath_gun.glb` and
+  `goliath_launcher.glb`, drawn by `components/GoliathRig.tsx`. Without clips he moves
+  procedurally: his arms hold the gun by two-bone IK every frame (right hand on the pistol grip,
+  left on the front grip, so the hands stay on it as it recoils); walking swings his legs and bobs
+  his hips; standing, his chest breathes; each shot kicks the gun back and each grenade volley kicks
+  the launcher; dead, he topples onto his back. The gun rides at his right hip and the launcher
+  sits on the socket in his back, arching over his right shoulder.
+
+For models with clips:
 - **Clips** in the file: `idle` (loops), `run` (loops, in place: the game moves the unit), `attack`
   (one strike, as long as the unit's time between hits) and `death` (holds the last pose). The unit's
   state picks the clip: dead, then striking (within a cut's length of its last hit), then moving,
   else idle, cross-fading over 0.15 s.
 - **Weapons** are separate models attached to a hand bone in code (Kage's katana on the left hand,
   which is the hand his slash uses).
-- **Team colour**: the model's texture is painted with blue team bands. A shader recolours clearly
-  blue texels to the side's colour, keeping their shading, and makes clearly green texels (the
-  lenses) glow.
+- **Team colour** (`components/teamTint.ts`): the textures are painted with blue team markings. A
+  shader recolours clearly blue texels to the side's colour, keeping their shading, and makes the
+  model's lights glow: green ones for Kage's lenses, warm ones for Goliath's red eyes and amber lights
+  (his dark red cabling and yellow hazard stripes stay dull).
 - **Each instance** gets its own skeleton copy and materials, since a cloak tints materials in place.
 - **Death**: the game removes a unit the moment it dies, so units with a death clip leave a fallen
   copy where they were drawn (`components/FallenUnits.tsx`). It plays the death, lies there for about
   6 s, then sinks away. Only units the player could see leave one.
+
+**Tripo props and textures.** Tripo's props came in at around 100,000 triangles and every texture at
+4096², about 34 MB for Goliath's three parts. They were reduced with gltf-transform (run from a
+scratch folder, not a project dependency): parts joined, welded and simplified to about 7,000
+triangles each (the gun and launcher look the same at game size), and every texture resized to
+1024². Goliath is about 23,000 triangles and 3.7 MB in all.
 
 **Importing a Tripo model.** Tripo's FBX export (from its Blender conversion) needed several fixes,
 done once in the browser with three.js and saved as the `.glb`:

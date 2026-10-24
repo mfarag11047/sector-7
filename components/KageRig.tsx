@@ -15,6 +15,7 @@ import { useFrame } from '@react-three/fiber';
 import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
+import { teamTintedMaterial } from './teamTint';
 
 const KAGE_URL = '/models/kage.glb';
 const KATANA_URL = '/models/katana.glb';
@@ -33,39 +34,15 @@ const TIP = new THREE.Vector3(-0.5, 0, 0);
 const KATANA_LENGTH = 0.45 / 0.83;
 const IN_HAND = new THREE.Euler(0, Math.PI / 4, 0);
 
-// Team bands: texels clearly bluer than they are red or green take the team colour, keeping
-// their shading. Lenses: clearly green texels glow.
-const teamShader = (team: THREE.Color) => (shader: { uniforms: Record<string, { value: unknown }>; fragmentShader: string }) => {
-  shader.uniforms.uTeam = { value: team };
-  shader.fragmentShader = shader.fragmentShader
-    .replace('void main() {', 'uniform vec3 uTeam;\nvoid main() {\n  float kageGlow = 0.0;')
-    .replace('#include <map_fragment>', `#include <map_fragment>
-  {
-    vec3 c = diffuseColor.rgb;
-    float blue = smoothstep(0.06, 0.18, c.b - max(c.r, c.g));
-    float lum = dot(c, vec3(0.299, 0.587, 0.114));
-    diffuseColor.rgb = mix(c, uTeam * (0.25 + lum * 2.2), blue);
-    kageGlow = smoothstep(0.1, 0.25, c.g - max(c.r, c.b));
-  }`)
-    .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-  totalEmissiveRadiance += vec3(0.25, 1.0, 0.45) * kageGlow * 2.5;`);
-};
-
 export const KageRig: React.FC<{ teamColor: string; moving?: boolean; lastAttackTime?: number; dead?: boolean }> = ({ teamColor, moving, lastAttackTime, dead }) => {
   const kage = useGLTF(KAGE_URL);
   const katana = useGLTF(KATANA_URL);
 
   const { root, mixer, actions, material, katanaMaterials } = useMemo(() => {
     const root = cloneSkinned(kage.scene) as THREE.Group;
-    const team = new THREE.Color(teamColor);
-    const material = (() => {
-      let base: THREE.MeshStandardMaterial | null = null;
-      root.traverse(o => { if (!base && (o as THREE.Mesh).isMesh) base = (o as THREE.Mesh).material as THREE.MeshStandardMaterial; });
-      const m = base!.clone();
-      m.onBeforeCompile = teamShader(team);
-      m.customProgramCacheKey = () => 'kage-team';
-      return m;
-    })();
+    let base: THREE.Material | null = null;
+    root.traverse(o => { if (!base && (o as THREE.Mesh).isMesh) base = (o as THREE.Mesh).material as THREE.Material; });
+    const material = teamTintedMaterial(base!, teamColor, 'green');
     const katanaMaterials: THREE.Material[] = [];
     let hand: THREE.Bone | null = null;
     root.traverse(o => {

@@ -688,7 +688,7 @@ const MiniRocketMesh: React.FC<{ rocket: MiniRocket; fromY: number; tileSize: nu
 const GRENADE_PEAK = 16;
 const GrenadeMesh: React.FC<{ grenade: MiniRocket; tileSize: number; offset: number }> = ({ grenade, tileSize, offset }) => {
     const ref = useRef<THREE.Group>(null);
-    const from = useMemo(() => new THREE.Vector3(grenade.from.x * tileSize - offset, 9.5, grenade.from.z * tileSize - offset), [grenade, tileSize, offset]);
+    const from = useMemo(() => new THREE.Vector3(grenade.from.x * tileSize - offset, 8, grenade.from.z * tileSize - offset), [grenade, tileSize, offset]);
     const to = useMemo(() => new THREE.Vector3(grenade.at.x * tileSize - offset, 0.6, grenade.at.z * tileSize - offset), [grenade, tileSize, offset]);
     useFrame(() => {
         const g = ref.current;
@@ -3820,7 +3820,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   fx.push({
                       id: `shot-${now}-${i}`, kind, createdAt: now,
                       attackerId: shot.attackerId, targetId: shot.targetId,
-                      from: { x: shot.from.x * tileSize - offset, y: shot.fromAir ? 74 : structure ? 4 : goliath ? 4.2 : infantry ? 1.6 : 2.4, z: shot.from.z * tileSize - offset },
+                      from: { x: shot.from.x * tileSize - offset, y: shot.fromAir ? 74 : structure ? 4 : goliath ? 4.6 : infantry ? 1.6 : 2.4, z: shot.from.z * tileSize - offset },
                       to: { x: shot.to.x * tileSize - offset, y: shot.toAir ? 75 : targetIsStructure ? 3 : 1.4, z: shot.to.z * tileSize - offset },
                       flashSize: structure ? 3.5 : shot.fromAir ? 2.6 : infantry ? 1.6 : 2.6,
                   });

@@ -1,12 +1,14 @@
 // Units with a death animation keep falling after the game has removed them: CityMap records each
 // one where and how it was drawn when it died, and this draws it there playing its death, then
-// sinks it into the ground and lets it go. For now only Kage has one (components/KageRig.tsx).
+// sinks it into the ground and lets it go: Kage (components/KageRig.tsx) and Goliath
+// (components/GoliathRig.tsx).
 
 import React, { useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { UnitType } from '../types';
 import { KageRig } from './KageRig';
+import { GoliathRig } from './GoliathRig';
 
 export interface FallenUnit {
   id: string;
@@ -17,7 +19,7 @@ export interface FallenUnit {
   diedAt: number;
 }
 
-export const HAS_DEATH_ANIMATION: ReadonlySet<UnitType> = new Set<UnitType>(['hero_shadow_ops']);
+export const HAS_DEATH_ANIMATION: ReadonlySet<UnitType> = new Set<UnitType>(['hero_shadow_ops', 'hero_heavy_metal']);
 
 // How long a fallen unit lies there, and the last stretch of it spent sinking out of sight.
 const LIE_MS = 7000;
@@ -29,11 +31,12 @@ const Fallen: React.FC<{ unit: FallenUnit }> = ({ unit }) => {
     const g = ref.current;
     if (!g) return;
     const sinking = Date.now() - unit.diedAt - (LIE_MS - SINK_MS);
-    g.position.y = unit.position[1] - Math.max(0, sinking / SINK_MS) * 2;
+    g.position.y = unit.position[1] - Math.max(0, sinking / SINK_MS) * 5;
   });
   return (
     <group ref={ref} position={unit.position} quaternion={unit.quaternion}>
       {unit.type === 'hero_shadow_ops' && <KageRig teamColor={unit.teamColor} dead />}
+      {unit.type === 'hero_heavy_metal' && <GoliathRig teamColor={unit.teamColor} dead diedAt={unit.diedAt} />}
     </group>
   );
 };
