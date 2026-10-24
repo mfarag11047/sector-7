@@ -1,12 +1,13 @@
 // The Guardian support UGV, built from the unit kit (components/kit).
 //
-// An unmanned, four-wheeled armoured carrier, each part in what it would be made of: an armoured
-// wedge hull with a dark sensor visor; dark composite fenders (striped in team colour), bumpers and
-// sills; metal-hubbed wheels; and a pale equipment module carrying the repair emitter, a mast of
-// rings round a glowing green core. Green repair crosses on the module's sides; a turning sensor
-// dish; and the Trophy launcher, whose light turns red while it reloads.
+// Simple but military: an unmanned six-wheeled armoured carrier with sharp-edged armour, each part
+// in what it would be made of. An angular hull with a sloped nose, a dark sensor window and a
+// composite bumper; composite panniers over the wheels, striped in team colour; and a pale
+// equipment module with green repair crosses, carrying the repair emitter on a telescopic mast (a
+// six-sided head with a glowing green band and lens, where the repair beams start), a turning
+// radar panel and the Trophy launcher, whose light turns red while it reloads.
 //
-// It moves: the wheels turn while it drives, the dish turns, and the emitter's core pulses.
+// It moves: the wheels turn while it drives, the radar turns, and the emitter's band pulses.
 //
 // Built facing +Z, about 2.4 long in its own units, and scaled up here.
 
@@ -18,16 +19,17 @@ import { ContactShadow, Plate, Prism, Strip, Turned, Wheel } from '../kit/shapes
 
 const SCALE = 2.6;
 // The emitter's tip, where repair beams start, in the unit's own (unscaled) space.
-const EMITTER_TIP = 2.34;
+const EMITTER_TIP = 2.3;
 export const GUARDIAN_BEAM_ORIGIN_Y = EMITTER_TIP * SCALE;
 
-// Hull side profile: [forward, up], a wedge nose.
-const HULL: [number, number][] = [[-1.15, 0.36], [-1.15, 0.95], [0.35, 0.95], [0.72, 0.84], [1.2, 0.62], [1.2, 0.44], [1.02, 0.32], [-1.0, 0.32]];
-// An arched fender over a wheel, side view.
-const FENDER: [number, number][] = [[-0.44, 0.5], [-0.3, 0.74], [0.3, 0.74], [0.44, 0.5], [0.37, 0.5], [0.26, 0.67], [-0.26, 0.67], [-0.37, 0.5]];
-const WHEELS: [number, number][] = [[-0.66, 0.74], [0.66, 0.74], [-0.66, -0.74], [0.66, -0.74]];
-const NOSE_SLOPE = Math.atan2(0.84 - 0.62, 1.2 - 0.72);
-const MODULE = { y: 0.95, z: -0.5, w: 1.0, h: 0.46, l: 0.95 };
+// Hull side profile: [forward, up], a sloped nose.
+const HULL: [number, number][] = [[-1.15, 0.34], [-1.15, 0.86], [-1.02, 0.95], [0.35, 0.95], [0.75, 0.85], [1.2, 0.6], [1.2, 0.46], [1.02, 0.32], [-1.0, 0.32]];
+// Equipment module, side view [forward, up] from its base: its top edges cut at an angle.
+const MODULE: [number, number][] = [[-0.47, 0], [-0.47, 0.38], [-0.37, 0.46], [0.37, 0.46], [0.47, 0.38], [0.47, 0]];
+const MODULE_Y = 0.95, MODULE_Z = -0.45;
+const WHEELS_Z = [-0.78, 0, 0.78];
+const WHEEL_X = 0.66;
+const NOSE_SLOPE = Math.atan2(0.85 - 0.6, 1.2 - 0.75);
 
 export const GuardianModel: React.FC<{
   teamColor: string;
@@ -36,107 +38,102 @@ export const GuardianModel: React.FC<{
   trophyCooling?: boolean;
 }> = ({ teamColor, moving, trophyCooling }) => {
   const armour = kitMaterial('armour'), dark = kitMaterial('armourDark'), steel = kitMaterial('steel'), black = kitMaterial('black');
-  const composite = kitMaterial('composite'), housing = kitMaterial('housing');
-  const paint = teamPaint(teamColor), light = glow(PALETTE.cyan), repair = glow(PALETTE.repair);
-  // This Guardian's own: its emitter core pulses.
-  const core = useMemo(() => own(glow(PALETTE.repair)) as THREE.MeshBasicMaterial, []);
-  useEffect(() => () => core.dispose(), [core]);
+  const composite = kitMaterial('composite'), housing = kitMaterial('housing'), paint = teamPaint(teamColor), repair = glow(PALETTE.repair);
+  // This Guardian's own: its emitter band pulses.
+  const band = useMemo(() => own(glow(PALETTE.repair)) as THREE.MeshBasicMaterial, []);
+  useEffect(() => () => band.dispose(), [band]);
 
   const wheels = useRef<THREE.Group>(null);
-  const dish = useRef<THREE.Group>(null);
+  const radar = useRef<THREE.Group>(null);
   const scratch = useMemo(() => new THREE.Color(), []);
 
   useFrame(({ clock }, delta) => {
     if (moving) wheels.current?.children.forEach(w => { w.rotation.x += delta * 6; });
-    if (dish.current) dish.current.rotation.y += delta;
-    core.color.copy(scratch.set(PALETTE.repair)).multiplyScalar(0.8 + 0.3 * Math.sin(clock.elapsedTime * 4));
+    if (radar.current) radar.current.rotation.y += delta;
+    band.color.copy(scratch.set(PALETTE.repair)).multiplyScalar(0.8 + 0.3 * Math.sin(clock.elapsedTime * 4));
   });
 
-  const top = MODULE.y + MODULE.h;
+  const top = MODULE_Y + 0.46;
   return (
     <group scale={SCALE}>
       <ContactShadow size={[2.0, 2.9]} />
-      {/* Wheels: chunky tyres round dark hubs, under arched fenders striped in team colour. */}
+      {/* Six wheels: tyres round metal hubs. */}
       <group ref={wheels}>
-        {WHEELS.map(([x, z]) => (
-          <group key={`${x}${z}`} position={[x, 0.34, z]}>
-            <Wheel radius={0.34} width={0.28} segments={12} material={black} />
-            <Wheel radius={0.19} width={0.3} segments={6} material={steel} />
+        {[-1, 1].flatMap(s => WHEELS_Z.map(z => (
+          <group key={`${s}${z}`} position={[s * WHEEL_X, 0.28, z]}>
+            <Wheel radius={0.28} width={0.22} segments={12} material={black} />
+            <Wheel radius={0.15} width={0.24} segments={6} material={steel} />
           </group>
-        ))}
+        )))}
       </group>
-      {WHEELS.map(([x, z]) => (
-        <group key={`${x}${z}`} position={[x * 1.02, 0, z]}>
-          <Prism outline={FENDER} depth={0.34} axis="x" material={composite} />
-          <Plate size={[0.3, 0.03, 0.62]} radius={0.01} material={paint} position={[0, 0.775, 0]} />
-        </group>
-      ))}
 
-      {/* Hull: the wedge body, a dark visor on the nose with a sensor strip, headlights, tail lights. */}
-      <Prism outline={HULL} depth={1.06} axis="x" material={armour} />
-      {/* Composite bumpers front and back, and sills along the sides between the wheels. */}
-      <Plate size={[1.0, 0.14, 0.12]} radius={0.04} material={composite} position={[0, 0.42, 1.2]} />
-      <Plate size={[1.0, 0.14, 0.1]} radius={0.04} material={composite} position={[0, 0.44, -1.17]} />
-      {[-1, 1].map(s => <Plate key={s} size={[0.05, 0.14, 0.62]} radius={0.02} material={composite} position={[s * 0.54, 0.42, 0]} />)}
-      <group position={[0, 0.755, 0.96]} rotation={[NOSE_SLOPE, 0, 0]}>
-        <Plate size={[0.86, 0.03, 0.42]} radius={0.01} material={black} />
-        <Strip size={[0.56, 0.02, 0.05]} material={light} position={[0, 0.02, 0.04]} />
+      {/* Hull: a sloped nose with a dark sensor window, a composite bumper with tow hooks, lights. */}
+      <Prism outline={HULL} depth={1.02} axis="x" material={armour} />
+      <group position={[0, 0.735, 0.97]} rotation={[NOSE_SLOPE, 0, 0]}>
+        <Plate size={[0.8, 0.02, 0.22]} material={black} />
+        <Strip size={[0.5, 0.012, 0.02]} material={glow(PALETTE.cyan)} position={[0, 0.012, -0.06]} />
       </group>
-      {[-0.38, 0.38].map(x => (
+      <Plate size={[1.06, 0.14, 0.1]} material={composite} position={[0, 0.42, 1.22]} />
+      {[-0.3, 0.3].map(x => <Plate key={x} size={[0.08, 0.06, 0.08]} material={steel} position={[x, 0.36, 1.3]} />)}
+      {[-0.4, 0.4].map(x => (
         <group key={x}>
-          <Strip size={[0.14, 0.06, 0.02]} material={glow(PALETTE.headlight)} position={[x, 0.53, 1.205]} />
-          <Strip size={[0.12, 0.05, 0.02]} material={glow(PALETTE.warning)} position={[x, 0.82, -1.155]} />
+          <Plate size={[0.16, 0.08, 0.04]} material={dark} position={[x, 0.53, 1.205]} />
+          <Strip size={[0.11, 0.04, 0.015]} material={glow(PALETTE.headlight)} position={[x, 0.53, 1.228]} />
+          <Strip size={[0.08, 0.035, 0.015]} material={glow(PALETTE.warning)} position={[x, 0.8, -1.158]} />
         </group>
       ))}
-      {/* Running lights along the hull sides. */}
-      {[-1, 1].map(s => <Strip key={s} size={[0.02, 0.04, 0.5]} material={light} position={[s * 0.535, 0.62, 0]} />)}
+      <Plate size={[1.0, 0.12, 0.08]} material={composite} position={[0, 0.44, -1.18]} />
 
-      {/* Equipment module: team colour band, green repair crosses on its sides. */}
-      <Plate size={[MODULE.w, MODULE.h, MODULE.l]} radius={0.06} material={housing} position={[0, MODULE.y + MODULE.h / 2, MODULE.z]} />
-      <Plate size={[MODULE.w + 0.03, 0.08, MODULE.l + 0.03]} radius={0.02} material={paint} position={[0, MODULE.y + 0.1, MODULE.z]} />
+      {/* Panniers over the wheels: composite boxes, two team stripes on each. */}
       {[-1, 1].map(s => (
-        <group key={s} position={[s * (MODULE.w / 2 + 0.006), MODULE.y + 0.28, MODULE.z]}>
-          <Strip size={[0.01, 0.08, 0.28]} material={repair} />
-          <Strip size={[0.01, 0.28, 0.08]} material={repair} />
+        <group key={s} position={[s * 0.67, 0, 0]}>
+          <Plate size={[0.3, 0.2, 2.1]} material={composite} position={[0, 0.8, -0.05]} />
+          {[-0.12, 0.04].map(z => (
+            <Plate key={z} size={[0.012, 0.2, 0.06]} material={paint} position={[s * 0.151, 0.8, z]} rotation={[-0.35, 0, 0]} />
+          ))}
         </group>
       ))}
 
-      {/* Repair emitter: a collar, a glowing core inside a cage of rings and struts, a lens on top. */}
-      <group position={[0, top, MODULE.z]}>
-        <Turned profile={[[0.3, 0], [0.3, 0.08], [0.22, 0.14]]} segments={8} material={dark} rotation={[-Math.PI / 2, 0, 0]} />
-        <Turned profile={[[0.12, 0.1], [0.12, 0.72]]} segments={8} material={core} rotation={[-Math.PI / 2, 0, 0]} />
-        {[0.24, 0.44, 0.64].map(y => (
-          <Turned key={y} profile={[[0.15, 0], [0.22, 0], [0.22, 0.05], [0.15, 0.05]]} segments={8} material={steel} position={[0, y, 0]} rotation={[-Math.PI / 2, 0, 0]} />
-        ))}
-        {[0, 1, 2, 3].map(i => (
-          <Plate key={i} size={[0.04, 0.62, 0.04]} radius={0.01} material={dark}
-            position={[Math.sin(i * Math.PI / 2 + Math.PI / 4) * 0.2, 0.43, Math.cos(i * Math.PI / 2 + Math.PI / 4) * 0.2]} />
-        ))}
-        <Turned profile={[[0.24, 0], [0.24, 0.06], [0.12, 0.12], [0.001, 0.13]]} segments={8} material={dark} position={[0, 0.72, 0]} rotation={[-Math.PI / 2, 0, 0]} />
-        <Turned profile={[[0.07, 0], [0.07, 0.04], [0.001, 0.1]]} segments={8} material={repair} position={[0, EMITTER_TIP - top - 0.1, 0]} rotation={[-Math.PI / 2, 0, 0]} />
+      {/* Equipment module: green repair crosses on its sides, team colour on its roof. */}
+      <Prism outline={MODULE} depth={0.94} axis="x" material={housing} position={[0, MODULE_Y, MODULE_Z]} />
+      {[-1, 1].map(s => (
+        <group key={s} position={[s * 0.472, MODULE_Y + 0.22, MODULE_Z]}>
+          <Strip size={[0.01, 0.07, 0.26]} material={repair} />
+          <Strip size={[0.01, 0.26, 0.07]} material={repair} />
+        </group>
+      ))}
+      <Plate size={[0.5, 0.012, 0.3]} material={paint} position={[0, top + 0.006, MODULE_Z - 0.18]} />
+
+      {/* Repair emitter on a telescopic mast: a six-sided head with a glowing band and a lens. */}
+      <group position={[0, top, MODULE_Z + 0.08]}>
+        <Plate size={[0.3, 0.1, 0.3]} material={dark} position={[0, 0.05, 0]} />
+        <Turned profile={[[0.06, 0.1], [0.06, 0.4]]} segments={6} material={steel} rotation={[-Math.PI / 2, 0, 0]} />
+        <Turned profile={[[0.045, 0.4], [0.045, 0.54]]} segments={6} material={steel} rotation={[-Math.PI / 2, 0, 0]} />
+        <Turned profile={[[0.001, 0.54], [0.17, 0.54], [0.2, 0.6], [0.2, 0.76], [0.15, 0.82], [0.001, 0.82]]} segments={6} material={dark} rotation={[-Math.PI / 2, 0, 0]} />
+        <Turned profile={[[0.206, 0.63], [0.206, 0.71]]} segments={6} material={band} rotation={[-Math.PI / 2, 0, 0]} />
+        <Turned profile={[[0.07, 0.82], [0.07, 0.85], [0.001, EMITTER_TIP - top]]} segments={6} material={repair} rotation={[-Math.PI / 2, 0, 0]} />
       </group>
 
-      {/* Sensor dish on a mast, front right of the module, turning. */}
-      <group ref={dish} position={[0.36, top, MODULE.z + 0.34]}>
-        <Turned profile={[[0.04, 0], [0.03, 0.3]]} segments={6} material={steel} rotation={[-Math.PI / 2, 0, 0]} />
-        <group position={[0, 0.32, 0]} rotation={[-0.5, 0, 0]}>
-          <Turned profile={[[0.04, 0], [0.24, 0.07], [0.22, 0.09], [0.03, 0.03]]} segments={10} material={dark} />
-          <Strip size={[0.04, 0.04, 0.1]} material={light} position={[0, 0, 0.08]} />
-        </group>
+      {/* Radar panel on a short mast, front right of the module, turning. */}
+      <group ref={radar} position={[0.32, top, MODULE_Z + 0.32]}>
+        <Turned profile={[[0.03, 0], [0.03, 0.18]]} segments={6} material={steel} rotation={[-Math.PI / 2, 0, 0]} />
+        <Plate size={[0.32, 0.18, 0.03]} material={dark} position={[0, 0.25, 0]} rotation={[-0.3, 0, 0]} />
       </group>
 
       {/* Trophy launcher, front left of the module: a tube block and a ready light (red while reloading). */}
-      <group position={[-0.32, top, MODULE.z + 0.28]}>
-        <Plate size={[0.3, 0.16, 0.24]} radius={0.03} material={dark} position={[0, 0.08, 0]} />
-        {[-0.08, 0, 0.08].map(x => (
-          <Turned key={x} profile={[[0.03, 0], [0.03, 0.05]]} segments={6} material={black} position={[x, 0.11, 0.12]} />
+      <group position={[-0.3, top, MODULE_Z + 0.3]}>
+        <Plate size={[0.26, 0.14, 0.2]} material={dark} position={[0, 0.07, 0]} rotation={[0.25, 0, 0]} />
+        {[-0.07, 0, 0.07].map(x => (
+          <Turned key={x} profile={[[0.028, 0], [0.028, 0.04]]} segments={6} material={black} position={[x, 0.1, 0.09]} rotation={[0.25, 0, 0]} />
         ))}
-        <Strip size={[0.08, 0.025, 0.025]} material={glow(trophyCooling ? PALETTE.warning : PALETTE.cyan)} position={[0, 0.17, -0.06]} />
+        <Strip size={[0.06, 0.02, 0.02]} material={glow(trophyCooling ? PALETTE.warning : PALETTE.cyan)} position={[0, 0.16, -0.07]} />
       </group>
-      {/* A whip antenna at the back. */}
-      <group position={[0.4, top, MODULE.z - 0.38]}>
-        <Turned profile={[[0.01, 0], [0.006, 0.4]]} segments={5} material={black} rotation={[-Math.PI / 2 + 0.12, 0, 0]} />
-      </group>
+      {/* Whip antennas at the back. */}
+      {[-1, 1].map(s => (
+        <group key={s} position={[s * 0.36, top, MODULE_Z - 0.4]}>
+          <Turned profile={[[0.008, 0], [0.005, 0.45]]} segments={4} material={black} rotation={[-Math.PI / 2 + 0.1, 0, 0]} />
+        </group>
+      ))}
     </group>
   );
 };

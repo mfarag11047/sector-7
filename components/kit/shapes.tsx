@@ -1,6 +1,7 @@
-// The unit kit's parts: bevelled plates, extruded armour with angled faces, turned parts (barrels,
+// The unit kit's parts: armour plates, extruded armour with angled faces, turned parts (barrels,
 // wheels, exhausts), light strips and a soft contact shadow. With the kit's flat-shaded materials
-// (materials.ts), the shapes themselves carry the detail: every bevel and facet reads as an edge.
+// (materials.ts), the shapes themselves carry the detail. Edges are sharp unless a part asks for a
+// rounded edge (`radius`) or a bevel: armour plate meets at hard corners.
 //
 // Every part's geometry is cached by its dimensions and shared between units.
 
@@ -20,17 +21,17 @@ const cachedGeometry = (key: string, make: () => THREE.BufferGeometry) => {
 
 interface Placed { position?: V3; rotation?: V3; material: THREE.Material; shadow?: boolean }
 
-// A box with rounded edges: the basic armour plate.
-export const Plate: React.FC<Placed & { size: V3; radius?: number }> = ({ size, radius = 0.03, material, position, rotation, shadow = true }) => {
+// A box, the basic armour plate: sharp-edged, or with its edges rounded by `radius`.
+export const Plate: React.FC<Placed & { size: V3; radius?: number }> = ({ size, radius = 0, material, position, rotation, shadow = true }) => {
   const r = Math.min(radius, Math.min(...size) / 2 - 1e-4);
-  const geometry = cachedGeometry(`plate:${size.join(',')}:${r}`, () => new RoundedBoxGeometry(size[0], size[1], size[2], 2, Math.max(r, 0.001)));
+  const geometry = cachedGeometry(`plate:${size.join(',')}:${r}`, () => r > 0 ? new RoundedBoxGeometry(size[0], size[1], size[2], 2, r) : new THREE.BoxGeometry(...size));
   return <mesh geometry={geometry} material={material} position={position} rotation={rotation} castShadow={shadow} receiveShadow />;
 };
 
-// A 2D outline extruded into a slab with bevelled edges, for armour with angled faces.
+// A 2D outline extruded into a slab, for armour with angled faces: sharp-edged, or bevelled by `bevel`.
 // axis 'x': the outline is a side view, [forward (z), up (y)] points, extruded across the width.
 // axis 'y': the outline is a top view, [right (x), forward (z)] points, extruded upward from 0.
-export const Prism: React.FC<Placed & { outline: [number, number][]; depth: number; axis: 'x' | 'y'; bevel?: number }> = ({ outline, depth, axis, bevel = 0.025, material, position, rotation, shadow = true }) => {
+export const Prism: React.FC<Placed & { outline: [number, number][]; depth: number; axis: 'x' | 'y'; bevel?: number }> = ({ outline, depth, axis, bevel = 0, material, position, rotation, shadow = true }) => {
   const geometry = cachedGeometry(`prism:${axis}:${depth}:${bevel}:${outline.flat().join(',')}`, () => {
     const shape = new THREE.Shape(outline.map(([u, v]) => new THREE.Vector2(u, axis === 'y' ? -v : v)));
     const g = new THREE.ExtrudeGeometry(shape, { depth: depth - bevel * 2, bevelEnabled: bevel > 0, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 1, curveSegments: 4 });

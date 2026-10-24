@@ -1,17 +1,17 @@
 // The Titan main battle tank (and the orbital-drop Titan), built from the unit kit
-// (components/kit): the pilot for the kit's look.
+// (components/kit).
 //
-// Clean, defined shapes rather than surface detail, each part in what it would be made of: a low
-// armoured wedge hull over dark tracks and metal wheels; dark composite side skirts with a sawtooth
-// lower edge, joined to the hull by composite decks over the tracks; and a faceted armoured turret
-// carrying the rail gun: two long bright-metal blades round a glowing core, lit along their sides.
-// Team colour on the skirts' top edges, the nose, the turret roof and a collar round the gun; cyan
-// light panels on the glacis and the turret cheeks; a roof gun, a sensor and two whip antennas.
+// Simple but military: sharp-edged armour, each part in what it would be made of. A long hull with
+// a sloped glacis and a row of armour blocks across the nose; dark composite side skirts over the
+// tracks, hung with add-on armour modules and two diagonal stripes in team colour; and a long, low,
+// angular turret stepped in two tiers, carrying the rail gun: a slab-sided shroud with cooling
+// slots and a glowing slit down each side, ending in a round barrel. A remote weapon station, a
+// commander's sight and two whip antennas on the roof; team colour on the turret roof.
 //
-// It moves: the turret turns to what the tank is shooting at, the rail gun recoils and its lights
+// It moves: the turret turns to what the tank is shooting at, the rail gun recoils and its slits
 // flare when it fires, and the tracks run and the hull rocks while it drives.
 //
-// Built facing +Z, about 2.5 long in its own units; Unit.tsx scales it up.
+// Built facing +Z, about 2.6 long in its own units; Unit.tsx scales it up.
 
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -21,20 +21,23 @@ import { ContactShadow, Plate, Prism, Strip, Turned, Wheel } from '../kit/shapes
 
 export const TITAN_SCALE = 2.6;
 
-// Hull side profile: [forward, up].
-const UPPER_HULL: [number, number][] = [[-1.18, 0.5], [-1.18, 0.86], [-0.95, 0.94], [0.5, 0.94], [1.08, 0.76], [1.2, 0.6], [1.04, 0.5]];
-// Side skirt, with a sawtooth lower edge.
-const SKIRT: [number, number][] = [[-1.28, 0.8], [1.1, 0.8], [1.3, 0.58], [1.12, 0.46], [0.84, 0.6], [0.56, 0.44], [0.28, 0.6], [0, 0.44],
-  [-0.28, 0.6], [-0.56, 0.44], [-0.84, 0.6], [-1.12, 0.44], [-1.28, 0.52]];
-// Turret top view: [right, forward].
-const TURRET: [number, number][] = [[-0.56, -0.62], [0.56, -0.62], [0.64, 0.05], [0.36, 0.56], [-0.36, 0.56], [-0.64, 0.05]];
-// A rail gun blade, top view: [right, forward], pointed at the muzzle.
-const BLADE: [number, number][] = [[-0.15, 0.6], [0.15, 0.6], [0.17, 2.2], [0, 2.8], [-0.17, 2.2]];
-const WHEELS_Z = [-0.88, -0.44, 0, 0.44, 0.88];
-const TRACK_X = 0.8;
+// Hull side profile: [forward, up], a long sloped glacis.
+const HULL: [number, number][] = [[-1.25, 0.3], [-1.25, 0.92], [-1.12, 0.96], [0.5, 0.96], [1.22, 0.66], [1.3, 0.56], [1.15, 0.32], [-1.1, 0.3]];
+// Side skirt, side view: angled up at the front.
+const SKIRT: [number, number][] = [[-1.3, 0.3], [-1.3, 0.9], [0.95, 0.9], [1.3, 0.62], [1.3, 0.46], [1.12, 0.3]];
+// Turret top view, [right, forward]: long and low, pointed toward the gun.
+const TURRET: [number, number][] = [[-0.5, -0.85], [0.5, -0.85], [0.58, -0.2], [0.5, 0.5], [0.22, 0.95], [-0.22, 0.95], [-0.5, 0.5], [-0.58, -0.2]];
+// The turret's upper tier: the same outline drawn in, so the turret steps in at the top.
+const TURRET_TOP = TURRET.map(([x, z]) => [x * 0.82, z * 0.85 - 0.05] as [number, number]);
+// The rail gun's shroud, side view [forward, up]: deepest near the turret, tapering to the barrel.
+const SHROUD: [number, number][] = [[0.85, -0.1], [0.85, 0.1], [1.25, 0.11], [2.35, 0.075], [2.35, -0.075], [1.25, -0.11]];
+const ROAD_WHEELS_Z = [-0.95, -0.57, -0.19, 0.19, 0.57, 0.95];
+const TRACK_X = 0.78;
+const SKIRT_X = 1.02;
+const MODULES_Z = [-1.05, -0.6, -0.15, 0.3, 0.75];
 const RECOIL_MS = 450;
-// The turret's angled front cheeks: the yaw that lays a panel along the right one, and where it sits.
-const CHEEK_YAW = Math.atan2(0.51, 0.28);
+// The upper glacis's slope, for parts laid on it.
+const GLACIS = Math.atan2(0.96 - 0.66, 1.22 - 0.5);
 
 export const TitanTankModel: React.FC<{
   teamColor: string;
@@ -47,9 +50,8 @@ export const TitanTankModel: React.FC<{
   decoy?: boolean;
 }> = ({ teamColor, moving, railFiredAt, aimRef, flashRef, decoy }) => {
   const armour = kitMaterial('armour'), dark = kitMaterial('armourDark'), steel = kitMaterial('steel'), black = kitMaterial('black');
-  const composite = kitMaterial('composite'), housing = kitMaterial('housing');
-  const paint = teamPaint(teamColor), light = glow(PALETTE.cyan);
-  // This tank's own: its tracks scroll, and its rail gun's lights flare.
+  const composite = kitMaterial('composite'), housing = kitMaterial('housing'), paint = teamPaint(teamColor);
+  // This tank's own: its tracks scroll, and its rail gun's slits flare.
   const own_ = useMemo(() => ({ tread: own(kitMaterial('tread'), true), core: own(glow(PALETTE.cyan)) as THREE.MeshBasicMaterial }), []);
   useEffect(() => () => { own_.tread.map?.dispose(); own_.tread.dispose(); own_.core.dispose(); }, [own_]);
   own_.tread.map!.repeat.set(1, 8);
@@ -75,11 +77,11 @@ export const TitanTankModel: React.FC<{
       d = Math.atan2(Math.sin(d), Math.cos(d));
       t.rotation.y += d * Math.min(1, delta * 4);
     }
-    // Rail gun: kicks back and flares when it fires, then pulses softly as it charges.
+    // Rail gun: kicks back and flares when it fires, then glows softly as it charges.
     const since = railFiredAt === undefined ? Infinity : now - railFiredAt;
     const kick = since < RECOIL_MS ? Math.pow(1 - since / RECOIL_MS, 2) : 0;
     if (rail.current) rail.current.position.z = -kick * 0.32;
-    const pulse = 0.75 + 0.2 * Math.sin(clock.elapsedTime * 3);
+    const pulse = 0.7 + 0.2 * Math.sin(clock.elapsedTime * 3);
     own_.core.color.copy(scratch.c.set(PALETTE.cyan)).multiplyScalar(pulse + kick * 2.5);
     // Driving: tracks run, road wheels turn, the hull rocks a little.
     if (moving) {
@@ -91,99 +93,90 @@ export const TitanTankModel: React.FC<{
 
   return (
     <group scale={TITAN_SCALE}>
-      <ContactShadow size={[2.4, 3.0]} />
-      {/* Tracks: dark belts with running treads, drive wheels at each end, road wheels below the skirts. */}
+      <ContactShadow size={[2.5, 3.1]} />
+      {/* Tracks: dark belts with running treads, sprockets at each end, road wheels below the skirts. */}
       {[-1, 1].map(s => (
         <group key={s} position={[s * TRACK_X, 0, 0]}>
-          <Plate size={[0.42, 0.5, 2.5]} radius={0.16} material={own_.tread} position={[0, 0.27, 0]} />
-          <Wheel radius={0.17} width={0.1} material={steel} position={[s * 0.2, 0.32, 1.12]} />
-          <Wheel radius={0.17} width={0.1} material={steel} position={[s * 0.2, 0.32, -1.12]} />
+          <Plate size={[0.4, 0.42, 2.45]} radius={0.15} material={own_.tread} position={[0, 0.23, 0]} />
+          <Wheel radius={0.18} width={0.1} segments={10} material={dark} position={[s * 0.19, 0.26, 1.08]} />
+          <Wheel radius={0.18} width={0.1} segments={10} material={dark} position={[s * 0.19, 0.26, -1.08]} />
         </group>
       ))}
       <group ref={wheels}>
-        {[-1, 1].flatMap(s => WHEELS_Z.map(z => (
-          <group key={`${s}${z}`} position={[s * (TRACK_X + 0.22), 0.2, z]}>
-            <Wheel radius={0.15} width={0.06} material={steel} />
-            <Wheel radius={0.06} width={0.08} material={black} />
+        {[-1, 1].flatMap(s => ROAD_WHEELS_Z.map(z => (
+          <group key={`${s}${z}`} position={[s * (TRACK_X + 0.21), 0.17, z]}>
+            <Wheel radius={0.15} width={0.05} segments={12} material={steel} />
+            <Wheel radius={0.05} width={0.07} segments={6} material={black} />
           </group>
         )))}
       </group>
 
       <group ref={hull}>
-        {/* Lower hull and the sloped upper hull, team colour across the nose. */}
-        <Plate size={[1.2, 0.32, 2.3]} radius={0.06} material={dark} position={[0, 0.46, 0]} />
-        <Prism outline={UPPER_HULL} depth={1.3} axis="x" material={armour} />
-        <Plate size={[1.1, 0.06, 0.08]} radius={0.02} material={paint} position={[0, 0.6, 1.18]} />
-        {/* Side skirts: team colour along the top, a light at the front. */}
-        {[-1, 1].map(s => (
-          <group key={s} position={[s * 1.04, 0, 0]}>
-            <Prism outline={SKIRT} depth={0.08} axis="x" material={composite} />
-            {/* Track guard: a deck over the track from the hull out to the skirt, sloping down at the front. */}
-            <Plate size={[0.42, 0.05, 2.38]} radius={0.015} material={composite} position={[-s * 0.22, 0.785, -0.09]} />
-            <Plate size={[0.42, 0.05, 0.3]} radius={0.015} material={composite} position={[-s * 0.22, 0.675, 1.19]} rotation={[0.83, 0, 0]} />
-            <Plate size={[0.09, 0.07, 2.2]} radius={0.02} material={paint} position={[0, 0.8, -0.08]} />
-            <Strip size={[0.02, 0.06, 0.26]} material={light} position={[s * 0.045, 0.68, 0.86]} />
-          </group>
+        {/* Hull, with a row of armour blocks across the lower nose. */}
+        <Prism outline={HULL} depth={1.2} axis="x" material={armour} />
+        {[-0.42, -0.14, 0.14, 0.42].map(x => (
+          <Plate key={x} size={[0.26, 0.17, 0.08]} material={dark} position={[x, 0.46, 1.27]} rotation={[-0.56, 0, 0]} />
         ))}
-        {/* Light panels along the top of the glacis, below the turret. */}
-        {[-0.4, 0, 0.4].map(x => <Strip key={x} size={[0.2, 0.025, 0.07]} material={light} position={[x, 0.945, 0.56]} />)}
-        {/* Engine deck: a dark panel with vent slots, and two exhausts. */}
-        <Plate size={[0.9, 0.04, 0.55]} radius={0.015} material={dark} position={[0, 0.955, -0.72]} />
-        {[-0.18, -0.06, 0.06, 0.18].map(z => <Plate key={z} size={[0.74, 0.03, 0.05]} radius={0.01} material={black} position={[0, 0.97, -0.72 + z]} />)}
-        {[-0.42, 0.42].map(x => (
-          <group key={x} position={[x, 0.78, -1.2]} rotation={[0, Math.PI, 0]}>
-            <Turned profile={[[0.08, 0], [0.09, 0.05], [0.09, 0.14], [0.075, 0.16]]} material={dark} />
-            <Strip size={[0.1, 0.1, 0.01]} material={glow('#ff8a3d', 0.7)} position={[0, 0, 0.15]} />
-          </group>
-        ))}
-        {/* Headlights and tow hooks on the nose. */}
+        {/* Headlights in housings at the glacis corners; small tail lights. */}
         {[-0.45, 0.45].map(x => (
           <group key={x}>
-            <Strip size={[0.12, 0.06, 0.02]} material={glow(PALETTE.headlight)} position={[x, 0.72, 1.135]} rotation={[-0.6, 0, 0]} />
-            <Plate size={[0.08, 0.06, 0.1]} radius={0.015} material={steel} position={[x * 0.7, 0.52, 1.2]} />
+            <Plate size={[0.18, 0.07, 0.12]} material={dark} position={[x, 0.73, 1.09]} rotation={[GLACIS, 0, 0]} />
+            <Strip size={[0.11, 0.035, 0.015]} material={glow(PALETTE.headlight)} position={[x, 0.735, 1.152]} />
+            <Strip size={[0.08, 0.035, 0.015]} material={glow(PALETTE.warning)} position={[x, 0.86, -1.258]} />
+          </group>
+        ))}
+        {/* Engine deck: vent slats; exhaust boxes on the rear plate. */}
+        {[-1.05, -0.95, -0.85, -0.75, -0.65].map(z => <Plate key={z} size={[0.86, 0.015, 0.05]} material={black} position={[0, 0.967, z]} />)}
+        {[-0.38, 0.38].map(x => <Plate key={x} size={[0.24, 0.14, 0.08]} material={dark} position={[x, 0.7, -1.29]} />)}
+
+        {/* Side skirts: composite, with a deck over the track, add-on armour modules, two team stripes. */}
+        {[-1, 1].map(s => (
+          <group key={s}>
+            <Prism outline={SKIRT} depth={0.08} axis="x" material={composite} position={[s * SKIRT_X, 0, 0]} />
+            <Plate size={[0.44, 0.04, 2.25]} material={composite} position={[s * 0.81, 0.88, -0.175]} />
+            <Plate size={[0.44, 0.04, 0.45]} material={composite} position={[s * 0.81, 0.74, 1.125]} rotation={[0.675, 0, 0]} />
+            {MODULES_Z.map(z => <Plate key={z} size={[0.05, 0.4, 0.41]} material={armour} position={[s * (SKIRT_X + 0.065), 0.63, z]} />)}
+            {[-0.38, -0.2].map(z => (
+              <Plate key={z} size={[0.012, 0.46, 0.07]} material={paint} position={[s * (SKIRT_X + 0.095), 0.63, z]} rotation={[-0.35, 0, 0]} />
+            ))}
           </group>
         ))}
 
-        {/* The turret. */}
-        <group ref={turret} position={[0, 0.94, -0.12]}>
-          <Prism outline={TURRET} depth={0.4} axis="y" bevel={0.035} material={armour} />
-          {/* Light panels on the angled front cheeks. */}
-          {[-1, 1].map(s => (
-            <Strip key={s} size={[0.34, 0.08, 0.02]} material={light} position={[s * 0.51, 0.22, 0.31]} rotation={[0, s * CHEEK_YAW, 0]} />
-          ))}
-          {/* Roof: team colour panel, hatch, sensor, roof gun and antennas. */}
-          <Plate size={[0.8, 0.04, 0.36]} radius={0.015} material={paint} position={[0, 0.42, -0.34]} />
-          <Wheel radius={0.14} width={0.06} material={dark} position={[0.2, 0.43, 0.08]} rotation={[0, 0, Math.PI / 2]} />
-          <group position={[0.42, 0.45, 0.2]}>
-            <Plate size={[0.18, 0.14, 0.16]} radius={0.025} material={housing} />
-            <Strip size={[0.1, 0.05, 0.01]} material={light} position={[0, 0, 0.085]} />
+        {/* Turret ring, then the turret: two angular tiers. */}
+        <Turned profile={[[0.44, 0], [0.44, 0.06]]} segments={12} material={black} position={[0, 0.96, -0.2]} rotation={[-Math.PI / 2, 0, 0]} />
+        <group ref={turret} position={[0, 1.02, -0.2]}>
+          <Prism outline={TURRET} depth={0.26} axis="y" material={armour} />
+          <Prism outline={TURRET_TOP} depth={0.1} axis="y" material={armour} position={[0, 0.26, 0]} />
+          {/* Roof: team colour panel, hatch, commander's sight, remote weapon station, antennas. */}
+          <Plate size={[0.6, 0.015, 0.28]} material={paint} position={[0, 0.367, -0.5]} />
+          <Plate size={[0.22, 0.025, 0.22]} material={dark} position={[-0.2, 0.37, -0.12]} />
+          <group position={[-0.22, 0.36, 0.22]}>
+            <Turned profile={[[0.08, 0], [0.08, 0.14], [0.001, 0.14]]} segments={8} material={housing} rotation={[-Math.PI / 2, 0, 0]} />
+            <Plate size={[0.08, 0.04, 0.01]} material={black} position={[0, 0.09, 0.075]} />
           </group>
-          <group position={[-0.24, 0.42, 0.02]}>
-            <Plate size={[0.16, 0.12, 0.2]} radius={0.025} material={dark} position={[0, 0.06, 0]} />
-            <Turned profile={[[0.022, 0], [0.022, 0.32], [0.03, 0.34], [0.03, 0.38]]} segments={8} material={black} position={[0, 0.08, 0.08]} />
+          <group position={[0.2, 0.36, 0.05]}>
+            <Plate size={[0.16, 0.08, 0.18]} material={dark} position={[0, 0.04, 0]} />
+            <Plate size={[0.07, 0.07, 0.09]} material={housing} position={[0.1, 0.1, 0.02]} />
+            <Turned profile={[[0.018, 0], [0.018, 0.3]]} segments={6} material={black} position={[-0.02, 0.1, 0.05]} />
           </group>
           {[-1, 1].map(s => (
-            <group key={s} position={[s * 0.44, 0.4, -0.52]}>
-              <Turned profile={[[0.01, 0], [0.006, 0.32]]} segments={5} material={black} rotation={[-Math.PI / 2 + 0.15, 0, 0]} />
-              {s < 0 && <Strip size={[0.035, 0.035, 0.035]} material={glow(PALETTE.warning)} position={[0, 0.31, 0.05]} />}
+            <group key={s} position={[s * 0.36, 0.36, -0.66]}>
+              <Plate size={[0.06, 0.06, 0.06]} material={dark} position={[0, 0.03, 0]} />
+              <Turned profile={[[0.008, 0], [0.005, 0.55]]} segments={4} material={black} rotation={[-Math.PI / 2 + 0.1, 0, 0]} />
             </group>
           ))}
-          {/* Bustle: a stowage box behind. */}
-          <Plate size={[0.9, 0.2, 0.2]} radius={0.04} material={composite} position={[0, 0.17, -0.72]} />
-          {/* Mantlet, and the rail gun on its recoil slide: two pointed blades round a glowing core,
-              lit along their sides, a team-colour collar near the base. */}
-          <Plate size={[0.46, 0.3, 0.22]} radius={0.05} material={dark} position={[0, 0.2, 0.62]} />
-          <group ref={rail} position={[0, 0.22, 0]}>
-            <Plate size={[0.4, 0.4, 0.42]} radius={0.05} material={dark} position={[0, 0, 0.86]} />
-            <Prism outline={BLADE} depth={0.14} axis="y" bevel={0.025} material={steel} position={[0, -0.17, 0]} />
-            <Prism outline={BLADE} depth={0.14} axis="y" bevel={0.025} material={steel} position={[0, 0.03, 0]} />
-            <Strip size={[0.08, 0.035, 1.9]} material={own_.core} position={[0, 0, 1.6]} />
-            {[-1, 1].map(s => [-0.1, 0.1].map(y => (
-              <Strip key={`${s}${y}`} size={[0.02, 0.05, 1.1]} material={own_.core} position={[s * 0.163, y, 1.6]} />
+          {/* The rail gun on its recoil slide. */}
+          <group ref={rail} position={[0, 0.13, 0]}>
+            <Plate size={[0.36, 0.22, 0.2]} material={dark} position={[0, 0, 0.9]} />
+            <Prism outline={SHROUD} depth={0.2} axis="x" material={armour} />
+            {[1.0, 1.07, 1.14, 1.21, 1.28, 1.35].map(z => [-1, 1].map(s => (
+              <Plate key={`${z}${s}`} size={[0.012, 0.11, 0.035]} material={black} position={[s * 0.1, 0, z]} />
             )))}
-            <Strip size={[0.12, 0.012, 0.4]} material={own_.core} position={[0, 0.175, 2.2]} />
-            <Plate size={[0.42, 0.42, 0.12]} radius={0.03} material={paint} position={[0, 0, 1.15]} />
-            <mesh ref={flashRef} position={[0, 0, 2.9]} visible={false} raycast={() => null}>
+            {[-1, 1].map(s => <Strip key={s} size={[0.012, 0.022, 0.75]} material={own_.core} position={[s * 0.1, 0, 1.88]} />)}
+            <Plate size={[0.06, 0.012, 1.0]} material={dark} position={[0, 0.1, 1.55]} rotation={[0.03, 0, 0]} />
+            <Plate size={[0.22, 0.17, 0.05]} material={steel} position={[0, 0, 2.3]} />
+            <Turned profile={[[0.06, 0], [0.06, 0.5], [0.075, 0.5], [0.075, 0.6], [0.04, 0.6]]} segments={10} material={steel} position={[0, 0, 2.33]} />
+            <mesh ref={flashRef} position={[0, 0, 3.0]} visible={false} raycast={() => null}>
               <sphereGeometry args={[0.18, 8, 6]} />
               <meshBasicMaterial color="#9be7ff" transparent opacity={0.85} toneMapped={false} depthWrite={false} />
             </mesh>
