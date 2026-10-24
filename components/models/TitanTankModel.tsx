@@ -116,6 +116,9 @@ export const TitanTankModel: React.FC<{
         {[-1, 1].map(s => (
           <group key={s} position={[s * 1.04, 0, 0]}>
             <Prism outline={SKIRT} depth={0.08} axis="x" material={armour} />
+            {/* Track guard: a deck over the track from the hull out to the skirt, sloping down at the front. */}
+            <Plate size={[0.42, 0.05, 2.38]} radius={0.015} material={armour} position={[-s * 0.22, 0.785, -0.09]} />
+            <Plate size={[0.42, 0.05, 0.3]} radius={0.015} material={armour} position={[-s * 0.22, 0.675, 1.19]} rotation={[0.83, 0, 0]} />
             <Plate size={[0.09, 0.07, 2.2]} radius={0.02} material={paint} position={[0, 0.8, -0.08]} />
             <Strip size={[0.02, 0.06, 0.26]} material={light} position={[s * 0.045, 0.68, 0.86]} />
           </group>
