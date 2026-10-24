@@ -1,7 +1,7 @@
-// The unit kit's parts: armour plates, extruded armour with angled faces, turned parts (barrels,
-// wheels, exhausts), light strips and a soft contact shadow. With the kit's flat-shaded materials
-// (materials.ts), the shapes themselves carry the detail. Edges are sharp unless a part asks for a
-// rounded edge (`radius`) or a bevel: armour plate meets at hard corners.
+// The unit kit's parts: armour plates, extruded armour with angled faces, tapering hulls, turned
+// parts (barrels, wheels, exhausts), light strips and a soft contact shadow. With the kit's
+// flat-shaded materials (materials.ts), the shapes themselves carry the detail. Edges are sharp
+// unless a part asks for a rounded edge (`radius`) or a bevel: armour plate meets at hard corners.
 //
 // Every part's geometry is cached by its dimensions and shared between units.
 
@@ -37,6 +37,35 @@ export const Prism: React.FC<Placed & { outline: [number, number][]; depth: numb
     const g = new THREE.ExtrudeGeometry(shape, { depth: depth - bevel * 2, bevelEnabled: bevel > 0, bevelSize: bevel, bevelThickness: bevel, bevelSegments: 1, curveSegments: 4 });
     if (axis === 'x') { g.translate(0, 0, -(depth - bevel * 2) / 2); g.rotateY(-Math.PI / 2); }
     else { g.rotateX(-Math.PI / 2); g.translate(0, bevel, 0); }
+    return g;
+  });
+  return <mesh geometry={geometry} material={material} position={position} rotation={rotation} castShadow={shadow} receiveShadow />;
+};
+
+// A solid tapering from one outline to another: `bottom` at y = 0 and `top` at y = `height`, both
+// top views ([right, forward] points, convex, the same number of points, in the same order). Each
+// pair of edges is joined by a flat face, so a wide top can slope in to a narrow keel.
+export const Loft: React.FC<Placed & { top: [number, number][]; bottom: [number, number][]; height: number }> = ({ top, bottom, height, material, position, rotation, shadow = true }) => {
+  const geometry = cachedGeometry(`loft:${height}:${top.flat().join(',')}:${bottom.flat().join(',')}`, () => {
+    const T = top.map(([x, z]) => new THREE.Vector3(x, height, z)), B = bottom.map(([x, z]) => new THREE.Vector3(x, 0, z));
+    const centre = [...T, ...B].reduce((c, p) => c.add(p), new THREE.Vector3()).multiplyScalar(1 / (T.length + B.length));
+    const tris: THREE.Vector3[][] = [];
+    for (let i = 0; i < T.length; i++) {
+      const j = (i + 1) % T.length;
+      tris.push([T[i], T[j], B[j]], [T[i], B[j], B[i]]);
+    }
+    for (let i = 1; i < T.length - 1; i++) tris.push([T[0], T[i], T[i + 1]], [B[0], B[i], B[i + 1]]);
+    const pos: number[] = [], n = new THREE.Vector3(), mid = new THREE.Vector3();
+    for (const [a, b, c] of tris) {
+      // Wound to face outward from the solid's centre.
+      n.crossVectors(b.clone().sub(a), c.clone().sub(a));
+      mid.copy(a).add(b).add(c).multiplyScalar(1 / 3).sub(centre);
+      const [p, q, r] = n.dot(mid) < 0 ? [a, c, b] : [a, b, c];
+      pos.push(p.x, p.y, p.z, q.x, q.y, q.z, r.x, r.y, r.z);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.computeVertexNormals();
     return g;
   });
   return <mesh geometry={geometry} material={material} position={position} rotation={rotation} castShadow={shadow} receiveShadow />;

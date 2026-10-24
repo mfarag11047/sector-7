@@ -295,7 +295,8 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
 - **Textures** (`textures.ts`): only two, drawn in code: a soft tread that scrolls so tracks
   visibly run, and a contact shadow.
 - **Parts** (`shapes.tsx`): `Plate` (a box, sharp unless given a `radius`), `Prism` (an outline
-  extruded into a slab, for angled armour, sharp unless given a `bevel`), `Turned` (lathe parts:
+  extruded into a slab, for angled armour, sharp unless given a `bevel`), `Loft` (a solid tapering
+  from one top-view outline to another, for hulls that slope in), `Turned` (lathe parts:
   barrels, masts, sights; few segments give flat facets), `Wheel`, `Strip` (a light) and
   `ContactShadow`. Geometry is cached and shared.
 - **The Titan**: a long hull with a sloped glacis and armour blocks across the nose; composite side
@@ -361,13 +362,13 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   tones, fender pods, small red and amber lights, a team stripe down the spine, and a sensor array
   on a short mast (a pan-tilt head with three lenses and a dome) that scans to and fro.
 - **The Hornet** (`components/models/HornetModel.tsx`): an armoured VTOL attack drone, wide and
-  low: a broad, chamfered, layered deck (spine, dome, cable runs, handle, antenna, team colour) over
-  a faceted keel prow hanging from the front centre. The prow's face carries a sensor array (two
-  lenses, a grille, a light), and at its foot the twin-barrelled gun only just stands out of its
-  slot, turning a little toward its target (`turretAt`) and flashing when it fires. Four splayed
-  thruster pods under the deck's corners fire flickering jets downward (grab rails, team markings,
-  canisters on the front pair); with Hunter-Killer Rockets researched, a cluster of four rocket
-  tubes rides on each side of the deck, angled forward and out.
+  low: a broad, chamfered, layered deck (spine, dome, cable runs, handle, antenna, team colour),
+  and below it one hull sloping in on every side to a narrow keel (the kit's `Loft`). The keel's
+  flat face carries a sensor array (two lenses, a grille, a light), and at its foot the
+  twin-barrelled gun only just stands out of its slot, turning a little toward its target
+  (`turretAt`) and flashing when it fires. Four splayed thruster pods hang under the deck's rim and
+  fire flickering jets downward (grab rails, team markings, canisters on the front pair); with
+  Hunter-Killer Rockets researched, a cluster of four rocket tubes rides on each side of the deck.
 
 ### Rigged models
 

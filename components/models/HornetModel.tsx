@@ -1,14 +1,14 @@
 // The Hornet gunship, built from the unit kit (components/kit).
 //
-// Simple but military: an armoured VTOL attack drone, wide and low. A broad, flat, layered armour
-// deck (a raised spine, a dome, cable runs, a handle, an antenna, team colour) over a narrow
-// faceted prow, a keel with a narrow flat face, that hangs down from the front centre. On the prow's
-// face, a sensor array (two lenses, a grille, a light); at its foot, the gun: twin barrels that
-// only just stand out of their slot, turning a little toward what the Hornet is shooting at
-// (`aimRef`) and flashing at the muzzles (`flashRef`). Four thruster pods sit under the deck's
-// corners, each with grab rails, a team marking and a downward jet; the front pair carry round
-// canisters. With Hunter-Killer Rockets researched, a cluster of four rocket tubes rides on each
-// side of the deck, angled forward and out.
+// Simple but military: an armoured VTOL attack drone, wide and low. A broad, chamfered, layered
+// armour deck (a raised spine, a dome, cable runs, a handle, an antenna, team colour), and below it
+// one hull sloping in on every side to a narrow keel. On the keel's flat face, a sensor array (two
+// lenses, a grille, a light); at its foot, the gun: twin barrels that only just stand out of their
+// slot, turning a little toward what the Hornet is shooting at (`aimRef`) and flashing at the
+// muzzles (`flashRef`). Four splayed thruster pods hang under the deck's rim, each with grab rails,
+// a team marking and a downward jet; the front pair carry round canisters. With Hunter-Killer
+// Rockets researched, a cluster of four rocket tubes rides on each side of the deck, angled
+// forward and out.
 //
 // It moves: its jets flicker under it, and it bobs and banks gently as it hovers.
 //
@@ -18,21 +18,21 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { glow, kitMaterial, own, PALETTE, teamPaint } from '../kit/materials';
-import { Plate, Prism, Strip, Turned, Wheel } from '../kit/shapes';
+import { Loft, Plate, Prism, Strip, Turned, Wheel } from '../kit/shapes';
 
 const SCALE = 2.4;
 // The deck, top view [right, forward]: broad, its front drawn in to the prow.
 const DECK: [number, number][] = [[-0.8, -0.7], [0.8, -0.7], [0.96, -0.22], [0.8, 0.4], [0.3, 0.66], [-0.3, 0.66], [-0.8, 0.4], [-0.96, -0.22]];
 const DECK_TOP = DECK.map(([x, z]) => [x * 0.7, z * 0.78 - 0.06] as [number, number]);
 const DECK_Y = 0.05, DECK_H = 0.14;
-// The prow, top view [right, forward]: a keel hanging down from the deck's front, a narrow flat
-// face between angled cheeks.
-const PROW: [number, number][] = [[-0.24, -0.4], [0.24, -0.4], [0.26, 0.42], [0.11, 0.7], [-0.11, 0.7], [-0.26, 0.42]];
-const PROW_Y = -0.68, FACE_Z = 0.7;
+// The hull below the deck tapers in to a narrow keel: the keel's outline, top view, matching the
+// deck's point for point. Its front is a flat face for the sensors, with the gun at its foot.
+const KEEL: [number, number][] = [[-0.2, -0.45], [0.2, -0.45], [0.26, -0.1], [0.26, 0.4], [0.11, 0.66], [-0.11, 0.66], [-0.26, 0.4], [-0.26, -0.1]];
+const KEEL_Y = -0.68, FACE_Z = 0.66;
 // A thruster pod, side view: a tall housing, its top front cut back, its foot drawn in.
 const POD: [number, number][] = [[-0.22, -0.62], [-0.22, 0.02], [0.02, 0.12], [0.22, -0.02], [0.22, -0.5], [0.12, -0.62]];
 const POD_W = 0.3;
-const PODS: [number, number][] = [[-0.62, 0.2], [0.62, 0.2], [-0.66, -0.44], [0.66, -0.44]];
+const PODS: [number, number][] = [[-0.86, 0.2], [0.86, 0.2], [-0.9, -0.44], [0.9, -0.44]];
 // Rocket tubes in each side's cluster: [up, along].
 const TUBES: [number, number][] = [[0, 0], [0, 0.13], [0.11, 0.065], [0.11, 0.195]];
 
@@ -97,12 +97,10 @@ export const HornetModel: React.FC<{
         </group>
         {[-1, 1].map(s => <Plate key={s} size={[0.24, 0.03, 0.03]} material={black} position={[s * 0.5, DECK_Y + DECK_H - 0.03, 0.56]} rotation={[0, s * 0.62, 0]} />)}
 
-        {/* The prow: a faceted keel, its foot cut back under the face. */}
-        <Prism outline={PROW} depth={DECK_Y - PROW_Y} axis="y" material={armour} position={[0, PROW_Y, 0]} />
-        <Plate size={[0.4, 0.1, 0.5]} material={dark} position={[0, PROW_Y + 0.02, 0.2]} />
-        {[-1, 1].map(s => <Plate key={s} size={[0.012, 0.5, 0.06]} material={dark} position={[s * 0.255, -0.3, 0.3]} />)}
+        {/* The hull, sloping in from the deck to the keel. */}
+        <Loft top={DECK} bottom={KEEL} height={DECK_Y - 0.06 - KEEL_Y} material={armour} position={[0, KEEL_Y, 0]} />
 
-        {/* The sensor array on the prow's face: a housing, two lenses, a grille, a light. */}
+        {/* The sensor array on the keel's face: a housing, two lenses, a grille, a light. */}
         <group position={[0, -0.28, FACE_Z]}>
           <Plate size={[0.18, 0.26, 0.02]} material={black} position={[0, 0, 0.01]} />
           {[0.06, -0.02].map((y, i) => (
@@ -115,9 +113,9 @@ export const HornetModel: React.FC<{
         </group>
         <Strip size={[0.1, 0.025, 0.012]} material={glow(PALETTE.headlight)} position={[0, -0.06, FACE_Z + 0.006]} />
 
-        {/* The gun at the prow's foot: twin barrels just out of their slot. */}
-        <Plate size={[0.2, 0.1, 0.06]} material={black} position={[0, PROW_Y + 0.12, FACE_Z]} />
-        <group ref={gun} position={[0, PROW_Y + 0.12, FACE_Z - 0.04]}>
+        {/* The gun at the keel's foot: twin barrels just out of their slot. */}
+        <Plate size={[0.2, 0.1, 0.06]} material={black} position={[0, KEEL_Y + 0.12, FACE_Z]} />
+        <group ref={gun} position={[0, KEEL_Y + 0.12, FACE_Z - 0.04]}>
           {[-0.05, 0.05].map(x => (
             <group key={x} position={[x, 0, 0]}>
               <Turned profile={[[0.03, 0], [0.03, 0.16]]} segments={8} material={dark} />
