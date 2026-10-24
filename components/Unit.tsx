@@ -9,7 +9,7 @@ import { abilitiesFor } from '../sim/unitAbilities';
 import { roleBadgeTexture, UNIT_ROLE } from './unitIcons';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
-import { AttackDroneModel, CloakGeneratorModel, FieldGeneratorModel, HornetModel, InfiltratorModel, LancerLauncher, TrooperKit } from './unitModels';
+import { AttackDroneModel, CloakGeneratorModel, FieldGeneratorModel, InfiltratorModel, LancerLauncher, TrooperKit } from './unitModels';
 import { ARTILLERY, artilleryRange } from '../sim/artillery';
 import { CIWS } from '../sim/ciws';
 import { BOMBARD } from '../sim/bombard';
@@ -31,6 +31,7 @@ import { GoliathRig } from './GoliathRig';
 import { BatteryMuleModel, BATTERY_MULE_LINK_Y } from './models/BatteryMuleModel';
 import { AegisModel } from './models/AegisModel';
 import { RazorbackModel } from './models/RazorbackModel';
+import { HornetModel } from './models/HornetModel';
 import { MasonModel } from './models/MasonModel';
 import { BansheeModel, BANSHEE_TETHER_ORIGINS } from './models/BansheeModel';
 import { BallistaModel } from './models/BallistaModel';
@@ -815,7 +816,7 @@ const Unit: React.FC<UnitProps> = ({
     if (isFieldGen) return <FieldGeneratorModel teamColor={teamColor} active={fieldGenActive} />;
     if (isHowitzer) return <ThunderheadModel teamColor={teamColor} moving={moving} deployed={!!isDeployed} aim={aimWorld} />;
     if (isAegis) return <AegisModel teamColor={teamColor} moving={moving} firing={!!ciwsTargetId} aimOf={() => ciwsAims?.current.get(id)} />;
-    if (isHornet) return <HornetModel teamColor={teamColor} />;
+    if (isHornet) return <HornetModel teamColor={teamColor} rockets={upgrades.includes('hunter_rockets')} aimRef={turretAimRef} flashRef={flashRef} />;
     if (type === 'hero_shadow_ops') return <KageRig teamColor={teamColor} lastAttackTime={lastAttackTime} moving={moving} />;
     if (type === 'hero_heavy_metal') return <GoliathRig teamColor={teamColor} flashRef={flashRef} grenadeAt={grenadeAt} lastAttackTime={lastAttackTime} moving={moving} />;
      if (isDefenseDrone) {
@@ -981,6 +982,7 @@ const Unit: React.FC<UnitProps> = ({
     grenadeAt, isHero ? lastAttackTime : 0, isHero || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback || isScoutCar ? moving : false, isTank ? railgunFiredAt : 0,
     isBallista ? Math.floor((loadingProgress || 0) / 10) : 0,
     isBanshee ? `${!!jammerActive && battery > 0}|${tetherTargetIds?.length ?? 0}` : 0,
+    isHornet && upgrades.includes('hunter_rockets'),
   ]);
 
   useFrame(() => {

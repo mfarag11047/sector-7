@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback and the Scout RC Car are done; the rest of the roster follows by type.
+the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car and the Hornet are done; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -360,6 +360,11 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   oversized wheels, much smaller than the other vehicles: a low faceted shell in dark stealth
   tones, fender pods, small red and amber lights, a team stripe down the spine, and a sensor array
   on a short mast (a pan-tilt head with three lenses and a dome) that scans to and fro.
+- **The Hornet** (`components/models/HornetModel.tsx`): an armoured VTOL attack drone: an angular
+  hull with a sloped nose, armoured side pods with team stripes, a sensor eye, and four ducted fans
+  on pylons whose rotors spin. Under the nose, a gun bay with an autocannon that turns to what it
+  is shooting at (`turretAt`) and flashes when it fires; with Hunter-Killer Rockets researched, a
+  block of rocket tubes rides on each side pod. It bobs and banks gently as it hovers.
 
 ### Rigged models
 

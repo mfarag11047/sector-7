@@ -1,5 +1,5 @@
-// Models for some of the units added in the playable build (the Hornet, the field generators, the
-// Infiltrator and the attack drone), plus the gear that sets Troopers and Lancers apart from the
+// Models for some of the units added in the playable build (the field generators, the Infiltrator
+// and the attack drone), plus the gear that sets Troopers and Lancers apart from the
 // Ghost (they share its soldier mesh). Vehicles rebuilt from the unit kit live in models/.
 // Built from primitives in the same style as the rest of Unit.tsx. Every model faces -Z,
 // which is the direction Unit.tsx turns toward the next waypoint.
@@ -45,68 +45,6 @@ export const TrooperKit: React.FC<{ teamColor: string }> = ({ teamColor }) => (
       </mesh>
     ))}
   </group>
-);
-
-// Hornet: a twin-nacelle VTOL gunship with rocket pods under stub wings.
-export const HornetModel: React.FC<{ teamColor: string }> = ({ teamColor }) => (
-  <Float speed={2} rotationIntensity={0.15} floatIntensity={0.4} floatingRange={[0, 0.4]}>
-    <group scale={[2.6, 2.6, 2.6]}>
-      {/* Fuselage and canopy */}
-      <mesh>
-        <boxGeometry args={[0.6, 0.45, 1.8]} />
-        <meshStandardMaterial color={STEEL} metalness={0.7} roughness={0.3} />
-        <Edges color={DARK} />
-      </mesh>
-      <mesh position={[0, 0.12, -0.85]} rotation={[0.35, 0, 0]}>
-        <boxGeometry args={[0.45, 0.3, 0.5]} />
-        <meshStandardMaterial color="#0f172a" metalness={0.9} roughness={0.1} />
-      </mesh>
-      <mesh position={[0, 0.1, 1.05]}>
-        <boxGeometry args={[0.18, 0.18, 0.6]} />
-        <meshStandardMaterial color={HULL} />
-      </mesh>
-      <mesh position={[0, 0.32, 1.25]}>
-        <boxGeometry args={[0.05, 0.4, 0.3]} />
-        <meshStandardMaterial color={HULL} />
-      </mesh>
-      {/* Stub wings, rocket pods and tilt nacelles */}
-      {[-1, 1].map(side => (
-        <group key={side}>
-          <mesh position={[side * 0.55, 0, 0.05]}>
-            <boxGeometry args={[0.6, 0.06, 0.45]} />
-            <meshStandardMaterial color={HULL} metalness={0.6} />
-          </mesh>
-          <mesh position={[side * 0.55, -0.16, -0.05]} rotation={[Math.PI / 2, 0, 0]}>
-            <cylinderGeometry args={[0.1, 0.1, 0.55, 8]} />
-            <meshStandardMaterial color={DARK} />
-          </mesh>
-          <mesh position={[side * 0.55, -0.16, -0.33]} rotation={[Math.PI / 2, 0, 0]}>
-            <circleGeometry args={[0.09, 8]} />
-            <meshBasicMaterial color="#f97316" toneMapped={false} />
-          </mesh>
-          <group position={[side * 0.95, 0.05, 0.1]}>
-            <mesh>
-              <cylinderGeometry args={[0.17, 0.17, 0.5, 10]} />
-              <meshStandardMaterial color={HULL} metalness={0.7} />
-            </mesh>
-            <mesh position={[0, -0.3, 0]} rotation={[Math.PI, 0, 0]}>
-              <coneGeometry args={[0.13, 0.45, 8, 1, true]} />
-              <meshBasicMaterial color={teamColor} transparent opacity={0.45} depthWrite={false} blending={THREE.AdditiveBlending} />
-            </mesh>
-          </group>
-          <mesh position={[side * 0.31, 0, -0.3]}>
-            <boxGeometry args={[0.02, 0.05, 0.9]} />
-            <meshBasicMaterial color={teamColor} toneMapped={false} />
-          </mesh>
-        </group>
-      ))}
-      {/* Chin gun */}
-      <mesh position={[0, -0.28, -0.7]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.04, 0.04, 0.45, 8]} />
-        <meshStandardMaterial color="#0f172a" metalness={0.8} />
-      </mesh>
-    </group>
-  </Float>
 );
 
 // Shadow Ops Cloaking Field Generator: a squat drop pod with a pylon, and an emitter ring that
