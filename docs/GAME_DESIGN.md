@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis and the Banshee are done; the rest of the roster follows by type.
+the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee and the Mason are done; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -343,6 +343,12 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis and the
   their hardline is connected; the tether cables run from those outlets. Over the back three
   quarters of the bed, a big jamming dish on a turntable, tilted to the sky with an emitter at its
   focus: it spins and the emitter glows while the jammer is on.
+- **The Mason** (`components/models/MasonModel.tsx`): a six-wheeled combat engineering truck: a
+  sturdy armoured dozer blade on push arms and rams (steel cutting edge, hazard stripes along the
+  top), an armoured cab, an armoured materials box behind it with steel beams strapped on top while
+  it carries materials, and a knuckle-boom lifting arm at the back. Building, the arm rises off its
+  rest, slews and reaches out with its work light flashing, and the construction beam runs from its
+  tip; otherwise it lies folded over the box.
 
 ### Rigged models
 
