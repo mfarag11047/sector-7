@@ -859,11 +859,13 @@ const CiwsTracers: React.FC<{
     flightRef: React.MutableRefObject<Map<string, LiveFlight>>;
     shellsRef: React.MutableRefObject<ArtilleryShell[]>;
     structuresRef: React.MutableRefObject<StructureData[]>;
+    // Filled each frame with where every firing Aegis is shooting, for its gun to track.
+    aimsRef: React.MutableRefObject<Map<string, THREE.Vector3>>;
     // Fire from an enemy Aegis you can't see isn't drawn, so it doesn't give the gun away.
     canSee: (aegis: UnitData) => boolean;
     tileSize: number;
     offset: number;
-}> = ({ linksRef, unitsRef, flightRef, shellsRef, structuresRef, canSee, tileSize, offset }) => {
+}> = ({ linksRef, unitsRef, flightRef, shellsRef, structuresRef, aimsRef, canSee, tileSize, offset }) => {
     // Where a gun's muzzle is: on an Aegis' turret, or atop a CIWS turret (always in plain view).
     const muzzleOf = (link: CiwsLink) => {
         if (link.fromStructure) {
@@ -871,7 +873,7 @@ const CiwsTracers: React.FC<{
             return s ? { x: s.gridPos.x * tileSize - offset, y: 11, z: s.gridPos.z * tileSize - offset } : null;
         }
         const gun = unitsRef.current.find(u => u.id === link.gunId);
-        return gun && canSee(gun) ? unitWorld(gun, tileSize, offset, 6.5) : null;
+        return gun && canSee(gun) ? unitWorld(gun, tileSize, offset, 5.8) : null;
     };
     const mesh = useRef<THREE.InstancedMesh>(null);
     const rounds = useRef<{ from: THREE.Vector3; to: THREE.Vector3; born: number; life: number }[]>([]);
@@ -883,10 +885,13 @@ const CiwsTracers: React.FC<{
         if (!im) return;
         const now = Date.now();
         const t = state.clock.elapsedTime;
-        // New rounds for every gun firing this tick.
+        // New rounds for every gun firing this tick; each Aegis' gun told where to point.
+        const aims = aimsRef.current;
+        aims.clear();
         for (const link of linksRef.current) {
             const muzzle = muzzleOf(link);
             const target = airThreatWorld(link.targetId, unitsRef.current, flightRef.current, shellsRef.current, tileSize, offset, now);
+            if (target && !link.fromStructure) aims.set(link.gunId, new THREE.Vector3(target.x, target.y, target.z));
             if (!muzzle || !target) continue;
             const n = (owed.current.get(link.gunId) || 0) + CIWS.roundsPerSecond * Math.min(delta, 0.5);
             const whole = Math.floor(n);
@@ -1611,6 +1616,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const [voltWarnings, setVoltWarnings] = useState<VoltCharge[]>([]);
   const [smokeScreens, setSmokeScreens] = useState<SmokeScreen[]>([]);
   const miniRocketsRef = useRef<MiniRocket[]>([]);
+  // Where each firing Aegis is shooting this frame (CiwsTracers), for its gun to track.
+  const ciwsAimsRef = useRef(new Map<string, THREE.Vector3>());
   // Thunderhead shells in flight. The ref is the authority; the state is for drawing them.
   const [shells, setShells] = useState<ArtilleryShell[]>([]);
   const shellsRef = useRef<ArtilleryShell[]>([]);
@@ -4412,7 +4419,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
              if (hit && sameUnitForRender(hit.u, u) && hit.deps.every((d, i) => d === deps[i])) { liveUnitIds.add(u.id); return hit.el; }
              // Motion (moveProgress and friends) goes through the motion registry, not props, and the
              // battery to whole points: both change every tick, and either re-rendered every moving unit.
-             const el = ( <Unit key={u.id} {...u} moveProgress={undefined} moveTarget={undefined} moveSpeed={undefined} battery={Math.round(u.battery)} teamCompute={teamCompute} upgrades={upgrades} radarRange={radarRange} ownJammer={ownJammer} isSelected={selected} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={menuOpen} onAction={stableUnitAction} isTargetingMode={isTargetingMode} showTetherRange={showTetherRange} showBatteryRange={showBatteryRange} isLockCandidate={isLockCandidate} isTetherCandidate={isTetherCandidate} isBatteryLinkCandidate={isBatteryLinkCandidate} warheadStock={warheadStock} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={cores} faceAt={faceAt} turretAt={turretAt} /> );
+             const el = ( <Unit key={u.id} {...u} moveProgress={undefined} moveTarget={undefined} moveSpeed={undefined} battery={Math.round(u.battery)} teamCompute={teamCompute} upgrades={upgrades} radarRange={radarRange} ownJammer={ownJammer} isSelected={selected} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={menuOpen} onAction={stableUnitAction} isTargetingMode={isTargetingMode} showTetherRange={showTetherRange} showBatteryRange={showBatteryRange} isLockCandidate={isLockCandidate} isTetherCandidate={isTetherCandidate} isBatteryLinkCandidate={isBatteryLinkCandidate} warheadStock={warheadStock} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={cores} faceAt={faceAt} turretAt={turretAt} ciwsAims={ciwsAimsRef} /> );
              unitElementCache.current.set(u.id, { u, deps, el });
              liveUnitIds.add(u.id);
              return el;
@@ -4455,7 +4462,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         {projectiles.map(p => <ProjectileMesh key={p.id} projectile={p} flightRef={flightRef} />)}
         
         {/* Aegis rotary cannon fire */}
-        <CiwsTracers linksRef={ciwsLinksRef} unitsRef={unitsRef} flightRef={flightRef} shellsRef={shellsRef} structuresRef={structuresRef} canSee={canSeeGun} tileSize={tileSize} offset={offset} />
+        <CiwsTracers linksRef={ciwsLinksRef} unitsRef={unitsRef} flightRef={flightRef} shellsRef={shellsRef} structuresRef={structuresRef} aimsRef={ciwsAimsRef} canSee={canSeeGun} tileSize={tileSize} offset={offset} />
 
         {/* Aegis radar contacts: dots for enemy aircraft and ordnance nothing can see */}
         {(playerTeam === 'blue' || playerTeam === 'red') && (

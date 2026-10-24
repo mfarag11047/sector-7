@@ -9,7 +9,7 @@ import { abilitiesFor } from '../sim/unitAbilities';
 import { roleBadgeTexture, UNIT_ROLE } from './unitIcons';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
-import { AegisModel, AttackDroneModel, CloakGeneratorModel, FieldGeneratorModel, HornetModel, InfiltratorModel, LancerLauncher, RazorbackModel, TrooperKit } from './unitModels';
+import { AttackDroneModel, CloakGeneratorModel, FieldGeneratorModel, HornetModel, InfiltratorModel, LancerLauncher, RazorbackModel, TrooperKit } from './unitModels';
 import { ARTILLERY, artilleryRange } from '../sim/artillery';
 import { CIWS } from '../sim/ciws';
 import { BOMBARD } from '../sim/bombard';
@@ -29,6 +29,7 @@ import { WARHEAD_LABEL } from '../sim/warheads';
 import { isHeroType } from '../sim/heroes';
 import { GoliathRig } from './GoliathRig';
 import { BatteryMuleModel, BATTERY_MULE_LINK_Y } from './models/BatteryMuleModel';
+import { AegisModel } from './models/AegisModel';
 import { BallistaModel } from './models/BallistaModel';
 import { ThunderheadModel } from './models/ThunderheadModel';
 import { GuardianModel, GUARDIAN_BEAM_ORIGIN_Y } from './models/GuardianModel';
@@ -260,6 +261,8 @@ interface UnitProps {
   ciwsUsedMs?: number;
   ciwsReloadUntil?: number;
   ciwsTargetId?: string | null;
+  // Where each Aegis is shooting this frame, by gun id (filled by CityMap's CIWS stream).
+  ciwsAims?: React.MutableRefObject<Map<string, THREE.Vector3>>;
   // Thunderhead (sim/artillery.ts)
   anchoredAt?: number;
   artilleryTarget?: { x: number; z: number } | null;
@@ -389,7 +392,7 @@ useGLTF.preload(GHOST_MODEL_URL);
 const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, grenadeAt, faceAt, turretAt, railgunFiredAt, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, grenadeAt, faceAt, turretAt, railgunFiredAt, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, ciwsAims, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -812,7 +815,7 @@ const Unit: React.FC<UnitProps> = ({
     if (isCloakGen) return <CloakGeneratorModel teamColor={teamColor} active={fieldUp} />;
     if (isFieldGen) return <FieldGeneratorModel teamColor={teamColor} active={fieldGenActive} />;
     if (isHowitzer) return <ThunderheadModel teamColor={teamColor} moving={moving} deployed={!!isDeployed} aim={aimWorld} />;
-    if (isAegis) return <AegisModel teamColor={teamColor} firing={!!ciwsTargetId} />;
+    if (isAegis) return <AegisModel teamColor={teamColor} moving={moving} firing={!!ciwsTargetId} aimOf={() => ciwsAims?.current.get(id)} />;
     if (isHornet) return <HornetModel teamColor={teamColor} />;
     if (type === 'hero_shadow_ops') return <KageRig teamColor={teamColor} lastAttackTime={lastAttackTime} moving={moving} />;
     if (type === 'hero_heavy_metal') return <GoliathRig teamColor={teamColor} flashRef={flashRef} grenadeAt={grenadeAt} lastAttackTime={lastAttackTime} moving={moving} />;
@@ -976,7 +979,7 @@ const Unit: React.FC<UnitProps> = ({
   const model = useMemo(renderModel, [
     type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
     isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, firingLaserAt, courierPayload, constructionTargetId, ciwsTargetId,
-    grenadeAt, isHero ? lastAttackTime : 0, isHero || isTank || isGuardian || isSunPlate || isHowitzer || isBallista ? moving : false, isTank ? railgunFiredAt : 0,
+    grenadeAt, isHero ? lastAttackTime : 0, isHero || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis ? moving : false, isTank ? railgunFiredAt : 0,
     isBallista ? Math.floor((loadingProgress || 0) / 10) : 0,
   ]);
 

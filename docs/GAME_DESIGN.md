@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian, the Battery Mule, the Thunderhead and the Ballista are done; the rest of the roster follows by type.
+the Guardian, the Battery Mule, the Thunderhead, the Ballista and the Aegis are done; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -331,6 +331,12 @@ the Guardian, the Battery Mule, the Thunderhead and the Ballista are done; the r
   hinge) until the tube's round mouth faces the sky. The missile slides up the tube as it loads,
   and when armed its warhead stands out of the mouth in its type's colour (EMP blue, HE red, WP
   white). Fired, or driving off, it folds down; the missile leaves from the mouth's height.
+- **The Aegis** (`components/models/AegisModel.tsx`): an eight-wheeled truck carrying a close-in
+  weapon system: a boxy angular cab, the gun mount on a pedestal mid-deck, and a generator
+  housing with a turning search radar at the back. The mount turns, and the gun and its pod
+  elevate together: a six-barrel rotary cannon under an angular six-sided armoured pod with a dark
+  sensor band, a lens and a team-colour band. Firing, it turns and lifts onto its target (CityMap's
+  CIWS stream passes each Aegis its target, `ciwsAims`) and the barrels spin; idle, it sweeps.
 
 ### Rigged models
 
