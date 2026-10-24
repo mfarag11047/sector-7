@@ -300,6 +300,11 @@ roster follows by type.
   and turret cheeks, a roof gun, and a rail gun of two pointed blades round a glowing core. Its
   turret turns to what it is shooting at (`turretAt`, from CityMap), the rail gun recoils and its
   lights flare when it fires, and the tracks run and the hull rocks while it drives.
+- **The Guardian** (`components/models/GuardianModel.tsx`) is a four-wheeled UGV: a wedge nose
+  with a dark sensor visor, arched fenders striped in team colour, and a raised module with green
+  repair crosses carrying the repair emitter (a ring cage round a pulsing green core, where the
+  repair beams start), a turning sensor dish and the Trophy launcher, whose light turns red while
+  it reloads. Repair green (`PALETTE.repair`) is kept for repair, so it reads at a glance.
 
 ### Rigged models
 

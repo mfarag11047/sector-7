@@ -21,6 +21,7 @@ export const PALETTE = {
   amber: '#f59e0b',         // Heavy Metal
   green: '#39ff6a',         // Shadow Ops
   magenta: '#e040fb',       // Netrunner
+  repair: '#4ade80',        // repair beams and emitters
   warning: '#ff2a2a',
   headlight: '#e0f7ff',
 };
