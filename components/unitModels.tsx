@@ -1,5 +1,6 @@
-// Models for the units added in the playable build: Razorback, Aegis and Hornet, plus the
-// gear that sets Troopers and Lancers apart from the Ghost (they share its soldier mesh).
+// Models for some of the units added in the playable build (the Hornet, the field generators, the
+// Infiltrator and the attack drone), plus the gear that sets Troopers and Lancers apart from the
+// Ghost (they share its soldier mesh). Vehicles rebuilt from the unit kit live in models/.
 // Built from primitives in the same style as the rest of Unit.tsx. Every model faces -Z,
 // which is the direction Unit.tsx turns toward the next waypoint.
 
@@ -41,70 +42,6 @@ export const TrooperKit: React.FC<{ teamColor: string }> = ({ teamColor }) => (
       <mesh key={side} position={[side * 0.12, 0.72, 0]}>
         <boxGeometry args={[0.06, 0.03, 0.09]} />
         <meshBasicMaterial color={teamColor} toneMapped={false} />
-      </mesh>
-    ))}
-  </group>
-);
-
-// Razorback: a low, fast raider buggy with a roll cage and a pintle gun.
-export const RazorbackModel: React.FC<{ teamColor: string }> = ({ teamColor }) => (
-  <group scale={[2.5, 2.5, 2.5]}>
-    {/* Chassis, wedge nose forward (-Z) */}
-    <mesh position={[0, 0.45, 0.1]}>
-      <boxGeometry args={[1.1, 0.3, 1.9]} />
-      <meshStandardMaterial color={STEEL} metalness={0.6} roughness={0.35} />
-      <Edges color={DARK} />
-    </mesh>
-    <mesh position={[0, 0.42, -0.95]} rotation={[0.45, 0, 0]}>
-      <boxGeometry args={[1.0, 0.18, 0.5]} />
-      <meshStandardMaterial color={HULL} metalness={0.6} />
-    </mesh>
-    {/* Wheels */}
-    {[[-0.62, -0.6], [0.62, -0.6], [-0.62, 0.65], [0.62, 0.65]].map(([x, z], i) => (
-      <mesh key={i} position={[x, 0.3, z]} rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.3, 0.3, 0.24, 10]} />
-        <meshStandardMaterial color="#0f172a" roughness={0.9} />
-      </mesh>
-    ))}
-    {/* Roll cage */}
-    {[-0.42, 0.42].map(x => (
-      <group key={x}>
-        <mesh position={[x, 0.85, 0.05]}>
-          <boxGeometry args={[0.06, 0.06, 1.0]} />
-          <meshStandardMaterial color="#94a3b8" metalness={0.8} />
-        </mesh>
-        <mesh position={[x, 0.7, -0.42]} rotation={[0.6, 0, 0]}>
-          <boxGeometry args={[0.06, 0.06, 0.4]} />
-          <meshStandardMaterial color="#94a3b8" metalness={0.8} />
-        </mesh>
-      </group>
-    ))}
-    <mesh position={[0, 0.88, 0.05]}>
-      <boxGeometry args={[0.9, 0.06, 0.06]} />
-      <meshStandardMaterial color="#94a3b8" metalness={0.8} />
-    </mesh>
-    {/* Pintle gun on the rear deck */}
-    <group position={[0, 1.0, 0.5]}>
-      <mesh>
-        <boxGeometry args={[0.22, 0.18, 0.3]} />
-        <meshStandardMaterial color={DARK} />
-      </mesh>
-      <mesh position={[0, 0.02, -0.35]} rotation={[Math.PI / 2, 0, 0]}>
-        <cylinderGeometry args={[0.035, 0.035, 0.5, 8]} />
-        <meshStandardMaterial color="#0f172a" metalness={0.8} />
-      </mesh>
-    </group>
-    {/* Team stripes and headlights */}
-    {[-0.56, 0.56].map(x => (
-      <mesh key={x} position={[x, 0.46, 0.1]}>
-        <boxGeometry args={[0.02, 0.06, 1.6]} />
-        <meshBasicMaterial color={teamColor} toneMapped={false} />
-      </mesh>
-    ))}
-    {[-0.35, 0.35].map(x => (
-      <mesh key={x} position={[x, 0.48, -1.07]}>
-        <boxGeometry args={[0.18, 0.06, 0.02]} />
-        <meshBasicMaterial color="#e0f2fe" toneMapped={false} />
       </mesh>
     ))}
   </group>

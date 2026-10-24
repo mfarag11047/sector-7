@@ -4401,8 +4401,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
              // The heroes turn to face what they are fighting.
              const faceAt = (u.type === 'hero_heavy_metal' || u.type === 'hero_shadow_ops') && u.combatTargetId
                  ? (units.find(t => t.id === u.combatTargetId) ?? structuresState.find(t => t.id === u.combatTargetId))?.gridPos ?? null : null;
-             // Titans turn their turrets to what they are shooting at.
-             const turretAt = (u.type === 'tank' || u.type === 'titan_dropped') && u.combatTargetId
+             // Titans and Razorbacks turn their guns to what they are shooting at.
+             const turretAt = (u.type === 'tank' || u.type === 'titan_dropped' || u.type === 'razorback') && u.combatTargetId
                  ? (units.find(t => t.id === u.combatTargetId) ?? structuresState.find(t => t.id === u.combatTargetId))?.gridPos ?? null : null;
              const ownJammer = u.type === 'banshee' && u.team === playerTeam;
              const selected = selectedUnitIds.has(u.id);

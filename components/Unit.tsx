@@ -9,7 +9,7 @@ import { abilitiesFor } from '../sim/unitAbilities';
 import { roleBadgeTexture, UNIT_ROLE } from './unitIcons';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
-import { AttackDroneModel, CloakGeneratorModel, FieldGeneratorModel, HornetModel, InfiltratorModel, LancerLauncher, RazorbackModel, TrooperKit } from './unitModels';
+import { AttackDroneModel, CloakGeneratorModel, FieldGeneratorModel, HornetModel, InfiltratorModel, LancerLauncher, TrooperKit } from './unitModels';
 import { ARTILLERY, artilleryRange } from '../sim/artillery';
 import { CIWS } from '../sim/ciws';
 import { BOMBARD } from '../sim/bombard';
@@ -30,6 +30,7 @@ import { isHeroType } from '../sim/heroes';
 import { GoliathRig } from './GoliathRig';
 import { BatteryMuleModel, BATTERY_MULE_LINK_Y } from './models/BatteryMuleModel';
 import { AegisModel } from './models/AegisModel';
+import { RazorbackModel } from './models/RazorbackModel';
 import { MasonModel } from './models/MasonModel';
 import { BansheeModel, BANSHEE_TETHER_ORIGINS } from './models/BansheeModel';
 import { BallistaModel } from './models/BallistaModel';
@@ -808,7 +809,7 @@ const Unit: React.FC<UnitProps> = ({
             <mesh ref={flashRef} position={[0, 2.2, 0]} visible={false} raycast={() => null}><sphereGeometry args={[0.3, 8, 6]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.85} toneMapped={false} depthWrite={false} /></mesh>
         </group>
     );
-    if (isRazorback) return <RazorbackModel teamColor={teamColor} />;
+    if (isRazorback) return <RazorbackModel teamColor={teamColor} moving={moving} aimRef={turretAimRef} flashRef={flashRef} />;
     if (isScoutCar) return <ScoutCarModel teamColor={teamColor} />;
     if (isCloakGen) return <CloakGeneratorModel teamColor={teamColor} active={fieldUp} />;
     if (isFieldGen) return <FieldGeneratorModel teamColor={teamColor} active={fieldGenActive} />;
@@ -977,7 +978,7 @@ const Unit: React.FC<UnitProps> = ({
   const model = useMemo(renderModel, [
     type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
     isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, firingLaserAt, courierPayload, constructionTargetId, ciwsTargetId,
-    grenadeAt, isHero ? lastAttackTime : 0, isHero || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason ? moving : false, isTank ? railgunFiredAt : 0,
+    grenadeAt, isHero ? lastAttackTime : 0, isHero || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback ? moving : false, isTank ? railgunFiredAt : 0,
     isBallista ? Math.floor((loadingProgress || 0) / 10) : 0,
     isBanshee ? `${!!jammerActive && battery > 0}|${tetherTargetIds?.length ?? 0}` : 0,
   ]);
