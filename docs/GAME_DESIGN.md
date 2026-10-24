@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian and the Battery Mule are done; the rest of the roster follows by type.
+the Guardian, the Battery Mule and the Thunderhead are done; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -318,6 +318,12 @@ the Guardian and the Battery Mule are done; the rest of the roster follows by ty
   frame (tray, end caps, two ribs, top rails), so most of the cell shows. The charging links start
   from the cells; yellow light also shows through vent slits in the bay walls and at the charging
   port. Anchored, it settles onto four stabiliser jacks and its cells glow brighter.
+- **The Thunderhead** (`components/models/ThunderheadModel.tsx`, sim type `howitzer`): an
+  eight-wheeled armoured rocket truck with an angular cab (light bars, a sensor ball, smoke
+  dischargers, team stripes), composite lockers along the rear deck, and four armoured rocket pods
+  on a turntable, nine tubes each with red lights at the muzzle. Anchored, four corner jacks push
+  down onto the ground and the launcher turns to its target and raises its pods. Its shots fly as
+  rockets (CityMap's `ShellMesh`): from the pods, nose along the arc, a flame behind.
 
 ### Rigged models
 
@@ -817,7 +823,7 @@ Generator on a chosen tile, in a drop pod like the Orbital Drop Titan. Rules: `s
 
 ## Thunderhead mobile artillery
 
-The Thunderhead (`sim/artillery.ts`) is a six-wheeled rail-gun truck from the Factory, there from
+The Thunderhead (`sim/artillery.ts`) is an eight-wheeled rocket-artillery truck from the Factory, there from
 Tier 1. It trades every close-range strength for reach:
 
 - **Mobile, it cannot fire.** It anchors only once it has stopped (Anchor Down), then takes
@@ -831,7 +837,7 @@ Tier 1. It trades every close-range strength for reach:
   Shells (T3), both from Advanced Research. Nothing closer
   than 3 tiles can be shelled. Selected and anchored, it shows its range (and the dead zone) as
   an orange ring; a fire mission's target shows as a red reticle.
-- **Shells fly.** Each takes 1.2 s plus 0.09 s per tile to land and drifts up to 0.7 tiles, so a
+- **Shells fly**, drawn as rockets from its pods. Each takes 1.2 s plus 0.09 s per tile to land and drifts up to 0.7 tiles, so a
   target that keeps moving can get out from under it. A shell does 70 explosive damage at the
   centre, down to 40% at the 1.6-tile edge, to enemy ground units and structures. Enemy shells
   show only on the way down.

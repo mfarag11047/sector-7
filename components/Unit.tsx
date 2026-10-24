@@ -9,7 +9,7 @@ import { abilitiesFor } from '../sim/unitAbilities';
 import { roleBadgeTexture, UNIT_ROLE } from './unitIcons';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
-import { AegisModel, AttackDroneModel, CloakGeneratorModel, FieldGeneratorModel, HornetModel, InfiltratorModel, LancerLauncher, RazorbackModel, ThunderheadModel, TrooperKit } from './unitModels';
+import { AegisModel, AttackDroneModel, CloakGeneratorModel, FieldGeneratorModel, HornetModel, InfiltratorModel, LancerLauncher, RazorbackModel, TrooperKit } from './unitModels';
 import { ARTILLERY, artilleryRange } from '../sim/artillery';
 import { CIWS } from '../sim/ciws';
 import { BOMBARD } from '../sim/bombard';
@@ -29,6 +29,7 @@ import { WARHEAD_LABEL } from '../sim/warheads';
 import { isHeroType } from '../sim/heroes';
 import { GoliathRig } from './GoliathRig';
 import { BatteryMuleModel, BATTERY_MULE_LINK_Y } from './models/BatteryMuleModel';
+import { ThunderheadModel } from './models/ThunderheadModel';
 import { GuardianModel, GUARDIAN_BEAM_ORIGIN_Y } from './models/GuardianModel';
 import { TitanTankModel } from './models/TitanTankModel';
 import { KageRig } from './KageRig';
@@ -809,7 +810,7 @@ const Unit: React.FC<UnitProps> = ({
     if (isScoutCar) return <ScoutCarModel teamColor={teamColor} />;
     if (isCloakGen) return <CloakGeneratorModel teamColor={teamColor} active={fieldUp} />;
     if (isFieldGen) return <FieldGeneratorModel teamColor={teamColor} active={fieldGenActive} />;
-    if (isHowitzer) return <ThunderheadModel teamColor={teamColor} deployed={!!isDeployed} aim={aimWorld} />;
+    if (isHowitzer) return <ThunderheadModel teamColor={teamColor} moving={moving} deployed={!!isDeployed} aim={aimWorld} />;
     if (isAegis) return <AegisModel teamColor={teamColor} firing={!!ciwsTargetId} />;
     if (isHornet) return <HornetModel teamColor={teamColor} />;
     if (type === 'hero_shadow_ops') return <KageRig teamColor={teamColor} lastAttackTime={lastAttackTime} moving={moving} />;
@@ -1017,7 +1018,7 @@ const Unit: React.FC<UnitProps> = ({
   const model = useMemo(renderModel, [
     type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
     isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, firingLaserAt, courierPayload, constructionTargetId, ciwsTargetId,
-    grenadeAt, isHero ? lastAttackTime : 0, isHero || isTank || isGuardian || isSunPlate ? moving : false, isTank ? railgunFiredAt : 0,
+    grenadeAt, isHero ? lastAttackTime : 0, isHero || isTank || isGuardian || isSunPlate || isHowitzer ? moving : false, isTank ? railgunFiredAt : 0,
   ]);
 
   useFrame(() => {

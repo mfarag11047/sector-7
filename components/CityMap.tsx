@@ -75,6 +75,9 @@ import { applyFieldCloak, CLOAK_FIELD, fieldCloakedIds, generatorsReplacedBy, is
 import { Victory, checkVictory } from '../sim/victory';
 import type { MatchSummary } from './MatchScreens';
 import { Economy, createEconomy, incomeBreakdown, refund, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
+import { THUNDERHEAD_LAUNCH_Y } from './models/ThunderheadModel';
+import { glow, kitMaterial } from './kit/materials';
+import { Plate, Turned } from './kit/shapes';
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
 import { dampenedUnits } from '../sim/ghost';
 import { heliosBeams, microwaveDamage } from '../sim/helios';
@@ -717,28 +720,37 @@ const ENGAGEMENT_MS = 6000;
 // minimap's engagement arrows.
 type TracerData = ShotFxData & { attackerId: string; targetId: string };
 
-// Thunderhead shells (sim/artillery.ts): a glowing round on a high arc from the gun to where it
-// lands. Enemy shells show only on the way down, so they warn of a barrage without giving the
-// battery away.
+// Thunderhead rockets (sim/artillery.ts): a rocket on a high arc from the launcher's raised pods to
+// where it lands, nose along its flight, a flame behind. Enemy rockets show only on the way down,
+// so they warn of a barrage without giving the battery away.
 const SHELL_PEAK = 90;
+// Where a rocket starts: the Thunderhead's pod muzzles, above its base (vehicles ride 1.2 up).
+const ROCKET_LAUNCH_Y = 1.2 + THUNDERHEAD_LAUNCH_Y;
+const ROCKET_LAND_Y = 2.5;
+const rocketPoint = (shell: ArtilleryShell, t: number, tileSize: number, offset: number, out: THREE.Vector3) => out.set(
+    ((shell.from.x + (shell.at.x - shell.from.x) * t) * tileSize) - offset,
+    ROCKET_LAUNCH_Y + (ROCKET_LAND_Y - ROCKET_LAUNCH_Y) * t + 4 * SHELL_PEAK * t * (1 - t),
+    ((shell.from.z + (shell.at.z - shell.from.z) * t) * tileSize) - offset,
+);
 const ShellMesh: React.FC<{ shell: ArtilleryShell; tileSize: number; offset: number; enemy: boolean }> = ({ shell, tileSize, offset, enemy }) => {
-    const meshRef = useRef<THREE.Mesh>(null);
+    const ref = useRef<THREE.Group>(null);
+    const ahead = useMemo(() => new THREE.Vector3(), []);
     useFrame(() => {
-        const mesh = meshRef.current;
-        if (!mesh) return;
+        const g = ref.current;
+        if (!g) return;
         const t = Math.min(1, Math.max(0, (Date.now() - shell.firedAt) / (shell.landsAt - shell.firedAt)));
-        mesh.visible = !enemy || t > 0.5;
-        mesh.position.set(
-            ((shell.from.x + (shell.at.x - shell.from.x) * t) * tileSize) - offset,
-            2.5 + 4 * SHELL_PEAK * t * (1 - t),
-            ((shell.from.z + (shell.at.z - shell.from.z) * t) * tileSize) - offset,
-        );
+        g.visible = !enemy || t > 0.5;
+        rocketPoint(shell, t, tileSize, offset, g.position);
+        g.lookAt(rocketPoint(shell, Math.min(1, t + 0.01), tileSize, offset, ahead));
     });
     return (
-        <mesh ref={meshRef} visible={false} raycast={() => null}>
-            <sphereGeometry args={[0.9, 8, 6]} />
-            <meshBasicMaterial color="#fdba74" toneMapped={false} />
-        </mesh>
+        <group ref={ref} visible={false}>
+            <Turned profile={[[0.001, -1.4], [0.26, -1.3], [0.26, 0.8], [0.12, 1.3], [0.001, 1.45]]} segments={8} material={kitMaterial('armourDark')} shadow={false} />
+            <Plate size={[0.9, 0.05, 0.45]} material={kitMaterial('black')} position={[0, 0, -1.1]} shadow={false} />
+            <Plate size={[0.05, 0.9, 0.45]} material={kitMaterial('black')} position={[0, 0, -1.1]} shadow={false} />
+            <Turned profile={[[0.001, -3.6], [0.3, -1.6], [0.2, -1.4]]} segments={8} material={glow('#ffb35c')} shadow={false} />
+            <Turned profile={[[0.001, -5.5], [0.55, -1.8], [0.4, -1.4]]} segments={8} material={glow('#ff7a2e', 0.35)} shadow={false} />
+        </group>
     );
 };
 
