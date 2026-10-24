@@ -31,6 +31,7 @@ import { GoliathRig } from './GoliathRig';
 import { BatteryMuleModel, BATTERY_MULE_LINK_Y } from './models/BatteryMuleModel';
 import { AegisModel } from './models/AegisModel';
 import { RazorbackModel } from './models/RazorbackModel';
+import { HeliosModel } from './models/HeliosModel';
 import { HornetModel } from './models/HornetModel';
 import { MasonModel } from './models/MasonModel';
 import { BansheeModel, BANSHEE_TETHER_ORIGINS } from './models/BansheeModel';
@@ -794,6 +795,8 @@ const Unit: React.FC<UnitProps> = ({
   const fieldGenActive = health > 0 && battery > 0 && fieldDownUntil === undefined && !buffs?.some(b => b.kind === 'emp');
   const trophyCooling = cooldowns.trophySystem !== undefined && cooldowns.trophySystem > 0;
   const carrying = !!cargo && cargo > 0;
+  // A Helios works unless an EMP has knocked it out, or it is microwaving with a flat battery.
+  const heliosWorking = isHelios && !buffs?.some(b => b.kind === 'emp') && (heliosMode !== 'burn' || battery > 0);
   const radarShown = radarRange > 0 || !!surveillance;
   // Walking somewhere: rigged models play their run (KageRig).
   const moving = path.length > 0;
@@ -828,7 +831,7 @@ const Unit: React.FC<UnitProps> = ({
 
     if (isBanshee) return <BansheeModel teamColor={teamColor} moving={moving} jamming={!!jammerActive && battery > 0} tethered={tetherTargetIds?.length ?? 0} />;
     if (isCourier) { const payloadColor = courierPayload === 'emp' ? '#38bdf8' : '#ffffff'; return ( <group scale={[2.2, 2.2, 2.2]}> <mesh position={[0, 0.3, 0]}><boxGeometry args={[0.9, 0.4, 1.8]} /><meshStandardMaterial color="#475569" metalness={0.6} /><Edges color={teamColor} /></mesh> {[[-0.5, -0.6], [0.5, -0.6], [-0.5, 0.6], [0.5, 0.6]].map((pos, i) => (<mesh key={i} position={[pos[0], 0.2, pos[1]]} rotation={[0, 0, Math.PI/2]}><cylinderGeometry args={[0.2, 0.2, 0.2, 12]} /><meshStandardMaterial color="#1e293b" /></mesh>))} <mesh position={[0, 0.6, 0.5]}><boxGeometry args={[0.8, 0.4, 0.6]} /><meshStandardMaterial color="#334155" /><Edges color="#000000" /></mesh> {courierPayload && (<mesh position={[0, 0.5, -0.4]} rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.25, 0.25, 0.8, 8]} /><meshStandardMaterial color={payloadColor} emissive={payloadColor} emissiveIntensity={0.5} /><Edges color="#000000" /></mesh>)} <mesh position={[0, 0.9, 0.5]}><sphereGeometry args={[0.1, 6, 6]} /><meshBasicMaterial color="#f59e0b" /></mesh> </group> ); }
-    if (isHelios) return (<Float speed={2} rotationIntensity={0.1} floatIntensity={0.2}> <group scale={[2.6, 2.6, 2.6]}> <group position={[0, 0, 0]}> <mesh><boxGeometry args={[0.9, 0.5, 0.9]} /><meshStandardMaterial color="#334155" metalness={0.7} roughness={0.3} /><Edges color="#000000" /></mesh> <mesh position={[0.5, 0, 0]}><boxGeometry args={[0.15, 0.3, 0.6]} /><meshStandardMaterial color="#1e293b" /><Edges color="#475569" /></mesh> <mesh position={[-0.5, 0, 0]}><boxGeometry args={[0.15, 0.3, 0.6]} /><meshStandardMaterial color="#1e293b" /><Edges color="#475569" /></mesh> <mesh position={[0.53, 0, 0]} rotation={[0, 0, Math.PI/2]}><planeGeometry args={[0.2, 0.5]} /><meshBasicMaterial color="#facc15" /> </mesh> <mesh position={[-0.53, 0, 0]} rotation={[0, 0, -Math.PI/2]}><planeGeometry args={[0.2, 0.5]} /><meshBasicMaterial color="#facc15" /> </mesh> <mesh position={[0, 0.26, 0.46]}><boxGeometry args={[0.6, 0.05, 0.05]} /><meshBasicMaterial color={teamColor} toneMapped={false} /></mesh> </group> <group position={[0, 0.3, 0]}> <mesh position={[0, -0.05, 0]}><cylinderGeometry args={[0.1, 0.1, 0.1, 8]} /><meshStandardMaterial color="#475569" /></mesh> {[[-0.24, -0.24], [0.24, -0.24], [-0.24, 0.24], [0.24, 0.24]].map((pos, i) => ( <group key={i} position={[pos[0], 0, pos[1]]}> <mesh><boxGeometry args={[0.45, 0.05, 0.45]} /><meshStandardMaterial color="#0f172a" metalness={0.8} roughness={0.2} /><Edges color="#38bdf8" linewidth={1} /></mesh> <mesh position={[0, 0.03, 0]} rotation={[-Math.PI/2, 0, 0]}><planeGeometry args={[0.4, 0.4]} /><meshBasicMaterial color="#0ea5e9" wireframe transparent opacity={0.2} /></mesh> </group> ))} </group> <group position={[0, -0.15, 0.55]} rotation={[0, 0, 0]}> <mesh rotation={[Math.PI/2, 0, 0]}><cylinderGeometry args={[0.4, 0.2, 0.3, 16]} /><meshStandardMaterial color="#1e293b" /><Edges color="#334155" /></mesh> <mesh position={[0, 0, 0.16]} rotation={[Math.PI/2, 0, 0]}><circleGeometry args={[0.35, 16]} /><meshBasicMaterial color="#ffedd5" /></mesh> <mesh position={[0, 0, 0.17]} rotation={[Math.PI/2, 0, 0]}><ringGeometry args={[0.1, 0.35, 16]} /><meshBasicMaterial color="#f97316" transparent opacity={0.8} /></mesh> <mesh position={[0, 0, 0.3]} rotation={[Math.PI/2, 0, 0]}><coneGeometry args={[0.05, 0.4, 16]} /><meshStandardMaterial color="#c2410c" /></mesh> <group position={[0, 0, 0]}> <mesh position={[0, 0, 0.25]} rotation={[0, 0, Math.PI/4]}><ringGeometry args={[0.4, 0.45, 4]} /><meshBasicMaterial color="#fdba74" transparent opacity={0.3} side={THREE.DoubleSide} /></mesh> <mesh position={[0, 0, 0.45]} scale={[1.3, 1.3, 1]} rotation={[0, 0, 0]}><ringGeometry args={[0.4, 0.42, 16]} /><meshBasicMaterial color="#fdba74" transparent opacity={0.15} side={THREE.DoubleSide} /></mesh> </group> </group> {[[ -0.35, -0.35], [0.35, -0.35], [-0.35, 0.35], [0.35, 0.35] ].map((pos, i) => ( <group key={i} position={[pos[0], -0.25, pos[1]]}> <mesh><cylinderGeometry args={[0.1, 0.08, 0.2]} /><meshStandardMaterial color="#0f172a" /></mesh> <mesh position={[0, -0.3, 0]} rotation={[Math.PI, 0, 0]}><coneGeometry args={[0.08, 0.5, 8, 1, true]} /><meshBasicMaterial color="#0ea5e9" transparent opacity={0.8} depthWrite={false} blending={THREE.AdditiveBlending} /></mesh> </group> ))} </group> </Float>);
+    if (isHelios) return <HeliosModel teamColor={teamColor} mode={heliosMode ?? 'charge'} working={heliosWorking} />;
     if (isSunPlate) return <BatteryMuleModel teamColor={teamColor} moving={moving} planted={!!isDeployed} />;
     if (isBallista) return <BallistaModel teamColor={teamColor} moving={moving} ammoState={ammoState} loadedAmmo={loadedAmmo} loadingProgress={loadingProgress} />;
     if (isMason) return <MasonModel teamColor={teamColor} moving={moving} working={!!constructionTargetId} carrying={!!carrying} tipRef={masonTipRef} />;
@@ -983,6 +986,7 @@ const Unit: React.FC<UnitProps> = ({
     isBallista ? Math.floor((loadingProgress || 0) / 10) : 0,
     isBanshee ? `${!!jammerActive && battery > 0}|${tetherTargetIds?.length ?? 0}` : 0,
     isHornet && upgrades.includes('hunter_rockets'),
+    isHelios ? `${heliosMode ?? 'charge'}|${heliosWorking}` : 0,
   ]);
 
   useFrame(() => {
@@ -1160,7 +1164,7 @@ const Unit: React.FC<UnitProps> = ({
       {/* Helios: gold while charging friends, orange-red with a beam while microwaving enemies (HeliosField.tsx). */}
       {isHelios && health > 0 && (
         <HeliosField radius={ABILITY_CONFIG.HELIOS_RADIUS * tileSize} mode={heliosMode ?? 'charge'} groundY={-hoverHeight + 0.3}
-          working={!buffs?.some(b => b.kind === 'emp') && (heliosMode !== 'burn' || battery > 0)} />
+          working={heliosWorking} />
       )}
       {/* Your own Banshee: a blue ring always marks its jamming reach, and the field inside it
           shimmers with interference while the jammer is on (JamStatic.tsx). */}
