@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet and the Helios are done; the rest of the roster follows by type.
+the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios and the Kestrel are done; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -374,6 +374,10 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   firing down, and under the body, facing the ground, the microwave projector: a flared horn whose
   core and ring glow gold while it charges friends and orange-red while it microwaves enemies, and
   go dark when it can't work.
+- **The Kestrel** (`components/models/AttackDroneModel.tsx`, sim type `attack_drone`): a small
+  attack drone: a compact faceted body on four long blade arms that flare out and up in an X, each
+  with a spinning fan, a red edge and serrations; a sensor array on the front (a big round lens, a
+  column of red-ringed lenses) and a short twin gun under the front that flashes when it fires.
 
 ### Rigged models
 

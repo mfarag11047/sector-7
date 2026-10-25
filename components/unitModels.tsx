@@ -1,5 +1,5 @@
-// Models for some of the units added in the playable build (the field generators, the Infiltrator
-// and the attack drone), plus the gear that sets Troopers and Lancers apart from the
+// Models for some of the units added in the playable build (the field generators and the
+// Infiltrator), plus the gear that sets Troopers and Lancers apart from the
 // Ghost (they share its soldier mesh). Vehicles rebuilt from the unit kit live in models/.
 // Built from primitives in the same style as the rest of Unit.tsx. Every model faces -Z,
 // which is the direction Unit.tsx turns toward the next waypoint.
@@ -249,78 +249,6 @@ export const InfiltratorModel: React.FC<{ teamColor: string; radarOn: boolean }>
           <mesh position={[0, 0.045, 0]}>
             <boxGeometry args={[0.9, 0.012, 0.05]} />
             <meshBasicMaterial color={DARK} />
-          </mesh>
-        </group>
-      </group>
-    </Float>
-  );
-};
-
-// The "Kestrel" attack drone: a compact X-frame quadcopter with a machine gun slung under its
-// nose (+z is forward), shrouded rotors and a team-coloured light bar. Smaller and meaner than
-// the Infiltrator; the muzzle flash shows while it fires.
-export const AttackDroneModel: React.FC<{ teamColor: string; flashRef: React.Ref<THREE.Mesh> }> = ({ teamColor, flashRef }) => {
-  const rotors = useRef<THREE.Group>(null);
-  useFrame((_, delta) => {
-    rotors.current?.children.forEach((r, i) => { r.rotation.y += delta * (i % 2 ? -45 : 45); });
-  });
-  const arms: [number, number][] = [[0.75, 0.75], [-0.75, 0.75], [0.75, -0.75], [-0.75, -0.75]];
-  return (
-    <Float speed={2.5} rotationIntensity={0.1} floatIntensity={0.4} floatingRange={[0, 0.4]}>
-      <group scale={[2.2, 2.2, 2.2]} rotation={[0.12, 0, 0]}>
-        {/* Armoured body, angled nose, battery pack */}
-        <mesh>
-          <boxGeometry args={[0.55, 0.28, 0.8]} />
-          <meshStandardMaterial color={HULL} metalness={0.7} roughness={0.35} />
-          <Edges color={DARK} />
-        </mesh>
-        <mesh position={[0, -0.02, 0.48]} rotation={[0.5, 0, 0]}>
-          <boxGeometry args={[0.45, 0.2, 0.25]} />
-          <meshStandardMaterial color={STEEL} metalness={0.6} roughness={0.35} />
-        </mesh>
-        <mesh position={[0, 0.18, -0.15]}>
-          <boxGeometry args={[0.35, 0.1, 0.4]} />
-          <meshStandardMaterial color={DARK} roughness={0.8} />
-        </mesh>
-        {/* Team light bar and sensor eye */}
-        <mesh position={[0, 0.15, 0.25]}>
-          <boxGeometry args={[0.4, 0.03, 0.05]} />
-          <meshBasicMaterial color={teamColor} toneMapped={false} />
-        </mesh>
-        <mesh position={[0, 0.02, 0.62]}>
-          <sphereGeometry args={[0.06, 10, 8]} />
-          <meshBasicMaterial color="#ef4444" toneMapped={false} />
-        </mesh>
-        {/* X-frame arms with ducted rotors */}
-        {arms.map(([x, z], i) => (
-          <mesh key={i} position={[x / 2, 0.02, z / 2]} rotation={[0, Math.atan2(x, z), 0]}>
-            <boxGeometry args={[0.08, 0.06, 1.05]} />
-            <meshStandardMaterial color={STEEL} metalness={0.6} roughness={0.4} />
-          </mesh>
-        ))}
-        {arms.map(([x, z], i) => (
-          <mesh key={`duct-${i}`} position={[x, 0.06, z]} rotation={[Math.PI / 2, 0, 0]}>
-            <torusGeometry args={[0.3, 0.04, 6, 16]} />
-            <meshStandardMaterial color={DARK} metalness={0.5} roughness={0.5} />
-          </mesh>
-        ))}
-        <group ref={rotors}>
-          {arms.map(([x, z], i) => (
-            <group key={i} position={[x, 0.08, z]}>
-              <mesh><boxGeometry args={[0.52, 0.01, 0.07]} /><meshBasicMaterial color="#cbd5e1" transparent opacity={0.55} /></mesh>
-              <mesh rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[0.52, 0.01, 0.07]} /><meshBasicMaterial color="#cbd5e1" transparent opacity={0.55} /></mesh>
-            </group>
-          ))}
-        </group>
-        {/* Chin turret: mount, receiver, barrel shroud and muzzle */}
-        <group position={[0, -0.24, 0.25]}>
-          <mesh><cylinderGeometry args={[0.12, 0.14, 0.12, 10]} /><meshStandardMaterial color={DARK} metalness={0.6} /></mesh>
-          <mesh position={[0, -0.08, 0.12]}><boxGeometry args={[0.14, 0.12, 0.3]} /><meshStandardMaterial color={STEEL} metalness={0.7} roughness={0.3} /></mesh>
-          <mesh position={[0, -0.08, 0.5]} rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.04, 0.04, 0.55, 8]} /><meshStandardMaterial color="#94a3b8" metalness={0.8} roughness={0.25} /></mesh>
-          <mesh position={[0, -0.08, 0.36]} rotation={[Math.PI / 2, 0, 0]}><cylinderGeometry args={[0.065, 0.065, 0.22, 8]} /><meshStandardMaterial color={DARK} /></mesh>
-          <mesh ref={flashRef} position={[0, -0.08, 0.85]} visible={false} raycast={() => null}>
-            <sphereGeometry args={[0.14, 8, 6]} />
-            <meshBasicMaterial color="#fbbf24" transparent opacity={0.85} toneMapped={false} depthWrite={false} />
           </mesh>
         </group>
       </group>
