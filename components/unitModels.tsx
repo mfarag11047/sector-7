@@ -1,12 +1,11 @@
-// Models for some of the units added in the playable build (the field generators and the
-// Infiltrator), plus the gear that sets Troopers and Lancers apart from the
-// Ghost (they share its soldier mesh). Vehicles rebuilt from the unit kit live in models/.
+// Models for some of the units added in the playable build (the field generators), plus the
+// gear that sets Troopers and Lancers apart from the Ghost (they share its soldier mesh). Vehicles rebuilt from the unit kit live in models/.
 // Built from primitives in the same style as the rest of Unit.tsx. Every model faces -Z,
 // which is the direction Unit.tsx turns toward the next waypoint.
 
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { Edges, Float } from '@react-three/drei';
+import { Edges } from '@react-three/drei';
 import * as THREE from 'three';
 
 const HULL = '#334155';
@@ -170,88 +169,5 @@ export const CloakGeneratorModel: React.FC<{ teamColor: string; active: boolean 
         ))}
       </group>
     </group>
-  );
-};
-
-// Infiltrator Drone: a long-winged loitering surveillance drone with a pusher prop and a radar
-// rotodome on struts above the fuselage, turning while its radar runs. Faces -Z.
-export const InfiltratorModel: React.FC<{ teamColor: string; radarOn: boolean }> = ({ teamColor, radarOn }) => {
-  const domeRef = useRef<THREE.Group>(null);
-  const propRef = useRef<THREE.Group>(null);
-  useFrame((_, delta) => {
-    if (domeRef.current && radarOn) domeRef.current.rotation.y += delta * 2.2;
-    if (propRef.current) propRef.current.rotation.z += delta * 40;
-  });
-  return (
-    <Float speed={1.5} rotationIntensity={0.05} floatIntensity={0.3} floatingRange={[0, 0.4]}>
-      <group scale={[2.2, 2.2, 2.2]}>
-        {/* Fuselage, bulbous sensor nose, tail boom */}
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.13, 0.1, 1.5, 10]} />
-          <meshStandardMaterial color={HULL} metalness={0.6} roughness={0.35} />
-        </mesh>
-        <mesh position={[0, -0.02, -0.78]} scale={[1, 0.9, 1.3]}>
-          <sphereGeometry args={[0.14, 12, 10]} />
-          <meshStandardMaterial color={STEEL} metalness={0.5} roughness={0.3} />
-        </mesh>
-        <mesh position={[0, -0.13, -0.6]}>
-          <sphereGeometry args={[0.07, 10, 8]} />
-          <meshBasicMaterial color="#0ea5e9" toneMapped={false} />
-        </mesh>
-        {/* Long straight glider wings with team-coloured tips */}
-        <mesh position={[0, 0.02, -0.05]}>
-          <boxGeometry args={[3.0, 0.035, 0.28]} />
-          <meshStandardMaterial color={HULL} metalness={0.5} roughness={0.4} />
-          <Edges color={DARK} />
-        </mesh>
-        {[-1, 1].map(side => (
-          <mesh key={side} position={[side * 1.45, 0.03, -0.05]}>
-            <boxGeometry args={[0.1, 0.04, 0.29]} />
-            <meshBasicMaterial color={teamColor} toneMapped={false} />
-          </mesh>
-        ))}
-        {/* V-tail */}
-        {[-1, 1].map(side => (
-          <mesh key={side} position={[side * 0.17, 0.13, 0.62]} rotation={[0, 0, side * -0.7]}>
-            <boxGeometry args={[0.38, 0.03, 0.2]} />
-            <meshStandardMaterial color={STEEL} />
-          </mesh>
-        ))}
-        {/* Pusher prop */}
-        <mesh position={[0, 0, 0.78]} rotation={[Math.PI / 2, 0, 0]}>
-          <cylinderGeometry args={[0.04, 0.06, 0.1, 8]} />
-          <meshStandardMaterial color={DARK} />
-        </mesh>
-        <group ref={propRef} position={[0, 0, 0.84]}>
-          {[0, Math.PI / 2].map(r => (
-            <mesh key={r} rotation={[0, 0, r]}>
-              <boxGeometry args={[0.5, 0.04, 0.015]} />
-              <meshStandardMaterial color="#94a3b8" transparent opacity={0.7} />
-            </mesh>
-          ))}
-        </group>
-        {/* Rotodome on two struts */}
-        {[-0.18, 0.18].map(z => (
-          <mesh key={z} position={[0, 0.2, z]}>
-            <boxGeometry args={[0.04, 0.22, 0.05]} />
-            <meshStandardMaterial color={STEEL} />
-          </mesh>
-        ))}
-        <group ref={domeRef} position={[0, 0.34, 0]}>
-          <mesh>
-            <cylinderGeometry args={[0.45, 0.45, 0.08, 24]} />
-            <meshStandardMaterial color="#e2e8f0" metalness={0.3} roughness={0.5} />
-          </mesh>
-          <mesh position={[0, 0.045, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <ringGeometry args={[0.2, 0.44, 24, 1, 0, Math.PI]} />
-            <meshBasicMaterial color={radarOn ? '#4ade80' : '#475569'} toneMapped={false} side={THREE.DoubleSide} />
-          </mesh>
-          <mesh position={[0, 0.045, 0]}>
-            <boxGeometry args={[0.9, 0.012, 0.05]} />
-            <meshBasicMaterial color={DARK} />
-          </mesh>
-        </group>
-      </group>
-    </Float>
   );
 };
