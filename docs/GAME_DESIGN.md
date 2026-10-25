@@ -397,10 +397,10 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   small canted fins and a flat jet nozzle with a glowing exhaust at the tail. A sensor array on the
   nose (a dark window on top, a turret under the chin); a radar rotodome on a short fairing that
   turns while the radar runs, its scan bar lit. Team markings near the wingtips.
-- **The Swarm Host** (`components/models/SwarmHostModel.tsx`, sim type `swarm_host`): a big
-  armoured six-legged crawler: a faceted hull (tapering belly, skirt band, sloped armour to a flat
-  deck) with amber sensor lenses and a short gun on the glacis, and six heavy legs, each shin
-  faced with a segmented armour slab, posed by a two-link solve so the feet stay planted. It walks
+- **The Swarm Host** (`components/models/SwarmHostModel.tsx`, sim type `swarm_host`): a big,
+  sturdy armoured six-legged crawler: a massive faceted hull (tapering belly, skirt band, sloped
+  armour to a flat deck) with amber sensor lenses and a short gun on the glacis, and six short,
+  thick legs close in to the hull, each shin faced with a segmented armour slab, posed by a two-link solve so the feet stay planted. It walks
   in alternating tripods. Anchored, it kneels to the ground with its legs splayed, then its split
   deck hatch opens and its micro crawler drones rise into view.
 
