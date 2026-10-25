@@ -14,7 +14,7 @@
 // It moves: it walks, each leg posed every frame from the foot up (the foot segment, then a
 // two-link solve from hip to ankle, kit/legs.ts), the hull bobbing and swaying with each step.
 //
-// Built facing +Z, about 1.6 tall in its own units, and scaled up here.
+// Built facing +Z, about 1.85 tall in its own units, and scaled up here.
 
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -32,9 +32,11 @@ const TOP: [number, number][] = [[-0.26, -0.36], [0.26, -0.36], [0.36, -0.2], [0
 const BELLY_Y = 0.6, FLANKS_Y = 0.9, TOP_Y = 1.28;
 // The legs: hips under the flanks; thigh and shin to the ankle; the foot segment from the ankle
 // (back and up from the foot) down and forward to the foot.
-const HIP_Y = 0.9, HIP_X = 0.56;
-const THIGH = 0.46, SHIN = 0.44;
-const ANKLE: [number, number] = [-0.22, 0.34];
+const HIP_Y = 1.12, HIP_X = 0.56;
+const THIGH = 0.56, SHIN = 0.54;
+const ANKLE: [number, number] = [-0.24, 0.42];
+// How far the hull and arms (drawn on shorter legs) are raised to sit on these.
+const LIFT = 0.22;
 const FOOT = Math.hypot(ANKLE[0], ANKLE[1]);
 // The arms, on the upper flanks.
 const SHOULDER_X = 0.56, SHOULDER_Y = 1.12;
@@ -65,7 +67,7 @@ export const LancerMechModel: React.FC<{ teamColor: string; moving?: boolean; la
     const bob = Math.abs(Math.sin(state.stride)) * 0.04 * state.walk;
     const drop = -0.03 * state.walk + bob;
     if (body.current) {
-      body.current.position.y = drop;
+      body.current.position.y = LIFT + drop;
       body.current.rotation.z = Math.sin(state.stride) * 0.035 * state.walk;
     }
     arms.current.forEach((a, i) => {
@@ -93,7 +95,7 @@ export const LancerMechModel: React.FC<{ teamColor: string; moving?: boolean; la
   return (
     <group scale={SCALE}>
       <ContactShadow size={[1.7, 1.2]} />
-      <group ref={body}>
+      <group ref={body} position={[0, LIFT, 0]}>
         {/* The hull, one wedge: belly to flanks, flanks to the top. */}
         <Loft bottom={BELLY} top={FLANKS} height={FLANKS_Y - BELLY_Y} material={armour} position={[0, BELLY_Y, 0]} />
         <Loft bottom={FLANKS} top={TOP} height={TOP_Y - FLANKS_Y} material={armour} position={[0, FLANKS_Y, 0]} />
