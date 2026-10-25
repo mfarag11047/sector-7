@@ -58,6 +58,14 @@ export function kitMaterial(kind: KitMaterial): THREE.MeshStandardMaterial {
   }) as THREE.MeshStandardMaterial;
 }
 
+// A kit material smooth-shaded, for rounded parts that should read as curved rather than faceted
+// (an infantryman's limbs and helmet).
+export const smoothMaterial = (kind: Exclude<KitMaterial, 'tread'>) => cached(`smooth:${kind}`, () => {
+  const m = kitMaterial(kind).clone();
+  m.flatShading = false;
+  return m;
+});
+
 // Team paint: the side's colour as a plate.
 export const teamPaint = (color: string) => cached(`team:${color}`, () => plate(color, 0.1, 0.5));
 
