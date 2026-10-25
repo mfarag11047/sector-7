@@ -445,8 +445,9 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   pulse in the colour of the warhead being made.
 - **The missile** (`components/models/MissileModel.tsx`): one model for the Ballista's missile
   wherever it shows (the Field Fabricator's cages, the Ballista's launch tube, in flight): a long
-  dark body, a forked tail of four splayed prongs round a nozzle, four small fins, and behind a
-  faceted dark nose a collar ring glowing the colour of its warhead (EMP blue, HE red, WP white).
+  dark body, a forked tail of four prongs growing out of it and sweeping out round a nozzle, four
+  swept fins ahead of them rooted in the body (each one piece with it), and behind a faceted dark
+  nose a collar ring glowing the colour of its warhead (EMP blue, HE red, WP white).
   A missile with no warhead yet is a bare body, open at the front, its ring unlit.
 
 ### Rigged models

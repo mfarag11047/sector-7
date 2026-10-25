@@ -1,9 +1,10 @@
 // The Ballista's missile, built from the unit kit (components/kit): one model wherever it shows,
 // in the Field Fabricator's cages, in the Ballista's launch tube and in flight.
 //
-// Simple but military: a long dark body; a forked tail of four prongs splaying out round a nozzle;
-// four small fins ahead of them; and at the front, behind a faceted dark nose, a collar ring that
-// glows in the colour of its warhead (EMP, HE or WP). A missile with no warhead yet (`warhead`
+// Simple but military: a long dark body; a forked tail of four prongs growing out of it and
+// sweeping out round a nozzle; four swept fins ahead of them, rooted in the body; and at the
+// front, behind a faceted dark nose, a collar ring that glows in the colour of its warhead (EMP,
+// HE or WP). A missile with no warhead yet (`warhead`
 // null) is a bare body: no nose, its collar an open, unlit ring (`ring` lights it, as while a
 // warhead is being fitted).
 //
@@ -13,7 +14,7 @@
 import React from 'react';
 import * as THREE from 'three';
 import { glow, kitMaterial } from '../kit/materials';
-import { Plate, Turned } from '../kit/shapes';
+import { Prism, Turned } from '../kit/shapes';
 
 export type Warhead = 'emp' | 'he' | 'wp';
 // Warhead colours, by type.
@@ -37,16 +38,17 @@ export const Missile: React.FC<{
       {/* The body, drawn in at the tail; the nozzle. */}
       <Turned profile={[[r * 0.5, 0], [r * 0.62, 0.1 * L], [r, 0.24 * L], [r, collar]]} segments={10} material={composite} />
       <Turned profile={[[r * 0.42, -0.02 * L], [r * 0.5, 0.01 * L], [0.001, 0.01 * L]]} segments={8} material={black} />
-      {/* The forked tail: four prongs splaying out to the rear. */}
+      {/* The forked tail: four prongs growing out of the drawn-in tail and sweeping out past it,
+          their roots buried in the body so each reads as one piece with it. */}
       {[0, 1, 2, 3].map(k => (
         <group key={k} rotation={[0, 0, k * Math.PI / 2 + Math.PI / 4]}>
-          <Plate size={[r * 0.32, r * 0.22, 0.26 * L]} material={dark} position={[r * 0.82, 0, 0.1 * L]} rotation={[0, -0.28, 0]} />
+          <Prism outline={[[0.3 * L, r * 0.8], [0.17 * L, r * 1.12], [-0.07 * L, r * 1.5], [-0.035 * L, r * 1.22], [0.07 * L, r * 0.45]]} depth={r * 0.3} axis="x" material={composite} />
         </group>
       ))}
-      {/* Four small fins ahead of the tail. */}
+      {/* Four swept fins ahead of them, rooted in the body. */}
       {[0, 1, 2, 3].map(k => (
         <group key={k} rotation={[0, 0, k * Math.PI / 2]}>
-          <Plate size={[r * 0.7, r * 0.08, 0.12 * L]} material={dark} position={[r * 1.25, 0, 0.32 * L]} rotation={[0, 0.35, 0]} />
+          <Prism outline={[[0.42 * L, r * 0.9], [0.35 * L, r * 1.6], [0.31 * L, r * 1.6], [0.28 * L, r * 0.9]]} depth={r * 0.08} axis="x" material={dark} />
         </group>
       ))}
       {/* The collar: metal rims round the ring that shows the warhead's colour. */}
