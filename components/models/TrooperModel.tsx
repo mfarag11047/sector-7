@@ -1,250 +1,183 @@
-// The Trooper, the basic infantry unit: a supplied rigged model (public/models/trooper.glb, a
-// fully armoured soldier with a respirator helmet and a backpack, in parts on one skeleton),
-// adapted to the game's look and posed in code.
+// The Trooper, the basic infantry unit, built from the unit kit (components/kit).
 //
-// The model comes untextured, so it is painted from the unit kit's palette, part by part and within
-// parts (by where a point sits and which bone moves it): an olive helmet shell, vest, upper arms
-// and shin guards; darker olive cloth (trousers, sleeves, hood, pouches); a black visor slit and
-// hoses over a dark respirator; dark gloves, boots and belt; a khaki canvas backpack; and the
-// shoulder plates in the side's colour. So it sits with the rest of the army. It has no animation
-// clips, so it moves procedurally:
-//   - it holds a plain kit rifle in both hands by two-bone IK (kit/rig.ts): the right hand on the
-//     grip, the left on the handguard, fingers closed;
-//   - the rifle rides low at the ready, and comes up level to fire while it is fighting
-//     (`lastAttackTime`), its muzzle flashing on each shot (`flashRef`, lit by Unit.tsx);
-//   - walking swings its legs and bobs its hips; standing, its chest rises and falls.
+// Simple but military: a soldier in full armour. Underneath, a body that reads as a person:
+// tapered, smooth-shaded limbs and torso in a dark undersuit. Over it, angular, flat-faceted
+// armour: a vest that wraps the torso with abdominal plates, layered shoulder plates edged in team
+// colour, faceted forearm bracers, thigh and shin guards, angled knee pads and boots. A faceted
+// combat helmet: a brow ridge, cheek guards down the sides, a wraparound visor with a lit line,
+// and an angled faceplate with a vent. A backpack. Both hands on a plain futuristic rifle: a
+// stock, a receiver, a magazine and grip, an optic, a handguard and a barrel, its muzzle flashing
+// when it fires (`flashRef`, lit by Unit.tsx).
 //
-// The model faces +Z, 1 tall with its feet on y = 0, and is scaled up here.
+// It moves: it walks, legs swinging and knees bending in step; it carries the rifle low at the
+// ready and brings it up to aim while it is fighting (`lastAttackTime`).
+//
+// Built facing +Z, about 1 tall in its own units, and scaled up here.
 
 import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
-import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { glow, kitMaterial, PALETTE, teamPaint } from '../kit/materials';
-import { reach, wq } from '../kit/rig';
-import { ContactShadow, Plate, Strip, Turned } from '../kit/shapes';
+import { glow, kitMaterial, PALETTE, smoothMaterial, teamPaint } from '../kit/materials';
+import { ContactShadow, Loft, Plate, Strip, Turned } from '../kit/shapes';
 
-const MODEL_URL = '/models/trooper.glb';
-useGLTF.preload(MODEL_URL);
+type V3 = [number, number, number];
+type Outline = [number, number][];
 const SCALE = 3.6;
+const HIP_Y = 0.54, HIP_X = 0.065;
+const THIGH = 0.24, SHIN = 0.23;
+// Hanging down: the kit's turned parts point along +Z; this turns +Z to -Y.
+const DOWN: V3 = [Math.PI / 2, 0, 0];
+// The armoured vest round the torso, top views [right, forward] matched point for point: its
+// lower edge and its shoulders.
+const VEST_LOW: Outline = [[-0.09, -0.07], [0.09, -0.07], [0.115, -0.03], [0.11, 0.05], [0.06, 0.085], [-0.06, 0.085], [-0.11, 0.05], [-0.115, -0.03]];
+const VEST_HIGH: Outline = [[-0.11, -0.085], [0.11, -0.085], [0.15, -0.035], [0.145, 0.05], [0.075, 0.1], [-0.075, 0.1], [-0.145, 0.05], [-0.15, -0.035]];
+const VEST_Y = 0.6, VEST_H = 0.21;
+// The helmet, faceted: its rim, its widest line at the brow, and its crown.
+const HELM_RIM: Outline = [[-0.055, -0.08], [0.055, -0.08], [0.078, -0.04], [0.078, 0.045], [0.05, 0.085], [-0.05, 0.085], [-0.078, 0.045], [-0.078, -0.04]];
+const HELM_BROW: Outline = [[-0.065, -0.095], [0.065, -0.095], [0.09, -0.04], [0.088, 0.05], [0.058, 0.1], [-0.058, 0.1], [-0.088, 0.05], [-0.09, -0.04]];
+const HELM_CROWN: Outline = [[-0.05, -0.075], [0.05, -0.075], [0.07, -0.03], [0.066, 0.035], [0.038, 0.07], [-0.038, 0.07], [-0.066, 0.035], [-0.07, -0.03]];
+const HELM_Y = 0.85, BROW_Y = 0.94, CROWN_Y = 0.985;
 
-// The paints, from the unit kit's palette: olive armour plate, darker olive cloth, near-black
-// gear, black glass and hoses, khaki canvas, and the side's colour.
-type Paint = 'armour' | 'armourDark' | 'composite' | 'black' | 'canvas' | 'team';
-const COLOURS: Record<Exclude<Paint, 'team'>, THREE.Color> = {
-  armour: new THREE.Color(PALETTE.armour), armourDark: new THREE.Color(PALETTE.armourDark),
-  composite: new THREE.Color(PALETTE.composite), black: new THREE.Color(PALETTE.black), canvas: new THREE.Color('#6b6a4c'),
+// A tapered limb from one point to another: a turned part aimed between them. Few `segments`
+// make it a faceted guard rather than a round limb.
+const Segment: React.FC<{ from: V3; to: V3; r: [number, number]; material: THREE.Material; segments?: number }> = ({ from, to, r, material, segments = 10 }) => {
+  const { q, len } = useMemo(() => {
+    const d = new THREE.Vector3(to[0] - from[0], to[1] - from[1], to[2] - from[2]);
+    const len = d.length();
+    return { len, q: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), d.normalize()) };
+  }, [from, to]);
+  return (
+    <group position={from} quaternion={q}>
+      <Turned profile={[[r[0] * 0.8, 0], [r[0], len * 0.15], [r[1], len * 0.85], [r[1] * 0.8, len]]} segments={segments} material={material} />
+    </group>
+  );
 };
-// The parts, by their names in the model.
-const PART = {
-  head: 'tripo_part_0', backpack: 'tripo_part_1', armRight: 'tripo_part_2', armLeft: 'tripo_part_3',
-  vest: 'tripo_part_5', trousers: 'tripo_part_7', shins: ['tripo_part_8', 'tripo_part_9'], boots: ['tripo_part_4', 'tripo_part_6'],
-  pouches: ['tripo_part_10', 'tripo_part_12', 'tripo_part_14', 'tripo_part_19'], hoses: ['tripo_part_15', 'tripo_part_16', 'tripo_part_18'],
-};
-// The face of the helmet, in the model's space: the visor slit and the respirator below it.
-const VISOR = { low: 0.915, high: 0.937 }, FACE_Z = 0.05;
 
-// What colour a point of a part is: where it sits (in the model's space, facing +Z, 1 tall) and,
-// for the arms, which bone moves it most.
-function paintAt(part: string, p: THREE.Vector3, bone: string): Paint {
-  if (part === PART.head) {
-    if (p.y > VISOR.high) return 'armour'; // the helmet shell
-    if (p.z > FACE_Z) return p.y > VISOR.low ? 'black' : 'composite'; // visor, respirator
-    return 'armourDark'; // the hood round the neck
-  }
-  if (part === PART.armRight || part === PART.armLeft) {
-    if (bone.includes('Hand')) return 'composite'; // gloves
-    if (bone.includes('ForeArm')) return 'armourDark'; // sleeves
-    return p.y > 0.72 ? 'team' : 'armour'; // shoulder plate, upper arm
-  }
-  if (part === PART.vest) return 'armour';
-  if (part === PART.backpack) return 'canvas';
-  if (part === PART.trousers) return 'armourDark';
-  if (PART.shins.includes(part)) return 'armour';
-  if (PART.hoses.includes(part)) return 'black';
-  if (PART.pouches.includes(part)) return 'armourDark';
-  return 'composite'; // boots, belt, buckles and the rest of the small gear
-}
+// Points along a segment, for the armour laid over part of it.
+const along = (a: V3, b: V3, t: number): V3 => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
 
-// The rifle in the model's space: where its grip sits at the ready and when aimed, and its tilt.
-const READY = { pos: new THREE.Vector3(-0.07, 0.54, 0.13), tilt: 0.45 };
-const AIMED = { pos: new THREE.Vector3(-0.07, 0.68, 0.12), tilt: 0 };
-// Where the hands go, in the rifle's own space (barrel along +Z), and which way the elbows point
-// in the model's space.
-const GRIP_RIGHT = new THREE.Vector3(0, -0.01, 0.0);
-const GRIP_LEFT = new THREE.Vector3(0, 0.0, 0.21);
-const POLE_RIGHT = new THREE.Vector3(-0.6, -1, -0.3);
-const POLE_LEFT = new THREE.Vector3(0.6, -1, 0);
-const CURL = 1.0;
-
-// The model's skin weights let parts of the torso follow the arm bones (and the arms the
-// spine), which stretches into sheets once the arms come forward to the rifle. So the arms follow
-// only arm bones and every other part none of them.
-const ARM_PARTS = new Set(['tripo_part_2', 'tripo_part_3']);
-const isArmBone = (name: string) => /(Arm|ForeArm|Hand)/.test(name);
-function separateArms(mesh: THREE.SkinnedMesh) {
-  const g = mesh.geometry;
-  const index = g.getAttribute('skinIndex'), weight = g.getAttribute('skinWeight'), position = g.getAttribute('position');
-  const arm = ARM_PARTS.has(mesh.name);
-  const { bones, boneInverses } = mesh.skeleton;
-  const allowed = bones.map((b, i) => i).filter(i => isArmBone(bones[i].name) === arm);
-  // Where each allowed bone sits in the bind pose, for vertices left with no weight at all.
-  const at = allowed.map(i => new THREE.Vector3().setFromMatrixPosition(boneInverses[i].clone().invert()));
-  const p = new THREE.Vector3();
-  for (let v = 0; v < index.count; v++) {
-    const w = [0, 1, 2, 3].map(k => allowed.includes(index.getComponent(v, k)) ? weight.getComponent(v, k) : 0);
-    const total = w.reduce((a, b) => a + b, 0);
-    if (total > 0) { w.forEach((x, k) => weight.setComponent(v, k, x / total)); continue; }
-    p.fromBufferAttribute(position, v).applyMatrix4(mesh.bindMatrix);
-    let best = 0;
-    at.forEach((q, j) => { if (q.distanceToSquared(p) < at[best].distanceToSquared(p)) best = j; });
-    index.setComponent(v, 0, allowed[best]);
-    weight.setComponent(v, 0, 1);
-    for (let k = 1; k < 4; k++) weight.setComponent(v, k, 0);
-  }
-  index.needsUpdate = true;
-  weight.needsUpdate = true;
-}
-
-// A part painted: each vertex takes its colour (a vertex colour, so where one paint meets another
-// the colours blend rather than step along the triangles), except the team-coloured triangles,
-// split off to take the side's colour.
-function paintPart(mesh: THREE.SkinnedMesh) {
-  const g = mesh.geometry;
-  const position = g.getAttribute('position'), skinIndex = g.getAttribute('skinIndex'), skinWeight = g.getAttribute('skinWeight');
-  const index = g.getIndex()!;
-  const { bones } = mesh.skeleton;
-  const p = new THREE.Vector3();
-  // Each vertex's paint, by where it sits and the bone that moves it most.
-  const paints: Paint[] = [];
-  for (let v = 0; v < position.count; v++) {
-    let best = 0;
-    for (let k = 1; k < 4; k++) if (skinWeight.getComponent(v, k) > skinWeight.getComponent(v, best)) best = k;
-    paints.push(paintAt(mesh.name, p.fromBufferAttribute(position, v).applyMatrix4(mesh.bindMatrix), bones[skinIndex.getComponent(v, best)].name));
-  }
-  const colours = new Float32Array(position.count * 3);
-  paints.forEach((paint, v) => (paint === 'team' ? COLOURS.armour : COLOURS[paint]).toArray(colours, v * 3));
-  // A triangle is team-coloured when most of its corners are.
-  const team: number[] = [], rest: number[] = [];
-  for (let t = 0; t < index.count; t += 3) {
-    const vs = [index.getX(t), index.getX(t + 1), index.getX(t + 2)];
-    (vs.filter(v => paints[v] === 'team').length >= 2 ? team : rest).push(...vs);
-  }
-  const body = g.clone();
-  body.setAttribute('color', new THREE.BufferAttribute(colours, 3));
-  body.setIndex(rest);
-  const out: [boolean, THREE.BufferGeometry][] = [[false, body]];
-  if (team.length) { const t = g.clone(); t.setIndex(team); out.push([true, t]); }
-  return out;
-}
-
-// The model's parts, re-weighted, painted and merged: one geometry for the painted body and one
-// for its team-coloured triangles, built once from the loaded model and shared by every Trooper
-// (each binds them to its own skeleton).
-const merged = new WeakMap<THREE.Object3D, { body: THREE.BufferGeometry; team: THREE.BufferGeometry }>();
-function mergedParts(scene: THREE.Object3D, parts: THREE.SkinnedMesh[]) {
-  let out = merged.get(scene);
-  if (!out) {
-    parts.forEach(separateArms);
-    const painted = parts.flatMap(paintPart);
-    out = {
-      body: mergeGeometries(painted.filter(([team]) => !team).map(([, g]) => g))!,
-      team: mergeGeometries(painted.filter(([team]) => team).map(([, g]) => g))!,
-    };
-    merged.set(scene, out);
-  }
-  return out;
-}
-const bodyMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.15, roughness: 0.65 });
+// The arms, from the shoulder line: shoulder, elbow and hand on each side. The right hand
+// (on -X, facing +Z) holds the grip, the left the handguard.
+const R_SHOULDER: V3 = [-0.165, -0.01, 0], R_ELBOW: V3 = [-0.185, -0.18, 0.05], R_HAND: V3 = [-0.085, -0.15, 0.16];
+const L_SHOULDER: V3 = [0.165, -0.01, 0], L_ELBOW: V3 = [0.15, -0.16, 0.11], L_HAND: V3 = [-0.04, -0.105, 0.3];
+const R_BRACER: [V3, V3] = [along(R_ELBOW, R_HAND, 0.2), along(R_ELBOW, R_HAND, 0.75)];
+const L_BRACER: [V3, V3] = [along(L_ELBOW, L_HAND, 0.2), along(L_ELBOW, L_HAND, 0.75)];
 
 export const TrooperModel: React.FC<{ teamColor: string; moving?: boolean; lastAttackTime?: number; flashRef?: React.Ref<THREE.Mesh> }> = ({ teamColor, moving, lastAttackTime, flashRef }) => {
-  const { scene } = useGLTF(MODEL_URL);
-  const dark = kitMaterial('armourDark'), steel = kitMaterial('steel'), black = kitMaterial('black'), composite = kitMaterial('composite');
+  const suit = smoothMaterial('armourDark'), glove = smoothMaterial('composite');
+  const armour = kitMaterial('armour'), dark = kitMaterial('armourDark'), steel = kitMaterial('steel'), black = kitMaterial('black');
+  const composite = kitMaterial('composite'), paint = teamPaint(teamColor);
 
-  const rig = useMemo(() => {
-    const root = cloneSkinned(scene) as THREE.Group;
-    // The parts merged into two skinned meshes, painted and team-coloured, on this soldier's own
-    // skeleton.
-    const parts: THREE.SkinnedMesh[] = [];
-    root.traverse(o => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) parts.push(o as THREE.SkinnedMesh); });
-    const { skeleton, bindMatrix, parent } = parts[0];
-    const { body, team } = mergedParts(scene, parts);
-    for (const [geometry, material] of [[body, bodyMaterial], [team, teamPaint(teamColor)]] as const) {
-      const mesh = new THREE.SkinnedMesh(geometry, material);
-      mesh.bind(skeleton, bindMatrix);
-      mesh.castShadow = true;
-      mesh.frustumCulled = false;
-      parent!.add(mesh);
-    }
-    parts.forEach(m => m.removeFromParent());
-    const bones: Record<string, THREE.Bone> = {};
-    root.traverse(o => { if ((o as THREE.Bone).isBone) bones[o.name.replace('mixamorig', '').replace(':', '')] = o as THREE.Bone; });
-    // Fists round the grips: the fingers keep this for good.
-    for (const side of ['Left', 'Right']) for (const f of ['Index', 'Middle', 'Ring', 'Pinky']) for (const k of [1, 2, 3]) {
-      bones[`${side}Hand${f}${k}`]?.rotateZ(side === 'Left' ? -CURL : CURL);
-    }
-    const animated = ['Hips', 'Spine', 'Spine2', 'LeftUpLeg', 'RightUpLeg', 'LeftLeg', 'RightLeg'];
-    const rest = Object.fromEntries(animated.map(n => [n, { q: bones[n].quaternion.clone(), p: bones[n].position.clone() }]));
-    return { root, bones, rest };
-  }, [scene, teamColor]);
-
-  const rifle = useRef<THREE.Group>(null);
+  const body = useRef<THREE.Group>(null);
+  const arms = useRef<THREE.Group>(null);
+  const legs = useRef<(THREE.Group | null)[]>([]);
+  const shins = useRef<(THREE.Group | null)[]>([]);
   const state = useMemo(() => ({ walk: 0, stride: 0, aim: 0 }), []);
 
-  useFrame(({ clock }, delta) => {
-    const { root, bones, rest } = rig;
+  useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05);
-    for (const n in rest) { bones[n].quaternion.copy(rest[n].q); bones[n].position.copy(rest[n].p); }
     state.walk += ((moving ? 1 : 0) - state.walk) * (1 - Math.exp(-dt * 8));
     state.stride += dt * 8 * state.walk;
     const since = lastAttackTime ? Date.now() - lastAttackTime : Infinity;
     state.aim += ((since < 3000 ? 1 : 0) - state.aim) * (1 - Math.exp(-dt * 6));
-
-    // A stride: legs swing, knees bend on the forward swing, hips bob; standing, breathing.
-    const swing = Math.sin(state.stride) * 0.45 * state.walk;
-    bones.RightUpLeg.rotateZ(-swing);
-    bones.LeftUpLeg.rotateZ(swing);
-    bones.RightLeg.rotateZ(Math.max(0, Math.sin(state.stride)) * 0.7 * state.walk);
-    bones.LeftLeg.rotateZ(Math.max(0, -Math.sin(state.stride)) * 0.7 * state.walk);
-    const bob = Math.abs(Math.cos(state.stride)) * 0.012 * state.walk;
-    bones.Hips.position.y += bob;
-    bones.Spine2.rotateX(Math.sin(clock.elapsedTime * 1.6) * 0.015 * (1 - state.walk));
-
-    // The rifle, low at the ready or up to fire, riding the stride.
-    const r = rifle.current;
-    if (!r) return;
-    r.position.lerpVectors(READY.pos, AIMED.pos, state.aim);
-    r.position.y += bob;
-    r.rotation.x = READY.tilt + (AIMED.tilt - READY.tilt) * state.aim;
-    root.updateMatrixWorld(true);
-    r.updateWorldMatrix(true, false);
-    // Hands on the grips, wherever the rifle is now.
-    const facing = wq(root);
-    reach(bones.RightArm, bones.RightForeArm, bones.RightHand, r.localToWorld(GRIP_RIGHT.clone()), POLE_RIGHT.clone().applyQuaternion(facing));
-    reach(bones.LeftArm, bones.LeftForeArm, bones.LeftHand, r.localToWorld(GRIP_LEFT.clone()), POLE_LEFT.clone().applyQuaternion(facing));
+    if (body.current) body.current.position.y = Math.abs(Math.sin(state.stride)) * 0.015 * state.walk;
+    // Low ready, or up at the shoulder to aim.
+    if (arms.current) arms.current.rotation.x = 0.35 * (1 - state.aim);
+    [0, 1].forEach(i => {
+      const s = state.stride + i * Math.PI;
+      const leg = legs.current[i], shin = shins.current[i];
+      if (leg) leg.rotation.x = Math.sin(s) * 0.5 * state.walk;
+      if (shin) shin.rotation.x = (0.05 + 0.6 * Math.max(0, Math.sin(s + 1.2))) * state.walk;
+    });
   });
 
   return (
     <group scale={SCALE}>
       <ContactShadow size={[0.45, 0.4]} />
-      <primitive object={rig.root} />
-      {/* The rifle: stock, receiver, magazine, optic, handguard, barrel; its origin at the grip. */}
-      <group ref={rifle} position={READY.pos}>
-        <Plate size={[0.04, 0.06, 0.15]} material={composite} position={[0, 0.02, -0.12]} />
-        <Plate size={[0.045, 0.075, 0.22]} material={dark} position={[0, 0.03, 0.04]} />
-        <Plate size={[0.028, 0.065, 0.032]} material={black} position={[0, -0.03, -0.01]} rotation={[-0.3, 0, 0]} />
-        <Plate size={[0.028, 0.08, 0.04]} material={black} position={[0, -0.03, 0.09]} rotation={[0.25, 0, 0]} />
-        <Turned profile={[[0.016, -0.04], [0.018, -0.028], [0.018, 0.028], [0.016, 0.04]]} segments={8} material={steel} position={[0, 0.085, 0.03]} />
-        <Strip size={[0.018, 0.018, 0.004]} material={glow(PALETTE.amber)} position={[0, 0.085, 0.072]} />
-        <group position={[0, 0.03, 0]}>
-          <Turned profile={[[0.02, 0.14], [0.024, 0.16], [0.024, 0.28], [0.018, 0.3]]} segments={6} material={composite} />
-          <Turned profile={[[0.01, 0.29], [0.01, 0.38], [0.016, 0.38], [0.016, 0.41]]} segments={8} material={black} />
-          <mesh ref={flashRef} position={[0, 0, 0.46]} visible={false} raycast={() => null}>
-            <sphereGeometry args={[0.05, 8, 6]} />
-            <meshBasicMaterial color="#ffd27a" transparent opacity={0.9} toneMapped={false} depthWrite={false} />
-          </mesh>
+      {/* The legs, swinging from the hips: thighs with guards, angled knee pads, shins with
+          guards, boots. */}
+      {[1, -1].map((s, i) => (
+        <group key={s} ref={g => { legs.current[i] = g; }} position={[s * HIP_X, HIP_Y, 0]}>
+          <Turned profile={[[0.05, 0], [0.062, 0.04], [0.054, 0.17], [0.042, THIGH]]} segments={10} material={suit} rotation={DOWN} />
+          <Plate size={[0.09, 0.15, 0.03]} material={armour} position={[0, -0.1, 0.05]} rotation={[-0.06, 0, 0]} />
+          <Plate size={[0.03, 0.12, 0.08]} material={armour} position={[s * 0.05, -0.1, 0.01]} rotation={[0, 0, s * 0.08]} />
+          <group ref={g => { shins.current[i] = g; }} position={[0, -THIGH, 0]}>
+            <Plate size={[0.07, 0.06, 0.035]} material={composite} position={[0, 0.0, 0.048]} rotation={[0.35, 0, 0]} />
+            <Plate size={[0.05, 0.03, 0.03]} material={composite} position={[0, -0.04, 0.05]} rotation={[-0.3, 0, 0]} />
+            <Turned profile={[[0.042, 0], [0.046, 0.05], [0.035, 0.18], [0.032, SHIN]]} segments={10} material={suit} rotation={DOWN} />
+            <Plate size={[0.075, 0.13, 0.026]} material={armour} position={[0, -0.12, 0.042]} rotation={[0.05, 0, 0]} />
+            <Plate size={[0.088, 0.075, 0.12]} material={composite} position={[0, -SHIN - 0.03, 0.0]} />
+            <Plate size={[0.082, 0.045, 0.07]} material={composite} position={[0, -SHIN - 0.045, 0.085]} />
+            <Plate size={[0.09, 0.02, 0.19]} material={black} position={[0, -SHIN - 0.064, 0.035]} />
+          </group>
+        </group>
+      ))}
+
+      <group ref={body}>
+        {/* Hips and belt, the torso in its undersuit, the armoured vest, abdominal plates,
+            backpack. */}
+        <Plate size={[0.2, 0.09, 0.13]} radius={0.025} material={dark} position={[0, HIP_Y + 0.03, 0]} />
+        <Plate size={[0.21, 0.035, 0.14]} material={composite} position={[0, HIP_Y + 0.07, 0]} />
+        {[-0.07, 0.07].map(x => <Plate key={x} size={[0.04, 0.05, 0.03]} material={composite} position={[x, HIP_Y + 0.06, 0.075]} />)}
+        <group position={[0, HIP_Y + 0.05, 0]} scale={[1, 1, 0.7]}>
+          <Turned profile={[[0.085, 0], [0.09, 0.08], [0.115, 0.17], [0.125, 0.22], [0.095, 0.255], [0.001, 0.265]]} segments={12} material={suit} rotation={[-Math.PI / 2, 0, 0]} />
+        </group>
+        <Loft bottom={VEST_LOW} top={VEST_HIGH} height={VEST_H} material={armour} position={[0, VEST_Y, 0]} />
+        <Plate size={[0.2, 0.025, 0.17]} material={dark} position={[0, VEST_Y + VEST_H + 0.005, 0.0]} />
+        {[0.585, 0.55].map((y, k) => <Plate key={y} size={[0.13 - k * 0.02, 0.035, 0.03]} material={armour} position={[0, y, 0.07 - k * 0.005]} rotation={[0.12, 0, 0]} />)}
+        <Plate size={[0.17, 0.2, 0.08]} material={composite} position={[0, 0.72, -0.13]} />
+        <Plate size={[0.13, 0.06, 0.04]} material={dark} position={[0, 0.66, -0.18]} />
+        <Turned profile={[[0.025, -0.06], [0.025, 0.06]]} segments={8} material={dark} position={[0, 0.84, -0.13]} rotation={[0, Math.PI / 2, 0]} />
+
+        {/* Layered shoulder plates, edged in team colour. */}
+        {[1, -1].map(s => (
+          <group key={s} position={[s * 0.16, 0.8, 0]}>
+            <Plate size={[0.1, 0.03, 0.13]} material={armour} rotation={[0, 0, -s * 0.4]} />
+            <Plate size={[0.09, 0.025, 0.115]} material={armour} position={[s * 0.035, -0.04, 0]} rotation={[0, 0, -s * 0.85]} />
+            <Plate size={[0.02, 0.012, 0.132]} material={paint} position={[s * 0.048, -0.018, 0]} rotation={[0, 0, -s * 0.4]} />
+          </group>
+        ))}
+
+        {/* Neck and the faceted helmet: rim to brow to crown, a brow ridge, cheek guards, a
+            wraparound visor with a lit line, an angled faceplate with a vent. */}
+        <Turned profile={[[0.035, 0], [0.032, 0.05]]} segments={10} material={suit} position={[0, 0.8, 0]} rotation={[-Math.PI / 2, 0, 0]} />
+        <Loft bottom={HELM_RIM} top={HELM_BROW} height={BROW_Y - HELM_Y} material={armour} position={[0, HELM_Y, 0]} />
+        <Loft bottom={HELM_BROW} top={HELM_CROWN} height={CROWN_Y - BROW_Y} material={armour} position={[0, BROW_Y, 0]} />
+        <Plate size={[0.13, 0.016, 0.03]} material={armour} position={[0, BROW_Y + 0.005, 0.095]} />
+        {[1, -1].map(s => <Plate key={s} size={[0.02, 0.07, 0.1]} material={armour} position={[s * 0.084, HELM_Y + 0.0, 0.02]} rotation={[0.1, 0, 0]} />)}
+        <Plate size={[0.075, 0.032, 0.012]} material={black} position={[0, 0.918, 0.098]} />
+        {[1, -1].map(s => <Plate key={s} size={[0.05, 0.03, 0.012]} material={black} position={[s * 0.066, 0.918, 0.077]} rotation={[0, s * 0.95, 0]} />)}
+        <Strip size={[0.06, 0.005, 0.004]} material={glow(PALETTE.cyan)} position={[0, 0.918, 0.105]} />
+        <group position={[0, 0.865, 0.08]} rotation={[0.3, 0, 0]}>
+          <Plate size={[0.09, 0.05, 0.035]} material={composite} />
+          {[-0.012, 0.0, 0.012].map(y => <Plate key={y} size={[0.05, 0.005, 0.038]} material={black} position={[0, y, 0.002]} />)}
+        </group>
+
+        {/* The arms and the rifle, held as one from the shoulders: low ready or aimed. */}
+        <group ref={arms} position={[0, 0.78, 0]}>
+          <Segment from={R_SHOULDER} to={R_ELBOW} r={[0.04, 0.034]} material={suit} />
+          <Segment from={R_ELBOW} to={R_HAND} r={[0.034, 0.029]} material={suit} />
+          <Segment from={R_BRACER[0]} to={R_BRACER[1]} r={[0.042, 0.037]} material={armour} segments={5} />
+          <Segment from={L_SHOULDER} to={L_ELBOW} r={[0.04, 0.034]} material={suit} />
+          <Segment from={L_ELBOW} to={L_HAND} r={[0.034, 0.029]} material={suit} />
+          <Segment from={L_BRACER[0]} to={L_BRACER[1]} r={[0.042, 0.037]} material={armour} segments={5} />
+          {[R_ELBOW, L_ELBOW].map((p, i) => <Plate key={i} size={[0.05, 0.05, 0.05]} material={composite} position={p} rotation={[0.4, 0.4, 0]} />)}
+          {[R_HAND, L_HAND].map((p, i) => <Plate key={i} size={[0.045, 0.05, 0.055]} radius={0.015} material={glove} position={p} />)}
+          {/* The rifle: stock, receiver, grip and magazine, optic, handguard, barrel. */}
+          <group position={[-0.06, -0.12, 0.16]}>
+            <Plate size={[0.04, 0.065, 0.15]} material={composite} position={[0, -0.005, -0.15]} />
+            <Plate size={[0.05, 0.08, 0.24]} material={dark} />
+            <Plate size={[0.03, 0.07, 0.035]} material={black} position={[0, -0.065, -0.03]} rotation={[-0.3, 0, 0]} />
+            <Plate size={[0.03, 0.09, 0.045]} material={black} position={[0, -0.08, 0.05]} rotation={[0.25, 0, 0]} />
+            <Turned profile={[[0.018, -0.045], [0.02, -0.03], [0.02, 0.03], [0.018, 0.045]]} segments={8} material={steel} position={[0, 0.06, -0.01]} />
+            <Strip size={[0.02, 0.02, 0.004]} material={glow(PALETTE.amber)} position={[0, 0.06, 0.037]} />
+            <Turned profile={[[0.022, 0.11], [0.026, 0.13], [0.026, 0.26], [0.02, 0.28]]} segments={6} material={composite} />
+            <Turned profile={[[0.011, 0.27], [0.011, 0.36], [0.017, 0.36], [0.017, 0.39]]} segments={8} material={black} />
+            <mesh ref={flashRef} position={[0, 0, 0.44]} visible={false} raycast={() => null}>
+              <sphereGeometry args={[0.05, 8, 6]} />
+              <meshBasicMaterial color="#ffd27a" transparent opacity={0.9} toneMapped={false} depthWrite={false} />
+            </mesh>
+          </group>
         </group>
       </group>
     </group>

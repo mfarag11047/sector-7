@@ -1,5 +1,5 @@
 // Posing rigged models (a skeleton, no animation clips) by hand: aiming a bone and two-bone IK.
-// Used by the rigged units (GoliathRig, TrooperModel).
+// Used by the rigged units (GoliathRig).
 
 import * as THREE from 'three';
 
