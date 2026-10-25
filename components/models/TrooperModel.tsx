@@ -12,6 +12,9 @@
 // It moves: it walks, legs swinging and knees bending in step; it carries the rifle low at the
 // ready and brings it up to aim while it is fighting (`lastAttackTime`).
 //
+// The same armoured soldier carries other kit as other infantry (`pack` swaps the backpack: the
+// Ghost's EW pack, GhostModel.tsx).
+//
 // Built facing +Z, about 1 tall in its own units, and scaled up here.
 
 import React, { useMemo, useRef } from 'react';
@@ -63,7 +66,13 @@ const L_SHOULDER: V3 = [0.165, -0.01, 0], L_ELBOW: V3 = [0.15, -0.16, 0.11], L_H
 const R_BRACER: [V3, V3] = [along(R_ELBOW, R_HAND, 0.2), along(R_ELBOW, R_HAND, 0.75)];
 const L_BRACER: [V3, V3] = [along(L_ELBOW, L_HAND, 0.2), along(L_ELBOW, L_HAND, 0.75)];
 
-export const TrooperModel: React.FC<{ teamColor: string; moving?: boolean; lastAttackTime?: number; flashRef?: React.Ref<THREE.Mesh> }> = ({ teamColor, moving, lastAttackTime, flashRef }) => {
+export interface SoldierProps { teamColor: string; moving?: boolean; lastAttackTime?: number; flashRef?: React.Ref<THREE.Mesh> }
+
+export const TrooperModel: React.FC<SoldierProps> = props => <ArmouredSoldier {...props} />;
+
+// The soldier, with its backpack or other kit on its back (`pack`, drawn in the soldier's own
+// units, the back of the torso at z = -0.1).
+export const ArmouredSoldier: React.FC<SoldierProps & { pack?: React.ReactNode }> = ({ teamColor, moving, lastAttackTime, flashRef, pack }) => {
   const suit = smoothMaterial('armourDark'), glove = smoothMaterial('composite');
   const armour = kitMaterial('armour'), dark = kitMaterial('armourDark'), steel = kitMaterial('steel'), black = kitMaterial('black');
   const composite = kitMaterial('composite'), paint = teamPaint(teamColor);
@@ -125,9 +134,13 @@ export const TrooperModel: React.FC<{ teamColor: string; moving?: boolean; lastA
         <Loft bottom={VEST_LOW} top={VEST_HIGH} height={VEST_H} material={armour} position={[0, VEST_Y, 0]} />
         <Plate size={[0.2, 0.025, 0.17]} material={dark} position={[0, VEST_Y + VEST_H + 0.005, 0.0]} />
         {[0.585, 0.55].map((y, k) => <Plate key={y} size={[0.13 - k * 0.02, 0.035, 0.03]} material={armour} position={[0, y, 0.07 - k * 0.005]} rotation={[0.12, 0, 0]} />)}
-        <Plate size={[0.17, 0.2, 0.08]} material={composite} position={[0, 0.72, -0.13]} />
-        <Plate size={[0.13, 0.06, 0.04]} material={dark} position={[0, 0.66, -0.18]} />
-        <Turned profile={[[0.025, -0.06], [0.025, 0.06]]} segments={8} material={dark} position={[0, 0.84, -0.13]} rotation={[0, Math.PI / 2, 0]} />
+        {pack ?? (
+          <group>
+            <Plate size={[0.17, 0.2, 0.08]} material={composite} position={[0, 0.72, -0.13]} />
+            <Plate size={[0.13, 0.06, 0.04]} material={dark} position={[0, 0.66, -0.18]} />
+            <Turned profile={[[0.025, -0.06], [0.025, 0.06]]} segments={8} material={dark} position={[0, 0.84, -0.13]} rotation={[0, Math.PI / 2, 0]} />
+          </group>
+        )}
 
         {/* Layered shoulder plates, edged in team colour. */}
         {[1, -1].map(s => (

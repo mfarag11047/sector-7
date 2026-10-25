@@ -1,7 +1,7 @@
 
 import React, { useRef, useMemo, useState, useEffect, useLayoutEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { Edges, Float, Html, Line, useGLTF } from '@react-three/drei';
+import { Edges, Float, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, UNIT_STATS } from '../constants';
 import { UnitType, UnitClass, UnitData } from '../types';
@@ -11,6 +11,7 @@ import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
 import { CloakGeneratorModel, FieldGeneratorModel } from './unitModels';
 import { TrooperModel } from './models/TrooperModel';
+import { GhostModel } from './models/GhostModel';
 import { LancerMechModel } from './models/LancerMechModel';
 import { InfiltratorModel } from './models/InfiltratorModel';
 import { ARTILLERY, artilleryRange } from '../sim/artillery';
@@ -288,121 +289,6 @@ interface UnitProps {
   // Step 2 Update: Nano Cloud
   isInNanoCloud?: boolean;
 }
-
-const GHOST_MODEL_URL = '/models/ghost.glb';
-
-// The Tripo export has no UVs, so the reference paint lives in the mesh's own
-// space: y up, face and rifle toward +Z. Lines are sized to read at RTS scale.
-const GHOST_MARKINGS = `
-float gBand(float value, float center, float width) {
-  return 1.0 - smoothstep(width * 0.35, width, abs(value - center));
-}
-float gSpan(float value, float lo, float hi) {
-  return smoothstep(lo - 0.012, lo + 0.004, value) * (1.0 - smoothstep(hi - 0.004, hi + 0.012, value));
-}
-vec3 ghostMarkings(vec3 p, vec3 n) {
-  vec3 cyan = vec3(0.05, 0.75, 1.0);
-  vec3 orange = vec3(1.0, 0.32, 0.02);
-  float front = smoothstep(0.05, 0.45, n.z);
-  float back = smoothstep(0.05, 0.45, -n.z);
-  float body = 1.0 - smoothstep(0.11, 0.16, p.z);
-  vec3 glow = vec3(0.0);
-
-  float visor = gBand(p.y - abs(p.x) * 0.4, 0.858, 0.016);
-  visor *= gSpan(abs(p.x), 0.0, 0.065);
-  visor *= gSpan(p.z, -0.14, -0.03);
-  glow += cyan * visor * 1.1;
-
-  float chest = gBand(p.x, -0.012, 0.011) * gSpan(p.y, 0.60, 0.78) * gSpan(p.z, -0.09, 0.07);
-  glow += cyan * chest * body * 0.9;
-
-  float slashR = gBand(p.y - (p.x - 0.02) * 1.1, 0.70, 0.011) * gSpan(p.x, 0.015, 0.08) * gSpan(p.y, 0.66, 0.76);
-  float slashL = gBand(p.y + (p.x + 0.04) * 1.1, 0.70, 0.011) * gSpan(-p.x, 0.0, 0.09) * gSpan(p.y, 0.66, 0.76);
-  glow += orange * (slashR + slashL) * body * gSpan(p.z, -0.09, 0.08) * 0.85;
-
-  float thighL = gBand(p.x, -0.082, 0.008) * gSpan(p.y, 0.22, 0.46) * gSpan(p.z, -0.20, -0.08);
-  float thighR = gBand(p.x, 0.066, 0.008) * gSpan(p.y, 0.22, 0.46) * gSpan(p.z, -0.14, 0.0);
-  glow += cyan * (thighL + thighR) * front * 0.65;
-
-  float hipL = gBand(p.y + (p.x + 0.08) * 0.7, 0.46, 0.007) * gSpan(p.x, -0.11, -0.045) * gSpan(p.y, 0.43, 0.50);
-  float hipR = gBand(p.y - (p.x - 0.06) * 0.7, 0.46, 0.007) * gSpan(p.x, 0.035, 0.10) * gSpan(p.y, 0.43, 0.50);
-  glow += orange * (hipL + hipR) * front * 0.65;
-
-  float shinL = gBand(p.x, -0.074, 0.007) * gSpan(p.y, 0.06, 0.26) * gSpan(p.z, -0.23, -0.12);
-  float shinR = gBand(p.x, 0.070, 0.007) * gSpan(p.y, 0.06, 0.26) * gSpan(p.z, -0.08, 0.0);
-  glow += cyan * (shinL + shinR) * front * 0.65;
-
-  float arm = gBand(abs(p.x), 0.118, 0.007) * gSpan(p.y, 0.60, 0.66) * gSpan(p.z, -0.05, 0.05);
-  glow += orange * arm * 0.55;
-
-  float packA = 1.0 - smoothstep(0.006, 0.012, length(vec2(p.x - 0.02, p.y - 0.70)));
-  float packB = 1.0 - smoothstep(0.006, 0.012, length(vec2(p.x + 0.03, p.y - 0.60)));
-  glow += orange * (packA + packB) * back * gSpan(p.z, -0.34, -0.14) * 0.8;
-
-  return glow;
-}
-`;
-
-const paintGhostMaterial = (mat: THREE.MeshStandardMaterial, bodyColor: string) => {
-  mat.color.set(bodyColor);
-  mat.emissive.set('#000000');
-  mat.emissiveIntensity = 1;
-  mat.roughness = 0.62;
-  mat.metalness = 0.18;
-  mat.onBeforeCompile = (shader) => {
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vGhostPos;\nvarying vec3 vGhostN;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvGhostPos = position;\nvGhostN = normalize(normal);');
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', `#include <common>\nvarying vec3 vGhostPos;\nvarying vec3 vGhostN;\n${GHOST_MARKINGS}`)
-      .replace(
-        '#include <emissivemap_fragment>',
-        '#include <emissivemap_fragment>\ntotalEmissiveRadiance += ghostMarkings(vGhostPos, vGhostN) * smoothstep(0.4, 0.9, opacity);'
-      );
-  };
-  mat.customProgramCacheKey = () => 'ghost-markings-v3';
-};
-
-// Tripo export is 1 unit tall, feet on y=0, face along +Z.
-// Unit lookAt aims local -Z at the next waypoint, so the mesh is turned 180°.
-// The Ghost wears this soldier mesh.
-const SoldierModel: React.FC<{ bodyColor: string }> = ({ bodyColor }) => {
-  const { scene } = useGLTF(GHOST_MODEL_URL);
-  const clone = useMemo(() => {
-    const cloned = scene.clone(true);
-    cloned.traverse(obj => {
-      const mesh = obj as THREE.Mesh;
-      if (!mesh.isMesh || !mesh.material) return;
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      const clonedMats = mats.map(mat => {
-        const copy = mat.clone() as THREE.MeshStandardMaterial;
-        if (copy.color) paintGhostMaterial(copy, bodyColor);
-        return copy;
-      });
-      mesh.material = Array.isArray(mesh.material) ? clonedMats : clonedMats[0];
-    });
-    return cloned;
-  }, [scene, bodyColor]);
-
-  useEffect(() => {
-    return () => {
-      clone.traverse(obj => {
-        const mesh = obj as THREE.Mesh;
-        if (!mesh.isMesh || !mesh.material) return;
-        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-        mats.forEach(mat => mat.dispose());
-      });
-    };
-  }, [clone]);
-
-  return <primitive object={clone} />;
-};
-
-useGLTF.preload(GHOST_MODEL_URL);
-
-const GhostModel: React.FC = () => <SoldierModel bodyColor="#7c868f" />;
 
 const Unit: React.FC<UnitProps> = ({ 
   id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, charges, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, grenadeAt, faceAt, turretAt, railgunFiredAt, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, ciwsAims, anchoredAt, artilleryTarget, artilleryAim,
@@ -842,14 +728,11 @@ const Unit: React.FC<UnitProps> = ({
     if (isGuardian) return <GuardianModel teamColor={teamColor} moving={moving} trophyCooling={trophyCooling} />;
     if (isGhost) return (
         <group>
-            <group scale={4.2} rotation={[0, Math.PI, 0]}>
-                <GhostModel />
-            </group>
+            <GhostModel teamColor={teamColor} moving={moving} lastAttackTime={lastAttackTime} flashRef={flashRef} />
             {/* Dampener running: a wall of black and white glitch bars at the field's edge. */}
             {isDampenerActive && powered && (
                 <GlitchField radius={ABILITY_CONFIG.GHOST_DAMPENER_RADIUS * tileSize} height={12} y={-hoverHeight} />
             )}
-            <mesh ref={flashRef} position={[0, 2.2, 0]} visible={false} raycast={() => null}><sphereGeometry args={[0.3, 8, 6]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.85} toneMapped={false} depthWrite={false} /></mesh>
         </group>
     );
     if (isBombard) return <BombardModel teamColor={teamColor} bayOpen={bombarding} munitions={bombardMunitions ?? BOMBARD.magazine} />;
@@ -877,7 +760,7 @@ const Unit: React.FC<UnitProps> = ({
   const model = useMemo(renderModel, [
     type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
     isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, firingLaserAt, courierPayload, constructionTargetId, ciwsTargetId,
-    grenadeAt, isHero || isLancer || isTrooper ? lastAttackTime : 0, isHero || isLancer || isTrooper || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback || isScoutCar || isSwarmHost || isCrawler ? moving : false, isTank ? railgunFiredAt : 0,
+    grenadeAt, isHero || isLancer || isTrooper || isGhost ? lastAttackTime : 0, isHero || isLancer || isTrooper || isGhost || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback || isScoutCar || isSwarmHost || isCrawler ? moving : false, isTank ? railgunFiredAt : 0,
     isBallista ? Math.floor((loadingProgress || 0) / 10) : 0,
     isBanshee ? `${!!jammerActive && battery > 0}|${tetherTargetIds?.length ?? 0}` : 0,
     isHornet && upgrades.includes('hunter_rockets'),

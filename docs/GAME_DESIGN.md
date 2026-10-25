@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel, the Wasp, the Bombardment Drone, the Infiltrator, the Swarm Host, the Crawler Drone, the Lancer and the Trooper are done; the rest of the roster follows by type.
+the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel, the Wasp, the Bombardment Drone, the Infiltrator, the Swarm Host, the Crawler Drone, the Lancer, the Trooper and the Ghost are done; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -429,6 +429,11 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   and an angled faceplate. A backpack, and a plain futuristic rifle held in both hands. It walks
   with swinging legs and bending knees, carries the rifle at low ready and brings it up to aim
   while fighting.
+- **The Ghost** (`components/models/GhostModel.tsx`, sim type `ghost`): the EW specialist, the
+  Trooper's armoured soldier with a large EW pack in place of the backpack: a tall armoured case
+  with battery cells and a lit status strip, and an antenna array rising well above the helmet (a
+  telescoping mast with a crossed array at its head, two splayed whips with blinking red tips, a
+  small flat panel). Phantom Decoy and Cloaking Field tint it as before.
 
 ### Rigged models
 
