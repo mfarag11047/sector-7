@@ -1,26 +1,26 @@
 // The "Kestrel" attack drone, built from the unit kit (components/kit).
 //
-// Simple but military, and small beside the other drones: a slim faceted body with four short
+// Simple but military, and small beside the other drones: a slim, long faceted body with four short
 // blade fins standing near upright from its top corners, running fore and aft with the body, and
 // two fins out of its lower sides angling down; each has a slatted vent through it, a red accent
-// along its edge and serrations. Slots in the body's sides and belly show where the fins fold away
-// when it is not flying. On the front, the sensor array (a big round lens and a column of
+// along its edge and serrations. Slots in the body's sides show where the fins fold away when it is
+// not flying: the bottom fin up into the middle, the top fins down fore and aft of it. On the front, the sensor array (a big round lens and a column of
 // red-ringed lenses); under the front, a short twin gun whose muzzle flashes while it fires
 // (`flashRef`, lit by Unit.tsx).
 //
 // It moves: it bobs and tilts gently as it hovers.
 //
-// Built facing +Z, about 0.9 long in its own units, and scaled up here.
+// Built facing +Z, about 1.1 long in its own units, and scaled up here.
 
 import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { glow, kitMaterial, PALETTE, teamPaint } from '../kit/materials';
+import { glow, kitMaterial, PALETTE } from '../kit/materials';
 import { Plate, Prism, Strip, Turned, Wheel } from '../kit/shapes';
 
 const SCALE = 1.7;
 // Body side profile: [forward, up], faceted fore and aft.
-const BODY: [number, number][] = [[-0.36, -0.24], [-0.42, 0.0], [-0.32, 0.2], [0.26, 0.2], [0.4, 0.06], [0.38, -0.2], [0.24, -0.3], [-0.24, -0.3]];
+const BODY: [number, number][] = [[-0.5, -0.24], [-0.56, 0.0], [-0.44, 0.2], [0.36, 0.2], [0.54, 0.06], [0.52, -0.2], [0.34, -0.3], [-0.34, -0.3]];
 const BODY_W = 0.3;
 // The fins, each built along +X then turned out to its side (their blades run fore and aft, parallel
 // with the body) and tilted up (+) or down (-): four short ones standing near upright from the top
@@ -28,22 +28,22 @@ const BODY_W = 0.3;
 // with slats across.
 const FINS = [
   ...[[1, 1], [-1, 1], [1, -1], [-1, -1]].map(([sx, sz]) => ({
-    at: [sx * 0.11, 0.18, sz * 0.16] as [number, number, number], yaw: sx > 0 ? 0 : Math.PI, tilt: 1.15, len: 0.44, chord: 0.2,
+    at: [sx * 0.11, 0.18, sz * 0.27] as [number, number, number], yaw: sx > 0 ? 0 : Math.PI, tilt: 1.15, len: 0.44, chord: 0.2,
   })),
   ...[1, -1].map(sx => ({ at: [sx * 0.14, -0.18, -0.02] as [number, number, number], yaw: sx > 0 ? 0 : Math.PI, tilt: -0.5, len: 0.38, chord: 0.18 })),
 ];
 const FIN_T = 0.032;
-// Where the fins fold away when it is not flying: a slot down each side for each top fin, and one
-// under the belly for each bottom fin. [position, size].
-const SLOTS: { at: [number, number, number]; size: [number, number, number] }[] = [
-  ...[[1, 1], [-1, 1], [1, -1], [-1, -1]].map(([sx, sz]) => ({ at: [sx * 0.152, -0.04, sz * 0.16] as [number, number, number], size: [0.012, 0.4, 0.2] as [number, number, number] })),
-  ...[1, -1].map(sx => ({ at: [sx * 0.075, -0.306, -0.02] as [number, number, number], size: [0.13, 0.012, 0.18] as [number, number, number] })),
-];
+// Where the fins fold away when it is not flying, in each side: the bottom fin folds up into a slot
+// in the middle, and the top fins fold down into slots fore and aft of it. [position, size].
+const SLOTS: { at: [number, number, number]; size: [number, number, number] }[] = [1, -1].flatMap(sx => [
+  ...[1, -1].map(sz => ({ at: [sx * 0.152, -0.04, sz * 0.27] as [number, number, number], size: [0.012, 0.4, 0.2] as [number, number, number] })),
+  { at: [sx * 0.152, -0.1, -0.02] as [number, number, number], size: [0.012, 0.34, 0.18] as [number, number, number] },
+]);
 const VENT_R = 0.065;
 
-export const AttackDroneModel: React.FC<{ teamColor: string; flashRef?: React.Ref<THREE.Mesh> }> = ({ teamColor, flashRef }) => {
+export const AttackDroneModel: React.FC<{ teamColor: string; flashRef?: React.Ref<THREE.Mesh> }> = ({ flashRef }) => {
   const armour = kitMaterial('armour'), dark = kitMaterial('armourDark'), steel = kitMaterial('steel'), black = kitMaterial('black');
-  const composite = kitMaterial('composite'), housing = kitMaterial('housing'), paint = teamPaint(teamColor);
+  const composite = kitMaterial('composite'), housing = kitMaterial('housing');
   const red = glow(PALETTE.warning);
 
   const body = useRef<THREE.Group>(null);
@@ -60,20 +60,18 @@ export const AttackDroneModel: React.FC<{ teamColor: string; flashRef?: React.Re
   return (
     <group scale={SCALE}>
       <group ref={body}>
-        {/* The body: faceted armour, a spine, team colour, red accents, a rear pack. */}
+        {/* The body: faceted armour, a spine, red accents, a rear pack. */}
         <Prism outline={BODY} depth={BODY_W} axis="x" material={composite} />
-        <Plate size={[0.18, 0.06, 0.5]} material={dark} position={[0, 0.23, -0.04]} />
-        <Plate size={[0.12, 0.012, 0.2]} material={paint} position={[0, 0.266, 0.02]} />
+        <Plate size={[0.18, 0.06, 0.72]} material={dark} position={[0, 0.23, -0.06]} />
         {[-1, 1].map(s => (
           <group key={s}>
-            <Plate size={[0.012, 0.28, 0.05]} material={paint} position={[s * (BODY_W / 2 + 0.006), -0.04, 0.0]} rotation={[-0.35, 0, 0]} />
-            <Strip size={[0.012, 0.016, 0.3]} material={red} position={[s * (BODY_W / 2 + 0.006), 0.18, -0.05]} />
+            <Strip size={[0.012, 0.016, 0.5]} material={red} position={[s * (BODY_W / 2 + 0.006), 0.18, -0.05]} />
           </group>
         ))}
-        <Plate size={[0.22, 0.2, 0.12]} material={armour} position={[0, -0.04, -0.44]} />
+        <Plate size={[0.22, 0.2, 0.12]} material={armour} position={[0, -0.04, -0.6]} />
 
         {/* The sensor array on the front: a big round lens, a column of red-ringed lenses. */}
-        <group position={[0, -0.02, 0.39]}>
+        <group position={[0, -0.02, 0.53]}>
           <Plate size={[0.24, 0.32, 0.03]} material={black} position={[0, 0, 0]} />
           <Turned profile={[[0.06, 0], [0.06, 0.03]]} segments={10} material={dark} position={[-0.045, 0.04, 0.01]} />
           <Strip size={[0.07, 0.07, 0.012]} material={glow(PALETTE.headlight)} position={[-0.045, 0.04, 0.045]} />
@@ -86,7 +84,7 @@ export const AttackDroneModel: React.FC<{ teamColor: string; flashRef?: React.Re
         </group>
 
         {/* The gun under the front: a mount and twin short barrels. */}
-        <group position={[0, -0.32, 0.22]}>
+        <group position={[0, -0.32, 0.32]}>
           <Plate size={[0.16, 0.08, 0.16]} material={dark} />
           {[-0.035, 0.035].map(x => <Turned key={x} profile={[[0.022, 0.06], [0.022, 0.3], [0.03, 0.3], [0.03, 0.33]]} segments={6} material={steel} position={[x, -0.01, 0]} />)}
           <mesh ref={flashRef} position={[0, -0.01, 0.42]} visible={false} raycast={() => null}>
@@ -114,7 +112,7 @@ export const AttackDroneModel: React.FC<{ teamColor: string; flashRef?: React.Re
             </group>
           </group>
         ))}
-        <Plate size={[0.1, 0.1, 0.1]} material={housing} position={[0, 0.3, -0.25]} />
+        <Plate size={[0.1, 0.1, 0.1]} material={housing} position={[0, 0.3, -0.36]} />
         {/* Fold slots: recesses in the body's sides for the top fins to fold down into, and under
             its belly for the bottom ones, each a dark recess inside a raised lip. */}
         {SLOTS.map(({ at, size }, i) => (
