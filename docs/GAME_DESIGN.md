@@ -402,7 +402,10 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   armour to a flat deck) with amber sensor lenses and a short gun on the glacis, and six short,
   thick legs close in to the hull, each shin faced with a segmented armour slab, posed by a two-link solve so the feet stay planted. It walks
   in alternating tripods. Anchored, it kneels to the ground with its legs splayed, then its split
-  deck hatch opens and its micro crawler drones rise into view.
+  deck hatch opens and its micro crawler drones rise into view. Each Crawler Drone it releases
+  (the opening pair once it has opened up, then one at a time) is fired out of the hatch in a
+  canister that arcs to where the drone lands, kicking up a ring of dust; the drone is out of play
+  until it lands (`crawlerAirborne`, sim/support.ts).
 
 ### Rigged models
 

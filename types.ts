@@ -220,6 +220,10 @@ export interface UnitData {
   };
   // Hierarchy
   parentId?: string;
+  // A Crawler Drone fired from its Swarm Host in a canister: where from, and when it launches. It
+  // is airborne (out of play, not drawn) until the canister lands (crawlerAirborne, sim/support.ts).
+  launchedFrom?: { x: number, z: number };
+  launchAt?: number;
 }
 
 export type StructureType = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'ordnance_fab' | 'research_lab' | 'refinery' | 'wall_tier1' | 'wall_tier2' | 'defense' | 'aa_turret' | 'hq';

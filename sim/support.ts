@@ -232,6 +232,10 @@ export interface SlowTickContext {
 
 export const SLOW_TICK_MS = 1000;
 
+// A Crawler Drone still in its canister, between launch and landing: out of play until it lands.
+export const crawlerAirborne = (u: UnitData, now: number) =>
+  u.launchAt !== undefined && now < u.launchAt + ABILITY_CONFIG.SWARM_HOST_CANISTER_FLIGHT_MS;
+
 export function slowTick(prevUnits: UnitData[], ctx: SlowTickContext): UnitData[] {
   let unitsChanged = false;
   const nextUnits = [...prevUnits];
@@ -258,7 +262,7 @@ export function slowTick(prevUnits: UnitData[], ctx: SlowTickContext): UnitData[
     let keep = true;
     let changed = false;
 
-    if (u.type === 'crawler_drone' && u.parentId) {
+    if (u.type === 'crawler_drone' && u.parentId && !crawlerAirborne(u, ctx.now)) {
       const crawler = crawlerStep(u, hostMap.get(u.parentId), nextUnits, ctx);
       if (crawler === null) {
         keep = false;

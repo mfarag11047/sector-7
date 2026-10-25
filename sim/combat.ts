@@ -7,6 +7,7 @@
 import { ForceField, shotBlocked } from './forcefield';
 import { ABILITY_CONFIG } from '../constants';
 import { dropDamage } from './bombard';
+import { crawlerAirborne } from './support';
 import type { BuildingData, CloudData, StructureType, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { isHidden } from './cloak';
@@ -55,11 +56,11 @@ export function blastDamage(
   return damage;
 }
 
-// Crawler Drones detonate when an enemy comes within 1.5 tiles.
-export function crawlerDetonations(units: readonly UnitData[], tileSize: number, offset: number): { crawlerId: string; blast: Blast }[] {
+// Crawler Drones detonate when an enemy comes within 1.5 tiles, once they have landed.
+export function crawlerDetonations(units: readonly UnitData[], tileSize: number, offset: number, now = 0): { crawlerId: string; blast: Blast }[] {
   const detonations: { crawlerId: string; blast: Blast }[] = [];
   for (const u of units) {
-    if (u.type !== 'crawler_drone' || u.health <= 0) continue;
+    if (u.type !== 'crawler_drone' || u.health <= 0 || crawlerAirborne(u, now)) continue;
     const enemyClose = units.some(e =>
       e.team !== u.team && e.team !== 'neutral' && e.health > 0 &&
       Math.hypot(u.gridPos.x - e.gridPos.x, u.gridPos.z - e.gridPos.z) < 1.5);

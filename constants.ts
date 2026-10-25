@@ -141,6 +141,9 @@ export const ABILITY_CONFIG = {
   SWARM_HOST_INITIAL_DRONES: 2,    // Released the moment the host anchors down
   SWARM_HOST_SPAWN_INTERVAL: 7000, // Then one more on this cadence
   SWARM_HOST_MAX_DRONES: 7,
+  SWARM_HOST_CANISTER_FLIGHT_MS: 1300, // Each drone is fired out in a canister that arcs to where it lands
+  SWARM_HOST_FIRST_LAUNCH_MS: 1800,    // The opening pair launch once the host has knelt and opened up
+  SWARM_HOST_LAUNCH_STAGGER_MS: 450,
 
   // Crawler Abilities
   CRAWLER_RADIUS: 7,          // Host detection radius; crawlers patrol and engage within it

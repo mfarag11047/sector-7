@@ -76,7 +76,7 @@ import { Victory, checkVictory } from '../sim/victory';
 import type { MatchSummary } from './MatchScreens';
 import { Economy, createEconomy, incomeBreakdown, refund, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 import { THUNDERHEAD_LAUNCH_Y } from './models/ThunderheadModel';
-import { glow, kitMaterial } from './kit/materials';
+import { glow, kitMaterial, PALETTE, teamPaint } from './kit/materials';
 import { Plate, Turned } from './kit/shapes';
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
 import { dampenedUnits } from '../sim/ghost';
@@ -751,6 +751,61 @@ const ShellMesh: React.FC<{ shell: ArtilleryShell; tileSize: number; offset: num
             <Turned profile={[[0.001, -3.6], [0.3, -1.6], [0.2, -1.4]]} segments={8} material={glow('#ffb35c')} shadow={false} />
             <Turned profile={[[0.001, -5.5], [0.55, -1.8], [0.4, -1.4]]} segments={8} material={glow('#ff7a2e', 0.35)} shadow={false} />
         </group>
+    );
+};
+
+// --- Swarm Host canisters ---
+
+// A Crawler Drone on its way out of its Swarm Host: a canister fired up out of the host's open
+// hatch, arcing to where the drone lands (the drone appears as it lands, see Unit.tsx), then a
+// ring of dust where it comes down.
+const CANISTER_LAUNCH_Y = 3.4, CANISTER_LAND_Y = 1.2, CANISTER_PUFF_MS = 500;
+const CrawlerCanister: React.FC<{ from: { x: number; z: number }; to: { x: number; z: number }; launchAt: number; teamColor: string; tileSize: number; offset: number }> = ({ from, to, launchAt, teamColor, tileSize, offset }) => {
+    const ref = useRef<THREE.Group>(null);
+    const puff = useRef<THREE.Mesh>(null);
+    const puffMaterial = useMemo(() => new THREE.MeshBasicMaterial({ color: '#c9b48a', transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide }), []);
+    useEffect(() => () => puffMaterial.dispose(), [puffMaterial]);
+    const { a, b, apex } = useMemo(() => {
+        const a = new THREE.Vector3(from.x * tileSize - offset, CANISTER_LAUNCH_Y, from.z * tileSize - offset);
+        const b = new THREE.Vector3(to.x * tileSize - offset, CANISTER_LAND_Y, to.z * tileSize - offset);
+        return { a, b, apex: 4 + Math.hypot(b.x - a.x, b.z - a.z) * 0.35 };
+    }, [from.x, from.z, to.x, to.z, tileSize, offset]);
+    const ahead = useMemo(() => new THREE.Vector3(), []);
+    const point = (t: number, out: THREE.Vector3) => out.lerpVectors(a, b, t).setY(a.y + (b.y - a.y) * t + 4 * apex * t * (1 - t));
+    useFrame(() => {
+        const flight = ABILITY_CONFIG.SWARM_HOST_CANISTER_FLIGHT_MS;
+        const since = Date.now() - launchAt;
+        const g = ref.current;
+        if (g) {
+            const t = since / flight;
+            g.visible = t >= 0 && t < 1;
+            if (g.visible) {
+                point(t, g.position);
+                g.lookAt(point(Math.min(1, t + 0.02), ahead));
+            }
+        }
+        const p = puff.current;
+        if (p) {
+            const f = (since - flight) / CANISTER_PUFF_MS;
+            p.visible = f >= 0 && f < 1;
+            if (p.visible) {
+                p.scale.setScalar(0.6 + f * 2.4);
+                puffMaterial.opacity = 0.55 * (1 - f);
+            }
+        }
+    });
+    return (
+        <>
+            <group ref={ref} visible={false} scale={1.6}>
+                <Turned profile={[[0.001, -0.45], [0.22, -0.4], [0.26, -0.3], [0.26, 0.3], [0.2, 0.42], [0.001, 0.48]]} segments={8} material={kitMaterial('housing')} shadow={false} />
+                <Turned profile={[[0.27, -0.1], [0.27, 0.1]]} segments={8} material={teamPaint(teamColor)} shadow={false} />
+                <Turned profile={[[0.2, -0.45], [0.001, -1.6]]} segments={8} material={glow('#ffb35c', 0.75)} shadow={false} />
+                <Plate size={[0.08, 0.08, 0.04]} material={glow(PALETTE.amber)} position={[0, 0, 0.48]} shadow={false} />
+            </group>
+            <mesh ref={puff} position={[b.x, 0.25, b.z]} rotation={[-Math.PI / 2, 0, 0]} visible={false} material={puffMaterial} raycast={() => null}>
+                <ringGeometry args={[0.4, 1, 20]} />
+            </mesh>
+        </>
     );
 };
 
@@ -2335,7 +2390,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       maxBattery: 100,
       cooldowns: {},
       parentId: host.id,
-      crawlerTargetId: null
+      crawlerTargetId: null,
+      // Fired out of the host in a canister. Anchoring releases the opening pair (host not yet
+      // anchored) once it has knelt and opened up, one after the other.
+      launchedFrom: { ...host.gridPos },
+      launchAt: Date.now() + (host.isAnchored ? 0
+          : ABILITY_CONFIG.SWARM_HOST_FIRST_LAUNCH_MS + (Number(String(suffix).split('-').pop()) || 0) * ABILITY_CONFIG.SWARM_HOST_LAUNCH_STAGGER_MS),
   }), []);
 
   // The simulation tick below must NOT list these as effect dependencies. Several of
@@ -3464,7 +3524,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
           // Crawler Drones blow up next to enemies. The ref can trail the last render by a
           // tick, so remember who already went off rather than detonating them twice.
-          const detonations = crawlerDetonations(currentUnitsRef, tileSize, offset)
+          const detonations = crawlerDetonations(currentUnitsRef, tileSize, offset, Date.now())
               .filter(d => !detonatedCrawlersRef.current.has(d.crawlerId));
           const explodedCrawlerIds = new Set(detonations.map(d => d.crawlerId));
           const damageEvents: Blast[] = detonations.map(d => d.blast);
@@ -4494,6 +4554,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         {virusBombs.map(b => <BlackwallBomb key={b.id} at={{ x: b.at.x * tileSize - offset, z: b.at.z * tileSize - offset }} firedAt={b.firedAt} landAt={b.landAt} radius={BLACKWALL.radius * tileSize} />)}
         {rockets.map(r => <EmpRocketMesh key={r.id} id={r.id} rocketsRef={rocketsRef} unitsRef={unitsRef} tileSize={tileSize} offset={offset} />)}
         {shells.map(s => <ShellMesh key={s.id} shell={s} tileSize={tileSize} offset={offset} enemy={s.team !== playerTeam} />)}
+        {units.filter(u => u.type === 'crawler_drone' && u.launchedFrom && u.launchAt !== undefined && visibleUnitIds.has(u.id)
+            && Date.now() < u.launchAt + ABILITY_CONFIG.SWARM_HOST_CANISTER_FLIGHT_MS + CANISTER_PUFF_MS).map(u => (
+            <CrawlerCanister key={u.id} from={u.launchedFrom!} to={u.gridPos} launchAt={u.launchAt!} teamColor={TEAM_COLORS[u.team]} tileSize={tileSize} offset={offset} />
+        ))}
         {units.filter(u => u.type === 'howitzer' && u.artilleryTarget && u.team === playerTeam && selectedUnitIds.has(u.id))
             .map(u => <FireMissionMarker key={`fm-${u.id}`} at={u.artilleryTarget!} tileSize={tileSize} offset={offset} />)}
         {/* Where selected Bombardment Drones are dropping. */}
