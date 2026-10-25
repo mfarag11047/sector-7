@@ -9,7 +9,8 @@ import { abilitiesFor } from '../sim/unitAbilities';
 import { roleBadgeTexture, UNIT_ROLE } from './unitIcons';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
-import { CloakGeneratorModel, FieldGeneratorModel, LancerLauncher, TrooperKit } from './unitModels';
+import { CloakGeneratorModel, FieldGeneratorModel, TrooperKit } from './unitModels';
+import { LancerMechModel } from './models/LancerMechModel';
 import { InfiltratorModel } from './models/InfiltratorModel';
 import { ARTILLERY, artilleryRange } from '../sim/artillery';
 import { CIWS } from '../sim/ciws';
@@ -812,11 +813,12 @@ const Unit: React.FC<UnitProps> = ({
   const turretAimRef = useRef<THREE.Vector3 | null>(null);
   turretAimRef.current = turretAt ? new THREE.Vector3(turretAt.x * tileSize - offset, 0, turretAt.z * tileSize - offset) : null;
   const renderModel = () => {
-    if (isTrooper || isLancer) return (
+    if (isLancer) return <LancerMechModel teamColor={teamColor} moving={moving} lastAttackTime={lastAttackTime} flashRef={flashRef} />;
+    if (isTrooper) return (
         <group>
             <group scale={3.7} rotation={[0, Math.PI, 0]}>
-                <SoldierModel bodyColor={isTrooper ? '#4b5563' : '#6b5a3e'} />
-                {isTrooper ? <TrooperKit teamColor={teamColor} /> : <LancerLauncher teamColor={teamColor} />}
+                <SoldierModel bodyColor="#4b5563" />
+                <TrooperKit teamColor={teamColor} />
             </group>
             <mesh ref={flashRef} position={[0, 2.2, 0]} visible={false} raycast={() => null}><sphereGeometry args={[0.3, 8, 6]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.85} toneMapped={false} depthWrite={false} /></mesh>
         </group>
@@ -882,7 +884,7 @@ const Unit: React.FC<UnitProps> = ({
   const model = useMemo(renderModel, [
     type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
     isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, firingLaserAt, courierPayload, constructionTargetId, ciwsTargetId,
-    grenadeAt, isHero ? lastAttackTime : 0, isHero || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback || isScoutCar || isSwarmHost || isCrawler ? moving : false, isTank ? railgunFiredAt : 0,
+    grenadeAt, isHero || isLancer ? lastAttackTime : 0, isHero || isLancer || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback || isScoutCar || isSwarmHost || isCrawler ? moving : false, isTank ? railgunFiredAt : 0,
     isBallista ? Math.floor((loadingProgress || 0) / 10) : 0,
     isBanshee ? `${!!jammerActive && battery > 0}|${tetherTargetIds?.length ?? 0}` : 0,
     isHornet && upgrades.includes('hunter_rockets'),

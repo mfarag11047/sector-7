@@ -1,5 +1,6 @@
 // Models for some of the units added in the playable build (the field generators), plus the
-// gear that sets Troopers and Lancers apart from the Ghost (they share its soldier mesh). Vehicles rebuilt from the unit kit live in models/.
+// gear that sets Troopers apart from the Ghost (they share its soldier mesh). Units rebuilt from
+// the unit kit live in models/.
 // Built from primitives in the same style as the rest of Unit.tsx. Every model faces -Z,
 // which is the direction Unit.tsx turns toward the next waypoint.
 
@@ -11,24 +12,6 @@ import * as THREE from 'three';
 const HULL = '#334155';
 const DARK = '#1e293b';
 const STEEL = '#475569';
-
-// Shoulder-fired rocket tube for the Lancer, sized for the soldier mesh at scale 1.
-export const LancerLauncher: React.FC<{ teamColor: string }> = ({ teamColor }) => (
-  <group position={[0.11, 0.78, 0.02]} rotation={[0.08, 0, 0]}>
-    <mesh rotation={[Math.PI / 2, 0, 0]}>
-      <cylinderGeometry args={[0.045, 0.045, 0.5, 10]} />
-      <meshStandardMaterial color={DARK} metalness={0.6} roughness={0.4} />
-    </mesh>
-    <mesh position={[0, 0, -0.26]} rotation={[Math.PI / 2, 0, 0]}>
-      <cylinderGeometry args={[0.055, 0.045, 0.06, 10]} />
-      <meshStandardMaterial color={STEEL} />
-    </mesh>
-    <mesh position={[0, 0.06, 0.05]}>
-      <boxGeometry args={[0.03, 0.03, 0.18]} />
-      <meshBasicMaterial color={teamColor} toneMapped={false} />
-    </mesh>
-  </group>
-);
 
 // Trooper's carbine and a team-colored shoulder plate, so a squad reads at a glance.
 export const TrooperKit: React.FC<{ teamColor: string }> = ({ teamColor }) => (

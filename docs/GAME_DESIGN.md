@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel, the Wasp, the Bombardment Drone, the Infiltrator, the Swarm Host and the Crawler Drone are done; the rest of the roster follows by type.
+the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel, the Wasp, the Bombardment Drone, the Infiltrator, the Swarm Host, the Crawler Drone and the Lancer are done; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -412,6 +412,12 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   amber sensor lenses on the front, a team stripe and a stub antenna, and four short, thick legs
   with armour-slabbed shins. It scuttles in diagonal pairs. The Swarm Host's legs and the
   Crawler's share the two-link leg solve in `components/kit/legs.ts`.
+- **The Lancer** (`components/models/LancerMechModel.tsx`, sim type `lancer`): the anti-vehicle
+  infantry unit as a heavy two-legged mech: a faceted torso drawn in to a chin sensor cluster, a
+  searchlight and antenna on top, a rocket pod on each shoulder (a housing, an ammunition drum, a
+  face of four tubes) that comes up while it fights and kicks back on each shot, and two thick
+  legs with forward knees, gridded knee pads, rams on the shins and clawed feet. It walks on a
+  two-link leg solve, its torso bobbing and swaying.
 
 ### Rigged models
 
