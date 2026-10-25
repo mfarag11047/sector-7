@@ -37,6 +37,7 @@ import { MasonModel } from './models/MasonModel';
 import { BansheeModel, BANSHEE_TETHER_ORIGINS } from './models/BansheeModel';
 import { AttackDroneModel } from './models/AttackDroneModel';
 import { WaspModel } from './models/WaspModel';
+import { BombardModel } from './models/BombardModel';
 import { BallistaModel } from './models/BallistaModel';
 import { ThunderheadModel } from './models/ThunderheadModel';
 import { GuardianModel, GUARDIAN_BEAM_ORIGIN_Y } from './models/GuardianModel';
@@ -474,6 +475,8 @@ const Unit: React.FC<UnitProps> = ({
   // Floating height difference
   // Raised ground units to 1.2 to clear the Base platform (height 1.0)
   const hoverHeight = isBombard ? 42 : isDefenseDrone ? 12.0 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler || isTrooper || isLancer || isRazorback || isScoutCar || isAegis || isHowitzer || isCloakGen || isFieldGen) ? 1.2 : (isAir ? 75.0 : 2.0);
+  // Over its target and dropping: the Bombardment Drone opens its bay.
+  const bombarding = isBombard && !!bombardmentTarget && path.length === 0 && gridPos.x === bombardmentTarget.x && gridPos.z === bombardmentTarget.z;
   
   // Logical World Position
   const logicalWorldPos = useMemo(() => new THREE.Vector3(
@@ -851,44 +854,7 @@ const Unit: React.FC<UnitProps> = ({
             <mesh ref={flashRef} position={[0, 2.2, 0]} visible={false} raycast={() => null}><sphereGeometry args={[0.3, 8, 6]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.85} toneMapped={false} depthWrite={false} /></mesh>
         </group>
     );
-    if (isBombard) return (
-        <group scale={[3.4, 3.4, 3.4]}>
-            <mesh position={[0, 0.15, 0]}>
-                <boxGeometry args={[0.7, 0.28, 2.4]} />
-                <meshStandardMaterial color="#334155" metalness={0.55} roughness={0.4} />
-                <Edges color="#0f172a" />
-            </mesh>
-            <mesh position={[0, 0.05, 0.15]}>
-                <boxGeometry args={[0.5, 0.16, 1.2]} />
-                <meshStandardMaterial color="#1e293b" />
-            </mesh>
-            {[-0.35, 0.35].map(x => (
-                <mesh key={x} position={[x, -0.02, 0]}>
-                    <boxGeometry args={[0.08, 0.06, 0.9]} />
-                    <meshBasicMaterial color="#f97316" />
-                </mesh>
-            ))}
-            <mesh position={[0, 0.22, 0]}>
-                <boxGeometry args={[3.4, 0.08, 0.7]} />
-                <meshStandardMaterial color="#475569" metalness={0.4} roughness={0.5} />
-                <Edges color={teamColor} />
-            </mesh>
-            {[[-1.55, 0.34], [1.55, 0.34], [-1.55, -0.34], [1.55, -0.34]].map((pos, i) => (
-                <group key={i} position={[pos[0], 0.34, pos[1]]}>
-                    <mesh><cylinderGeometry args={[0.16, 0.16, 0.08, 8]} /><meshStandardMaterial color="#0f172a" /></mesh>
-                    <mesh rotation={[0, Math.PI / 4, 0]}><boxGeometry args={[0.42, 0.02, 0.06]} /><meshStandardMaterial color="#94a3b8" /></mesh>
-                </group>
-            ))}
-            <mesh position={[0, 0.32, 0.95]}>
-                <boxGeometry args={[0.28, 0.16, 0.4]} />
-                <meshStandardMaterial color="#1e293b" />
-            </mesh>
-            <mesh position={[0, 0.32, 1.16]}>
-                <planeGeometry args={[0.18, 0.08]} />
-                <meshBasicMaterial color={teamColor} />
-            </mesh>
-        </group>
-    );
+    if (isBombard) return <BombardModel teamColor={teamColor} bayOpen={bombarding} munitions={bombardMunitions ?? BOMBARD.magazine} />;
     if (isWasp) return <WaspModel teamColor={teamColor} flashRef={flashRef} />;
     if (isDrone) return <InfiltratorModel teamColor={teamColor} radarOn={radarShown} />;
     if (isAttackDrone) return <AttackDroneModel teamColor={teamColor} flashRef={flashRef} />;
@@ -988,6 +954,7 @@ const Unit: React.FC<UnitProps> = ({
     isBallista ? Math.floor((loadingProgress || 0) / 10) : 0,
     isBanshee ? `${!!jammerActive && battery > 0}|${tetherTargetIds?.length ?? 0}` : 0,
     isHornet && upgrades.includes('hunter_rockets'),
+    bombarding, isBombard ? bombardMunitions : 0,
     isHelios ? `${heliosMode ?? 'charge'}|${heliosWorking}` : 0,
   ]);
 
@@ -1452,7 +1419,7 @@ const Unit: React.FC<UnitProps> = ({
                         {(() => {
                           const ammo = bombardMunitions ?? BOMBARD.magazine;
                           const status = bombardmentTarget
-                            ? (path.length === 0 && gridPos.x === bombardmentTarget.x && gridPos.z === bombardmentTarget.z ? 'Bombarding' : 'On approach')
+                            ? (bombarding ? 'Bombarding' : 'On approach')
                             : bombardReturning ? 'Returning to rearm'
                             : bombardRearmStartedAt !== undefined ? 'Rearming at base'
                             : ammo <= 0 ? 'Empty: send it to a base' : 'Ready';

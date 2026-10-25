@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel and the Wasp are done; the rest of the roster follows by type.
+the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel, the Wasp and the Bombardment Drone are done; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -386,6 +386,11 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   face, a chin gun, a tail fin and stabilisers, and two lift jets under it. Long, swept wings
   carry its micro-drone launchers: two hex pods hung under each wing on pylons, their faces
   clusters of tubes with a red-nosed micro drone in each, and team bands. Red and green wingtip lights.
+- **The Bombardment Drone** (`components/models/BombardModel.tsx`, sim type `bombard`): an
+  unmanned stealth flying wing: a cranked-kite planform with a sawtooth trailing edge, a low hump
+  along the middle with a dorsal intake and flat exhaust slots, raised wing panels, team markings
+  and wingtip lights. Under the middle, a bomb bay whose doors swing open while it bombards,
+  showing the munitions left in its rack.
 
 ### Rigged models
 
