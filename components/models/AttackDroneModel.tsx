@@ -1,12 +1,13 @@
 // The "Kestrel" attack drone, built from the unit kit (components/kit).
 //
-// Simple but military, and small beside the other drones: a slim faceted body with four long blade
-// fins standing near upright from its top corners and two shorter fins out of its lower sides
-// angling down, each with a fan set into it, a red accent along its edge and serrations. On the
-// front, the sensor array (a big round lens and a column of red-ringed lenses); under the front, a
-// short twin gun whose muzzle flashes while it fires (`flashRef`, lit by Unit.tsx).
+// Simple but military, and small beside the other drones: a slim faceted body with four short
+// blade fins standing near upright from its top corners, running fore and aft with the body, and
+// two fins out of its lower sides angling down; each has a slatted vent through it, a red accent
+// along its edge and serrations. On the front, the sensor array (a big round lens and a column of
+// red-ringed lenses); under the front, a short twin gun whose muzzle flashes while it fires
+// (`flashRef`, lit by Unit.tsx).
 //
-// It moves: the fans spin, and it bobs and tilts gently as it hovers.
+// It moves: it bobs and tilts gently as it hovers.
 //
 // Built facing +Z, about 0.9 long in its own units, and scaled up here.
 
@@ -14,21 +15,23 @@ import React, { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { glow, kitMaterial, PALETTE, teamPaint } from '../kit/materials';
-import { Plate, Prism, Strip, Turned } from '../kit/shapes';
+import { Plate, Prism, Strip, Turned, Wheel } from '../kit/shapes';
 
 const SCALE = 1.7;
 // Body side profile: [forward, up], faceted fore and aft.
 const BODY: [number, number][] = [[-0.36, -0.24], [-0.42, 0.0], [-0.32, 0.2], [0.26, 0.2], [0.4, 0.06], [0.38, -0.2], [0.24, -0.3], [-0.24, -0.3]];
 const BODY_W = 0.3;
-// The fins, each built along +X then turned out (yaw) and tilted up (+) or down (-): four from the
-// top corners standing near upright, and two shorter ones out of the lower sides angling down.
+// The fins, each built along +X then turned out to its side (their blades run fore and aft, parallel
+// with the body) and tilted up (+) or down (-): four short ones standing near upright from the top
+// corners, and two out of the lower sides angling down. Each has a vent through it: an opening
+// with slats across.
 const FINS = [
   ...[[1, 1], [-1, 1], [1, -1], [-1, -1]].map(([sx, sz]) => ({
-    at: [sx * 0.11, 0.18, sz * 0.15] as [number, number, number], yaw: Math.atan2(-sz, sx), tilt: 1.1, len: 0.8,
+    at: [sx * 0.11, 0.18, sz * 0.16] as [number, number, number], yaw: sx > 0 ? 0 : Math.PI, tilt: 1.15, len: 0.46, chord: 0.28,
   })),
-  ...[1, -1].map(sx => ({ at: [sx * 0.14, -0.18, -0.02] as [number, number, number], yaw: sx > 0 ? 0 : Math.PI, tilt: -0.5, len: 0.58 })),
+  ...[1, -1].map(sx => ({ at: [sx * 0.14, -0.18, -0.02] as [number, number, number], yaw: sx > 0 ? 0 : Math.PI, tilt: -0.5, len: 0.52, chord: 0.24 })),
 ];
-const FAN_R = 0.1;
+const VENT_R = 0.085;
 
 export const AttackDroneModel: React.FC<{ teamColor: string; flashRef?: React.Ref<THREE.Mesh> }> = ({ teamColor, flashRef }) => {
   const armour = kitMaterial('armour'), dark = kitMaterial('armourDark'), steel = kitMaterial('steel'), black = kitMaterial('black');
@@ -36,11 +39,9 @@ export const AttackDroneModel: React.FC<{ teamColor: string; flashRef?: React.Re
   const red = glow(PALETTE.warning);
 
   const body = useRef<THREE.Group>(null);
-  const fans = useRef<(THREE.Group | null)[]>([]);
 
-  useFrame(({ clock }, delta) => {
+  useFrame(({ clock }) => {
     const t = clock.elapsedTime;
-    fans.current.forEach((f, i) => { if (f) f.rotation.y += delta * (i % 2 ? -40 : 40); });
     if (body.current) {
       body.current.position.y = Math.sin(t * 2.2) * 0.04;
       body.current.rotation.x = 0.1 + Math.sin(t * 1.3) * 0.03;
@@ -88,19 +89,17 @@ export const AttackDroneModel: React.FC<{ teamColor: string; flashRef?: React.Re
 
         {/* Four blade fins standing up from the top corners, and two shorter fins out of the lower
             sides angling down; each with a fan, a red edge and serrations. */}
-        {FINS.map(({ at, yaw, tilt, len }, i) => (
+        {FINS.map(({ at, yaw, tilt, len, chord }, i) => (
           <group key={i} position={at} rotation={[0, yaw, 0]}>
             <group rotation={[0, 0, tilt]}>
-              <Plate size={[len, 0.05, 0.2]} material={armour} position={[len / 2, 0, 0]} />
-              <Plate size={[0.2, 0.05, 0.08]} material={armour} position={[len - 0.04, 0.03, 0.11]} rotation={[0, 0.5, 0]} />
-              <Strip size={[len - 0.3, 0.02, 0.02]} material={red} position={[len / 2 + 0.1, 0.03, -0.1]} />
-              {[0.62, 0.72, 0.82].map(f => <Plate key={f} size={[0.04, 0.05, 0.03]} material={dark} position={[len * f, -0.045, -0.085]} />)}
-              <group position={[len * 0.42, 0, 0]}>
-                <Turned profile={[[FAN_R, -0.035], [FAN_R + 0.03, -0.035], [FAN_R + 0.03, 0.035], [FAN_R, 0.035]]} segments={10} material={dark} rotation={[-Math.PI / 2, 0, 0]} />
-                <group ref={g => { fans.current[i] = g; }}>
-                  <Plate size={[FAN_R * 2 - 0.02, 0.008, 0.035]} material={black} />
-                  <Plate size={[0.035, 0.008, FAN_R * 2 - 0.02]} material={black} />
-                </group>
+              <Plate size={[len, 0.05, chord]} material={armour} position={[len / 2, 0, 0]} />
+              <Plate size={[0.14, 0.05, 0.07]} material={armour} position={[len - 0.03, 0.03, chord / 2 + 0.02]} rotation={[0, 0.5, 0]} />
+              <Strip size={[len - 0.12, 0.02, 0.02]} material={red} position={[len / 2 + 0.04, 0.03, -chord / 2]} />
+              {[0.7, 0.85].map(f => <Plate key={f} size={[0.035, 0.05, 0.03]} material={dark} position={[len * f, -0.045, -chord / 2 + 0.015]} />)}
+              <group position={[len * 0.5, 0, 0.01]}>
+                <Wheel radius={VENT_R + 0.02} width={0.056} segments={10} material={dark} rotation={[0, 0, Math.PI / 2]} />
+                <Wheel radius={VENT_R} width={0.058} segments={10} material={black} rotation={[0, 0, Math.PI / 2]} />
+                {[-0.05, 0, 0.05].map(x => <Plate key={x} size={[0.022, 0.066, VENT_R * 2]} material={dark} position={[x, 0, 0]} />)}
               </group>
               <Strip size={[0.03, 0.03, 0.03]} material={glow(PALETTE.amber)} position={[len, 0.03, 0]} />
             </group>
