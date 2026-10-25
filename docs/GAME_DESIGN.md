@@ -420,20 +420,12 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   raised ankles, then foot segments forward to clawed feet. Each upper flank carries an arm with
   a rocket pod over a machine gun; the arms come up while it fights and kick back on each shot.
   Each leg is posed from the foot up (the foot segment, then a two-link solve to the ankle).
-- **The Trooper** (`components/models/TrooperModel.tsx`, sim type `trooper`): the basic
-  infantry unit in full armour. Underneath, a body that reads as a person: tapered,
-  smooth-shaded limbs and torso in a dark undersuit (`smoothMaterial`, kit/materials.ts). Over
-  it, angular, flat-faceted armour: a vest wrapping the torso, abdominal plates, layered shoulder
-  plates edged in team colour, faceted bracers, thigh and shin guards, angled knee pads, boots;
-  and a faceted combat helmet with a brow ridge, cheek guards, a wraparound visor with a lit line
-  and an angled faceplate. A backpack, and a plain futuristic rifle held in both hands. It walks
-  with swinging legs and bending knees, carries the rifle at low ready and brings it up to aim
-  while fighting.
+- **The Trooper**: a supplied rigged model rather than kit shapes; see Rigged models below.
 
 ### Rigged models
 
 Most units are built from shapes in code. A unit can instead use a rigged `.glb` model (the asset
-spec covers what an artist delivers). Two do so far:
+spec covers what an artist delivers). Three do so far:
 - **Kage**: `public/models/kage.glb` with animation clips, and `katana.glb`, drawn by
   `components/KageRig.tsx`.
 - **Goliath**: `public/models/goliath.glb` (rigged body, no clips), `goliath_gun.glb` and
@@ -443,6 +435,13 @@ spec covers what an artist delivers). Two do so far:
   his hips; standing, his chest breathes; each shot kicks the gun back and each grenade volley kicks
   the launcher; dead, he topples onto his back. The gun rides at his right hip and the launcher
   sits on the socket in his back, arching over his right shoulder.
+- **Trooper**: `public/models/trooper.glb` (a fully armoured soldier in parts on one skeleton, no
+  clips, untextured), drawn by `components/models/TrooperModel.tsx`. Each part takes a colour from
+  the unit kit's palette and the chest pouches the team colour, so it sits with the rest of the
+  army; the parts are merged by colour (a few draw calls per soldier). The model's skin weights
+  are cleaned on load (the arms follow only arm bones, everything else none), so the arms can
+  move without stretching the torso. It holds a kit rifle by two-bone IK (`components/kit/rig.ts`,
+  shared with Goliath), low at the ready and raised level while fighting; walking swings its legs.
 
 For models with clips:
 - **Clips** in the file: `idle` (loops), `run` (loops, in place: the game moves the unit), `attack`
