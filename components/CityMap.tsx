@@ -47,7 +47,7 @@ import { BASE_SITE, BaseSite, baseSites, clearedBlocks, commandPosts, rubbleClea
 import { BLACKWALL, blackwallImpact, blackwallTick } from '../sim/blackwall';
 import { FORCE_FIELD, ForceField, absorbingField, activeFields, addShieldHit, generatorsOf, impactAbsorbed, shieldTick, shockDamage, shockedBy, shotBlocked, shotBlockedBy } from '../sim/forcefield';
 import { BlackwallBomb, BlackwallBurst } from './BlackwallFx';
-import { ForceFieldDome, ShieldImpact } from './ForceFieldFx';
+import { ForceFieldDome, forceFieldColor, ShieldImpact } from './ForceFieldFx';
 import { ShotFx, ShotFxData, ShotKind, shotFxLifeMs } from './ShotFx';
 import { EmpRocket, EMP_ROCKET, empRocketImpact, empRocketTick, isEmpTarget, mergeUnitUpdates, topAttackHeight } from '../sim/empRocket';
 import { AirThreat, applyCiwsState, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY } from '../sim/ciws';
@@ -4507,7 +4507,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                         key={f.id}
                         center={{ x: f.center.x * tileSize - offset, z: f.center.z * tileSize - offset }}
                         radius={f.radius * tileSize}
-                        color={f.team === 'blue' ? '#38bdf8' : '#fb7185'}
+                        color={forceFieldColor(f.team)}
                         strength={f.hp / f.maxHp}
                         shocked={(shocked.get(f.id) ?? []).map(u => ({ x: u.gridPos.x * tileSize - offset, y: flightUnitY(u), z: u.gridPos.z * tileSize - offset }))}
                     />

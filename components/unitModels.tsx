@@ -1,5 +1,5 @@
-// Models for some of the units added in the playable build: the field generators. Units rebuilt
-// from the unit kit live in models/.
+// Models for some of the units added in the playable build: the Cloaking Field Generator. Units
+// rebuilt from the unit kit live in models/.
 // Built from primitives in the same style as the rest of Unit.tsx. Every model faces -Z,
 // which is the direction Unit.tsx turns toward the next waypoint.
 
@@ -14,80 +14,6 @@ const STEEL = '#475569';
 
 // Shadow Ops Cloaking Field Generator: a squat drop pod with a pylon, and an emitter ring that
 // turns and glows violet while the field is up.
-// Heavy Metal's Bulwark Field Generator: a squat armoured drop pod with four coil pylons and a
-// big emitter orb on a spinning collar. The coils and orb glow while the field is up.
-export const FieldGeneratorModel: React.FC<{ teamColor: string; active: boolean }> = ({ teamColor, active }) => {
-  const collarRef = useRef<THREE.Group>(null);
-  const orbRef = useRef<THREE.Mesh>(null);
-  useFrame(({ clock }, delta) => {
-    if (collarRef.current && active) collarRef.current.rotation.y += delta * 2.2;
-    if (orbRef.current) orbRef.current.scale.setScalar(active ? 1 + Math.sin(clock.elapsedTime * 6) * 0.08 : 0.85);
-  });
-  const glow = active ? '#7dd3fc' : '#475569';
-  return (
-    <group scale={[2.6, 2.6, 2.6]}>
-      {/* Armoured octagonal base on landing feet */}
-      <mesh position={[0, 0.25, 0]}>
-        <cylinderGeometry args={[0.85, 1.0, 0.5, 8]} />
-        <meshStandardMaterial color={HULL} metalness={0.75} roughness={0.35} />
-        <Edges color={DARK} />
-      </mesh>
-      {[0, 1, 2, 3].map(i => {
-        const a = i * Math.PI / 2 + Math.PI / 4;
-        return (
-          <mesh key={i} position={[Math.cos(a) * 0.95, 0.06, Math.sin(a) * 0.95]} rotation={[0, -a, 0.45]}>
-            <boxGeometry args={[0.55, 0.08, 0.14]} />
-            <meshStandardMaterial color={STEEL} />
-          </mesh>
-        );
-      })}
-      <mesh position={[0, 0.51, 0]}>
-        <cylinderGeometry args={[0.8, 0.8, 0.03, 8]} />
-        <meshBasicMaterial color={teamColor} toneMapped={false} />
-      </mesh>
-      {/* Four coil pylons */}
-      {[0, 1, 2, 3].map(i => {
-        const a = i * Math.PI / 2;
-        return (
-          <group key={i} position={[Math.cos(a) * 0.55, 0.5, Math.sin(a) * 0.55]}>
-            <mesh position={[0, 0.45, 0]}>
-              <cylinderGeometry args={[0.07, 0.1, 0.9, 6]} />
-              <meshStandardMaterial color={STEEL} metalness={0.8} roughness={0.3} />
-            </mesh>
-            {[0.25, 0.45, 0.65].map(y => (
-              <mesh key={y} position={[0, y, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                <torusGeometry args={[0.12, 0.03, 5, 12]} />
-                <meshBasicMaterial color={glow} toneMapped={false} />
-              </mesh>
-            ))}
-          </group>
-        );
-      })}
-      {/* Central mast, spinning collar and emitter orb */}
-      <mesh position={[0, 1.0, 0]}>
-        <cylinderGeometry args={[0.14, 0.22, 1.0, 8]} />
-        <meshStandardMaterial color={STEEL} metalness={0.8} roughness={0.3} />
-      </mesh>
-      <group ref={collarRef} position={[0, 1.35, 0]}>
-        <mesh rotation={[Math.PI / 2, 0, 0]}>
-          <torusGeometry args={[0.42, 0.05, 6, 24]} />
-          <meshBasicMaterial color={glow} toneMapped={false} />
-        </mesh>
-        {[0, 1, 2, 3].map(i => (
-          <mesh key={i} position={[Math.cos(i * Math.PI / 2) * 0.42, 0, Math.sin(i * Math.PI / 2) * 0.42]}>
-            <boxGeometry args={[0.12, 0.12, 0.12]} />
-            <meshStandardMaterial color={HULL} metalness={0.7} />
-          </mesh>
-        ))}
-      </group>
-      <mesh ref={orbRef} position={[0, 1.75, 0]}>
-        <sphereGeometry args={[0.28, 16, 12]} />
-        <meshBasicMaterial color={glow} toneMapped={false} />
-      </mesh>
-    </group>
-  );
-};
-
 export const CloakGeneratorModel: React.FC<{ teamColor: string; active: boolean }> = ({ teamColor, active }) => {
   const ringRef = useRef<THREE.Group>(null);
   useFrame((_, delta) => {

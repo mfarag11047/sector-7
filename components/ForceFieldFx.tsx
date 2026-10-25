@@ -77,6 +77,9 @@ function bolt(from: THREE.Vector3, to: THREE.Vector3, jitter: number): [number, 
   return pts;
 }
 
+// The colour of a side's dome, also lit on its generator.
+export const forceFieldColor = (team: string) => team === 'blue' ? '#38bdf8' : '#fb7185';
+
 export const ForceFieldDome: React.FC<{
   center: { x: number; z: number };
   radius: number;
