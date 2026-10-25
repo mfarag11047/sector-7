@@ -105,8 +105,8 @@ export const InfiltratorModel: React.FC<{ teamColor: string; radarOn: boolean }>
 
         {/* The radar rotodome on a short fairing: a lenticular disc with a scan bar, lit while
             the radar runs. */}
-        <Prism outline={[[-0.03, -0.32], [0.03, -0.32], [0.03, -0.04], [-0.03, -0.04]]} depth={0.14} axis="y" material={dark} position={[0, SKIN_T + HUMP_H - 0.04, 0]} />
-        <group ref={dome} position={[0, SKIN_T + HUMP_H + 0.12, -0.18]}>
+        <Prism outline={[[-0.03, -0.32], [0.03, -0.32], [0.03, -0.04], [-0.03, -0.04]]} depth={0.18} axis="y" material={dark} position={[0, SKIN_T + HUMP_H - 0.04, 0]} />
+        <group ref={dome} position={[0, SKIN_T + HUMP_H + 0.16, -0.18]} scale={1.5}>
           <group rotation={[-Math.PI / 2, 0, 0]}>
             <Turned profile={[[0.001, -0.035], [0.27, -0.02], [0.32, 0], [0.27, 0.025], [0.001, 0.04]]} segments={16} material={housing} />
           </group>
