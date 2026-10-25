@@ -375,9 +375,10 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   core and ring glow gold while it charges friends and orange-red while it microwaves enemies, and
   go dark when it can't work.
 - **The Kestrel** (`components/models/AttackDroneModel.tsx`, sim type `attack_drone`): a small
-  attack drone: a compact faceted body on four long blade arms that flare out and up in an X, each
-  with a spinning fan, a red edge and serrations; a sensor array on the front (a big round lens, a
-  column of red-ringed lenses) and a short twin gun under the front that flashes when it fires.
+  attack drone: a slim faceted body with four long blade fins standing near upright from its top
+  corners and two shorter fins out of its lower sides angling down, each with a spinning fan, a red
+  edge and serrations; a sensor array on the front (a big round lens, a column of red-ringed
+  lenses) and a short twin gun under the front that flashes when it fires.
 
 ### Rigged models
 
