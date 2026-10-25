@@ -9,7 +9,8 @@ import { abilitiesFor } from '../sim/unitAbilities';
 import { roleBadgeTexture, UNIT_ROLE } from './unitIcons';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
-import { CloakGeneratorModel, FieldGeneratorModel, TrooperKit } from './unitModels';
+import { CloakGeneratorModel, FieldGeneratorModel } from './unitModels';
+import { TrooperModel } from './models/TrooperModel';
 import { LancerMechModel } from './models/LancerMechModel';
 import { InfiltratorModel } from './models/InfiltratorModel';
 import { ARTILLERY, artilleryRange } from '../sim/artillery';
@@ -364,7 +365,7 @@ const paintGhostMaterial = (mat: THREE.MeshStandardMaterial, bodyColor: string) 
 
 // Tripo export is 1 unit tall, feet on y=0, face along +Z.
 // Unit lookAt aims local -Z at the next waypoint, so the mesh is turned 180°.
-// All infantry share this soldier mesh; the armor color tells them apart.
+// The Ghost wears this soldier mesh.
 const SoldierModel: React.FC<{ bodyColor: string }> = ({ bodyColor }) => {
   const { scene } = useGLTF(GHOST_MODEL_URL);
   const clone = useMemo(() => {
@@ -814,15 +815,7 @@ const Unit: React.FC<UnitProps> = ({
   turretAimRef.current = turretAt ? new THREE.Vector3(turretAt.x * tileSize - offset, 0, turretAt.z * tileSize - offset) : null;
   const renderModel = () => {
     if (isLancer) return <LancerMechModel teamColor={teamColor} moving={moving} lastAttackTime={lastAttackTime} flashRef={flashRef} />;
-    if (isTrooper) return (
-        <group>
-            <group scale={3.7} rotation={[0, Math.PI, 0]}>
-                <SoldierModel bodyColor="#4b5563" />
-                <TrooperKit teamColor={teamColor} />
-            </group>
-            <mesh ref={flashRef} position={[0, 2.2, 0]} visible={false} raycast={() => null}><sphereGeometry args={[0.3, 8, 6]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.85} toneMapped={false} depthWrite={false} /></mesh>
-        </group>
-    );
+    if (isTrooper) return <TrooperModel teamColor={teamColor} moving={moving} lastAttackTime={lastAttackTime} flashRef={flashRef} />;
     if (isRazorback) return <RazorbackModel teamColor={teamColor} moving={moving} aimRef={turretAimRef} flashRef={flashRef} />;
     if (isScoutCar) return <ScoutCarModel teamColor={teamColor} moving={moving} />;
     if (isCloakGen) return <CloakGeneratorModel teamColor={teamColor} active={fieldUp} />;
@@ -884,7 +877,7 @@ const Unit: React.FC<UnitProps> = ({
   const model = useMemo(renderModel, [
     type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
     isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, firingLaserAt, courierPayload, constructionTargetId, ciwsTargetId,
-    grenadeAt, isHero || isLancer ? lastAttackTime : 0, isHero || isLancer || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback || isScoutCar || isSwarmHost || isCrawler ? moving : false, isTank ? railgunFiredAt : 0,
+    grenadeAt, isHero || isLancer || isTrooper ? lastAttackTime : 0, isHero || isLancer || isTrooper || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback || isScoutCar || isSwarmHost || isCrawler ? moving : false, isTank ? railgunFiredAt : 0,
     isBallista ? Math.floor((loadingProgress || 0) / 10) : 0,
     isBanshee ? `${!!jammerActive && battery > 0}|${tetherTargetIds?.length ?? 0}` : 0,
     isHornet && upgrades.includes('hunter_rockets'),

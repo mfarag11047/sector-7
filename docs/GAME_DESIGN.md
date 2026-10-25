@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel, the Wasp, the Bombardment Drone, the Infiltrator, the Swarm Host, the Crawler Drone and the Lancer are done; the rest of the roster follows by type.
+the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel, the Wasp, the Bombardment Drone, the Infiltrator, the Swarm Host, the Crawler Drone, the Lancer and the Trooper are done; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -420,6 +420,11 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   raised ankles, then foot segments forward to clawed feet. Each upper flank carries an arm with
   a rocket pod over a machine gun; the arms come up while it fights and kick back on each shot.
   Each leg is posed from the foot up (the foot segment, then a two-link solve to the ankle).
+- **The Trooper** (`components/models/TrooperModel.tsx`, sim type `trooper`): the basic
+  infantry unit in full armour: a full helmet with a dark visor and a lit visor line, an armoured
+  chest and backpack, team-coloured shoulder plates, plated arms and legs over a dark undersuit,
+  and a plain futuristic rifle held in both hands. It walks with swinging legs and bending
+  knees, carries the rifle at low ready and brings it up to aim while fighting.
 
 ### Rigged models
 

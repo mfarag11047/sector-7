@@ -1,6 +1,5 @@
-// Models for some of the units added in the playable build (the field generators), plus the
-// gear that sets Troopers apart from the Ghost (they share its soldier mesh). Units rebuilt from
-// the unit kit live in models/.
+// Models for some of the units added in the playable build: the field generators. Units rebuilt
+// from the unit kit live in models/.
 // Built from primitives in the same style as the rest of Unit.tsx. Every model faces -Z,
 // which is the direction Unit.tsx turns toward the next waypoint.
 
@@ -12,22 +11,6 @@ import * as THREE from 'three';
 const HULL = '#334155';
 const DARK = '#1e293b';
 const STEEL = '#475569';
-
-// Trooper's carbine and a team-colored shoulder plate, so a squad reads at a glance.
-export const TrooperKit: React.FC<{ teamColor: string }> = ({ teamColor }) => (
-  <group>
-    <mesh position={[0.07, 0.6, -0.12]} rotation={[0.1, 0, 0]}>
-      <boxGeometry args={[0.03, 0.05, 0.3]} />
-      <meshStandardMaterial color={DARK} metalness={0.5} />
-    </mesh>
-    {[-1, 1].map(side => (
-      <mesh key={side} position={[side * 0.12, 0.72, 0]}>
-        <boxGeometry args={[0.06, 0.03, 0.09]} />
-        <meshBasicMaterial color={teamColor} toneMapped={false} />
-      </mesh>
-    ))}
-  </group>
-);
 
 // Shadow Ops Cloaking Field Generator: a squat drop pod with a pylon, and an emitter ring that
 // turns and glows violet while the field is up.
