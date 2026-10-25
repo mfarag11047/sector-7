@@ -330,8 +330,9 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   long armoured module on the back hiding the launch tube. Loading or armed and standing still, it
   erects: the module swings up on hydraulic rams about its rear edge (a jack plants under the
   hinge) until the tube's round mouth faces the sky. The missile slides up the tube as it loads,
-  and when armed its warhead stands out of the mouth in its type's colour (EMP blue, HE red, WP
-  white). Fired, or driving off, it folds down; the missile leaves from the mouth's height.
+  and when armed its nose stands out of the mouth, its collar ring glowing its type's colour (EMP
+  blue, HE red, WP white; the missile model is below). Fired, or driving off, it folds down; the
+  missile leaves from the mouth's height.
 - **The Aegis** (`components/models/AegisModel.tsx`): an eight-wheeled truck carrying a close-in
   weapon system: a boxy angular cab, the gun mount on a pedestal mid-deck, and a long rear with a
   generator housing carrying a big search radar, a wide two-faced panel array turning on a tall
@@ -438,10 +439,15 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   long-wheelbase six-wheeled truck: an armoured cab, a compact fabrication station right behind it
   (a housing with a tool gantry, lit work windows and a vent stack), and the rest of the bed in
   four steel box cages, two across and two high, each holding one missile, nose to the rear. The
-  cages show the stock: each missile fabricated wears a warhead cap in its type's colour (as on the
-  Ballista), each material charge not yet made is a bare body with an open collar, the rest of the
-  cradles are empty. While it fabricates, the station's windows and the next bare nose pulse in
-  the colour of the warhead being made.
+  cages show the stock in the Ballista's missile (below): each missile fabricated has its nose on and
+  its collar ring in its type's colour, each material charge not yet made is a bare body, the rest
+  of the cages are empty. While it fabricates, the station's windows and the next bare body's ring
+  pulse in the colour of the warhead being made.
+- **The missile** (`components/models/MissileModel.tsx`): one model for the Ballista's missile
+  wherever it shows (the Field Fabricator's cages, the Ballista's launch tube, in flight): a long
+  dark body, a forked tail of four splayed prongs round a nozzle, four small fins, and behind a
+  faceted dark nose a collar ring glowing the colour of its warhead (EMP blue, HE red, WP white).
+  A missile with no warhead yet is a bare body, open at the front, its ring unlit.
 
 ### Rigged models
 

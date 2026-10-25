@@ -6,11 +6,12 @@
 // work window and a vent stack); and the rest of the long bed taken by four steel box cages, two
 // across and two high, each holding one missile on cradles, nose to the rear.
 //
-// The cages show the stock (`missiles`, `material`): each missile fabricated wears a warhead cap in
-// the colour of its type (EMP, HE, WP, as on the Ballista); each material charge not yet made into
-// a missile is a bare missile body, its nose an open collar; the rest of the cradles are empty.
-// While it fabricates (`fabricating`), the station's work window and the next bare missile's nose
-// pulse in the colour of the warhead being made.
+// The cages show the stock (`missiles`, `material`), in the Ballista's missile (MissileModel.tsx):
+// each missile fabricated has its nose on and its collar ring glowing the colour of its type (EMP,
+// HE, WP); each material charge not yet made into a missile is a bare body, open at the front and
+// its ring unlit; the rest of the cages are empty. While it fabricates (`fabricating`), the
+// station's work windows and the next bare body's ring pulse in the colour of the warhead being
+// made.
 //
 // It moves: its wheels turn while it drives.
 //
@@ -21,9 +22,8 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { glow, kitMaterial, own, PALETTE, teamPaint } from '../kit/materials';
 import { ContactShadow, Plate, Prism, Strip, Turned, Wheel } from '../kit/shapes';
-import { WARHEAD_COLORS } from './BallistaModel';
+import { Missile, Warhead, WARHEAD_COLORS } from './MissileModel';
 
-type Warhead = 'emp' | 'he' | 'wp';
 const SCALE = 2.2;
 // Cab side profile: [forward, up], a sloped windscreen.
 const CAB: [number, number][] = [[0.75, 0.5], [0.75, 1.32], [1.06, 1.32], [1.36, 0.98], [1.44, 0.84], [1.44, 0.5]];
@@ -38,7 +38,7 @@ const DECK_Y = 0.6;
 const SLOTS: [number, number][] = [0.77, 1.11].flatMap(y => [-0.25, 0.25].map(x => [x, y] as [number, number]));
 const CAGE = { w: 0.42, h: 0.3, front: 0.06, back: -2.12, rings: [0.06, -1.03, -2.12] };
 // A missile on its cradle, along Z: its tail at the front of the bed, its nose to the rear.
-const MISSILE = { r: 0.1, tail: -0.02, length: 1.86 };
+const MISSILE = { r: 0.09, tail: -0.02, length: 2.06 };
 
 export const FieldFabricatorModel: React.FC<{
   teamColor: string;
@@ -156,20 +156,15 @@ export const FieldFabricatorModel: React.FC<{
         );
       })}
 
-      {/* The missiles in their cradles: a body and fins; a warhead cap in its colour, or a bare
-          open collar; the one being made pulses. */}
+      {/* The missiles in their cages (MissileModel.tsx), noses to the rear: finished ones with
+          their collar rings in the warhead's colour, bare bodies open and unlit, the one being
+          made pulsing. */}
       {SLOTS.map(([x, y], i) => {
         const load = loads[i];
         if (!load) return null;
         return (
-          <group key={i} position={[x, y, MISSILE.tail]} rotation={[0, Math.PI, 0]}>
-            <Turned profile={[[MISSILE.r * 0.8, 0], [MISSILE.r, 0.06], [MISSILE.r, MISSILE.length]]} segments={10} material={housing} />
-            {[0, Math.PI / 2].map(r => <Plate key={r} size={[0.3, 0.012, 0.12]} material={dark} position={[0, 0, 0.1]} rotation={[0, 0, r + Math.PI / 4]} />)}
-            <Turned profile={[[MISSILE.r + 0.006, MISSILE.length - 0.04], [MISSILE.r + 0.006, MISSILE.length]]} segments={10} material={black} />
-            {load === 'bare'
-              ? <Turned profile={[[MISSILE.r * 0.7, MISSILE.length], [MISSILE.r * 0.55, MISSILE.length + 0.03], [0.001, MISSILE.length + 0.03]]} segments={10} material={i === working ? pulse : black} />
-              : <Turned profile={[[MISSILE.r, MISSILE.length], [MISSILE.r * 0.7, MISSILE.length + 0.1], [0.02, MISSILE.length + 0.2], [0.001, MISSILE.length + 0.21]]} segments={10} material={glow(WARHEAD_COLORS[load])} />}
-          </group>
+          <Missile key={i} warhead={load === 'bare' ? null : load} ring={i === working ? pulse : undefined}
+            radius={MISSILE.r} length={MISSILE.length} position={[x, y, MISSILE.tail]} rotation={[0, Math.PI, 0]} />
         );
       })}
 

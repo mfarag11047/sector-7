@@ -78,6 +78,7 @@ import { Economy, createEconomy, incomeBreakdown, refund, canAfford, spend, setC
 import { THUNDERHEAD_LAUNCH_Y } from './models/ThunderheadModel';
 import { glow, kitMaterial, PALETTE, teamPaint } from './kit/materials';
 import { Plate, Turned } from './kit/shapes';
+import { Missile } from './models/MissileModel';
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
 import { dampenedUnits } from '../sim/ghost';
 import { heliosBeams, microwaveDamage } from '../sim/helios';
@@ -221,52 +222,15 @@ const DestinationMarker: React.FC<{ x: number, z: number, tileSize: number, offs
   );
 };
 
-// Detailed Missile Model
-const DetailedMissileModel = ({ color }: { color: string }) => {
-
-    return (
-        <group rotation={[-Math.PI/2, 0, 0]}>
-             {/* Fuselage */}
-             <mesh position={[0, 1.5, 0]}>
-                 <cylinderGeometry args={[0.3, 0.3, 3, 16]} />
-                 <meshStandardMaterial color="#e2e8f0" metalness={0.6} roughness={0.3} />
-             </mesh>
-             {/* Warhead */}
-             <mesh position={[0, 3.4, 0]}>
-                 <coneGeometry args={[0.31, 0.8, 16]} />
-                 <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} />
-             </mesh>
-             {/* Collar Ring */}
-             <mesh position={[0, 3.0, 0]}>
-                 <cylinderGeometry args={[0.32, 0.32, 0.1, 16]} />
-                 <meshBasicMaterial color="#f97316" />
-             </mesh>
-             {/* Fins */}
-             {[0, Math.PI/2, Math.PI, -Math.PI/2].map((r, i) => (
-                 <mesh key={i} position={[0, 0.5, 0]} rotation={[0, r, 0]}>
-                     <boxGeometry args={[0.05, 1.0, 0.8]} />
-                     <meshStandardMaterial color="#475569" metalness={0.5} />
-                 </mesh>
-             ))}
-             {/* Engine Nozzle */}
-             <mesh position={[0, -0.2, 0]}>
-                 <cylinderGeometry args={[0.2, 0.15, 0.4, 16]} />
-                 <meshStandardMaterial color="#334155" />
-             </mesh>
-             {/* Engine Glow */}
-             <mesh position={[0, -0.5, 0]} rotation={[Math.PI, 0, 0]}>
-                 <coneGeometry args={[0.15, 0.6, 8, 1, true]} />
-                 <meshBasicMaterial color="#f97316" transparent opacity={0.8} depthWrite={false} blending={THREE.AdditiveBlending} />
-             </mesh>
-
-             {/* Navigation/Strobe Light - Blinking */}
-             <mesh position={[0, 2.0, 0.32]}>
-                 <sphereGeometry args={[0.08]} />
-                 <meshBasicMaterial color="#ff0000" />
-             </mesh>
-        </group>
-    );
-};
+// The Ballista's missile in flight (MissileModel.tsx, nose along +Z, the way it is heading) with
+// its exhaust.
+const BallisticMissileMesh: React.FC<{ warhead: Warhead }> = ({ warhead }) => (
+    <group position={[0, 0, -2]}>
+        <Missile warhead={warhead} radius={0.3} length={4} />
+        <Turned profile={[[0.18, 0], [0.001, 1.6]]} segments={8} material={glow('#ffb35c', 0.75)} rotation={[0, Math.PI, 0]} shadow={false} />
+        <Turned profile={[[0.3, 0], [0.001, 2.6]]} segments={8} material={glow('#ff7a2e', 0.3)} rotation={[0, Math.PI, 0]} shadow={false} />
+    </group>
+);
 
 // CloudMesh Component
 const CloudMesh: React.FC<{ cloud: CloudData; tileSize: number; offset: number; playerTeam: 'blue' | 'red' }> = (props) =>
@@ -406,10 +370,9 @@ const ProjectileMesh: React.FC<{ projectile: Projectile; flightRef: React.Mutabl
     }
 
     if (projectile.trajectory === 'ballistic') {
-        const payloadColor = projectile.payload === 'emp' ? EMP_BLUE : projectile.payload === 'wp' ? WP_WHITE : '#ef4444';
         return (
             <group ref={meshRef}>
-                 <DetailedMissileModel color={payloadColor} />
+                 <BallisticMissileMesh warhead={projectile.payload === 'emp' || projectile.payload === 'wp' ? projectile.payload : 'he'} />
             </group>
         );
     }

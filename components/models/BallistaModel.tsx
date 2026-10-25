@@ -9,7 +9,7 @@
 // To load and fire it stands still and erects: the module swings up on its hydraulic rams about
 // its rear edge until its front end, with the round mouth of the launch tube, faces the sky; a
 // stabiliser jack plants under it. The missile slides up the tube as it loads, and when armed its
-// warhead stands out of the mouth in the colour of its type. Fired, or driving off, it folds down.
+// nose stands out of the mouth, its collar ring glowing the colour of its type. Fired, or driving off, it folds down.
 //
 // Built facing +Z, about 3.9 long in its own units, and scaled up here: a big target.
 
@@ -18,11 +18,10 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { glow, kitMaterial, PALETTE, teamPaint } from '../kit/materials';
 import { ContactShadow, Plate, Prism, Strip, Turned, Wheel } from '../kit/shapes';
+import { Missile, MISSILE_COLLAR } from './MissileModel';
 
 const SCALE = 2.9;
 
-// Warhead colours, by missile type.
-export const WARHEAD_COLORS: Record<'emp' | 'he' | 'wp', string> = { emp: '#38bdf8', he: '#ef4444', wp: '#f8fafc' };
 
 // Cab side profile: [forward, up], a sloped windscreen.
 const CAB: [number, number][] = [[0.6, 0.55], [0.6, 1.6], [1.02, 1.6], [1.44, 1.16], [1.5, 1.0], [1.5, 0.55]];
@@ -36,8 +35,10 @@ const WHEEL_X = 0.68;
 const DECK_Y = 0.78, HINGE_Z = -2.22;
 const MOD = { w: 1.26, h: 0.66, l: 2.8 };
 const TUBE = { r: 0.32, y: 0.36 };
-// The missile, along the tube: a body and a nose cone. Its nose base sits at the mouth when armed.
+// The missile (MissileModel.tsx), along the tube: its collar sits at the mouth when armed, so its
+// coloured ring and nose stand out.
 const MISSILE_IN = -0.65;
+const MISSILE_LENGTH = 2.6;
 
 export const BallistaModel: React.FC<{
   teamColor: string;
@@ -50,7 +51,6 @@ export const BallistaModel: React.FC<{
   const armour = kitMaterial('armour'), dark = kitMaterial('armourDark'), steel = kitMaterial('steel'), black = kitMaterial('black');
   const composite = kitMaterial('composite'), housing = kitMaterial('housing'), paint = teamPaint(teamColor);
   const amber = glow(PALETTE.amber), glass = black;
-  const warhead = loadedAmmo ? glow(WARHEAD_COLORS[loadedAmmo]) : null;
 
   const erect = (ammoState === 'loading' || ammoState === 'armed') && !moving;
   // How far up the tube the missile is: hidden while stowed, rising as it loads, out when armed.
@@ -184,12 +184,9 @@ export const BallistaModel: React.FC<{
           </group>
         </group>
         {/* The missile in the tube, its warhead out of the mouth when armed. */}
-        {warhead && (
+        {loadedAmmo && (
           <group ref={missile} position={[0, TUBE.y, MISSILE_IN - 0.4]}>
-            <group position={[0, 0, MOD.l]}>
-              <Turned profile={[[TUBE.r - 0.04, -1.6], [TUBE.r - 0.04, 0]]} segments={12} material={housing} />
-              <Turned profile={[[TUBE.r - 0.04, 0], [TUBE.r - 0.1, 0.22], [0.12, 0.42], [0.001, 0.52]]} segments={12} material={warhead} />
-            </group>
+            <Missile warhead={loadedAmmo} radius={TUBE.r - 0.05} length={MISSILE_LENGTH} position={[0, 0, MOD.l - MISSILE_COLLAR * MISSILE_LENGTH]} />
           </group>
         )}
       </group>
