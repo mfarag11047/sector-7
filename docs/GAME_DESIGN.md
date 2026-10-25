@@ -392,10 +392,11 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   and wingtip lights. Under the middle, a bomb bay whose doors swing open while it bombards,
   showing the munitions left in its rack.
 - **The Infiltrator** (`components/models/InfiltratorModel.tsx`, sim type `drone`): a
-  long-winged surveillance drone: a slender faceted fuselage with a hump over the nose, a sensor
-  turret under the nose, long wings with upturned team-coloured tips and a pod under each, a
-  V-tail over a ventral fin, and a jet engine in the tail (side intakes, a glowing nozzle). Its
-  radar rotodome on struts over the fuselage turns while the radar runs, its scan bar lit.
+  blended-wing stealth drone with very long wings, body and wings one sweeping piece: a pointed
+  body widening into long, slender, slightly swept wings, a low hump with a dorsal intake, two
+  small canted fins and a flat jet nozzle with a glowing exhaust at the tail. A sensor array on the
+  nose (a dark window on top, a turret under the chin); a radar rotodome on a short fairing that
+  turns while the radar runs, its scan bar lit. Team markings near the wingtips.
 
 ### Rigged models
 
