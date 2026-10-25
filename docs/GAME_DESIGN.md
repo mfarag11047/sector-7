@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios and the Kestrel are done; the rest of the roster follows by type.
+the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel and the Wasp are done; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -382,6 +382,10 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   middle, the top fins down fore and aft of it. No team colour on the body. A sensor array on the
   front (a big round lens, a column of red-ringed lenses) and a short twin gun under the front
   that flashes when it fires.
+- **The Wasp** (`components/models/WaspModel.tsx`): a compact faceted VTOL body with a sensor
+  face, a chin gun, a tail fin and stabilisers, and two lift jets under it. Long, swept wings
+  carry its micro-drone launchers: a hex pod hung under each wing on a pylon, its face a cluster
+  of tubes with a red-nosed micro drone in each, and a team band. Red and green wingtip lights.
 
 ### Rigged models
 
