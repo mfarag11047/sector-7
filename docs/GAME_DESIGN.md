@@ -384,8 +384,8 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   that flashes when it fires.
 - **The Wasp** (`components/models/WaspModel.tsx`): a compact faceted VTOL body with a sensor
   face, a chin gun, a tail fin and stabilisers, and two lift jets under it. Long, swept wings
-  carry its micro-drone launchers: a hex pod hung under each wing on a pylon, its face a cluster
-  of tubes with a red-nosed micro drone in each, and a team band. Red and green wingtip lights.
+  carry its micro-drone launchers: two hex pods hung under each wing on pylons, their faces
+  clusters of tubes with a red-nosed micro drone in each, and team bands. Red and green wingtip lights.
 
 ### Rigged models
 

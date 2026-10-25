@@ -2,9 +2,9 @@
 //
 // Simple but military: a compact faceted VTOL body with a dark sensor face, a chin gun whose muzzle
 // flashes while it fires (`flashRef`, lit by Unit.tsx), a tail fin and stabilisers, and two lift
-// jets under it. Long, swept wings carry its micro-drone launchers: a hex pod hung under each wing
-// on a pylon, its face a cluster of tubes, each with a red-nosed micro drone in it. Team colour on
-// the spine and the pods' bands; red and green lights at the wingtips.
+// jets under it. Long, swept wings carry its micro-drone launchers: two hex pods hung under each
+// wing on pylons, their faces clusters of tubes with a red-nosed micro drone in each. Team colour
+// on the spine and the pods' bands; red and green lights at the wingtips.
 //
 // It moves: its jets flicker, and it bobs and banks gently as it hovers.
 //
@@ -25,8 +25,9 @@ const FIN: [number, number][] = [[-0.62, 0.18], [-0.7, 0.56], [-0.56, 0.56], [-0
 // The right wing, top view [right, forward]: long and swept; the left is its mirror.
 const WING: [number, number][] = [[0.2, 0.28], [1.5, 0.02], [1.52, -0.16], [0.2, -0.22]];
 const WING_Y = 0.02, WING_T = 0.06;
-// The launcher pods, one under each wing: where they hang, and their tubes [right, up].
-const POD_X = 0.95, POD_Y = -0.2, POD_R = 0.2;
+// The launcher pods, two under each wing: where they hang [out, forward], and their tubes [right, up].
+const PODS: [number, number][] = [[0.6, 0.0], [1.18, -0.07]];
+const POD_Y = -0.2, POD_R = 0.2;
 const TUBES: [number, number][] = [[0, 0], ...[0, 1, 2, 3, 4, 5].map(k => [Math.cos(k * Math.PI / 3 + Math.PI / 6) * 0.11, Math.sin(k * Math.PI / 3 + Math.PI / 6) * 0.11] as [number, number])];
 
 export const WaspModel: React.FC<{ teamColor: string; flashRef?: React.Ref<THREE.Mesh> }> = ({ teamColor, flashRef }) => {
@@ -104,10 +105,10 @@ export const WaspModel: React.FC<{ teamColor: string; flashRef?: React.Ref<THREE
           </group>
         ))}
 
-        {/* A micro-drone launcher under each wing: a pylon, a hex pod with a team band, its face a
-            cluster of tubes, a red-nosed micro drone in each. */}
-        {[1, -1].map(s => (
-          <group key={s} position={[s * POD_X, POD_Y, -0.02]}>
+        {/* Two micro-drone launchers under each wing: a pylon, a hex pod with a team band, its face
+            a cluster of tubes, a red-nosed micro drone in each. */}
+        {[1, -1].flatMap(s => PODS.map(([x, z]) => (
+          <group key={`${s}${x}`} position={[s * x, POD_Y, z]}>
             <Plate size={[0.08, 0.16, 0.3]} material={dark} position={[0, 0.16, -0.02]} />
             <group rotation={[0, 0, Math.PI / 2]}>
               <Turned profile={[[POD_R - 0.04, -0.38], [POD_R, -0.32], [POD_R, 0.3], [POD_R - 0.02, 0.32]]} segments={6} material={housing} />
@@ -122,7 +123,7 @@ export const WaspModel: React.FC<{ teamColor: string; flashRef?: React.Ref<THREE
             ))}
             <Strip size={[0.04, 0.02, 0.012]} material={glow(PALETTE.amber)} position={[0, -POD_R + 0.03, 0.31]} />
           </group>
-        ))}
+        )))}
       </group>
     </group>
   );
