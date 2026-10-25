@@ -371,7 +371,6 @@ function toggleEach(view: AbilityView, team: Team, ids: readonly string[], types
 // Battery Mule plants or packs up. A Swarm Host anchoring releases its opening crawlers.
 function toggleAnchor(view: AbilityView, team: Team, ids: readonly string[], ctx: AbilityContext): AbilityOutcome {
   const updates = new Map<string, (u: UnitData) => UnitData>();
-  const spawnUnits: UnitData[] = [];
   let refused = 'no unit can do that';
   for (const id of ids) {
     const u = ownUnit(view, team, id, ['swarm_host', 'howitzer']);
@@ -385,22 +384,24 @@ function toggleAnchor(view: AbilityView, team: Team, ids: readonly string[], ctx
       continue;
     }
     const anchoring = !u.isAnchored;
-    if (anchoring) {
-      const batch = ctx.newId('swarm');
-      for (let i = 0; i < ABILITY_CONFIG.SWARM_HOST_INITIAL_DRONES; i++) {
-        spawnUnits.push(ctx.createCrawler(u, ctx.findAdjacentSpawn(u.gridPos), `${batch}-${i}`));
-      }
-    }
     const now = ctx.now;
+    // The opening pair, fired out in canisters one after the other once the host has knelt and
+    // opened up; each becomes a Crawler Drone where it lands (landCrawlers, sim/support.ts).
+    // Packing up calls the swarm in, canisters included.
+    const opening = anchoring ? Array.from({ length: ABILITY_CONFIG.SWARM_HOST_INITIAL_DRONES }, (_, i) => ({
+      at: ctx.findAdjacentSpawn(u.gridPos),
+      launchAt: now + ABILITY_CONFIG.SWARM_HOST_FIRST_LAUNCH_MS + i * ABILITY_CONFIG.SWARM_HOST_LAUNCH_STAGGER_MS,
+    })) : undefined;
     updates.set(u.id, h => ({
       ...h,
       isAnchored: anchoring,
       path: [],
       anchorTime: anchoring ? now : undefined,
+      pendingCrawlers: opening,
       cooldowns: { ...h.cooldowns, spawnCrawler: anchoring ? ABILITY_CONFIG.SWARM_HOST_SPAWN_INTERVAL : 0 },
     }));
   }
-  return updates.size > 0 ? effects({ updates, spawnUnits }) : reject(refused);
+  return updates.size > 0 ? effects({ updates }) : reject(refused);
 }
 
 // Sets (or, with no target, clears) the fire mission of every listed anchored Thunderhead that

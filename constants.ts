@@ -138,7 +138,7 @@ export const ABILITY_CONFIG = {
   WASP_MISSILE_SPEED: 25, 
   WASP_MISSILE_TURN_RATE: 5, 
   // Swarm Host Spawning
-  SWARM_HOST_INITIAL_DRONES: 2,    // Released the moment the host anchors down
+  SWARM_HOST_INITIAL_DRONES: 2,    // Fired out as soon as the host has anchored and opened up
   SWARM_HOST_SPAWN_INTERVAL: 7000, // Then one more on this cadence
   SWARM_HOST_MAX_DRONES: 7,
   SWARM_HOST_CANISTER_FLIGHT_MS: 1300, // Each drone is fired out in a canister that arcs to where it lands

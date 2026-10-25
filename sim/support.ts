@@ -232,26 +232,46 @@ export interface SlowTickContext {
 
 export const SLOW_TICK_MS = 1000;
 
-// A Crawler Drone still in its canister, between launch and landing: out of play until it lands.
-export const crawlerAirborne = (u: UnitData, now: number) =>
-  u.launchAt !== undefined && now < u.launchAt + ABILITY_CONFIG.SWARM_HOST_CANISTER_FLIGHT_MS;
+// When a Swarm Host's canister lands, given when it was fired.
+export const canisterLandsAt = (launchAt: number) => launchAt + ABILITY_CONFIG.SWARM_HOST_CANISTER_FLIGHT_MS;
+
+// Swarm Host canisters that have landed become Crawler Drones where they came down. Run on the
+// game tick, so a drone appears as its canister lands. Returns the same array when none have.
+export function landCrawlers(units: UnitData[], now: number, createCrawler: (host: UnitData, at: GridPos, suffix: string | number) => UnitData): UnitData[] {
+  if (!units.some(u => u.pendingCrawlers?.some(p => now >= canisterLandsAt(p.launchAt)))) return units;
+  const born: UnitData[] = [];
+  const next = units.map(host => {
+    const pending = host.pendingCrawlers;
+    if (!pending?.some(p => now >= canisterLandsAt(p.launchAt))) return host;
+    pending.filter(p => now >= canisterLandsAt(p.launchAt)).forEach(p => born.push(createCrawler(host, p.at, `${p.launchAt}-${born.length}`)));
+    const left = pending.filter(p => now < canisterLandsAt(p.launchAt));
+    return { ...host, pendingCrawlers: left.length ? left : undefined };
+  });
+  return [...next, ...born];
+}
 
 export function slowTick(prevUnits: UnitData[], ctx: SlowTickContext): UnitData[] {
   let unitsChanged = false;
   const nextUnits = [...prevUnits];
 
-  // Swarm Host: an anchored host tops its swarm up on an interval. Anchoring itself
-  // releases the opening pair (see TOGGLE_ANCHOR in sim/abilities.ts).
+  // Swarm Host: an anchored host tops its swarm up on an interval, firing each drone out in a
+  // canister that becomes the drone when it lands (landCrawlers). Anchoring itself fires the
+  // opening pair (see TOGGLE_ANCHOR in sim/abilities.ts).
   const hostMap = new Map<string, UnitData>();
   for (const host of nextUnits.filter(u => u.type === 'swarm_host')) {
     hostMap.set(host.id, host);
     if (!host.isAnchored) continue;
     const children = nextUnits.filter(u => u.type === 'crawler_drone' && u.parentId === host.id);
     const spawnReady = !host.cooldowns.spawnCrawler || host.cooldowns.spawnCrawler <= 0;
-    if (children.length < ABILITY_CONFIG.SWARM_HOST_MAX_DRONES && spawnReady) {
-      nextUnits.push(ctx.createCrawler(host, ctx.findScatteredSpawn(host.gridPos), children.length));
+    const inFlight = host.pendingCrawlers?.length ?? 0;
+    if (children.length + inFlight < ABILITY_CONFIG.SWARM_HOST_MAX_DRONES && spawnReady) {
       const hIdx = nextUnits.findIndex(u => u.id === host.id);
-      nextUnits[hIdx] = { ...nextUnits[hIdx], cooldowns: { ...nextUnits[hIdx].cooldowns, spawnCrawler: ABILITY_CONFIG.SWARM_HOST_SPAWN_INTERVAL } };
+      const canister = { at: ctx.findScatteredSpawn(host.gridPos), launchAt: ctx.now };
+      nextUnits[hIdx] = {
+        ...nextUnits[hIdx],
+        pendingCrawlers: [...(nextUnits[hIdx].pendingCrawlers ?? []), canister],
+        cooldowns: { ...nextUnits[hIdx].cooldowns, spawnCrawler: ABILITY_CONFIG.SWARM_HOST_SPAWN_INTERVAL },
+      };
       unitsChanged = true;
     }
   }
@@ -262,7 +282,7 @@ export function slowTick(prevUnits: UnitData[], ctx: SlowTickContext): UnitData[
     let keep = true;
     let changed = false;
 
-    if (u.type === 'crawler_drone' && u.parentId && !crawlerAirborne(u, ctx.now)) {
+    if (u.type === 'crawler_drone' && u.parentId) {
       const crawler = crawlerStep(u, hostMap.get(u.parentId), nextUnits, ctx);
       if (crawler === null) {
         keep = false;

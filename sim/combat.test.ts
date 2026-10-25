@@ -47,12 +47,6 @@ describe('crawlerDetonations', () => {
     expect(boom.crawlerId).toBe('c');
     expect(boom.blast.damage).toBe(ABILITY_CONFIG.CRAWLER_EXPLOSION_DAMAGE);
   });
-  it('stays out of play while its canister is still in the air', () => {
-    const crawler = unit('c', { type: 'crawler_drone', unitClass: 'ordnance', team: 'red', launchAt: 1000 });
-    const near = unit('near', { gridPos: { x: 1, z: 1 } });
-    expect(crawlerDetonations([crawler, near], TILE, OFFSET, 1000 + ABILITY_CONFIG.SWARM_HOST_CANISTER_FLIGHT_MS - 1)).toHaveLength(0);
-    expect(crawlerDetonations([crawler, near], TILE, OFFSET, 1000 + ABILITY_CONFIG.SWARM_HOST_CANISTER_FLIGHT_MS)).toHaveLength(1);
-  });
 });
 
 describe('resolveAttacks', () => {

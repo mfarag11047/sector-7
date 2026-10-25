@@ -33,7 +33,7 @@ import { Difficulty, MatchConfig, startingRoster } from './match';
 import { advanceMover, arriveAtNextTile, MovementEnv, MOVE_TICK_MS } from './movement';
 import { applyOrderToStructures, applyOrderToUnits, OrderCommand, orderEffects, OrdersContext } from './orders';
 import { advanceProduction, applyProduction, createUnit } from './production';
-import { ballistaLoadStep, repairTick } from './support';
+import { ballistaLoadStep, landCrawlers, repairTick } from './support';
 import { isAirType } from './units';
 import { airPath, fastestPath, sentinelHazardOf } from './pathfinding';
 import { hasBuff, spendOvercharge } from './unitAbilities';
@@ -303,6 +303,8 @@ export function stepMatch(m: HeadlessMatch): void {
     if (structure.rallyPoint) unit.path = isAirType(unitType) ? paths.findAirPath(spawn, structure.rallyPoint) : paths.findPath(spawn, structure.rallyPoint);
     m.units.push(unit);
   }
+  // Swarm Host canisters that have landed become Crawler Drones.
+  m.units = landCrawlers(m.units, now, (h, at) => ({ ...createUnit('crawler_drone', h.team, `c-${++m.nextId}`, at), parentId: h.id }));
   // Researched upgrades add health and damage to their units, new ones included.
   m.units = applyUpgradeBonuses(m.units, m.economy);
 

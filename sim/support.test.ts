@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ABILITY_CONFIG, BUILDING_VALUES, UNIT_STATS } from '../constants';
 import type { BuildingData, UnitData } from '../types';
 import { captureTick } from './capture';
-import { ballistaLoadStep, BASE_REPAIR, courierStep, guardianRepair, inBaseBlock, repairTick, slowTick, SlowTickContext, surveillanceStep } from './support';
+import { ballistaLoadStep, BASE_REPAIR, courierStep, guardianRepair, inBaseBlock, landCrawlers, repairTick, slowTick, SlowTickContext, surveillanceStep } from './support';
 
 const unit = (id: string, patch: Partial<UnitData> = {}): UnitData => ({
   id, type: 'ghost', unitClass: 'infantry', team: 'blue', gridPos: { x: 5, z: 5 }, path: [], visionRange: 3,
@@ -97,6 +97,19 @@ describe('courierStep', () => {
   });
 });
 
+describe('landCrawlers', () => {
+  const create = (host: UnitData, at: { x: number; z: number }, n: string | number) => unit(`c${n}`, { type: 'crawler_drone', unitClass: 'ordnance', team: host.team, gridPos: at, parentId: host.id });
+  it('turns a canister into a Crawler Drone where it lands, once it has landed', () => {
+    const host = unit('h', { type: 'swarm_host', unitClass: 'ordnance', isAnchored: true, pendingCrawlers: [{ at: { x: 3, z: 4 }, launchAt: 1000 }] });
+    const units = [host];
+    expect(landCrawlers(units, 1000 + ABILITY_CONFIG.SWARM_HOST_CANISTER_FLIGHT_MS - 1, create)).toBe(units);
+    const next = landCrawlers(units, 1000 + ABILITY_CONFIG.SWARM_HOST_CANISTER_FLIGHT_MS, create);
+    const crawler = next.find(u => u.type === 'crawler_drone')!;
+    expect(crawler).toMatchObject({ gridPos: { x: 3, z: 4 }, parentId: 'h' });
+    expect(next.find(u => u.id === 'h')!.pendingCrawlers).toBeUndefined();
+  });
+});
+
 describe('slowTick', () => {
   const ctx: SlowTickContext = {
     findPath: () => [], findScatteredSpawn: c => c, isWalkable: () => true,
@@ -114,12 +127,13 @@ describe('slowTick', () => {
     expect(after.stunDuration).toBe(0);
   });
 
-  it('lets an anchored Swarm Host add a crawler when ready, and removes orphans', () => {
+  it('lets an anchored Swarm Host fire a crawler canister when ready, and removes orphans', () => {
     const host = unit('h', { type: 'swarm_host', unitClass: 'ordnance', isAnchored: true });
     const orphan = unit('o', { type: 'crawler_drone', unitClass: 'ordnance', parentId: 'gone' });
     const next = slowTick([host, orphan], ctx);
     expect(next.some(u => u.id === 'o')).toBe(false);
-    expect(next.filter(u => u.type === 'crawler_drone')).toHaveLength(1);
+    expect(next.filter(u => u.type === 'crawler_drone')).toHaveLength(0);
+    expect(next.find(u => u.id === 'h')!.pendingCrawlers).toEqual([{ at: host.gridPos, launchAt: ctx.now }]);
     // Set and then counted down in the same pass, as before.
     expect(next.find(u => u.id === 'h')!.cooldowns.spawnCrawler).toBe(ABILITY_CONFIG.SWARM_HOST_SPAWN_INTERVAL - 1000);
   });

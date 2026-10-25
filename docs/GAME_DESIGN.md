@@ -404,8 +404,9 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   in alternating tripods. Anchored, it kneels to the ground with its legs splayed, then its split
   deck hatch opens and its micro crawler drones rise into view. Each Crawler Drone it releases
   (the opening pair once it has opened up, then one at a time) is fired out of the hatch in a
-  canister that arcs to where the drone lands, kicking up a ring of dust; the drone is out of play
-  until it lands (`crawlerAirborne`, sim/support.ts).
+  canister that arcs to where the drone lands, kicking up a ring of dust. The drone only comes
+  into being as its canister lands: the host carries its canisters (`pendingCrawlers`) and the
+  game tick turns each landed one into a Crawler Drone (`landCrawlers`, sim/support.ts).
 - **The Crawler Drone** (`components/models/CrawlerDroneModel.tsx`, sim type `crawler_drone`):
   a micro Swarm Host on four legs with a rounder body: a faceted dome shell over a skirt band,
   amber sensor lenses on the front, a team stripe and a stub antenna, and four short, thick legs

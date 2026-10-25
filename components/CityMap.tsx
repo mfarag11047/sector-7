@@ -36,7 +36,7 @@ import { FlightEvent, FlightTickResult, LiveFlight, cloneProjectile, drawnShotPo
 import { onRadar, radarRangeOf, radarSources, radarUnits, searchRadarSources } from '../sim/radar';
 import { Blackout, chargeSources, isInsideEnergyGrid, powerTick } from '../sim/energy';
 import { captureTick } from '../sim/capture';
-import { Delivery, SLOW_TICK_MS, ballistaLoadStep, courierStep, fabricationStep, leashStep, repairTick, slowTick, surveillanceStep } from '../sim/support';
+import { Delivery, SLOW_TICK_MS, ballistaLoadStep, canisterLandsAt, courierStep, fabricationStep, landCrawlers, leashStep, repairTick, slowTick, surveillanceStep } from '../sim/support';
 import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells, shellGroundPos } from '../sim/artillery';
 import { afterRailShot, fireRailguns, RailShot } from '../sim/railgun';
 import { fireHornetRockets, landSalvo, MiniRocket } from '../sim/hornet';
@@ -757,8 +757,8 @@ const ShellMesh: React.FC<{ shell: ArtilleryShell; tileSize: number; offset: num
 // --- Swarm Host canisters ---
 
 // A Crawler Drone on its way out of its Swarm Host: a canister fired up out of the host's open
-// hatch, arcing to where the drone lands (the drone appears as it lands, see Unit.tsx), then a
-// ring of dust where it comes down.
+// hatch, arcing to where it lands, then a ring of dust where it comes down. The drone itself comes
+// into being as the canister lands (landCrawlers, sim/support.ts).
 const CANISTER_LAUNCH_Y = 3.4, CANISTER_LAND_Y = 1.2, CANISTER_PUFF_MS = 500;
 const CrawlerCanister: React.FC<{ from: { x: number; z: number }; to: { x: number; z: number }; launchAt: number; teamColor: string; tileSize: number; offset: number }> = ({ from, to, launchAt, teamColor, tileSize, offset }) => {
     const ref = useRef<THREE.Group>(null);
@@ -1654,6 +1654,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const engagementsRef = useRef(new Map<string, { targetId: string; at: number }>());
   // When each Bombardment Drone last dropped, ahead of state (sim/bombard.ts).
   const bombardStrikeRef = useRef(new Map<string, number>());
+  // Swarm Host canisters in the air or just landed, as drawn (CrawlerCanister).
+  const canistersRef = useRef(new Map<string, { from: { x: number; z: number }; to: { x: number; z: number }; launchAt: number; team: UnitData['team'] }>());
   // Hornet Hunter-Killer rockets: when each fired (ahead of state), and Hellfire Salvo rockets in flight.
   const hornetShotRef = useRef(new Map<string, number>());
   // When each Kestrel last fired its Flechette Burst (sim/kestrel.ts), the same way.
@@ -2390,12 +2392,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       maxBattery: 100,
       cooldowns: {},
       parentId: host.id,
-      crawlerTargetId: null,
-      // Fired out of the host in a canister. Anchoring releases the opening pair (host not yet
-      // anchored) once it has knelt and opened up, one after the other.
-      launchedFrom: { ...host.gridPos },
-      launchAt: Date.now() + (host.isAnchored ? 0
-          : ABILITY_CONFIG.SWARM_HOST_FIRST_LAUNCH_MS + (Number(String(suffix).split('-').pop()) || 0) * ABILITY_CONFIG.SWARM_HOST_LAUNCH_STAGGER_MS),
+      crawlerTargetId: null
   }), []);
 
   // The simulation tick below must NOT list these as effect dependencies. Several of
@@ -3524,7 +3521,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
           // Crawler Drones blow up next to enemies. The ref can trail the last render by a
           // tick, so remember who already went off rather than detonating them twice.
-          const detonations = crawlerDetonations(currentUnitsRef, tileSize, offset, Date.now())
+          const detonations = crawlerDetonations(currentUnitsRef, tileSize, offset)
               .filter(d => !detonatedCrawlersRef.current.has(d.crawlerId));
           const explodedCrawlerIds = new Set(detonations.map(d => d.crawlerId));
           const damageEvents: Blast[] = detonations.map(d => d.blast);
@@ -4045,6 +4042,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       activeUnits = activeUnits.filter(u => !explodedCrawlerIds.has(u.id));
                       if (activeUnits.length !== beforeCount) unitsChanged = true;
                   }
+                  // Swarm Host canisters that have landed become Crawler Drones (sim/support.ts).
+                  const landed = landCrawlers(activeUnits, now, aiHelpersRef.current.createCrawler);
+                  if (landed !== activeUnits) { activeUnits = landed; unitsChanged = true; }
 
                   // Guardians and the base block are the only healing (sim/support.ts).
                   const repair = repairTick(activeUnits, TICK_RATE, teamBasesRef.current, team => (team === 'blue' || team === 'red') ? doctrines?.[team]?.selected : null, team => economyRef.current[team].tier, now);
@@ -4554,10 +4554,17 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         {virusBombs.map(b => <BlackwallBomb key={b.id} at={{ x: b.at.x * tileSize - offset, z: b.at.z * tileSize - offset }} firedAt={b.firedAt} landAt={b.landAt} radius={BLACKWALL.radius * tileSize} />)}
         {rockets.map(r => <EmpRocketMesh key={r.id} id={r.id} rocketsRef={rocketsRef} unitsRef={unitsRef} tileSize={tileSize} offset={offset} />)}
         {shells.map(s => <ShellMesh key={s.id} shell={s} tileSize={tileSize} offset={offset} enemy={s.team !== playerTeam} />)}
-        {units.filter(u => u.type === 'crawler_drone' && u.launchedFrom && u.launchAt !== undefined && visibleUnitIds.has(u.id)
-            && Date.now() < u.launchAt + ABILITY_CONFIG.SWARM_HOST_CANISTER_FLIGHT_MS + CANISTER_PUFF_MS).map(u => (
-            <CrawlerCanister key={u.id} from={u.launchedFrom!} to={u.gridPos} launchAt={u.launchAt!} teamColor={TEAM_COLORS[u.team]} tileSize={tileSize} offset={offset} />
-        ))}
+        {(() => {
+            // Swarm Host canisters, kept a moment past landing (when the drone takes over) for the dust.
+            const now = Date.now();
+            const seen = canistersRef.current;
+            units.forEach(h => h.pendingCrawlers?.forEach(p => {
+                const key = `${h.id}-${p.launchAt}-${p.at.x},${p.at.z}`;
+                if (!seen.has(key) && (h.team === playerTeam || visibleUnitIds.has(h.id))) seen.set(key, { from: { ...h.gridPos }, to: p.at, launchAt: p.launchAt, team: h.team });
+            }));
+            seen.forEach((c, key) => { if (now > canisterLandsAt(c.launchAt) + CANISTER_PUFF_MS) seen.delete(key); });
+            return [...seen].map(([key, c]) => <CrawlerCanister key={key} from={c.from} to={c.to} launchAt={c.launchAt} teamColor={TEAM_COLORS[c.team]} tileSize={tileSize} offset={offset} />);
+        })()}
         {units.filter(u => u.type === 'howitzer' && u.artilleryTarget && u.team === playerTeam && selectedUnitIds.has(u.id))
             .map(u => <FireMissionMarker key={`fm-${u.id}`} at={u.artilleryTarget!} tileSize={tileSize} offset={offset} />)}
         {/* Where selected Bombardment Drones are dropping. */}

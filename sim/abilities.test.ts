@@ -171,11 +171,17 @@ describe('Ghost and Swarm Host', () => {
     expect(off.fx!.clearDecoysOf).toEqual(['g']);
   });
 
-  it('an anchoring Swarm Host releases its opening crawlers', () => {
+  it('an anchoring Swarm Host fires its opening crawlers out in canisters, staggered', () => {
     const host = unit('h', { type: 'swarm_host', unitClass: 'ordnance' });
     const r = run(view([host]), { type: 'TOGGLE_ANCHOR', unitIds: ['h'] });
     expect(after(r, 'h').isAnchored).toBe(true);
-    expect(r.units!.filter(u => u.type === 'crawler_drone')).toHaveLength(ABILITY_CONFIG.SWARM_HOST_INITIAL_DRONES);
+    // No drone yet: each comes into being when its canister lands (landCrawlers).
+    expect(r.units!.filter(u => u.type === 'crawler_drone')).toHaveLength(0);
+    const pending = after(r, 'h').pendingCrawlers!;
+    expect(pending).toHaveLength(ABILITY_CONFIG.SWARM_HOST_INITIAL_DRONES);
+    expect(pending[1].launchAt - pending[0].launchAt).toBe(ABILITY_CONFIG.SWARM_HOST_LAUNCH_STAGGER_MS);
+    const packed = run(view(r.units!), { type: 'TOGGLE_ANCHOR', unitIds: ['h'] });
+    expect(after(packed, 'h').pendingCrawlers).toBeUndefined();
   });
 
   it('toggles only the listed units the sender owns', () => {
