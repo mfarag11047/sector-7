@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel, the Wasp, the Bombardment Drone, the Infiltrator, the Swarm Host, the Crawler Drone, the Lancer, the Trooper and the Ghost are done; the rest of the roster follows by type.
+the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel, the Wasp, the Bombardment Drone, the Infiltrator, the Swarm Host, the Crawler Drone, the Lancer, the Trooper, the Ghost and the Field Fabricator are done; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -434,6 +434,14 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   with battery cells and a lit status strip, and an antenna array rising well above the helmet (a
   telescoping mast with a crossed array at its head, two splayed whips with blinking red tips, a
   small flat panel). Phantom Decoy and Cloaking Field tint it as before.
+- **The Field Fabricator** (`components/models/FieldFabricatorModel.tsx`, sim type `mule`): a
+  long-wheelbase six-wheeled truck: an armoured cab, a compact fabrication station right behind it
+  (a housing with a tool gantry, lit work windows and a vent stack), and the rest of the bed in
+  steel missile cages holding missiles on cradles, two layers of three, noses to the rear. The
+  cages show the stock: each missile fabricated wears a warhead cap in its type's colour (as on the
+  Ballista), each material charge not yet made is a bare body with an open collar, the rest of the
+  cradles are empty. While it fabricates, the station's windows and the next bare nose pulse in
+  the colour of the warhead being made.
 
 ### Rigged models
 
