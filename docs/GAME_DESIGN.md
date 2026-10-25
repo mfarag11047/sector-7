@@ -437,7 +437,7 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
 - **The Field Fabricator** (`components/models/FieldFabricatorModel.tsx`, sim type `mule`): a
   long-wheelbase six-wheeled truck: an armoured cab, a compact fabrication station right behind it
   (a housing with a tool gantry, lit work windows and a vent stack), and the rest of the bed in
-  steel missile cages holding missiles on cradles, two layers of three, noses to the rear. The
+  four steel box cages, two across and two high, each holding one missile, nose to the rear. The
   cages show the stock: each missile fabricated wears a warhead cap in its type's colour (as on the
   Ballista), each material charge not yet made is a bare body with an open collar, the rest of the
   cradles are empty. While it fabricates, the station's windows and the next bare nose pulse in

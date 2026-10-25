@@ -3,8 +3,8 @@
 //
 // Simple but military: a long-wheelbase six-wheeled truck. An angular armoured cab with a sloped
 // windscreen; right behind it, a compact fabrication station (a housing with a tool gantry, a lit
-// work window and a vent stack); and the rest of the long bed taken by missile cages: a steel frame
-// holding missiles on cradles in two layers of three, noses to the rear.
+// work window and a vent stack); and the rest of the long bed taken by four steel box cages, two
+// across and two high, each holding one missile on cradles, nose to the rear.
 //
 // The cages show the stock (`missiles`, `material`): each missile fabricated wears a warhead cap in
 // the colour of its type (EMP, HE, WP, as on the Ballista); each material charge not yet made into
@@ -33,8 +33,10 @@ const WHEELS_Z = [1.05, -1.22, -1.8];
 const WHEEL_X = 0.56;
 const DECK_Y = 0.6;
 // The cages along the bed: their ends and posts, and the cradles, two layers of three.
-const CAGE = { front: 0.06, back: -2.12, posts: [0.06, -1.03, -2.12], x: 0.5, top: 1.24 };
-const SLOTS: [number, number][] = [0.74, 1.0].flatMap(y => [-0.28, 0, 0.28].map(x => [x, y] as [number, number]));
+// The bed holds four cages, two across and two high, each a box frame round one missile: the
+// centre of each (across, up), and the frames' size and length.
+const SLOTS: [number, number][] = [0.77, 1.11].flatMap(y => [-0.25, 0.25].map(x => [x, y] as [number, number]));
+const CAGE = { w: 0.42, h: 0.3, front: 0.06, back: -2.12, rings: [0.06, -1.03, -2.12] };
 // A missile on its cradle, along Z: its tail at the front of the bed, its nose to the rear.
 const MISSILE = { r: 0.1, tail: -0.02, length: 1.86 };
 
@@ -98,7 +100,7 @@ export const FieldFabricatorModel: React.FC<{
 
       {/* The cab: angular armour, a sloped windscreen, side windows, a team stripe, a light bar. */}
       <Prism outline={CAB} depth={CAB_W} axis="x" material={armour} />
-      <Plate size={[CAB_W - 0.14, 0.03, 0.42]} material={black} position={[0, 1.15, 1.21]} rotation={[SCREEN_SLOPE - Math.PI / 2, 0, 0]} />
+      <Plate size={[CAB_W - 0.14, 0.03, 0.42]} material={black} position={[0, 1.15, 1.21]} rotation={[SCREEN_SLOPE, 0, 0]} />
       {[-1, 1].map(s => (
         <group key={s}>
           <Plate size={[0.012, 0.22, 0.3]} material={black} position={[s * (CAB_W / 2 + 0.006), 1.1, 0.95]} />
@@ -133,20 +135,26 @@ export const FieldFabricatorModel: React.FC<{
         <Strip size={[0.04, 0.04, 0.012]} material={glow(fabricating ? PALETTE.repair : PALETTE.warning)} position={[0.36, 0.5, 0.266]} />
       </group>
 
-      {/* The missile cages: posts, rails and cross bars, and cradles under each layer. */}
-      <group position={[0, DECK_Y, 0]}>
-        {CAGE.posts.flatMap(z => [-1, 1].map(s => (
-          <Plate key={`${z}${s}`} size={[0.05, CAGE.top - DECK_Y, 0.05]} material={steel} position={[s * CAGE.x, (CAGE.top - DECK_Y) / 2, z]} />
-        )))}
-        {[0.42, CAGE.top - DECK_Y].flatMap(y => [-1, 1].map(s => (
-          <Plate key={`${y}${s}`} size={[0.04, 0.04, CAGE.front - CAGE.back]} material={steel} position={[s * CAGE.x, y, (CAGE.front + CAGE.back) / 2]} />
-        )))}
-        {CAGE.posts.map(z => <Plate key={z} size={[CAGE.x * 2, 0.04, 0.04]} material={steel} position={[0, CAGE.top - DECK_Y, z]} />)}
-        {[0.08, 0.34].flatMap(y => [-0.34, -1.62].map(z => (
-          <Plate key={`${y}${z}`} size={[0.9, 0.05, 0.1]} material={dark} position={[0, y, z]} />
-        )))}
-        {[-1, 1].map(s => <Plate key={s} size={[0.012, 0.08, 0.4]} material={paint} position={[s * (CAGE.x + 0.03), 0.42, -1.03]} />)}
-      </group>
+      {/* The four missile cages: each a box frame (corner rails and three rings of bars) with
+          cradles inside; team stripes on the lower pair's outer sides. */}
+      {SLOTS.map(([x, y], i) => {
+        const L = CAGE.front - CAGE.back, mid = (CAGE.front + CAGE.back) / 2;
+        return (
+          <group key={i} position={[x, y, 0]}>
+            {[-1, 1].flatMap(sx => [-1, 1].map(sy => (
+              <Plate key={`${sx}${sy}`} size={[0.035, 0.035, L]} material={steel} position={[sx * CAGE.w / 2, sy * CAGE.h / 2, mid]} />
+            )))}
+            {CAGE.rings.map(z => (
+              <group key={z} position={[0, 0, z]}>
+                {[-1, 1].map(sy => <Plate key={`h${sy}`} size={[CAGE.w, 0.035, 0.035]} material={steel} position={[0, sy * CAGE.h / 2, 0]} />)}
+                {[-1, 1].map(sx => <Plate key={`v${sx}`} size={[0.035, CAGE.h, 0.035]} material={steel} position={[sx * CAGE.w / 2, 0, 0]} />)}
+              </group>
+            ))}
+            {[-0.34, -1.62].map(z => <Plate key={z} size={[CAGE.w - 0.06, 0.04, 0.1]} material={dark} position={[0, -CAGE.h / 2 + 0.03, z]} />)}
+            {i < 2 && <Plate size={[0.012, 0.07, 0.5]} material={paint} position={[Math.sign(x) * (CAGE.w / 2 + 0.024), 0, mid]} />}
+          </group>
+        );
+      })}
 
       {/* The missiles in their cradles: a body and fins; a warhead cap in its colour, or a bare
           open collar; the one being made pulses. */}
