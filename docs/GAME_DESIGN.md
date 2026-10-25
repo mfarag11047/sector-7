@@ -377,9 +377,10 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
 - **The Kestrel** (`components/models/AttackDroneModel.tsx`, sim type `attack_drone`): a small
   attack drone: a slim faceted body with four short blade fins standing near upright from its top
   corners, running fore and aft with the body, and two fins out of its lower sides angling down;
-  each has a slatted vent through it, a red edge and serrations. A sensor array on the front (a big
-  round lens, a column of red-ringed lenses) and a short twin gun under the front that flashes
-  when it fires.
+  each has a slatted vent through it, a red edge and serrations, on a hinge pin. Slots in the
+  body's sides and belly show where the fins fold away when it isn't flying. A sensor array on the
+  front (a big round lens, a column of red-ringed lenses) and a short twin gun under the front
+  that flashes when it fires.
 
 ### Rigged models
 

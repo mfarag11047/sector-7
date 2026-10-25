@@ -3,7 +3,8 @@
 // Simple but military, and small beside the other drones: a slim faceted body with four short
 // blade fins standing near upright from its top corners, running fore and aft with the body, and
 // two fins out of its lower sides angling down; each has a slatted vent through it, a red accent
-// along its edge and serrations. On the front, the sensor array (a big round lens and a column of
+// along its edge and serrations. Slots in the body's sides and belly show where the fins fold away
+// when it is not flying. On the front, the sensor array (a big round lens and a column of
 // red-ringed lenses); under the front, a short twin gun whose muzzle flashes while it fires
 // (`flashRef`, lit by Unit.tsx).
 //
@@ -27,11 +28,18 @@ const BODY_W = 0.3;
 // with slats across.
 const FINS = [
   ...[[1, 1], [-1, 1], [1, -1], [-1, -1]].map(([sx, sz]) => ({
-    at: [sx * 0.11, 0.18, sz * 0.16] as [number, number, number], yaw: sx > 0 ? 0 : Math.PI, tilt: 1.15, len: 0.46, chord: 0.28,
+    at: [sx * 0.11, 0.18, sz * 0.16] as [number, number, number], yaw: sx > 0 ? 0 : Math.PI, tilt: 1.15, len: 0.44, chord: 0.2,
   })),
-  ...[1, -1].map(sx => ({ at: [sx * 0.14, -0.18, -0.02] as [number, number, number], yaw: sx > 0 ? 0 : Math.PI, tilt: -0.5, len: 0.52, chord: 0.24 })),
+  ...[1, -1].map(sx => ({ at: [sx * 0.14, -0.18, -0.02] as [number, number, number], yaw: sx > 0 ? 0 : Math.PI, tilt: -0.5, len: 0.38, chord: 0.18 })),
 ];
-const VENT_R = 0.085;
+const FIN_T = 0.032;
+// Where the fins fold away when it is not flying: a slot down each side for each top fin, and one
+// under the belly for each bottom fin. [position, size].
+const SLOTS: { at: [number, number, number]; size: [number, number, number] }[] = [
+  ...[[1, 1], [-1, 1], [1, -1], [-1, -1]].map(([sx, sz]) => ({ at: [sx * 0.152, -0.04, sz * 0.16] as [number, number, number], size: [0.012, 0.4, 0.2] as [number, number, number] })),
+  ...[1, -1].map(sx => ({ at: [sx * 0.075, -0.306, -0.02] as [number, number, number], size: [0.13, 0.012, 0.18] as [number, number, number] })),
+];
+const VENT_R = 0.065;
 
 export const AttackDroneModel: React.FC<{ teamColor: string; flashRef?: React.Ref<THREE.Mesh> }> = ({ teamColor, flashRef }) => {
   const armour = kitMaterial('armour'), dark = kitMaterial('armourDark'), steel = kitMaterial('steel'), black = kitMaterial('black');
@@ -59,7 +67,7 @@ export const AttackDroneModel: React.FC<{ teamColor: string; flashRef?: React.Re
         {[-1, 1].map(s => (
           <group key={s}>
             <Plate size={[0.012, 0.28, 0.05]} material={paint} position={[s * (BODY_W / 2 + 0.006), -0.04, 0.0]} rotation={[-0.35, 0, 0]} />
-            <Strip size={[0.012, 0.02, 0.3]} material={red} position={[s * (BODY_W / 2 + 0.006), 0.12, -0.05]} />
+            <Strip size={[0.012, 0.016, 0.3]} material={red} position={[s * (BODY_W / 2 + 0.006), 0.18, -0.05]} />
           </group>
         ))}
         <Plate size={[0.22, 0.2, 0.12]} material={armour} position={[0, -0.04, -0.44]} />
@@ -92,20 +100,31 @@ export const AttackDroneModel: React.FC<{ teamColor: string; flashRef?: React.Re
         {FINS.map(({ at, yaw, tilt, len, chord }, i) => (
           <group key={i} position={at} rotation={[0, yaw, 0]}>
             <group rotation={[0, 0, tilt]}>
-              <Plate size={[len, 0.05, chord]} material={armour} position={[len / 2, 0, 0]} />
-              <Plate size={[0.14, 0.05, 0.07]} material={armour} position={[len - 0.03, 0.03, chord / 2 + 0.02]} rotation={[0, 0.5, 0]} />
-              <Strip size={[len - 0.12, 0.02, 0.02]} material={red} position={[len / 2 + 0.04, 0.03, -chord / 2]} />
-              {[0.7, 0.85].map(f => <Plate key={f} size={[0.035, 0.05, 0.03]} material={dark} position={[len * f, -0.045, -chord / 2 + 0.015]} />)}
+              <Plate size={[len, FIN_T, chord]} material={armour} position={[len / 2, 0, 0]} />
+              <Turned profile={[[0.022, -chord / 2 + 0.02], [0.022, chord / 2 - 0.02]]} segments={6} material={steel} />
+              <Plate size={[0.12, FIN_T, 0.05]} material={armour} position={[len - 0.03, 0.02, chord / 2 + 0.015]} rotation={[0, 0.5, 0]} />
+              <Strip size={[len - 0.12, 0.016, 0.016]} material={red} position={[len / 2 + 0.04, 0.02, -chord / 2]} />
+              {[0.72, 0.86].map(f => <Plate key={f} size={[0.03, FIN_T, 0.025]} material={dark} position={[len * f, -0.03, -chord / 2 + 0.012]} />)}
               <group position={[len * 0.5, 0, 0.01]}>
-                <Wheel radius={VENT_R + 0.02} width={0.056} segments={10} material={dark} rotation={[0, 0, Math.PI / 2]} />
-                <Wheel radius={VENT_R} width={0.058} segments={10} material={black} rotation={[0, 0, Math.PI / 2]} />
-                {[-0.05, 0, 0.05].map(x => <Plate key={x} size={[0.022, 0.066, VENT_R * 2]} material={dark} position={[x, 0, 0]} />)}
+                <Wheel radius={VENT_R + 0.016} width={FIN_T + 0.006} segments={10} material={dark} rotation={[0, 0, Math.PI / 2]} />
+                <Wheel radius={VENT_R} width={FIN_T + 0.008} segments={10} material={black} rotation={[0, 0, Math.PI / 2]} />
+                {[-0.04, 0, 0.04].map(x => <Plate key={x} size={[0.018, FIN_T + 0.014, VENT_R * 2]} material={dark} position={[x, 0, 0]} />)}
               </group>
-              <Strip size={[0.03, 0.03, 0.03]} material={glow(PALETTE.amber)} position={[len, 0.03, 0]} />
+              <Strip size={[0.025, 0.025, 0.025]} material={glow(PALETTE.amber)} position={[len, 0.02, 0]} />
             </group>
           </group>
         ))}
         <Plate size={[0.1, 0.1, 0.1]} material={housing} position={[0, 0.3, -0.25]} />
+        {/* Fold slots: recesses in the body's sides for the top fins to fold down into, and under
+            its belly for the bottom ones, each a dark recess inside a raised lip. */}
+        {SLOTS.map(({ at, size }, i) => (
+          <group key={i} position={at}>
+            <Plate size={size} material={black} />
+            {size[0] < 0.02
+              ? [-1, 1].map(e => <Plate key={e} size={[size[0] + 0.006, size[1] + 0.02, 0.012]} material={dark} position={[0, 0, e * (size[2] / 2 + 0.006)]} />)
+              : [-1, 1].map(e => <Plate key={e} size={[size[0] + 0.02, size[1] + 0.006, 0.012]} material={dark} position={[0, 0, e * (size[2] / 2 + 0.006)]} />)}
+          </group>
+        ))}
       </group>
     </group>
   );
