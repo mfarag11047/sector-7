@@ -39,6 +39,7 @@ import { BansheeModel, BANSHEE_TETHER_ORIGINS } from './models/BansheeModel';
 import { AttackDroneModel } from './models/AttackDroneModel';
 import { WaspModel } from './models/WaspModel';
 import { BombardModel } from './models/BombardModel';
+import { SwarmHostModel } from './models/SwarmHostModel';
 import { BallistaModel } from './models/BallistaModel';
 import { ThunderheadModel } from './models/ThunderheadModel';
 import { GuardianModel, GUARDIAN_BEAM_ORIGIN_Y } from './models/GuardianModel';
@@ -860,54 +861,7 @@ const Unit: React.FC<UnitProps> = ({
     if (isDrone) return <InfiltratorModel teamColor={teamColor} radarOn={radarShown} />;
     if (isAttackDrone) return <AttackDroneModel teamColor={teamColor} flashRef={flashRef} />;
     
-    if (isSwarmHost) {
-        return (
-            <group scale={[2.8, 2.8, 2.8]}>
-                {/* Main Bunker Body */}
-                <group position={[0, 1.2, 0]}>
-                    <mesh><boxGeometry args={[1.4, 1.0, 1.6]} /><meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.2} /><Edges color="#38bdf8" threshold={15} /></mesh>
-                    
-                    {/* Top Hatch / Vents */}
-                    <mesh position={[0, 0.51, 0]}><boxGeometry args={[1.0, 0.1, 1.0]} /><meshStandardMaterial color="#334155" /></mesh>
-                    <mesh position={[0, 0.52, 0]}><planeGeometry args={[0.8, 0.8]} /><meshBasicMaterial color={teamColor} transparent opacity={0.3} /></mesh>
-                    
-                    {/* Glowing Side Panels (Orange/Team Color) */}
-                    <mesh position={[0.71, 0, 0]} rotation={[0, Math.PI/2, 0]}><planeGeometry args={[1.2, 0.4]} /><meshBasicMaterial color="#f97316" /></mesh>
-                    <mesh position={[-0.71, 0, 0]} rotation={[0, -Math.PI/2, 0]}><planeGeometry args={[1.2, 0.4]} /><meshBasicMaterial color="#f97316" /></mesh>
-
-                    {/* Front Ramp (Open) */}
-                    <group position={[0, -0.4, 0.8]} rotation={[Math.PI/6, 0, 0]}>
-                        <mesh position={[0, 0, 0.4]}><boxGeometry args={[1.0, 0.1, 0.8]} /><meshStandardMaterial color="#0f172a" /></mesh>
-                        {/* Interior Glow emitting from ramp */}
-                    </group>
-                </group>
-
-                {/* Heavy Legs */}
-                {[45, 135, 225, 315].map((angle, i) => {
-                    const rad = angle * Math.PI / 180;
-                    // Use isAnchored to determine leg spread/rotation
-                    const legRotationZ = isAnchored ? -Math.PI / 6 : 0; 
-                    const legPosY = isAnchored ? 0.2 : 0.5;
-                    const legPosOffset = isAnchored ? 0.8 : 0.6; // Spread out more
-
-                    return (
-                        <group key={i} rotation={[0, rad, 0]}>
-                            <group position={[legPosOffset, legPosY, legPosOffset]} rotation={[0, 0, legRotationZ]}>
-                                {/* Upper Leg */}
-                                <mesh rotation={[0, 0, -Math.PI/4]} position={[0.2, 0.4, 0]}><boxGeometry args={[0.6, 0.25, 0.3]} /><meshStandardMaterial color="#334155" /></mesh>
-                                {/* Lower Leg */}
-                                <mesh position={[0.5, -0.4, 0]}><boxGeometry args={[0.25, 1.0, 0.25]} /><meshStandardMaterial color="#1e293b" /></mesh>
-                                {/* Foot */}
-                                <mesh position={[0.5, -0.9, 0]}><boxGeometry args={[0.35, 0.15, 0.35]} /><meshStandardMaterial color="#475569" /></mesh>
-                                {/* Leg Joint Glow */}
-                                <mesh position={[0.5, 0.1, 0.13]}><planeGeometry args={[0.1, 0.3]} /><meshBasicMaterial color="#38bdf8" /></mesh>
-                            </group>
-                        </group>
-                    )
-                })}
-            </group>
-        );
-    }
+    if (isSwarmHost) return <SwarmHostModel teamColor={teamColor} anchored={isAnchored} moving={moving} />;
 
     if (isCrawler) {
         return (
@@ -951,7 +905,7 @@ const Unit: React.FC<UnitProps> = ({
   const model = useMemo(renderModel, [
     type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
     isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, firingLaserAt, courierPayload, constructionTargetId, ciwsTargetId,
-    grenadeAt, isHero ? lastAttackTime : 0, isHero || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback || isScoutCar ? moving : false, isTank ? railgunFiredAt : 0,
+    grenadeAt, isHero ? lastAttackTime : 0, isHero || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback || isScoutCar || isSwarmHost ? moving : false, isTank ? railgunFiredAt : 0,
     isBallista ? Math.floor((loadingProgress || 0) / 10) : 0,
     isBanshee ? `${!!jammerActive && battery > 0}|${tetherTargetIds?.length ?? 0}` : 0,
     isHornet && upgrades.includes('hunter_rockets'),

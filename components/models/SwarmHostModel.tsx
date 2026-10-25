@@ -1,0 +1,182 @@
+// The Swarm Host, built from the unit kit (components/kit).
+//
+// Simple but military: a big armoured six-legged crawler, a mobile drone hive. A faceted armoured
+// hull (a tapering belly, a dark skirt band, sloped upper armour to a flat deck), with a sensor
+// block of amber lenses and a short gun on the glacis, headlights, antennas and team colour on the
+// deck. Six heavy legs, three down each side: a thigh up from the hip to the knee, a shin down to
+// a broad foot, each shin faced with a big segmented armour slab. In the deck, a split hatch over
+// the hive.
+//
+// It moves: it walks on its legs, alternating tripods stepping together. Anchored (`anchored`), it
+// kneels: the hull lowers to the ground and the legs splay out, then the hatch doors swing open
+// and its micro crawler drones rise into view, ready to go. Unanchored, it closes up and stands.
+//
+// The legs are posed each frame by a two-link solve from hip to foot, so the feet stay planted.
+//
+// Built facing +Z, about 1.7 long and 2.6 across its feet in its own units, and scaled up here.
+
+import React, { useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
+import * as THREE from 'three';
+import { glow, kitMaterial, PALETTE, teamPaint } from '../kit/materials';
+import { ContactShadow, Loft, Plate, Prism, Strip, Turned, Wheel } from '../kit/shapes';
+
+const SCALE = 2.4;
+// The hull, top views [right, forward], matched point for point: the belly's underside, the widest
+// line (the skirt), and the deck.
+const BELLY: [number, number][] = [[-0.38, -0.5], [0.38, -0.5], [0.42, -0.4], [0.42, 0.45], [0.32, 0.58], [-0.32, 0.58], [-0.42, 0.45], [-0.42, -0.4]];
+const SKIRT: [number, number][] = [[-0.5, -0.82], [0.5, -0.82], [0.64, -0.6], [0.64, 0.55], [0.42, 0.86], [-0.42, 0.86], [-0.64, 0.55], [-0.64, -0.6]];
+const DECK: [number, number][] = [[-0.32, -0.55], [0.32, -0.55], [0.42, -0.4], [0.42, 0.2], [0.26, 0.42], [-0.26, 0.42], [-0.42, 0.2], [-0.42, -0.4]];
+const BELLY_Y = -0.26, SKIRT_Y = 0.04, DECK_Y = 0.4;
+// The hatch in the deck: its centre, width and length; the micro crawlers in the hive under it.
+const HATCH_Z = -0.13, HATCH_W = 0.56, HATCH_L = 0.56;
+const BROOD: [number, number][] = [-0.12, 0.12].flatMap(x => [-0.17, 0.02, 0.19].map(z => [x, z - 0.02] as [number, number]));
+// The six legs, three down each side: their hips, their outward heading (the front and back
+// pairs splayed fore and aft), and their step phase, alternating tripods.
+const LEGS = [[1, 1, 0], [-1, 1, Math.PI], [1, 0, Math.PI], [-1, 0, 0], [1, -1, 0], [-1, -1, Math.PI]].map(([sx, sz, phase]) => ({
+  hip: [sx * (sz ? 0.62 : 0.66), sz * 0.55] as [number, number], yaw: Math.atan2(-sz * 0.9, sx), phase,
+}));
+const THIGH = 0.7, SHIN = 0.85;
+// Standing and kneeling: the hull's height and how far out the feet are from the hips.
+const STAND = { hull: 0.95, reach: 0.95 }, KNEEL = { hull: 0.32, reach: 1.25 };
+
+// A micro crawler drone: a small faceted body, four legs, an amber eye.
+const MicroCrawler: React.FC<{ body: THREE.Material; legs: THREE.Material; eye: THREE.Material; position: [number, number, number] }> = ({ body, legs, eye, position }) => (
+  <group position={position}>
+    <Prism outline={[[-0.04, -0.05], [0.04, -0.05], [0.05, 0.0], [0.03, 0.05], [-0.03, 0.05], [-0.05, 0.0]]} depth={0.04} axis="y" material={body} position={[0, 0.02, 0]} />
+    {[[1, 1], [-1, 1], [1, -1], [-1, -1]].map(([sx, sz]) => (
+      <Plate key={`${sx}${sz}`} size={[0.05, 0.012, 0.012]} material={legs} position={[sx * 0.06, 0.02, sz * 0.03]} rotation={[0, sx * sz * -0.5, sx * -0.5]} />
+    ))}
+    <Strip size={[0.02, 0.012, 0.01]} material={eye} position={[0, 0.045, 0.05]} />
+  </group>
+);
+
+export const SwarmHostModel: React.FC<{ teamColor: string; anchored?: boolean; moving?: boolean }> = ({ teamColor, anchored, moving }) => {
+  const armour = kitMaterial('armour'), dark = kitMaterial('armourDark'), steel = kitMaterial('steel'), black = kitMaterial('black');
+  const composite = kitMaterial('composite'), housing = kitMaterial('housing'), paint = teamPaint(teamColor);
+  const amber = glow(PALETTE.amber);
+
+  const body = useRef<THREE.Group>(null);
+  const hips = useRef<(THREE.Group | null)[]>([]);
+  const thighs = useRef<(THREE.Group | null)[]>([]);
+  const knees = useRef<(THREE.Group | null)[]>([]);
+  const feet = useRef<(THREE.Group | null)[]>([]);
+  const doors = useRef<(THREE.Group | null)[]>([]);
+  const brood = useRef<THREE.Group>(null);
+  const state = useMemo(() => ({ kneel: anchored ? 1 : 0, walk: 0, stride: 0 }), []);
+
+  useFrame((_, delta) => {
+    const dt = Math.min(delta, 0.05);
+    const k = 1 - Math.exp(-dt * 2.5);
+    state.kneel += ((anchored ? 1 : 0) - state.kneel) * k;
+    state.walk += ((moving && !anchored ? 1 : 0) - state.walk) * (1 - Math.exp(-dt * 6));
+    state.stride += dt * 5 * state.walk;
+    const a = state.kneel;
+    const hullY = STAND.hull + (KNEEL.hull - STAND.hull) * a;
+    const reach = STAND.reach + (KNEEL.reach - STAND.reach) * a;
+    const bob = Math.abs(Math.sin(state.stride)) * 0.03 * state.walk;
+    if (body.current) body.current.position.y = hullY + bob;
+
+    LEGS.forEach(({ hip, phase }, i) => {
+      const h = hips.current[i], th = thighs.current[i], kn = knees.current[i], ft = feet.current[i];
+      if (!h || !th || !kn || !ft) return;
+      const hipY = hullY + bob - 0.02;
+      h.position.set(hip[0], hipY, hip[1]);
+      // The foot: out from the hip on the ground, lifted and swung while it steps.
+      const s = state.stride + phase;
+      const fx = reach + Math.cos(s) * 0.08 * state.walk;
+      const fy = -hipY + Math.max(0, Math.sin(s)) * 0.16 * state.walk;
+      ft.position.set(fx, fy, 0);
+      // Hip to foot with the knee raised: the two-link solve.
+      const d = Math.min(Math.hypot(fx, fy), THIGH + SHIN - 1e-3);
+      const reachAngle = Math.atan2(fy, fx);
+      const bend = Math.acos(Math.max(-1, Math.min(1, (THIGH * THIGH + d * d - SHIN * SHIN) / (2 * THIGH * d))));
+      const a1 = reachAngle + bend;
+      th.rotation.z = a1;
+      const kx = Math.cos(a1) * THIGH, ky = Math.sin(a1) * THIGH;
+      kn.position.set(kx, ky, 0);
+      kn.rotation.z = Math.atan2(fy - ky, fx - kx);
+    });
+
+    // The hatch opens once it is down, and the brood rises into view.
+    const open = Math.max(0, Math.min(1, (a - 0.6) / 0.4)) * 2.0;
+    doors.current.forEach((d, i) => { if (d) d.rotation.z = (i ? 1 : -1) * open; });
+    if (brood.current) {
+      brood.current.visible = open > 1.0;
+      brood.current.position.y = DECK_Y + 0.03 * Math.min(1, (open - 1.0));
+    }
+  });
+
+  return (
+    <group scale={SCALE}>
+      <ContactShadow size={[2.6, 2.4]} />
+      {/* The hull: belly, skirt band, sloped armour to the deck. */}
+      <group ref={body} position={[0, STAND.hull, 0]}>
+        <Loft top={SKIRT} bottom={BELLY} height={SKIRT_Y - BELLY_Y} material={dark} position={[0, BELLY_Y, 0]} />
+        <Prism outline={SKIRT.map(([x, z]) => [x * 1.03, z * 1.03] as [number, number])} depth={0.06} axis="y" material={composite} position={[0, SKIRT_Y - 0.04, 0]} />
+        <Loft top={DECK} bottom={SKIRT} height={DECK_Y - SKIRT_Y} material={armour} position={[0, SKIRT_Y, 0]} />
+
+        {/* On the glacis: the sensor block of amber lenses, a short gun; headlights below. */}
+        <group position={[0.2, 0.2, 0.66]}>
+          <Plate size={[0.2, 0.15, 0.16]} material={dark} />
+          {[[-0.04, 0.03], [0.04, 0.03], [-0.04, -0.03], [0.04, -0.03]].map(([x, y]) => (
+            <Strip key={`${x}${y}`} size={[0.035, 0.035, 0.01]} material={amber} position={[x, y, 0.082]} />
+          ))}
+        </group>
+        <group position={[-0.14, 0.2, 0.64]}>
+          <Plate size={[0.14, 0.1, 0.14]} material={dark} />
+          <Turned profile={[[0.025, 0.06], [0.025, 0.28], [0.034, 0.28], [0.034, 0.31]]} segments={6} material={black} />
+        </group>
+        {[-1, 1].map(s => <Strip key={s} size={[0.12, 0.035, 0.012]} material={glow(PALETTE.headlight)} position={[s * 0.24, -0.02, 0.83]} />)}
+
+        {/* The deck: team colour, antennas, the hip housings at the corners. */}
+        <Plate size={[0.4, 0.012, 0.07]} material={paint} position={[0, DECK_Y + 0.006, 0.3]} />
+        {([[-0.32, -0.46, 0.5], [0.3, -0.46, 0.38], [0.22, -0.5, 0.3]] as const).map(([x, z, h]) => (
+          <Turned key={`${x}${z}`} profile={[[0.012, 0], [0.008, h]]} segments={4} material={black} position={[x, DECK_Y, z]} rotation={[-Math.PI / 2, 0, 0]} />
+        ))}
+        {LEGS.map(({ hip }, i) => (
+          <Plate key={i} size={[0.24, 0.26, 0.28]} material={composite} position={[hip[0] * 0.92, -0.02, hip[1]]} />
+        ))}
+
+        {/* The hatch over the hive: a dark well, the brood of micro crawlers on an amber-lit floor
+            (in view once the doors are open), and two doors hinged at their outer edges. */}
+        <group position={[0, 0, HATCH_Z]}>
+          <Plate size={[HATCH_W, 0.01, HATCH_L]} material={black} position={[0, DECK_Y + 0.001, 0]} />
+          <group ref={brood} position={[0, DECK_Y, 0]} visible={false}>
+            <Plate size={[HATCH_W - 0.06, 0.006, HATCH_L - 0.06]} material={glow(PALETTE.amber, 0.35)} position={[0, 0.006, 0]} />
+            {BROOD.map(([x, z]) => <MicroCrawler key={`${x}${z}`} body={housing} legs={black} eye={amber} position={[x, 0.008, z]} />)}
+          </group>
+          {[1, -1].map((s, i) => (
+            <group key={s} ref={g => { doors.current[i] = g; }} position={[s * HATCH_W / 2, DECK_Y + 0.02, 0]}>
+              <Plate size={[HATCH_W / 2, 0.04, HATCH_L]} material={armour} position={[-s * HATCH_W / 4, 0, 0]} />
+              <Plate size={[HATCH_W / 2 - 0.08, 0.012, 0.04]} material={dark} position={[-s * HATCH_W / 4, 0.025, -HATCH_L / 4]} />
+              <Plate size={[HATCH_W / 2 - 0.08, 0.012, 0.04]} material={dark} position={[-s * HATCH_W / 4, 0.025, HATCH_L / 4]} />
+            </group>
+          ))}
+        </group>
+      </group>
+
+      {/* The legs, posed every frame: hip, thigh, knee, shin with its armour slab, foot. */}
+      {LEGS.map(({ yaw }, i) => (
+        <group key={i} ref={g => { hips.current[i] = g; }} rotation={[0, yaw, 0]}>
+          <group ref={g => { thighs.current[i] = g; }}>
+            <Plate size={[THIGH, 0.17, 0.2]} material={dark} position={[THIGH / 2, 0, 0]} />
+            <Plate size={[THIGH * 0.75, 0.04, 0.24]} material={armour} position={[THIGH * 0.5, 0.105, 0]} />
+            <Turned profile={[[0.018, 0], [0.018, THIGH * 0.6]]} segments={6} material={steel} position={[0.1, -0.11, 0]} rotation={[0, Math.PI / 2, 0]} />
+          </group>
+          <group ref={g => { knees.current[i] = g; }}>
+            <Wheel radius={0.1} width={0.22} segments={8} material={composite} rotation={[0, Math.PI / 2, 0]} />
+            <Plate size={[SHIN, 0.12, 0.12]} material={dark} position={[SHIN / 2, 0, 0]} />
+            <Plate size={[SHIN * 0.78, 0.06, 0.38]} material={armour} position={[SHIN * 0.44, 0.09, 0]} />
+            {[0.2, 0.36, 0.52, 0.68].map(f => <Plate key={f} size={[0.012, 0.066, 0.38]} material={dark} position={[SHIN * f, 0.09, 0]} />)}
+            <Plate size={[SHIN * 0.78, 0.066, 0.012]} material={dark} position={[SHIN * 0.44, 0.09, 0]} />
+          </group>
+          <group ref={g => { feet.current[i] = g; }}>
+            <Plate size={[0.3, 0.07, 0.34]} material={composite} position={[0.02, 0.035, 0]} />
+            {[-0.11, 0, 0.11].map(z => <Plate key={z} size={[0.08, 0.04, 0.06]} material={black} position={[0.18, 0.02, z]} />)}
+          </group>
+        </group>
+      ))}
+    </group>
+  );
+};

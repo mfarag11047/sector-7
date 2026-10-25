@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel, the Wasp, the Bombardment Drone and the Infiltrator are done; the rest of the roster follows by type.
+the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel, the Wasp, the Bombardment Drone, the Infiltrator and the Swarm Host are done; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -397,6 +397,12 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   small canted fins and a flat jet nozzle with a glowing exhaust at the tail. A sensor array on the
   nose (a dark window on top, a turret under the chin); a radar rotodome on a short fairing that
   turns while the radar runs, its scan bar lit. Team markings near the wingtips.
+- **The Swarm Host** (`components/models/SwarmHostModel.tsx`, sim type `swarm_host`): a big
+  armoured six-legged crawler: a faceted hull (tapering belly, skirt band, sloped armour to a flat
+  deck) with amber sensor lenses and a short gun on the glacis, and six heavy legs, each shin
+  faced with a segmented armour slab, posed by a two-link solve so the feet stay planted. It walks
+  in alternating tripods. Anchored, it kneels to the ground with its legs splayed, then its split
+  deck hatch opens and its micro crawler drones rise into view.
 
 ### Rigged models
 
