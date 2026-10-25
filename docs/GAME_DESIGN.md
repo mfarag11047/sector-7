@@ -421,12 +421,14 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   a rocket pod over a machine gun; the arms come up while it fights and kick back on each shot.
   Each leg is posed from the foot up (the foot segment, then a two-link solve to the ankle).
 - **The Trooper** (`components/models/TrooperModel.tsx`, sim type `trooper`): the basic
-  infantry unit in full armour, built round rather than boxy: tapered, smooth-shaded limbs and
-  torso in a dark undersuit (`smoothMaterial`, kit/materials.ts), armour plates and guards over
-  them, rounded pauldrons banded in team colour, a full rounded helmet with a wraparound visor
-  and a rebreather, a backpack, and a plain futuristic rifle held in both hands. It walks with
-  swinging legs and bending knees, carries the rifle at low ready and brings it up to aim while
-  fighting.
+  infantry unit in full armour. Underneath, a body that reads as a person: tapered,
+  smooth-shaded limbs and torso in a dark undersuit (`smoothMaterial`, kit/materials.ts). Over
+  it, angular, flat-faceted armour: a vest wrapping the torso, abdominal plates, layered shoulder
+  plates edged in team colour, faceted bracers, thigh and shin guards, angled knee pads, boots;
+  and a faceted combat helmet with a brow ridge, cheek guards, a wraparound visor with a lit line
+  and an angled faceplate. A backpack, and a plain futuristic rifle held in both hands. It walks
+  with swinging legs and bending knees, carries the rifle at low ready and brings it up to aim
+  while fighting.
 
 ### Rigged models
 
