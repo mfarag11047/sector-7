@@ -413,11 +413,12 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   with armour-slabbed shins. It scuttles in diagonal pairs. The Swarm Host's legs and the
   Crawler's share the two-link leg solve in `components/kit/legs.ts`.
 - **The Lancer** (`components/models/LancerMechModel.tsx`, sim type `lancer`): the anti-vehicle
-  infantry unit as a heavy two-legged mech: a faceted torso drawn in to a chin sensor cluster, a
-  searchlight and antenna on top, a rocket pod on each shoulder (a housing, an ammunition drum, a
-  face of four tubes) that comes up while it fights and kicks back on each shot, and two thick
-  legs with forward knees, gridded knee pads, rams on the shins and clawed feet. It walks on a
-  two-link leg solve, its torso bobbing and swaying.
+  infantry unit as a heavy two-legged mech, its faceted hull slung low between its legs: hip
+  housings on the flanks carry two crouched, forward-kneed legs with huge armoured thigh blocks,
+  gridded knee pads, rams on the shins and clawed feet. A chin sensor cluster, headlights, a
+  searchlight and antenna on top. Each shoulder carries an arm with a rocket pod over a machine
+  gun; the arms come up while it fights and kick back on each shot. It walks on a two-link leg
+  solve, its hull bobbing and swaying.
 
 ### Rigged models
 
