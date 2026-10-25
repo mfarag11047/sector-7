@@ -11,7 +11,8 @@
 // kneels: the hull lowers to the ground and the legs splay out, then the hatch doors swing open
 // and its micro crawler drones rise into view, ready to go. Unanchored, it closes up and stands.
 //
-// The legs are posed each frame by a two-link solve from hip to foot, so the feet stay planted.
+// The legs are posed each frame by a two-link solve from hip to foot (kit/legs.ts), so the feet
+// stay planted.
 //
 // Built facing +Z, about 2.3 long and 2.9 across its feet in its own units, and scaled up here.
 
@@ -19,6 +20,7 @@ import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { glow, kitMaterial, PALETTE, teamPaint } from '../kit/materials';
+import { poseLeg } from '../kit/legs';
 import { ContactShadow, Loft, Plate, Prism, Strip, Turned, Wheel } from '../kit/shapes';
 
 const SCALE = 2.2;
@@ -43,14 +45,15 @@ const THIGH = 0.5, SHIN = 0.62;
 // Standing and kneeling: the hull's height and how far out the feet are from the hips.
 const STAND = { hull: 0.86, reach: 0.58 }, KNEEL = { hull: 0.4, reach: 0.78 };
 
-// A micro crawler drone: a small faceted body, four legs, an amber eye.
+// A micro crawler drone waiting in the hive: a small rounded shell, four legs, an amber eye
+// (CrawlerDroneModel is the drone itself).
 const MicroCrawler: React.FC<{ body: THREE.Material; legs: THREE.Material; eye: THREE.Material; position: [number, number, number] }> = ({ body, legs, eye, position }) => (
   <group position={position} scale={1.3}>
-    <Prism outline={[[-0.04, -0.05], [0.04, -0.05], [0.05, 0.0], [0.03, 0.05], [-0.03, 0.05], [-0.05, 0.0]]} depth={0.04} axis="y" material={body} position={[0, 0.02, 0]} />
+    <Turned profile={[[0.04, 0], [0.05, 0.015], [0.036, 0.035], [0.001, 0.045]]} segments={8} material={body} position={[0, 0.01, 0]} rotation={[-Math.PI / 2, 0, 0]} />
     {[[1, 1], [-1, 1], [1, -1], [-1, -1]].map(([sx, sz]) => (
       <Plate key={`${sx}${sz}`} size={[0.05, 0.012, 0.012]} material={legs} position={[sx * 0.06, 0.02, sz * 0.03]} rotation={[0, sx * sz * -0.5, sx * -0.5]} />
     ))}
-    <Strip size={[0.02, 0.012, 0.01]} material={eye} position={[0, 0.045, 0.05]} />
+    <Strip size={[0.024, 0.014, 0.01]} material={eye} position={[0, 0.03, 0.05]} />
   </group>
 );
 
@@ -90,15 +93,7 @@ export const SwarmHostModel: React.FC<{ teamColor: string; anchored?: boolean; m
       const fx = reach + Math.cos(s) * 0.06 * state.walk;
       const fy = -hipY + Math.max(0, Math.sin(s)) * 0.12 * state.walk;
       ft.position.set(fx, fy, 0);
-      // Hip to foot with the knee raised: the two-link solve.
-      const d = Math.min(Math.hypot(fx, fy), THIGH + SHIN - 1e-3);
-      const reachAngle = Math.atan2(fy, fx);
-      const bend = Math.acos(Math.max(-1, Math.min(1, (THIGH * THIGH + d * d - SHIN * SHIN) / (2 * THIGH * d))));
-      const a1 = reachAngle + bend;
-      th.rotation.z = a1;
-      const kx = Math.cos(a1) * THIGH, ky = Math.sin(a1) * THIGH;
-      kn.position.set(kx, ky, 0);
-      kn.rotation.z = Math.atan2(fy - ky, fx - kx);
+      poseLeg(THIGH, SHIN, fx, fy, th, kn);
     });
 
     // The hatch opens once it is down, and the brood rises into view.

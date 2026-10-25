@@ -40,6 +40,7 @@ import { AttackDroneModel } from './models/AttackDroneModel';
 import { WaspModel } from './models/WaspModel';
 import { BombardModel } from './models/BombardModel';
 import { SwarmHostModel } from './models/SwarmHostModel';
+import { CrawlerDroneModel } from './models/CrawlerDroneModel';
 import { BallistaModel } from './models/BallistaModel';
 import { ThunderheadModel } from './models/ThunderheadModel';
 import { GuardianModel, GUARDIAN_BEAM_ORIGIN_Y } from './models/GuardianModel';
@@ -866,31 +867,7 @@ const Unit: React.FC<UnitProps> = ({
     
     if (isSwarmHost) return <SwarmHostModel teamColor={teamColor} anchored={isAnchored} moving={moving} />;
 
-    if (isCrawler) {
-        return (
-            <group scale={[1.2, 1.2, 1.2]}>
-                {/* Central Core */}
-                <mesh position={[0, 0.3, 0]}><octahedronGeometry args={[0.25]} /><meshStandardMaterial color="#334155" metalness={0.9} /></mesh>
-                {/* Glowing Eye */}
-                <mesh position={[0, 0.35, 0.15]}><sphereGeometry args={[0.1]} /><meshStandardMaterial color="#f97316" emissive="#f97316" emissiveIntensity={2} /></mesh>
-                
-                {/* Spider Legs */}
-                {[0, 60, 120, 180, 240, 300].map((angle, i) => {
-                    const rad = angle * Math.PI / 180;
-                    return (
-                        <group key={i} rotation={[0, rad, 0]}>
-                            <group position={[0.2, 0.2, 0]}>
-                                <mesh rotation={[0, 0, -Math.PI/6]}><boxGeometry args={[0.3, 0.05, 0.05]} /><meshStandardMaterial color="#475569" /></mesh>
-                                <mesh position={[0.25, -0.15, 0]} rotation={[0, 0, Math.PI/3]}><boxGeometry args={[0.3, 0.04, 0.04]} /><meshStandardMaterial color="#1e293b" /></mesh>
-                            </group>
-                        </group>
-                    )
-                })}
-                {/* Antenna */}
-                <mesh position={[0, 0.5, -0.1]} rotation={[-0.2, 0, 0]}><cylinderGeometry args={[0.01, 0.01, 0.3]} /><meshBasicMaterial color="#94a3b8" /></mesh>
-            </group>
-        );
-    }
+    if (isCrawler) return <CrawlerDroneModel teamColor={teamColor} moving={moving} />;
 
     return (
         <Float speed={4} rotationIntensity={0.5} floatIntensity={0.5} floatingRange={[0, 0.5]}>
@@ -908,7 +885,7 @@ const Unit: React.FC<UnitProps> = ({
   const model = useMemo(renderModel, [
     type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
     isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, firingLaserAt, courierPayload, constructionTargetId, ciwsTargetId,
-    grenadeAt, isHero ? lastAttackTime : 0, isHero || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback || isScoutCar || isSwarmHost ? moving : false, isTank ? railgunFiredAt : 0,
+    grenadeAt, isHero ? lastAttackTime : 0, isHero || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback || isScoutCar || isSwarmHost || isCrawler ? moving : false, isTank ? railgunFiredAt : 0,
     isBallista ? Math.floor((loadingProgress || 0) / 10) : 0,
     isBanshee ? `${!!jammerActive && battery > 0}|${tetherTargetIds?.length ?? 0}` : 0,
     isHornet && upgrades.includes('hunter_rockets'),
