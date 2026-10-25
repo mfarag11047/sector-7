@@ -289,9 +289,15 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
   ignore tone mapping so they glow (cyan for the standard army). A unit isn't one flat colour:
-  each part takes the material it would be made of. Plates are matte: the scene has no environment
-  map, so metallic surfaces have nothing to reflect and render near black. A unit animating its own
-  material (a scrolling track, a pulsing light) takes a copy with `own`.
+  each part takes the material it would be made of, tuned as what it is: bare metal metallic, paint
+  satin, polymer less, rubber matte. Every plate carries a little wear (`weathered`), a fine
+  mottling of its tone and roughness in the part's own space, and sets how much of the
+  environment's soft fill it takes (paint little, so it isn't washed flat; metal all). A unit
+  animating its own material (a scrolling track, a pulsing light) takes a copy with `own`.
+- **Lighting** (`components/Atmosphere.tsx`): besides the suns and fill lights, an environment
+  built once from light panels, not loaded: softboxes where the suns are, a dim sky overhead and
+  in a ring all round, neon cyan and magenta strips low on the horizon and an amber city glow.
+  It is what metal reflects, so steel reads as steel from any camera heading.
 - **Textures** (`textures.ts`): only two, drawn in code: a soft tread that scrolls so tracks
   visibly run, and a contact shadow.
 - **Parts** (`shapes.tsx`): `Plate` (a box, sharp unless given a `radius`), `Prism` (an outline
