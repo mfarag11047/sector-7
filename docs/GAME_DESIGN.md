@@ -436,9 +436,12 @@ spec covers what an artist delivers). Three do so far:
   the launcher; dead, he topples onto his back. The gun rides at his right hip and the launcher
   sits on the socket in his back, arching over his right shoulder.
 - **Trooper**: `public/models/trooper.glb` (a fully armoured soldier in parts on one skeleton, no
-  clips, untextured), drawn by `components/models/TrooperModel.tsx`. Each part takes a colour from
-  the unit kit's palette and the chest pouches the team colour, so it sits with the rest of the
-  army; the parts are merged by colour (a few draw calls per soldier). The model's skin weights
+  clips, untextured), drawn by `components/models/TrooperModel.tsx`. It is painted from the unit
+  kit's palette by part and within parts, by where a point sits and which bone moves it (vertex
+  colours, so the paints blend at their edges): olive helmet shell, vest, upper arms and shin
+  guards; darker olive trousers, sleeves, hood and pouches; a dark visor and respirator; dark
+  gloves, boots and belt; a khaki canvas backpack; and the shoulder plates in the team colour. The
+  parts are merged into two meshes (two draw calls per soldier). The model's skin weights
   are cleaned on load (the arms follow only arm bones, everything else none), so the arms can
   move without stretching the torso. It holds a kit rifle by two-bone IK (`components/kit/rig.ts`,
   shared with Goliath), low at the ready and raised level while fighting; walking swings its legs.

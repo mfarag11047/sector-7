@@ -2,10 +2,12 @@
 // fully armoured soldier with a respirator helmet and a backpack, in parts on one skeleton),
 // adapted to the game's look and posed in code.
 //
-// The model comes untextured; each of its parts takes a colour from the unit kit's palette (olive
-// armour, darker gear, dark boots, a black visor and hoses) and its chest pouches take the team
-// colour, so it sits with the rest of the army. It has no animation clips, so it moves
-// procedurally:
+// The model comes untextured, so it is painted from the unit kit's palette, part by part and within
+// parts (by where a point sits and which bone moves it): an olive helmet shell, vest, upper arms
+// and shin guards; darker olive cloth (trousers, sleeves, hood, pouches); a black visor slit and
+// hoses over a dark respirator; dark gloves, boots and belt; a khaki canvas backpack; and the
+// shoulder plates in the side's colour. So it sits with the rest of the army. It has no animation
+// clips, so it moves procedurally:
 //   - it holds a plain kit rifle in both hands by two-bone IK (kit/rig.ts): the right hand on the
 //     grip, the left on the handguard, fingers closed;
 //   - the rifle rides low at the ready, and comes up level to fire while it is fighting
@@ -20,7 +22,7 @@ import { useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import { glow, kitMaterial, PALETTE, smoothMaterial, teamPaint } from '../kit/materials';
+import { glow, kitMaterial, PALETTE, teamPaint } from '../kit/materials';
 import { reach, wq } from '../kit/rig';
 import { ContactShadow, Plate, Strip, Turned } from '../kit/shapes';
 
@@ -28,19 +30,43 @@ const MODEL_URL = '/models/trooper.glb';
 useGLTF.preload(MODEL_URL);
 const SCALE = 3.6;
 
-// Each part's paint, by its name in the model; anything unlisted is armour. 'team' is the side's
-// colour.
-type Paint = 'armour' | 'armourDark' | 'composite' | 'black' | 'team';
-const PAINT: Record<string, Paint> = {
-  tripo_part_1: 'armourDark', // backpack
-  tripo_part_10: 'team', tripo_part_12: 'team', // chest pouches
-  tripo_part_13: 'black', tripo_part_15: 'black', tripo_part_16: 'black', tripo_part_18: 'black', // visor, hoses
-  tripo_part_11: 'composite', tripo_part_14: 'composite', tripo_part_20: 'composite', tripo_part_22: 'composite',
-  tripo_part_21: 'composite', tripo_part_23: 'composite',
-  tripo_part_17: 'composite', // belt
-  tripo_part_7: 'armourDark', tripo_part_19: 'armourDark', // hips
-  tripo_part_4: 'composite', tripo_part_6: 'composite', // boots
+// The paints, from the unit kit's palette: olive armour plate, darker olive cloth, near-black
+// gear, black glass and hoses, khaki canvas, and the side's colour.
+type Paint = 'armour' | 'armourDark' | 'composite' | 'black' | 'canvas' | 'team';
+const COLOURS: Record<Exclude<Paint, 'team'>, THREE.Color> = {
+  armour: new THREE.Color(PALETTE.armour), armourDark: new THREE.Color(PALETTE.armourDark),
+  composite: new THREE.Color(PALETTE.composite), black: new THREE.Color(PALETTE.black), canvas: new THREE.Color('#6b6a4c'),
 };
+// The parts, by their names in the model.
+const PART = {
+  head: 'tripo_part_0', backpack: 'tripo_part_1', armRight: 'tripo_part_2', armLeft: 'tripo_part_3',
+  vest: 'tripo_part_5', trousers: 'tripo_part_7', shins: ['tripo_part_8', 'tripo_part_9'], boots: ['tripo_part_4', 'tripo_part_6'],
+  pouches: ['tripo_part_10', 'tripo_part_12', 'tripo_part_14', 'tripo_part_19'], hoses: ['tripo_part_15', 'tripo_part_16', 'tripo_part_18'],
+};
+// The face of the helmet, in the model's space: the visor slit and the respirator below it.
+const VISOR = { low: 0.915, high: 0.937 }, FACE_Z = 0.05;
+
+// What colour a point of a part is: where it sits (in the model's space, facing +Z, 1 tall) and,
+// for the arms, which bone moves it most.
+function paintAt(part: string, p: THREE.Vector3, bone: string): Paint {
+  if (part === PART.head) {
+    if (p.y > VISOR.high) return 'armour'; // the helmet shell
+    if (p.z > FACE_Z) return p.y > VISOR.low ? 'black' : 'composite'; // visor, respirator
+    return 'armourDark'; // the hood round the neck
+  }
+  if (part === PART.armRight || part === PART.armLeft) {
+    if (bone.includes('Hand')) return 'composite'; // gloves
+    if (bone.includes('ForeArm')) return 'armourDark'; // sleeves
+    return p.y > 0.72 ? 'team' : 'armour'; // shoulder plate, upper arm
+  }
+  if (part === PART.vest) return 'armour';
+  if (part === PART.backpack) return 'canvas';
+  if (part === PART.trousers) return 'armourDark';
+  if (PART.shins.includes(part)) return 'armour';
+  if (PART.hoses.includes(part)) return 'black';
+  if (PART.pouches.includes(part)) return 'armourDark';
+  return 'composite'; // boots, belt, buckles and the rest of the small gear
+}
 
 // The rifle in the model's space: where its grip sits at the ready and when aimed, and its tilt.
 const READY = { pos: new THREE.Vector3(-0.07, 0.54, 0.13), tilt: 0.45 };
@@ -82,23 +108,56 @@ function separateArms(mesh: THREE.SkinnedMesh) {
   weight.needsUpdate = true;
 }
 
-// The model's parts, re-weighted and merged by paint: built once from the loaded model and
-// shared by every Trooper (each binds them to its own skeleton).
-const merged = new WeakMap<THREE.Object3D, [Paint, THREE.BufferGeometry][]>();
-function mergedByPaint(scene: THREE.Object3D, parts: THREE.SkinnedMesh[]) {
+// A part painted: each vertex takes its colour (a vertex colour, so where one paint meets another
+// the colours blend rather than step along the triangles), except the team-coloured triangles,
+// split off to take the side's colour.
+function paintPart(mesh: THREE.SkinnedMesh) {
+  const g = mesh.geometry;
+  const position = g.getAttribute('position'), skinIndex = g.getAttribute('skinIndex'), skinWeight = g.getAttribute('skinWeight');
+  const index = g.getIndex()!;
+  const { bones } = mesh.skeleton;
+  const p = new THREE.Vector3();
+  // Each vertex's paint, by where it sits and the bone that moves it most.
+  const paints: Paint[] = [];
+  for (let v = 0; v < position.count; v++) {
+    let best = 0;
+    for (let k = 1; k < 4; k++) if (skinWeight.getComponent(v, k) > skinWeight.getComponent(v, best)) best = k;
+    paints.push(paintAt(mesh.name, p.fromBufferAttribute(position, v).applyMatrix4(mesh.bindMatrix), bones[skinIndex.getComponent(v, best)].name));
+  }
+  const colours = new Float32Array(position.count * 3);
+  paints.forEach((paint, v) => (paint === 'team' ? COLOURS.armour : COLOURS[paint]).toArray(colours, v * 3));
+  // A triangle is team-coloured when most of its corners are.
+  const team: number[] = [], rest: number[] = [];
+  for (let t = 0; t < index.count; t += 3) {
+    const vs = [index.getX(t), index.getX(t + 1), index.getX(t + 2)];
+    (vs.filter(v => paints[v] === 'team').length >= 2 ? team : rest).push(...vs);
+  }
+  const body = g.clone();
+  body.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+  body.setIndex(rest);
+  const out: [boolean, THREE.BufferGeometry][] = [[false, body]];
+  if (team.length) { const t = g.clone(); t.setIndex(team); out.push([true, t]); }
+  return out;
+}
+
+// The model's parts, re-weighted, painted and merged: one geometry for the painted body and one
+// for its team-coloured triangles, built once from the loaded model and shared by every Trooper
+// (each binds them to its own skeleton).
+const merged = new WeakMap<THREE.Object3D, { body: THREE.BufferGeometry; team: THREE.BufferGeometry }>();
+function mergedParts(scene: THREE.Object3D, parts: THREE.SkinnedMesh[]) {
   let out = merged.get(scene);
   if (!out) {
     parts.forEach(separateArms);
-    const byPaint = new Map<Paint, THREE.BufferGeometry[]>();
-    parts.forEach(m => {
-      const paint = PAINT[m.name] ?? 'armour';
-      byPaint.set(paint, [...(byPaint.get(paint) ?? []), m.geometry]);
-    });
-    out = [...byPaint].map(([paint, geometries]) => [paint, mergeGeometries(geometries)!] as [Paint, THREE.BufferGeometry]);
+    const painted = parts.flatMap(paintPart);
+    out = {
+      body: mergeGeometries(painted.filter(([team]) => !team).map(([, g]) => g))!,
+      team: mergeGeometries(painted.filter(([team]) => team).map(([, g]) => g))!,
+    };
     merged.set(scene, out);
   }
   return out;
 }
+const bodyMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, metalness: 0.15, roughness: 0.65 });
 
 export const TrooperModel: React.FC<{ teamColor: string; moving?: boolean; lastAttackTime?: number; flashRef?: React.Ref<THREE.Mesh> }> = ({ teamColor, moving, lastAttackTime, flashRef }) => {
   const { scene } = useGLTF(MODEL_URL);
@@ -106,12 +165,14 @@ export const TrooperModel: React.FC<{ teamColor: string; moving?: boolean; lastA
 
   const rig = useMemo(() => {
     const root = cloneSkinned(scene) as THREE.Group;
-    // The parts merged into one skinned mesh per paint, on this soldier's own skeleton.
+    // The parts merged into two skinned meshes, painted and team-coloured, on this soldier's own
+    // skeleton.
     const parts: THREE.SkinnedMesh[] = [];
     root.traverse(o => { if ((o as THREE.SkinnedMesh).isSkinnedMesh) parts.push(o as THREE.SkinnedMesh); });
     const { skeleton, bindMatrix, parent } = parts[0];
-    for (const [paint, geometry] of mergedByPaint(scene, parts)) {
-      const mesh = new THREE.SkinnedMesh(geometry, paint === 'team' ? teamPaint(teamColor) : smoothMaterial(paint));
+    const { body, team } = mergedParts(scene, parts);
+    for (const [geometry, material] of [[body, bodyMaterial], [team, teamPaint(teamColor)]] as const) {
+      const mesh = new THREE.SkinnedMesh(geometry, material);
       mesh.bind(skeleton, bindMatrix);
       mesh.castShadow = true;
       mesh.frustumCulled = false;
