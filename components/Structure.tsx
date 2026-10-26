@@ -16,6 +16,8 @@ import { REFINERY } from '../sim/refinery';
 import { builtCost, canDismantle, DISMANTLE, dismantleRefund, isUnfinished } from '../sim/dismantle';
 import type { IncomeBreakdown } from '../sim/economy';
 import { WARHEAD_LABEL } from '../sim/warheads';
+import { BarracksModel } from './models/BarracksModel';
+import { facingOwnerView } from './kit/facing';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
 
@@ -128,83 +130,6 @@ const CommLinkModel = ({ color, teamColor }: { color: string, teamColor: string 
         </group>
     </group>
   );
-}
-
-const BarracksModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
-    return (
-        <group position={[0, 0, 0]}>
-            <mesh position={[0, 0.25, 0]}>
-                <boxGeometry args={[7, 0.5, 5]} />
-                <meshStandardMaterial color="#1e293b" />
-                <Edges color={teamColor} />
-            </mesh>
-            <mesh position={[0, 1.75, 0]}>
-                <boxGeometry args={[6, 2.5, 4]} />
-                <meshStandardMaterial color="#334155" metalness={0.5} roughness={0.6} />
-            </mesh>
-            {[[-3, -2], [3, -2], [-3, 2], [3, 2]].map((pos, i) => (
-                <mesh key={i} position={[pos[0], 1.5, pos[1]]}>
-                    <boxGeometry args={[0.8, 3, 0.8]} />
-                    <meshStandardMaterial color="#475569" metalness={0.6} />
-                    <Edges color="#000000" />
-                </mesh>
-            ))}
-            <group position={[0, 3, 0]}>
-                <mesh rotation={[0, 0, Math.PI/2]}>
-                     <cylinderGeometry args={[2, 2, 6, 3]} />
-                     <meshStandardMaterial color="#1e293b" metalness={0.7} />
-                </mesh>
-                {[ -1.5, 0, 1.5 ].map((x, i) => (
-                    <mesh key={i} position={[x, 1, -0.5]} rotation={[0.2, 0, 0]}>
-                        <boxGeometry args={[0.8, 0.5, 0.8]} />
-                        <meshStandardMaterial color="#475569" />
-                        <mesh position={[0, 0, 0.41]}>
-                             <planeGeometry args={[0.6, 0.3]} />
-                             <meshBasicMaterial color="#000000" />
-                        </mesh>
-                    </mesh>
-                ))}
-            </group>
-            <group position={[0, 1, 2.1]}>
-                <mesh>
-                    <boxGeometry args={[3.2, 2.2, 0.4]} />
-                    <meshStandardMaterial color="#1e293b" />
-                </mesh>
-                <mesh position={[0, 0, 0.1]}>
-                    <planeGeometry args={[2.8, 1.8]} />
-                    <meshStandardMaterial color="#0f172a" metalness={0.8} roughness={0.2} />
-                </mesh>
-                <mesh position={[0, -0.8, 0.11]}>
-                     <planeGeometry args={[2.8, 0.2]} />
-                     <meshBasicMaterial color="#fbbf24" />
-                </mesh>
-                <mesh position={[0, 1.2, 0]}>
-                    <boxGeometry args={[1, 0.2, 0.2]} />
-                    <meshBasicMaterial color={color} />
-                </mesh>
-            </group>
-            <group position={[0, 3.5, 2]}>
-                <mesh rotation={[0, 0, 0]}>
-                    <planeGeometry args={[1.5, 1.5]} />
-                    <meshBasicMaterial color={color} transparent opacity={0.15} side={THREE.DoubleSide} />
-                </mesh>
-                <group scale={[0.5, 0.5, 0.5]} position={[0, 0, 0.01]}>
-                    <mesh position={[0, 0.5, 0]}>
-                        <circleGeometry args={[0.3, 8]} />
-                        <meshBasicMaterial color={color} transparent opacity={0.8} />
-                    </mesh>
-                    <mesh position={[0, -0.2, 0]}>
-                         <planeGeometry args={[0.8, 0.6]} />
-                         <meshBasicMaterial color={color} transparent opacity={0.6} />
-                    </mesh>
-                </group>
-                <mesh position={[0, -0.8, 0]}>
-                    <boxGeometry args={[1.6, 0.2, 0.4]} />
-                    <meshStandardMaterial color="#334155" />
-                </mesh>
-            </group>
-        </group>
-    )
 }
 
 const FactoryModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
@@ -1423,7 +1348,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
         return <group scale={[2.2, 2.2, 2.2]}><CommLinkModel color={config.color} teamColor={teamColor} /></group>;
     }
     if (data.type === 'infantry') {
-        return <group scale={[1.9, 1.9, 1.9]}><BarracksModel color={config.color} teamColor={teamColor} /></group>;
+        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><BarracksModel teamColor={teamColor} /></group>;
     }
     if (data.type === 'armor') {
         return <group scale={[1.9, 1.9, 1.9]}><FactoryModel color={config.color} teamColor={teamColor} /></group>;

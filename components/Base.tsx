@@ -5,7 +5,8 @@ import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { StructureData, UnitType } from '../types';
 import StructureStatus from './StructureStatus';
-import { CITY_CONFIG, UNIT_STATS } from '../constants';
+import { UNIT_STATS } from '../constants';
+import { facingOwnerView } from './kit/facing';
 import { CommandHqModel } from './models/CommandHqModel';
 import { TIER_RESEARCH_COST, UNIT_RULES } from '../sim/units';
 
@@ -77,13 +78,8 @@ const Base: React.FC<BaseProps> = ({
   }
 
 
-  // The HQ faces the middle of the map, its front squared to the nearest of the four headings.
-  const facing = useMemo(() => {
-    const centre = (CITY_CONFIG.gridSize - 1) / 2;
-    const dx = centre - gridPos.x, dz = centre - gridPos.z;
-    if (dx === 0 && dz === 0) return 0;
-    return Math.round(Math.atan2(dx, dz) / (Math.PI / 2)) * (Math.PI / 2);
-  }, [gridPos.x, gridPos.z]);
+  // The HQ faces its owner's view (kit/facing.ts).
+  const facing = useMemo(() => facingOwnerView(gridPos), [gridPos.x, gridPos.z]);
   // The model itself, built once per team colour: the map re-renders on every game tick and gives
   // the HQ new props each time.
   const hqModel = useMemo(() => <group rotation={[0, facing, 0]}><CommandHqModel teamColor={teamColor} /></group>, [teamColor, facing]);

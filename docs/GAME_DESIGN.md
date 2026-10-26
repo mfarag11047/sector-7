@@ -505,7 +505,17 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   back on it: corner pillars, an X-braced truss band, a duct from a utility box, a ladder up the
   back. An overhanging control cab sits on an angled underside, dark windows all round, and on its
   roof a comms mast (antenna panels, two dishes, a blinking team beacon at the tip), two radomes
-  and a turning radar array. It faces the middle of the map.
+  and a turning radar array.
+- **Facing** (`kit/facing.ts`): base structures turn their fronts away from the middle of the map,
+  toward the corner their owner's camera starts in, so a player sees their own buildings' doors,
+  yards and markings rather than their backs.
+- **The Barracks** (`components/models/BarracksModel.tsx`, structure type `infantry`): an L of
+  two blocks on a raised, chamfered concrete pad with ramps. The two-storey main block holds the
+  bays (two roll-up doors under awnings, weapon lockers, hooded windows; AC units, a pipe run and a
+  whip antenna on its roof); the command block beside it stands a storey taller (a railed stair to
+  a double door, two team rank chevrons, a screen facing the yard, floodlights; on its roof a comms
+  mast with dishes, a slowly turning satellite dish, AC boxes and exhaust stacks). In front of the
+  bays a fenced training yard (assembly circle, targets, a pull-up frame), and supply crates.
 - **The missile** (`components/models/MissileModel.tsx`): one model for the Ballista's missile
   wherever it shows (the Field Fabricator's cages, the Ballista's launch tube, in flight): a long
   dark body, a forked tail of four prongs growing out of it and sweeping out round a nozzle, four
