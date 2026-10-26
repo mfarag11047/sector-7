@@ -560,8 +560,10 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   track on two pylons. While research runs the data column flickers bright, the rack lights blink
   and the ring turns fast.
 - **The Core Refinery** (`components/models/RefineryModel.tsx`, structure type `refinery`): a
-  reactor sphere held in four arms under a cooling stack. Four heavy arms rise from a stepped
-  round dais, bend at elbows where clamps grip the sphere, and carry a collar ring; the sphere has
+  reactor sphere held in four arms under a cooling stack. The sphere is the building's bulk, wider
+  than the stack and the collar, so its ring shows round the stack from the game camera above.
+  Four heavy arms rise from a stepped round dais, bend wide at elbows where clamps grip the
+  sphere's equator, and carry a collar ring on its crown; the sphere has
   a band of light in core yellow (`CORE_COLOR`, shared with the map's core nodes) and capsule
   prongs with lit collars. On the collar, a short, broad reactor-style cooling stack with steam
   rising. Between the arms' feet an electric security fence: posts with insulators, a see-through

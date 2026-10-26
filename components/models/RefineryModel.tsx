@@ -13,7 +13,7 @@
 // Level 2 (`level`) stands its stack taller, lights a second band on the sphere and every prong's
 // collar. While it upgrades (`upgrading`) the light pulses fast and the collar ring turns.
 //
-// Built facing +Z, about 12 across and 12 tall to the stack's lip (13 at level 2), in world units.
+// Built facing +Z, about 12 across and 13 tall to the stack's lip (15 at level 2), in world units.
 
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -26,11 +26,14 @@ import { Plate, Strip, Turned } from '../kit/shapes';
 // Upright: the kit's turned parts point along +Z; this turns +Z to +Y.
 const UP: [number, number, number] = [-Math.PI / 2, 0, 0];
 const DAIS_H = 0.8;
-const SPHERE = { y: 5.0, r: 2.2 };
-const COLLAR = { y: 7.7, r: 3.2 };
+// The sphere is big enough to stand out round the cooling stack's foot when seen from above.
+const SPHERE = { y: 5.4, r: 4.4 };
+const COLLAR = { y: 9.6, r: 2.6 };
+// The prongs' size, against the sphere's.
+const PRONG = SPHERE.r / 2.2;
 // The arms: their heading (the corners), and the radius and height of foot, elbow and top.
 const ARMS = [0, 1, 2, 3].map(k => (k * Math.PI) / 2 + Math.PI / 4);
-const FOOT = { r: 5.8, y: DAIS_H }, ELBOW = { r: 4.8, y: 4.6 }, TOP = { r: COLLAR.r + 0.1, y: COLLAR.y };
+const FOOT = { r: 5.8, y: DAIS_H }, ELBOW = { r: 5.2, y: 5.4 }, TOP = { r: COLLAR.r + 0.1, y: COLLAR.y };
 // The prongs: their heading round the sphere and their elevation.
 const PRONGS = [
   ...[0, 1, 2, 3].map(k => ({ h: (k * Math.PI) / 2, e: 0.7 })),
@@ -55,7 +58,7 @@ export const RefineryModel: React.FC<{ teamColor: string; level: 1 | 2; upgradin
   const light = kitMaterial('structLight'), grey = kitMaterial('structGrey'), dark = kitMaterial('structDark');
   const black = kitMaterial('black'), steel = kitMaterial('steel'), paint = teamPaint(teamColor);
   const lamp = glow('#dbeafe');
-  const stackTop = level === 2 ? 13.0 : 11.6;
+  const stackTop = level === 2 ? 14.7 : 13.3;
 
   // The reactor's light (its bands and the prongs' collars), and the steam: this refinery's own.
   const core = useMemo(() => own(glow(CORE_COLOR)) as THREE.MeshBasicMaterial, []);
@@ -95,7 +98,7 @@ export const RefineryModel: React.FC<{ teamColor: string; level: 1 | 2; upgradin
 
   // The cooling stack's profile: a curved tower, wide foot, narrow waist, flared lip.
   const stack = useMemo<[number, number][]>(() => {
-    const y0 = COLLAR.y + 0.5, h = stackTop - y0, waist = 0.7;
+    const y0 = COLLAR.y + 0.3, h = stackTop - y0, waist = 0.7;
     return Array.from({ length: 9 }, (_, k) => {
       const v = k / 8, y = y0 + v * h;
       const r = STACK.waist + (v < waist ? STACK.foot - STACK.waist : STACK.lip - STACK.waist) * Math.pow((v - waist) / (v < waist ? waist : 1 - waist), 2);
@@ -109,7 +112,7 @@ export const RefineryModel: React.FC<{ teamColor: string; level: 1 | 2; upgradin
       <Turned profile={[[6.3, 0], [6.3, 0.35], [5.6, 0.45], [5.6, DAIS_H], [0.001, DAIS_H]]} segments={16} material={grey} rotation={UP} />
       <Turned profile={[[6.32, 0.12], [6.32, 0.26]]} segments={16} material={paint} rotation={UP} />
       <Turned profile={[[2.9, DAIS_H + 0.01], [3.1, DAIS_H + 0.01]]} segments={24} material={core} rotation={UP} />
-      <Turned profile={[[1.6, DAIS_H], [1.4, DAIS_H + 0.9], [0.9, SPHERE.y - SPHERE.r + 0.2]]} segments={12} material={dark} rotation={UP} />
+      <Turned profile={[[2.2, DAIS_H], [2.2, SPHERE.y - SPHERE.r + 0.3], [1.6, SPHERE.y - SPHERE.r + 0.45]]} segments={12} material={dark} rotation={UP} />
       {/* Floor hatches between the arms, inside the fence. */}
       {ARMS.map(a => (
         <group key={a} rotation={[0, a + Math.PI / 4, 0]}>
@@ -178,21 +181,23 @@ export const RefineryModel: React.FC<{ teamColor: string; level: 1 | 2; upgradin
           const e = -Math.PI / 2 + (k * Math.PI) / 12;
           return [Math.max(0.001, Math.cos(e) * SPHERE.r), Math.sin(e) * SPHERE.r] as [number, number];
         })} segments={20} material={light} rotation={UP} />
-        <Turned profile={[[SPHERE.r + 0.04, -0.12], [SPHERE.r + 0.04, 0.12]]} segments={24} material={core} rotation={UP} />
-        <Turned profile={[[SPHERE.r * 0.85 + 0.05, 1.05], [SPHERE.r * 0.85 + 0.05, 1.2]]} segments={24} material={dim} rotation={UP} />
-        <Turned profile={[[SPHERE.r * 0.87 + 0.06, -1.05], [SPHERE.r * 0.87 + 0.06, -0.85]]} segments={24} material={grey} rotation={UP} />
+        <Turned profile={[[SPHERE.r + 0.04, -0.18], [SPHERE.r + 0.04, 0.18]]} segments={24} material={core} rotation={UP} />
+        <Turned profile={[[SPHERE.r * 0.877 + 0.05, SPHERE.r * 0.48 - 0.1], [SPHERE.r * 0.877 + 0.05, SPHERE.r * 0.48 + 0.1]]} segments={24} material={dim} rotation={UP} />
+        <Turned profile={[[SPHERE.r * 0.877 + 0.06, -SPHERE.r * 0.48 - 0.12], [SPHERE.r * 0.877 + 0.06, -SPHERE.r * 0.48 + 0.12]]} segments={24} material={grey} rotation={UP} />
         {/* A dark panel with the team's mark on its front. */}
-        <Plate size={[1.2, 0.9, 0.08]} material={dark} position={[0, 0.55, SPHERE.r - 0.25]} rotation={[-0.25, 0, 0]} />
-        <Plate size={[0.6, 0.12, 0.04]} material={paint} position={[0, 0.62, SPHERE.r - 0.2]} rotation={[-0.25, 0, 0]} />
+        <Plate size={[2.0, 1.4, 0.1]} material={dark} position={[0, SPHERE.r * 0.24, SPHERE.r * 0.95]} rotation={[-0.25, 0, 0]} />
+        <Plate size={[1.0, 0.18, 0.05]} material={paint} position={[0, SPHERE.r * 0.26, SPHERE.r * 0.95 + 0.06]} rotation={[-0.25, 0, 0]} />
         {PRONGS.map(({ h, e }, k) => {
           const dir = new THREE.Vector3(Math.sin(h) * Math.cos(e), Math.sin(e), Math.cos(h) * Math.cos(e));
           const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 0, 1), dir);
           return (
             <group key={k} quaternion={q}>
-              <Turned profile={[[0.42, SPHERE.r - 0.3], [0.42, SPHERE.r + 0.05]]} segments={10} material={dark} />
-              <Turned profile={[[0.46, SPHERE.r + 0.05], [0.46, SPHERE.r + 0.15]]} segments={12} material={k % 2 ? dim : core} />
-              <Turned profile={[[0.32, SPHERE.r + 0.15], [0.32, SPHERE.r + 1.1], [0.24, SPHERE.r + 1.3], [0.001, SPHERE.r + 1.35]]} segments={10} material={steel} />
-              <Turned profile={[[0.34, SPHERE.r + 0.6], [0.34, SPHERE.r + 0.72]]} segments={10} material={grey} />
+              <group position={[0, 0, SPHERE.r]} scale={PRONG}>
+                <Turned profile={[[0.42, -0.3], [0.42, 0.05]]} segments={10} material={dark} />
+                <Turned profile={[[0.46, 0.05], [0.46, 0.15]]} segments={12} material={k % 2 ? dim : core} />
+                <Turned profile={[[0.32, 0.15], [0.32, 1.1], [0.24, 1.3], [0.001, 1.35]]} segments={10} material={steel} />
+                <Turned profile={[[0.34, 0.6], [0.34, 0.72]]} segments={10} material={grey} />
+              </group>
             </group>
           );
         })}
@@ -207,13 +212,12 @@ export const RefineryModel: React.FC<{ teamColor: string; level: 1 | 2; upgradin
           </group>
         ))}
       </group>
-      <Turned profile={[[SPHERE.r * 0.5, SPHERE.y + SPHERE.r - 0.2], [1.0, COLLAR.y - 0.3]]} segments={12} material={dark} rotation={UP} />
 
       {/* --- The cooling stack and its steam --- */}
       <Turned profile={stack} segments={20} material={light} rotation={UP} />
       <Turned profile={[[stack[stack.length - 1][0] + 0.08, stackTop - 0.25], [stack[stack.length - 1][0] + 0.08, stackTop]]} segments={20} material={dark} rotation={UP} />
       <Turned profile={[[stack[stack.length - 1][0] - 0.05, stackTop], [0.001, stackTop - 0.6]]} segments={20} material={black} rotation={UP} />
-      <Turned profile={[[stack[0][0] + 0.06, COLLAR.y + 1.2], [stack[0][0] - 0.05, COLLAR.y + 1.5]]} segments={20} material={paint} rotation={UP} />
+      <Turned profile={[[stack[1][0] + 0.06, stack[1][1] - 0.12], [stack[1][0] + 0.06, stack[1][1] + 0.12]]} segments={20} material={paint} rotation={UP} />
       <Strip size={[0.2, 0.2, 0.2]} material={glow(PALETTE.warning)} position={[stack[stack.length - 1][0], stackTop + 0.1, 0]} />
       {steam.map((m, k) => <mesh key={k} ref={el => { puffs.current[k] = el; }} geometry={puffGeometry} material={m} raycast={() => null} />)}
     </group>
