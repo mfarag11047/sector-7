@@ -564,7 +564,8 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   round dais, bend at elbows where clamps grip the sphere, and carry a collar ring; the sphere has
   a band of light in core yellow (`CORE_COLOR`, shared with the map's core nodes) and capsule
   prongs with lit collars. On the collar, a short, broad reactor-style cooling stack with steam
-  rising. Level 2 raises the stack and lights a second band and every prong's collar; while it
+  rising. Between the arms' feet an electric security fence: posts with insulators, a see-through
+  mesh, live wires humming in core yellow, a warning sign, and now and then an arc across a panel. Level 2 raises the stack and lights a second band and every prong's collar; while it
   upgrades the light pulses fast and the collar ring turns. The arms and the Comm Link's dish feed
   use the kit's `Strut`.
 - **The missile** (`components/models/MissileModel.tsx`): one model for the Ballista's missile
