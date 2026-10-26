@@ -18,6 +18,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { glow, kitMaterial, own, PALETTE, teamPaint } from '../kit/materials';
 import { Lattice } from '../kit/lattice';
+import { Strut } from '../kit/strut';
 import { Loft, Plate, Prism, Strip, Turned } from '../kit/shapes';
 
 // Upright: the kit's turned parts point along +Z; this turns +Z to +Y.
@@ -37,15 +38,6 @@ const square = (h: number): [number, number][] => [[-h, -h], [h, -h], [h, h], [-
 const Box: React.FC<{ x0: number; x1: number; z0: number; z1: number; y0: number; y1: number; material: THREE.Material }> = ({ x0, x1, z0, z1, y0, y1, material }) => (
   <Plate size={[x1 - x0, y1 - y0, z1 - z0]} material={material} position={[(x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2]} />
 );
-
-// A strut from a to b, its long axis along the line between them.
-const Strut: React.FC<{ a: THREE.Vector3; b: THREE.Vector3; t: number; material: THREE.Material }> = ({ a, b, t, material }) => {
-  const { mid, quat, len } = useMemo(() => {
-    const d = b.clone().sub(a);
-    return { mid: a.clone().add(b).multiplyScalar(0.5), len: d.length(), quat: new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize()) };
-  }, [a, b]);
-  return <group position={mid} quaternion={quat}><Plate size={[t, len, t]} material={material} /></group>;
-};
 
 export const CommLinkModel: React.FC<{ teamColor: string }> = ({ teamColor }) => {
   const light = kitMaterial('structLight'), grey = kitMaterial('structGrey'), dark = kitMaterial('structDark');

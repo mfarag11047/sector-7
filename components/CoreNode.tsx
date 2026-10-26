@@ -43,7 +43,9 @@ const columnMaterial = new THREE.ShaderMaterial({
 });
 const padMaterial = new THREE.MeshStandardMaterial({ color: '#141922', metalness: 0.7, roughness: 0.45 });
 const pylonMaterial = new THREE.MeshStandardMaterial({ color: '#2b3340', metalness: 0.85, roughness: 0.3 });
-const coreMaterial = new THREE.MeshStandardMaterial({ color: '#ffb02e', emissive: '#ff9a1a', emissiveIntensity: 2.2, toneMapped: false, roughness: 0.2 });
+// The colour of core energy: the nodes' cores, and the Core Refinery's reactor (models/RefineryModel.tsx).
+export const CORE_COLOR = '#ffb02e';
+const coreMaterial = new THREE.MeshStandardMaterial({ color: CORE_COLOR, emissive: '#ff9a1a', emissiveIntensity: 2.2, toneMapped: false, roughness: 0.2 });
 const glows = new Map<string, THREE.MeshBasicMaterial>();
 const glow = (color: string, opacity = 1) => {
   const k = `${color}:${opacity}`;

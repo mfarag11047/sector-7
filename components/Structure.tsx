@@ -23,6 +23,7 @@ import { CommLinkModel } from './models/CommLinkModel';
 import { DepotModel } from './models/DepotModel';
 import { OrdnanceFabModel } from './models/OrdnanceFabModel';
 import { ResearchLabModel } from './models/ResearchLabModel';
+import { RefineryModel } from './models/RefineryModel';
 import { facingOwnerView } from './kit/facing';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
@@ -147,58 +148,6 @@ const getLoadingZoneTexture = () => {
 // Advanced Research: a lab block under a glass dome with a slowly turning holo-ring, which spins
 // up while an upgrade is being researched.
 
-// Core Refinery (sim/refinery.ts): a glowing core column between storage silos. Level 2 adds two
-// more silos, a taller core and stacked energy rings, so an upgraded one stands out as a target.
-const RefineryModel = ({ color, teamColor, level, upgrading }: { color: string, teamColor: string, level: 1 | 2, upgrading: boolean }) => {
-    const coreRef = useRef<THREE.Mesh>(null);
-    const ringsRef = useRef<THREE.Group>(null);
-    useFrame(({ clock }, delta) => {
-        if (!coreRef.current || !isObjectInFrustum(coreRef.current, 6)) return;
-        const pulse = 0.6 + 0.4 * Math.sin(clock.elapsedTime * (level === 2 ? 4 : 2.5));
-        (coreRef.current.material as THREE.MeshStandardMaterial).emissiveIntensity = (level === 2 ? 1.4 : 0.8) * pulse;
-        if (ringsRef.current) ringsRef.current.rotation.y += delta * (upgrading ? 3 : level === 2 ? 1.2 : 0.5);
-    });
-    const coreHeight = level === 2 ? 5.2 : 3.6;
-    const silos: [number, number][] = level === 2 ? [[-2.3, -2.3], [2.3, -2.3], [-2.3, 2.3], [2.3, 2.3]] : [[-2.3, -2.3], [2.3, 2.3]];
-    return (
-        <group>
-            <mesh position={[0, 0.4, 0]}>
-                <boxGeometry args={[7, 0.8, 7]} />
-                <meshStandardMaterial color="#1e293b" />
-                <Edges color={teamColor} />
-            </mesh>
-            {silos.map(([x, z]) => (
-                <group key={`${x},${z}`} position={[x, 0.8, z]}>
-                    <mesh position={[0, 1.3, 0]}>
-                        <cylinderGeometry args={[0.95, 0.95, 2.6, 16]} />
-                        <meshStandardMaterial color="#334155" metalness={0.7} roughness={0.35} />
-                    </mesh>
-                    <mesh position={[0, 2.65, 0]}>
-                        <cylinderGeometry args={[0.6, 0.95, 0.3, 16]} />
-                        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.4} />
-                    </mesh>
-                </group>
-            ))}
-            <mesh position={[0, 0.8 + coreHeight / 2, 0]}>
-                <cylinderGeometry args={[1.4, 1.7, coreHeight, 20]} />
-                <meshStandardMaterial color="#0f172a" metalness={0.6} roughness={0.4} transparent opacity={0.55} />
-                <Edges color={color} />
-            </mesh>
-            <mesh ref={coreRef} position={[0, 0.8 + coreHeight / 2, 0]}>
-                <cylinderGeometry args={[0.7, 0.7, coreHeight - 0.4, 16]} />
-                <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} toneMapped={false} />
-            </mesh>
-            <group ref={ringsRef}>
-                {(level === 2 ? [1.6, 3.2, 4.8] : [2.2]).map(y => (
-                    <mesh key={y} position={[0, 0.8 + y, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                        <torusGeometry args={[1.95, 0.1, 8, 28]} />
-                        <meshBasicMaterial color={upgrading ? teamColor : color} toneMapped={false} />
-                    </mesh>
-                ))}
-            </group>
-        </group>
-    );
-};
 
 // A building being taken down: a pulsing amber frame round it.
 const DismantleFrame = ({ height, tileSize }: { height: number; tileSize: number }) => {
@@ -920,7 +869,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
         return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><OrdnanceFabModel teamColor={teamColor} fabricating={data.production?.active ? data.production.item : null} /></group>;
     }
     if (data.type === 'refinery') {
-        return <group scale={[1.9, 1.9, 1.9]}><RefineryModel color={config.color} teamColor={teamColor} level={data.refineryLevel === 2 ? 2 : 1} upgrading={!!data.refineryUpgrade} /></group>;
+        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><RefineryModel teamColor={teamColor} level={data.refineryLevel === 2 ? 2 : 1} upgrading={!!data.refineryUpgrade} /></group>;
     }
     if (data.type === 'research_lab') {
         return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><ResearchLabModel teamColor={teamColor} active={!!data.research} /></group>;

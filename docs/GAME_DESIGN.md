@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel, the Wasp, the Bombardment Drone, the Infiltrator, the Swarm Host, the Crawler Drone, the Lancer, the Trooper, the Ghost, the Field Fabricator, the Bulwark Field Generator and the Cloaking Field Generator are done; the rest of the roster follows by type.
+the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel, the Wasp, the Bombardment Drone, the Infiltrator, the Swarm Host, the Crawler Drone, the Lancer, the Trooper, the Ghost, the Field Fabricator, the Bulwark Field Generator and the Cloaking Field Generator are done, as are all the base structures; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -559,6 +559,14 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   of red data running down into a floor socket. The team-colour ring still orbits the dome, its
   track on two pylons. While research runs the data column flickers bright, the rack lights blink
   and the ring turns fast.
+- **The Core Refinery** (`components/models/RefineryModel.tsx`, structure type `refinery`): a
+  reactor sphere held in four arms under a cooling stack. Four heavy arms rise from a stepped
+  round dais, bend at elbows where clamps grip the sphere, and carry a collar ring; the sphere has
+  a band of light in core yellow (`CORE_COLOR`, shared with the map's core nodes) and capsule
+  prongs with lit collars. On the collar, a short, broad reactor-style cooling stack with steam
+  rising. Level 2 raises the stack and lights a second band and every prong's collar; while it
+  upgrades the light pulses fast and the collar ring turns. The arms and the Comm Link's dish feed
+  use the kit's `Strut`.
 - **The missile** (`components/models/MissileModel.tsx`): one model for the Ballista's missile
   wherever it shows (the Field Fabricator's cages, the Ballista's launch tube, in flight): a long
   dark body, a forked tail of four prongs growing out of it and sweeping out round a nozzle, four
