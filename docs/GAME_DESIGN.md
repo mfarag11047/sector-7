@@ -535,6 +535,14 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   lattice mast (`kit/lattice.tsx`) climbs from the cab: sector panels, small dishes, a whip with a
   blinking beacon; and near its head, out on one side, a large dish with a three-strut feed,
   panning slowly.
+- **The Depot** (`components/models/DepotModel.tsx`, structure type `builder`): a gantry loading
+  bay on a raised deck deep enough to hold a lit supply pit under a pair of floor doors. Four
+  corner pillars carry side rails; a hazard-striped bridge with a toothed rack spans them, a hoist
+  trolley on it. A control booth on a back corner, a winch drum on the front edge, and a roller
+  conveyor into a dispatch bay on the east side. While it has a Mason in training it runs a
+  delivery cycle: the doors swing down, the hook lifts a crate (team band) out of the pit, the
+  doors close, the gantry carries it to the conveyor and sets it down, and it rolls into the bay;
+  when the work stops it finishes the cycle in hand and parks.
 - **The missile** (`components/models/MissileModel.tsx`): one model for the Ballista's missile
   wherever it shows (the Field Fabricator's cages, the Ballista's launch tube, in flight): a long
   dark body, a forked tail of four prongs growing out of it and sweeping out round a nozzle, four

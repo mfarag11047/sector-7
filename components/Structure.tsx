@@ -20,6 +20,7 @@ import { BarracksModel } from './models/BarracksModel';
 import { FactoryModel } from './models/FactoryModel';
 import { AirpadModel } from './models/AirpadModel';
 import { CommLinkModel } from './models/CommLinkModel';
+import { DepotModel } from './models/DepotModel';
 import { facingOwnerView } from './kit/facing';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
@@ -245,96 +246,6 @@ const DismantleFrame = ({ height, tileSize }: { height: number; tileSize: number
     );
 };
 
-const DepotModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
-    const label = useMemo(getLoadingZoneTexture, []);
-    return (
-        <group>
-             <mesh position={[0, 0.3, 0]}>
-                 <boxGeometry args={[7.5, 0.6, 7.5]} />
-                 <meshStandardMaterial color="#1e293b" />
-                 <Edges color={teamColor} />
-             </mesh>
-             <mesh position={[0, 0.61, 0]} rotation={[-Math.PI/2, 0, 0]}>
-                 <planeGeometry args={[6.5, 6.5]} />
-                 <meshStandardMaterial color="#0f172a" roughness={0.8} />
-             </mesh>
-             <mesh position={[-1.5, 0.62, 1.5]} rotation={[-Math.PI/2, 0, 0]}>
-                 <planeGeometry args={[3, 3]} />
-                 <meshBasicMaterial color="#fbbf24" transparent opacity={0.2} />
-                 <Edges color="#fbbf24" />
-             </mesh>
-             <mesh position={[-1.5, 0.64, 1.5]} rotation={[-Math.PI/2, 0, 0]} raycast={() => null}>
-                 <planeGeometry args={[2.8, 0.7]} />
-                 <meshBasicMaterial map={label} transparent depthWrite={false} toneMapped={false} />
-             </mesh>
-             <group position={[2.5, 0, -2.5]}>
-                 <mesh position={[0, 2.5, 0]}>
-                     <boxGeometry args={[1, 5, 1]} />
-                     <meshStandardMaterial color="#475569" />
-                     <Edges color="#000000" />
-                 </mesh>
-                 <mesh position={[0.51, 2.5, 0]} rotation={[0, 0, Math.PI/2]}>
-                     <planeGeometry args={[4, 0.8]} />
-                     <meshBasicMaterial color="#fbbf24" />
-                 </mesh>
-                 <group position={[0, 5, 0]} rotation={[0, Math.PI/1.5, 0]}>
-                      <mesh position={[0, 0, 2.5]}>
-                          <boxGeometry args={[0.8, 0.8, 7]} />
-                          <meshStandardMaterial color="#475569" />
-                      </mesh>
-                      <mesh position={[0, 0, -2]}>
-                          <boxGeometry args={[1.2, 1.2, 1.5]} />
-                          <meshStandardMaterial color="#1e293b" />
-                      </mesh>
-                      <mesh position={[0.6, 0.2, 0]}>
-                          <boxGeometry args={[0.8, 0.8, 1]} />
-                          <meshStandardMaterial color="#0ea5e9" transparent opacity={0.6} />
-                      </mesh>
-                      <group position={[0, -0.4, 4]}>
-                           <mesh position={[0, -1.5, 0]}>
-                               <cylinderGeometry args={[0.05, 0.05, 3]} />
-                               <meshBasicMaterial color="#000000" />
-                           </mesh>
-                           <mesh position={[0, -3, 0]}>
-                               <boxGeometry args={[1.2, 1.2, 1.2]} />
-                               <meshStandardMaterial color="#cbd5e1" />
-                               <Edges color={teamColor} />
-                               <mesh>
-                                   <boxGeometry args={[1, 1, 1]} />
-                                   <meshBasicMaterial color={color} transparent opacity={0.5} />
-                               </mesh>
-                           </mesh>
-                      </group>
-                 </group>
-             </group>
-             <group position={[-2.5, 1, -2.5]}>
-                 <mesh>
-                     <boxGeometry args={[1.5, 1.5, 1.5]} />
-                     <meshStandardMaterial color="#334155" />
-                     <Edges color={teamColor} />
-                 </mesh>
-                 <mesh position={[1, -0.3, 0.5]}>
-                     <boxGeometry args={[1, 0.8, 1.2]} />
-                     <meshStandardMaterial color="#475569" />
-                 </mesh>
-             </group>
-             <group position={[2.8, 1.5, 2.8]}>
-                 <mesh>
-                     <boxGeometry args={[1.5, 2.5, 1.5]} />
-                     <meshStandardMaterial color="#334155" />
-                 </mesh>
-                 <mesh position={[-0.4, 0.5, 0.76]}>
-                     <planeGeometry args={[0.6, 0.6]} />
-                     <meshStandardMaterial color="#0ea5e9" />
-                 </mesh>
-                 <mesh position={[0, 1.5, 0]}>
-                     <cylinderGeometry args={[0.1, 0.1, 1]} />
-                     <meshStandardMaterial color="#94a3b8" />
-                 </mesh>
-             </group>
-        </group>
-    );
-}
 
 const OrdnanceFabModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
   return (
@@ -1097,7 +1008,8 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
         return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><AirpadModel teamColor={teamColor} /></group>;
     }
     if (data.type === 'builder') {
-        return <group scale={[1.75, 1.75, 1.75]}><DepotModel color={config.color} teamColor={teamColor} /></group>;
+        // At work while it has a Mason in training.
+        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><DepotModel teamColor={teamColor} active={(data.queue?.length ?? 0) > 0} /></group>;
     }
     if (data.type === 'ordnance_fab') {
         return <group scale={[2.5, 2.5, 2.5]}><OrdnanceFabModel color={config.color} teamColor={teamColor} /></group>;
