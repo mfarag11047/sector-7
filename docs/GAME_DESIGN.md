@@ -1372,9 +1372,23 @@ Drop, or Masons.
   facing the map, with the Blackwall at its back: a solid lower wall of dark concrete panels with a
   coping, downlights on both faces throwing pools of light down it and a line of the side's colour
   under the coping; above it a louvred fence of angled horizontal slats in a frame, split by
-  mullions, between square capped pillars; and a watchtower on the corner. The wall
-  can't be crossed. Each of the four roads that run through it has a gate, flanked by
-  hazard-striped pillars with amber beacons, so everything leaves the base through a gate. Inside,
+  mullions, between square capped pillars; and a watchtower on the corner. Each of the four roads
+  that run through it has a blast gate between two tall black capped pillars with lights facing
+  along the road: a ribbed steel shutter with a line of the side's colour along its top, that sinks
+  into a slot in the road while the side's own ground units come through and rises behind them.
+  The wall and its gates are a layer of defence that holds an early rush, not a seal
+  (`sim/compound.ts`):
+  - Every wall tile (Base Wall, 2000 HP; the corner tower 3000) and every gate (Blast Gate, 1500
+    HP) is a structure of the base's side with health. Enemy units shoot them like any enemy
+    structure in range, and the health bar shows once one is hit. They are never repaired, built,
+    dismantled or clicked, and aircraft fly over them.
+  - A standing wall tile blocks everyone. Shot down, it leaves rubble and its tile is open ground:
+    a breach anyone can go through.
+  - A gate lets its own side straight through. The other side's ground units are planned through
+    it like any road but stop in front of a standing gate, shooting it, until it is down; then it
+    leaves rubble at the sides of the road and anyone can pass. One tank takes about 37 seconds
+    to bring a gate down on its own.
+  Inside,
   the ground is reinforced concrete deck plating with steel joints and bolt plates, with marked
   lanes (yellow edges, dashed centre) along the roads out to the gates. The base blocks outside
   the wall are compacted military gravel.

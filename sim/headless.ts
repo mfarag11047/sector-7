@@ -36,6 +36,7 @@ import { advanceProduction, applyProduction, createUnit } from './production';
 import { ballistaLoadStep, landCrawlers, repairTick } from './support';
 import { isAirType } from './units';
 import { airPath, fastestPath, sentinelHazardOf } from './pathfinding';
+import { blocksPath, compoundGround, compoundStructures, heldAtGate, hostileGateAt } from './compound';
 import { hasBuff, spendOvercharge } from './unitAbilities';
 import { applyFieldCloak, fieldCloakedIds } from './cloak';
 import { kageCharges } from './shadowHero';
@@ -109,7 +110,7 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
   return {
     opts, now: 0,
     units: [...startingRoster(config, gridSize, TEAM_BASES.blue), ...city.sentinels],
-    structures: [hq('blue'), hq('red')],
+    structures: [hq('blue'), hq('red'), ...compoundStructures(city.baseWalls, city.baseGates, gridSize)],
     buildings: city.buildings,
     economy: createEconomy(opts.startingCores ?? 1000),
     memory: { blue: freshAiMemory(), red: freshAiMemory() },
@@ -130,17 +131,18 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     random: seededRandom(opts.seed ^ 0x5eed),
     thinkRandom: seededRandom(opts.seed ^ 0x7a1c),
     gridSize,
-    roads: new Set([...city.roadTileSet]),
+    roads: new Set([...city.roadTileSet, ...compoundGround(city.baseWalls)]),
     tileType: city.tileTypeMap,
     log: [],
   };
 }
 
-// --- Pathing on the current map (roads minus structures and the HQ pads) ---
+// --- Pathing on the current map (roads and fallen wall minus structures and the HQ pads) ---
 
 function blockedTiles(m: HeadlessMatch): Set<string> {
   const blocked = new Set<string>();
-  for (const s of m.structures) blocked.add(key(s.gridPos.x, s.gridPos.z));
+  // A blast gate is open road to plan through; the other side is stopped at it as it moves.
+  for (const s of m.structures) if (blocksPath(s)) blocked.add(key(s.gridPos.x, s.gridPos.z));
   return blocked;
 }
 
@@ -178,7 +180,7 @@ export function stepMatch(m: HeadlessMatch): void {
     tileSize: CITY_CONFIG.tileSize,
     tileTypeOf: k => m.tileType[k] as never,
     arrive: u => arriveAtNextTile(u, {
-      isWalkable: (x, z) => isAirType(u.type as never) || paths.walkable(x, z),
+      isWalkable: (x, z) => isAirType(u.type as never) || (paths.walkable(x, z) && !hostileGateAt(m.structures, u.team, key(x, z))),
       reroute: (from, path) => {
         if (path.length === 0) return [];
         const [gx, gz] = path[path.length - 1].split(',').map(Number);
@@ -186,6 +188,7 @@ export function stepMatch(m: HeadlessMatch): void {
       },
       now,
     }),
+    shut: u => heldAtGate(m.structures, u.team, u.path),
   };
   m.units = m.units.map(u => advanceMover(u, MOVE_TICK_MS, env));
   // Kage's Optical Camo hides him (sim/cloak.ts; Cloaking Fields aren't modelled here).

@@ -225,7 +225,7 @@ export interface UnitData {
   pendingCrawlers?: { at: { x: number, z: number }; launchAt: number }[];
 }
 
-export type StructureType = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'ordnance_fab' | 'research_lab' | 'refinery' | 'wall_tier1' | 'wall_tier2' | 'defense' | 'aa_turret' | 'hq';
+export type StructureType = 'support' | 'infantry' | 'armor' | 'ordnance' | 'air' | 'builder' | 'ordnance_fab' | 'research_lab' | 'refinery' | 'wall_tier1' | 'wall_tier2' | 'defense' | 'aa_turret' | 'hq' | 'base_wall' | 'base_gate';
 
 export interface StructureData {
   id: string;

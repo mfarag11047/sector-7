@@ -280,6 +280,7 @@ function sample(s: PacingState, team: Team): TeamSample {
 const STRUCTURE_LABELS: Record<string, string> = {
   hq: 'Command HQ', infantry: 'Barracks', armor: 'Factory', air: 'Airpad', support: 'Comm Link', builder: 'Depot',
   ordnance_fab: 'Ordnance Fab', research_lab: 'Advanced Research', defense: 'Sentry Turret', aa_turret: 'AA Turret', wall_tier1: 'Wall', wall_tier2: 'Wall',
+  base_wall: 'Base Wall', base_gate: 'Blast Gate',
 };
 export const structureLabel = (type: string) => STRUCTURE_LABELS[type] ?? type;
 export const unitLabel = (type: string) =>

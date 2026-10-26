@@ -277,6 +277,9 @@ export const STRUCTURE_INFO: Record<StructureType, { label: string, color: strin
     aa_turret: { label: 'CIWS Turret', color: '#38bdf8', height: 5, cost: 450, maxProgress: 300, maxHealth: 800 },
     // Each side starts with one. Losing it loses the match.
     hq: { label: 'Command HQ', color: '#22d3ee', height: 10, cost: 0, maxProgress: 0, maxHealth: 5000 },
+    // The starting bases' wall and blast gates (sim/compound.ts): there from the start, never built.
+    base_wall: { label: 'Base Wall', color: '#4b5056', height: 7, cost: 0, maxProgress: 0, maxHealth: 2000 },
+    base_gate: { label: 'Blast Gate', color: '#4b5056', height: 6, cost: 0, maxProgress: 0, maxHealth: 1500 },
 };
 
 // Fortification / Block Bonuses

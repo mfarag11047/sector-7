@@ -139,6 +139,9 @@ export const STRUCTURE_RULES: Record<StructureType, StructureRules> = {
   // Against ground units it does half its flak damage.
   aa_turret: { buildable: false, buildTimeMs: 0, weapon: { damage: 1.6, cooldownMs: 100, range: 10, type: 'flak', hitsGround: true, hitsAir: true, ciws: true } },
   hq: { buildable: false, buildTimeMs: 0, weapon: ap(30, 1000, 5, true) },
+  // The starting bases' wall and blast gates (sim/compound.ts).
+  base_wall: { buildable: false, buildTimeMs: 0, weapon: null },
+  base_gate: { buildable: false, buildTimeMs: 0, weapon: null },
 };
 
 // Units a structure can train, in menu order.

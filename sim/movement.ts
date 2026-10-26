@@ -23,6 +23,7 @@ export const isAirUnit = (type: UnitType) => isAirType(type);
 // The fields movement reads. Units and decoys both satisfy it.
 export interface Mover {
   type: UnitType;
+  team?: UnitData['team'];
   unitClass: UnitData['unitClass'];
   gridPos: GridPos;
   path: string[];
@@ -121,6 +122,9 @@ export interface MovementEnv {
   // Called when a unit reaches path[0]. Returns the unit after arriving. If it
   // returns the unit still on its old tile (rerouted, blocked), the step restarts.
   arrive: <T extends Mover>(unit: T) => T;
+  // A ground unit whose next tile this says is shut to it (the other side's blast gate:
+  // sim/compound.ts) waits where it is, rather than stepping and being turned back.
+  shut?: (unit: Mover) => boolean;
 }
 
 // One movement tick for one unit. Returns the same object when nothing changed.
@@ -130,6 +134,9 @@ export function advanceMover<T extends Mover>(unit: T, dtMs: number, env: Moveme
     return unit.moveProgress || unit.moveTarget || unit.moveSpeed ? { ...unit, moveProgress: 0, moveTarget: undefined, moveSpeed: 0 } : unit;
   }
   let u = unit.moveTarget === unit.path[0] ? unit : { ...unit, moveProgress: 0, moveTarget: unit.path[0] };
+  if (env.shut && !isAirUnit(u.type) && env.shut(u)) {
+    return u.moveProgress || u.moveSpeed ? { ...u, moveProgress: 0, moveSpeed: 0 } : u;
+  }
 
   const speed = speedMultiplier(u, env.tileTypeOf);
   if (speed <= 0) return u.moveSpeed ? { ...u, moveSpeed: 0 } : u;

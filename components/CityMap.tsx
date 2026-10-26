@@ -81,6 +81,7 @@ import { Plate, Turned } from './kit/shapes';
 import { Missile } from './models/MissileModel';
 import { aaTurretMuzzle } from './models/AaTurretModel';
 import { sentryMuzzle } from './models/SentryTurretModel';
+import { blocksPath, compoundStructures, heldAtGate, hostileGateAt, isCompoundPiece } from '../sim/compound';
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
 import { dampenedUnits } from '../sim/ghost';
 import { heliosBeams, microwaveDamage } from '../sim/helios';
@@ -1606,6 +1607,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
     })),
     // Sandbox: both sides start with every base building already up, for quick play testing.
     ...(match.mode === 'sandbox' ? sandboxStructures(gridSize) : []),
+    // The starting bases' walls and blast gates, which can be shot down (sim/compound.ts).
+    ...compoundStructures(baseWalls, baseGates, gridSize),
   ]);
   const [decoys, setDecoys] = useState<DecoyData[]>([]);
   const [clouds, setClouds] = useState<CloudData[]>([]);
@@ -2238,17 +2241,24 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
     roadTiles.forEach(t => { set.add((t.x << 16) | t.z); });
     // A city block becomes a lane only after every building in that block is gone.
     breachedTiles.forEach(tile => set.add(tile));
+    // The base walls' tiles: open ground once their wall has been shot down (sim/compound.ts).
+    baseWalls.forEach(w => set.add((w.at.x << 16) | w.at.z));
     // A structure owns its whole tile. Walls, turrets, and sites under construction
-    // are solid blocks: friendly and enemy pathing both have to go around them.
-    structuresState.forEach(s => { set.delete((s.gridPos.x << 16) | s.gridPos.z); });
+    // are solid blocks: friendly and enemy pathing both have to go around them. A blast gate is
+    // road to plan through: its side drives through it, the other side is stopped at it.
+    structuresState.forEach(s => { if (blocksPath(s)) set.delete((s.gridPos.x << 16) | s.gridPos.z); });
     set.delete((baseA_Coord.x << 16) | baseA_Coord.z);
     set.delete((baseB_Coord.x << 16) | baseB_Coord.z);
     return set;
-  }, [roadTiles, structuresState, baseA_Coord, baseB_Coord, breachedTiles]);
+  }, [roadTiles, structuresState, baseA_Coord, baseB_Coord, breachedTiles, baseWalls]);
+
+  // The base walls' and gates' tiles still standing, for BaseCompound to draw (sim/compound.ts).
+  const compoundKey = structuresState.filter(s => isCompoundPiece(s.type)).map(s => `${s.gridPos.x},${s.gridPos.z}`).join(';');
+  const compoundStanding = useMemo(() => new Set(compoundKey.split(';')), [compoundKey]);
 
   const structureTileSet = useMemo(() => {
     const set = new Set<string>();
-    structuresState.forEach(s => set.add(`${s.gridPos.x},${s.gridPos.z}`));
+    structuresState.forEach(s => { if (blocksPath(s)) set.add(`${s.gridPos.x},${s.gridPos.z}`); });
     return set;
   }, [structuresState]);
 
@@ -2291,7 +2301,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   movementEnvRef.current = {
       tileSize,
       tileTypeOf: key => tileTypeMap[key],
-      arrive: <T extends Mover>(u: T) => arriveAtNextTile(u, { isWalkable, reroute: rerouteAroundBlocks, now: Date.now() }),
+      arrive: <T extends Mover>(u: T) => arriveAtNextTile(u, {
+          isWalkable: (x, z) => isWalkable(x, z) && !hostileGateAt(structuresRef.current, u.team, `${x},${z}`),
+          reroute: rerouteAroundBlocks, now: Date.now(),
+      }),
+      // The other side's blast gate: wait at it (and shoot it) until it is down.
+      shut: u => heldAtGate(structuresRef.current, u.team, u.path),
   };
 
   // A wall placed on an existing route pulls that unit off the tile and sends them around it.
@@ -4334,7 +4349,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         {/* Sky walkways between the buildings of midtown's apartment complexes. */}
         <MidtownSkyways buildings={initialBuildings} tileSize={CITY_CONFIG.tileSize} offset={offset} />
         {/* The blast walls and gates round the starting bases. */}
-        <BaseCompound walls={baseWalls} gates={baseGates} tileSize={CITY_CONFIG.tileSize} offset={offset} />
+        <BaseCompound walls={baseWalls} gates={baseGates} tileSize={CITY_CONFIG.tileSize} offset={offset} standing={compoundStanding} unitsOf={getUnitsForScenery} />
 
         {/* Selection Box Visual */}
 

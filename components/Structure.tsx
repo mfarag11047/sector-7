@@ -27,6 +27,7 @@ import { RefineryModel } from './models/RefineryModel';
 import { AaTurretModel } from './models/AaTurretModel';
 import { SentryTurretModel } from './models/SentryTurretModel';
 import { facingOwnerView } from './kit/facing';
+import { isCompoundPiece } from '../sim/compound';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
 
@@ -709,6 +710,8 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
 
   // Determine which model to render
   const renderModel = () => {
+    // The base walls and blast gates are drawn together by BaseCompound.tsx; only their health shows here.
+    if (isCompoundPiece(data.type)) return null;
     // 1. Custom Models
     if (data.type === 'support') {
         return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><CommLinkModel teamColor={teamColor} /></group>;
