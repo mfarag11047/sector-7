@@ -1369,8 +1369,10 @@ Drop, or Masons.
   tightest and the edges the most open.
 - Each starting base is a walled military compound (`baseCompound` in `sim/mapgen.ts`, drawn by
   `components/BaseCompound.tsx`). A blast wall runs four tiles out from the HQ along the two sides
-  facing the map, with the Blackwall at its back: concrete T-wall slabs with a hazard band at the
-  foot and a line of the side's colour along the top, and a watchtower on the corner. The wall
+  facing the map, with the Blackwall at its back: a solid lower wall of dark concrete panels with a
+  coping, downlights on both faces throwing pools of light down it and a line of the side's colour
+  under the coping; above it a louvred fence of angled horizontal slats in a frame, split by
+  mullions, between square capped pillars; and a watchtower on the corner. The wall
   can't be crossed. Each of the four roads that run through it has a gate, flanked by
   hazard-striped pillars with amber beacons, so everything leaves the base through a gate. Inside,
   the ground is reinforced concrete deck plating with steel joints and bolt plates, with marked
