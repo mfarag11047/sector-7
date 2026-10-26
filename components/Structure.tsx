@@ -19,6 +19,7 @@ import { WARHEAD_LABEL } from '../sim/warheads';
 import { BarracksModel } from './models/BarracksModel';
 import { FactoryModel } from './models/FactoryModel';
 import { AirpadModel } from './models/AirpadModel';
+import { CommLinkModel } from './models/CommLinkModel';
 import { facingOwnerView } from './kit/facing';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
@@ -52,87 +53,6 @@ interface StructureProps {
   refineryShare?: { multiplier: number; blocks: number | null };
 }
 
-const CommLinkModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
-  const dishRef = useRef<THREE.Group>(null);
-  const fanRef = useRef<THREE.Group>(null);
-
-  useFrame((state, delta) => {
-    if (dishRef.current && isObjectInFrustum(dishRef.current, 10)) {
-        dishRef.current.rotation.y += delta * 0.2;
-        dishRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.5) * 0.2 - 0.2;
-    }
-    if (fanRef.current && isObjectInFrustum(fanRef.current, 5)) {
-        fanRef.current.rotation.y += delta * 5;
-    }
-  });
-
-  return (
-    <group position={[0, 0, 0]}>
-        <mesh position={[0, 0.5, 0]}>
-            <cylinderGeometry args={[3, 3.5, 1, 6]} />
-            <meshStandardMaterial color="#1e293b" metalness={0.8} />
-            <Edges color={teamColor} />
-        </mesh>
-        {[0, Math.PI/3, 2*Math.PI/3].map((r, i) => (
-            <mesh key={i} position={[0, 0.5, 0]} rotation={[0, r, 0]}>
-                 <boxGeometry args={[5.5, 0.6, 0.5]} />
-                 <meshStandardMaterial color="#334155" />
-            </mesh>
-        ))}
-        <mesh position={[0, 3, 0]}>
-            <cylinderGeometry args={[0.8, 1.2, 5, 8]} />
-            <meshStandardMaterial color="#334155" metalness={0.6} />
-        </mesh>
-        {[0, Math.PI/2, Math.PI, -Math.PI/2].map((r, i) => (
-             <group key={i} rotation={[0, r, 0]}>
-                 <mesh position={[1.2, 2, 0]} rotation={[0, 0, -0.1]}>
-                      <boxGeometry args={[0.4, 4, 0.4]} />
-                      <meshStandardMaterial color="#475569" />
-                 </mesh>
-                 <mesh position={[1.41, 2, 0]} rotation={[0, 0, -0.1]}>
-                      <boxGeometry args={[0.1, 3, 0.1]} />
-                      <meshBasicMaterial color={color} />
-                 </mesh>
-             </group>
-        ))}
-        <group position={[0, 6, 0]} ref={dishRef}>
-             <mesh rotation={[0, 0, Math.PI/2]}>
-                  <cylinderGeometry args={[0.5, 0.5, 2, 8]} />
-                  <meshStandardMaterial color="#1e293b" />
-             </mesh>
-             <group position={[0, 0.5, 0]} rotation={[-Math.PI/4, 0, 0]}>
-                 <mesh>
-                     <cylinderGeometry args={[2.5, 1, 0.5, 8]} />
-                     <meshStandardMaterial color="#1e293b" metalness={0.8} roughness={0.3} />
-                     <Edges color={color} />
-                 </mesh>
-                 <mesh position={[0, 0.26, 0]}>
-                     <circleGeometry args={[2, 8]} />
-                     <meshBasicMaterial color={color} transparent opacity={0.6} side={THREE.DoubleSide} />
-                 </mesh>
-                 <mesh position={[0, 1, 0]}>
-                     <cylinderGeometry args={[0.1, 0.2, 2]} />
-                     <meshStandardMaterial color="#cbd5e1" metalness={1} />
-                 </mesh>
-             </group>
-        </group>
-        <group position={[0, 4.5, 0]}>
-             {[0, Math.PI].map((r, i) => (
-                 <group key={i} rotation={[0, r, 0]}>
-                     <mesh position={[1.2, 0, 0]} rotation={[0, 0, -Math.PI/4]}>
-                         <cylinderGeometry args={[0.1, 0.1, 2]} />
-                         <meshStandardMaterial color="#94a3b8" />
-                     </mesh>
-                     <mesh position={[1.8, 0.8, 0]}>
-                         <sphereGeometry args={[0.2]} />
-                         <meshBasicMaterial color={teamColor} />
-                     </mesh>
-                 </group>
-             ))}
-        </group>
-    </group>
-  );
-}
 
 
 const MunitionsModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
@@ -1162,7 +1082,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
   const renderModel = () => {
     // 1. Custom Models
     if (data.type === 'support') {
-        return <group scale={[2.2, 2.2, 2.2]}><CommLinkModel color={config.color} teamColor={teamColor} /></group>;
+        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><CommLinkModel teamColor={teamColor} /></group>;
     }
     if (data.type === 'infantry') {
         return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><BarracksModel teamColor={teamColor} /></group>;

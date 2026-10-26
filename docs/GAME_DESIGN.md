@@ -528,6 +528,13 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   X-braced panels, a small railed side platform; at the top the spines fork into a Y under a broad
   deck reaching out over the front: a landing pad (team-colour mark and H, edge lights blinking
   round it in turn), an apron of grille panels, fan housings under its sides, a mast with a beacon.
+- **The Comm Link** (`components/models/CommLinkModel.tsx`, structure type `support`): a signals
+  tower on a raised platform. Four stilt legs on lit footings under a faceted platform with a
+  railing, a stair down one side and a grated walkway out from another; on the deck a core block
+  (lit doorway, team stripe), a canopy and an upper cab, with a tall slanted fin up the back. A
+  lattice mast (`kit/lattice.tsx`) climbs from the cab: sector panels, small dishes, a whip with a
+  blinking beacon; and near its head, out on one side, a large dish with a three-strut feed,
+  panning slowly.
 - **The missile** (`components/models/MissileModel.tsx`): one model for the Ballista's missile
   wherever it shows (the Field Fabricator's cages, the Ballista's launch tube, in flight): a long
   dark body, a forked tail of four prongs growing out of it and sweeping out round a nozzle, four

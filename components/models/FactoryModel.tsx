@@ -18,6 +18,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { glow, kitMaterial, own, PALETTE, teamPaint } from '../kit/materials';
 import { Loft, Plate, Prism, Strip, Turned } from '../kit/shapes';
+import { Lattice } from '../kit/lattice';
 
 // Upright: the kit's turned parts point along +Z; this turns +Z to +Y.
 const UP: [number, number, number] = [-Math.PI / 2, 0, 0];
@@ -44,28 +45,6 @@ const Hall: React.FC<{ outline: [number, number][]; depth: number; material: THR
   </group>
 );
 
-// A square lattice tower: corner posts, rings, and crossed braces on its faces.
-const Lattice: React.FC<{ w: number; h: number; position: [number, number, number] }> = ({ w, h, position }) => {
-  const grey = kitMaterial('structGrey');
-  const rings = Math.max(2, Math.round(h / 1.3));
-  const step = h / rings, diag = Math.hypot(w, step), lean = Math.atan2(step, w);
-  return (
-    <group position={position}>
-      {[-1, 1].flatMap(sx => [-1, 1].map(sz => <Plate key={`${sx}${sz}`} size={[0.14, h, 0.14]} material={grey} position={[sx * w / 2, h / 2, sz * w / 2]} />))}
-      {Array.from({ length: rings + 1 }, (_, k) => k * step).map(y => (
-        <group key={y} position={[0, y, 0]}>
-          {[-1, 1].map(s => <Plate key={`a${s}`} size={[w, 0.08, 0.08]} material={grey} position={[0, 0, s * w / 2]} />)}
-          {[-1, 1].map(s => <Plate key={`b${s}`} size={[0.08, 0.08, w]} material={grey} position={[s * w / 2, 0, 0]} />)}
-        </group>
-      ))}
-      {Array.from({ length: rings }, (_, k) => (k + 0.5) * step).flatMap(y => [0, Math.PI / 2, Math.PI, -Math.PI / 2].map(r => (
-        <group key={`${y}${r}`} rotation={[0, r, 0]}>
-          <Plate size={[diag, 0.06, 0.06]} material={grey} position={[0, y, w / 2]} rotation={[0, 0, (Math.round(y / step) % 2 ? 1 : -1) * lean]} />
-        </group>
-      )))}
-    </group>
-  );
-};
 
 export const FactoryModel: React.FC<{ teamColor: string }> = ({ teamColor }) => {
   const light = kitMaterial('structLight'), grey = kitMaterial('structGrey'), dark = kitMaterial('structDark');
