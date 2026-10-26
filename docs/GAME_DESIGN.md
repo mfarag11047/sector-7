@@ -303,6 +303,9 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   fog), so units get crisp shadows and shadow each other rather than a map-wide blur. The box
   moves in whole shadow texels and steps in size, so shadows hold still while the camera pans or
   zooms; filtered (`shadows="percentage"`) with a soft-edge radius.
+- **Ambient occlusion** (`components/PostFx.tsx`, N8AO): darkens where surfaces close in (under
+  hulls, where legs meet bodies, round buildings' feet) from the depth buffer alone, at half
+  resolution, first in the post-processing chain so it works on the scene's real brightness.
 - **Bloom** (`components/PostFx.tsx`): every opaque unlit light (the kit's `glow` parts, the
   city's neon, structure trim) glows with a soft halo in its own colour. It is selective: lights
   are found by a sweep of the scene and put on a bloom layer, so lit surfaces never bloom however
