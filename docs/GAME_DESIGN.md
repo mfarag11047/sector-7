@@ -298,6 +298,11 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   built once from light panels, not loaded: softboxes where the suns are, a dim sky overhead and
   in a ring all round, neon cyan and magenta strips low on the horizon and an amber city glow.
   It is what metal reflects, so steel reads as steel from any camera heading.
+- **Shadows** (`components/KeyLight.tsx`): only the key light casts them, and its shadow is
+  fitted every frame to the ground in view (the screen's corners traced to the ground, out to the
+  fog), so units get crisp shadows and shadow each other rather than a map-wide blur. The box
+  moves in whole shadow texels and steps in size, so shadows hold still while the camera pans or
+  zooms; filtered (`shadows="percentage"`) with a soft-edge radius.
 - **Bloom** (`components/PostFx.tsx`): every opaque unlit light (the kit's `glow` parts, the
   city's neon, structure trim) glows with a soft halo in its own colour. It is selective: lights
   are found by a sweep of the scene and put on a bloom layer, so lit surfaces never bloom however

@@ -2,6 +2,7 @@
 import React from 'react';
 import { Environment, Lightformer, Stars } from '@react-three/drei';
 import { FOG_NEAR, FOG_FAR } from '../constants';
+import KeyLight from './KeyLight';
 import '../types';
 
 // How strongly the environment lights and is reflected by the scene.
@@ -41,18 +42,9 @@ const Atmosphere: React.FC = () => {
       <ambientLight intensity={0.42} color="#d5deee" />
       <hemisphereLight args={['#c5e8ff', '#2a2348', 0.85]} />
       
-      {/* Key light. Shadows stay on this one so the map keeps a direction without doubling the shadow cost. */}
-      <directionalLight 
-        position={[400, 600, 400]} 
-        intensity={1.7} 
-        color="#e7fbff" 
-        castShadow 
-        shadow-mapSize={[2048, 2048]}
-        shadow-camera-left={-800}
-        shadow-camera-right={800}
-        shadow-camera-top={800}
-        shadow-camera-bottom={-800}
-      />
+      {/* Key light. Shadows stay on this one so the map keeps a direction without doubling the
+          shadow cost; its shadow follows the view (KeyLight.tsx). */}
+      <KeyLight />
       {/* Opposite fill. The camera can yaw a full circle, and a single sun leaves the far side of every block black. */}
       <directionalLight
         position={[-380, 520, -260]}

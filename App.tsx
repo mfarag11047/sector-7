@@ -279,7 +279,9 @@ function App() {
     >
       <Canvas
         frameloop={SLOW_RENDER ? 'never' : 'always'}
-        shadows
+        // Filtered shadows ('soft' is deprecated in three and falls back to this anyway); the key
+        // light sets how soft their edges are (KeyLight.tsx).
+        shadows="percentage"
         // Capped at 1.5x: at 2x a high-DPI screen draws four times the pixels of 1x for a
         // barely visible gain, and fill rate is what this many lit buildings cost most.
         dpr={[1, 1.5]}
