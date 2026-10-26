@@ -27,6 +27,10 @@ export const PALETTE = {
   black: '#1c1e22',         // rubber, deep recesses, vents
   composite: '#363a2f',     // dark olive-grey polymer: skirts, fenders, bumpers, guards
   housing: '#8e917a',       // pale khaki-grey: sensor and system housings
+  // Base structures: greys and black rather than the army's olive.
+  structLight: '#686d73',   // light grey: main walls and panels
+  structGrey: '#4b5056',    // dark grey: secondary plates, frames, bands
+  structDark: '#26292d',    // near black: plinths, deep trim, roofs
   // Lights.
   cyan: '#22d3ee',          // standard army
   amber: '#f59e0b',         // Heavy Metal
@@ -38,7 +42,7 @@ export const PALETTE = {
   headlight: '#e0f7ff',
 };
 
-export type KitMaterial = 'armour' | 'armourDark' | 'steel' | 'black' | 'composite' | 'housing' | 'tread';
+export type KitMaterial = 'armour' | 'armourDark' | 'steel' | 'black' | 'composite' | 'housing' | 'structLight' | 'structGrey' | 'structDark' | 'tread';
 
 const cache = new Map<string, THREE.Material>();
 const cached = <T extends THREE.Material>(key: string, make: () => T): T => {
@@ -103,6 +107,10 @@ export function kitMaterial(kind: KitMaterial): THREE.MeshStandardMaterial {
       case 'black': return plate(PALETTE.black, 0, 0.88, 0.2);
       case 'composite': return plate(PALETTE.composite, 0.05, 0.74, 0.3);
       case 'housing': return plate(PALETTE.housing, 0.1, 0.44, 0.45);
+      // Base structures: painted plate and concrete, matte to satin.
+      case 'structLight': return plate(PALETTE.structLight, 0.1, 0.62, 0.4);
+      case 'structGrey': return plate(PALETTE.structGrey, 0.15, 0.58, 0.35);
+      case 'structDark': return plate(PALETTE.structDark, 0.1, 0.7, 0.3);
       case 'tread': return new THREE.MeshStandardMaterial({ color: '#ffffff', metalness: 0.1, roughness: 0.85, map: treadMap() });
     }
   }) as THREE.MeshStandardMaterial;

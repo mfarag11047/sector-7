@@ -495,6 +495,17 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   cradles, the lights go dark and an amber standby light comes on. Its lights are `cloakExempt`:
   while the generator sits cloaked in its own field the rest of it takes the cloak's tint, but
   they keep scanning and projecting.
+- **Base structures** take their own palette in `materials.ts` rather than the army's olive: a
+  light and a dark grey and near black (`structLight`, `structGrey`, `structDark`), with team
+  colour as stripes and lights.
+- **The Command HQ** (`components/models/CommandHqModel.tsx`, drawn by `components/Base.tsx`,
+  which keeps its menu, health bar and build-up): a heavy foundation block on a dark plinth (a
+  window band and a roll-up vehicle door at the front, a pipe run at its foot, vents and a service
+  door at the back, a lower annex with a door and a railed balcony), and a tall watchtower set
+  back on it: corner pillars, an X-braced truss band, a duct from a utility box, a ladder up the
+  back. An overhanging control cab sits on an angled underside, dark windows all round, and on its
+  roof a comms mast (antenna panels, two dishes, a blinking team beacon at the tip), two radomes
+  and a turning radar array. It faces the middle of the map.
 - **The missile** (`components/models/MissileModel.tsx`): one model for the Ballista's missile
   wherever it shows (the Field Fabricator's cages, the Ballista's launch tube, in flight): a long
   dark body, a forked tail of four prongs growing out of it and sweeping out round a nozzle, four
