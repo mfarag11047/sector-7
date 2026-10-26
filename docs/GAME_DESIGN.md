@@ -522,6 +522,12 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   rails run out across the pad. Beside it an office block (door, marked sign panel, AC unit) and a
   machinery block with pipes; behind, two smokestacks, a domed tank on a lattice frame and a
   lattice tower; over the east side a gantry crane whose trolley runs slowly along its beam.
+- **The Airpad** (`components/models/AirpadModel.tsx`, structure type `air`): a landing deck held
+  high on one column. A footing block with a door, braced by two splayed buttress legs; the column
+  in segments, two spines framing a dark lift core (a lift car rides it), framed openings and
+  X-braced panels, a small railed side platform; at the top the spines fork into a Y under a broad
+  deck reaching out over the front: a landing pad (team-colour mark and H, edge lights blinking
+  round it in turn), an apron of grille panels, fan housings under its sides, a mast with a beacon.
 - **The missile** (`components/models/MissileModel.tsx`): one model for the Ballista's missile
   wherever it shows (the Field Fabricator's cages, the Ballista's launch tube, in flight): a long
   dark body, a forked tail of four prongs growing out of it and sweeping out round a nozzle, four

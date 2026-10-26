@@ -18,6 +18,7 @@ import type { IncomeBreakdown } from '../sim/economy';
 import { WARHEAD_LABEL } from '../sim/warheads';
 import { BarracksModel } from './models/BarracksModel';
 import { FactoryModel } from './models/FactoryModel';
+import { AirpadModel } from './models/AirpadModel';
 import { facingOwnerView } from './kit/facing';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
@@ -195,77 +196,6 @@ const MunitionsModel = ({ color, teamColor }: { color: string, teamColor: string
   );
 }
 
-const AirpadModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
-    const radarRef = useRef<THREE.Group>(null);
-    useFrame((state, delta) => {
-        if(radarRef.current && isObjectInFrustum(radarRef.current, 10)) {
-            radarRef.current.rotation.y += delta;
-        }
-    });
-
-    return (
-        <group>
-            <mesh position={[0, 0.25, 0]}>
-                <boxGeometry args={[7.5, 0.5, 7.5]} />
-                <meshStandardMaterial color="#1e293b" />
-                <Edges color={teamColor} />
-            </mesh>
-            <mesh position={[0, 0.51, 0]} rotation={[-Math.PI/2, 0, 0]}>
-                 <planeGeometry args={[6.5, 6.5]} />
-                 <meshStandardMaterial color="#0f172a" roughness={0.8} />
-            </mesh>
-            <group position={[0, 0.52, 0]} rotation={[-Math.PI/2, 0, 0]}>
-                <mesh>
-                    <ringGeometry args={[2.5, 2.7, 16]} />
-                    <meshBasicMaterial color={color} />
-                </mesh>
-                <mesh>
-                    <planeGeometry args={[0.4, 2]} />
-                    <meshBasicMaterial color={color} />
-                </mesh>
-                 <mesh rotation={[0, 0, Math.PI/2]}>
-                    <planeGeometry args={[0.4, 2]} />
-                    <meshBasicMaterial color={color} />
-                </mesh>
-            </group>
-            {[[-3.75, -3.75], [3.75, -3.75], [-3.75, 3.75]].map((pos, i) => (
-                 <mesh key={i} position={[pos[0], 0.5, pos[1]]}>
-                     <boxGeometry args={[0.5, 0.5, 0.5]} />
-                     <meshStandardMaterial color="#1e293b" />
-                     <mesh position={[0, 0.3, 0]}>
-                         <sphereGeometry args={[0.2]} />
-                         <meshBasicMaterial color={color} />
-                     </mesh>
-                 </mesh>
-            ))}
-            <group position={[3, 2, 3]}>
-                 <mesh position={[0, -1, 0]}>
-                     <cylinderGeometry args={[1, 1.2, 2, 6]} />
-                     <meshStandardMaterial color="#334155" />
-                     <Edges color={teamColor} />
-                 </mesh>
-                 <mesh position={[0, 0.5, 0]}>
-                     <cylinderGeometry args={[1.4, 1, 0.8, 6]} />
-                     <meshStandardMaterial color="#0ea5e9" transparent opacity={0.6} />
-                 </mesh>
-                 <mesh position={[0, 1.1, 0]}>
-                     <cylinderGeometry args={[1.2, 1.4, 0.4, 6]} />
-                     <meshStandardMaterial color="#1e293b" />
-                 </mesh>
-                 <group ref={radarRef} position={[0, 1.5, 0]}>
-                     <mesh rotation={[0.2, 0, 0]}>
-                         <cylinderGeometry args={[0.8, 0.1, 0.6, 8, 1, false, 0, Math.PI]} />
-                         <meshStandardMaterial color="#94a3b8" side={THREE.DoubleSide} />
-                     </mesh>
-                     <mesh rotation={[0.2, 0, 0]} position={[0, 0, 0.1]}>
-                          <boxGeometry args={[0.1, 0.1, 0.5]} />
-                          <meshStandardMaterial color="#1e293b" />
-                     </mesh>
-                 </group>
-            </group>
-        </group>
-    );
-}
 
 // The LOADING ZONE marking painted on every Depot's pad. It is drawn into a texture once and
 // laid on the floor as part of the 3D scene, so menus and panels cover it like the rest of the
@@ -1244,7 +1174,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
         return <group scale={[1.9, 1.9, 1.9]}><MunitionsModel color={config.color} teamColor={teamColor} /></group>;
     }
     if (data.type === 'air') {
-        return <group scale={[1.75, 1.75, 1.75]}><AirpadModel color={config.color} teamColor={teamColor} /></group>;
+        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><AirpadModel teamColor={teamColor} /></group>;
     }
     if (data.type === 'builder') {
         return <group scale={[1.75, 1.75, 1.75]}><DepotModel color={config.color} teamColor={teamColor} /></group>;
