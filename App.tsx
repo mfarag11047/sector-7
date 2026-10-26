@@ -11,7 +11,7 @@ import Atmosphere from './components/Atmosphere';
 import PostFx from './components/PostFx';
 import UIOverlay from './components/UIOverlay';
 import { GameStats, UnitData, BuildingData, RoadTileData, MinimapData, StructureData, DoctrineState, DoctrineType } from './types';
-import { DOCTRINE_CONFIG, CAMERA_FAR, CITY_CONFIG, TEAM_BASES } from './constants';
+import { DOCTRINE_CONFIG, CAMERA_NEAR, CAMERA_FAR, CITY_CONFIG, TEAM_BASES } from './constants';
 import { MatchConfig, MatchMode, STARTING_CORES, doctrineOf } from './sim/match';
 import type { OrderCommand } from './sim/orders';
 import type { Victory } from './sim/victory';
@@ -287,7 +287,7 @@ function App() {
         dpr={[1, 1.5]}
         style={{ overflow: 'clip' }}
         gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.22 }}
-        camera={{ position: [0, 50, 50], fov: 45, far: CAMERA_FAR }}
+        camera={{ position: [0, 50, 50], fov: 45, near: CAMERA_NEAR, far: CAMERA_FAR }}
       >
         {SLOW_RENDER && <SlowRender />}
         <Suspense fallback={null}>

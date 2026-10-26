@@ -317,6 +317,14 @@ export const MAX_ZOOM = 340;
 // and drawing anything past this. Fog has to finish before it, otherwise geometry pops
 // in at the clip plane instead of dissolving into the skyline.
 export const CAMERA_FAR = 760;
+// The near clip plane. The depth buffer's precision is spent mostly close to it: a surface z away
+// can be told from one behind it only if they are more than about z² / (near · 2²⁴) apart. At
+// three's default of 0.1 that is 0.1 units at the zoomed-out distance of about 400, and facade
+// panels set a few hundredths proud of a wall (ServerNode.tsx's racks) flickered into black hatching
+// against it as the camera moved. The camera never comes nearer than MIN_ZOOM's altitude to the
+// ground, so the near plane can sit well out, and at 2 the gap that can be resolved is 20 times
+// finer.
+export const CAMERA_NEAR = 2;
 export const FOG_NEAR = 400; // Raise for a clearer view, lower to hide more of the map
 export const FOG_FAR = 745;
 
