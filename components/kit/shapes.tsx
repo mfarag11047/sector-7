@@ -21,11 +21,28 @@ const cachedGeometry = (key: string, make: () => THREE.BufferGeometry) => {
 
 interface Placed { position?: V3; rotation?: V3; material: THREE.Material; shadow?: boolean }
 
+// Whether a part casts a shadow. Every caster is drawn again for the shadow map, and a unit is
+// dozens of parts, so the ones whose shadow wouldn't show don't: lights, and parts smaller than
+// SHADOW_MIN_SIZE (bolts, lenses, trim) at their largest.
+const SHADOW_MIN_SIZE = 0.2;
+const sizes = new WeakMap<THREE.BufferGeometry, number>();
+function castsShadow(geometry: THREE.BufferGeometry, material: THREE.Material, shadow: boolean) {
+  if (!shadow || (material as THREE.MeshBasicMaterial).isMeshBasicMaterial) return false;
+  let size = sizes.get(geometry);
+  if (size === undefined) {
+    geometry.computeBoundingBox();
+    const box = geometry.boundingBox!;
+    size = Math.max(box.max.x - box.min.x, box.max.y - box.min.y, box.max.z - box.min.z);
+    sizes.set(geometry, size);
+  }
+  return size >= SHADOW_MIN_SIZE;
+}
+
 // A box, the basic armour plate: sharp-edged, or with its edges rounded by `radius`.
 export const Plate: React.FC<Placed & { size: V3; radius?: number }> = ({ size, radius = 0, material, position, rotation, shadow = true }) => {
   const r = Math.min(radius, Math.min(...size) / 2 - 1e-4);
   const geometry = cachedGeometry(`plate:${size.join(',')}:${r}`, () => r > 0 ? new RoundedBoxGeometry(size[0], size[1], size[2], 2, r) : new THREE.BoxGeometry(...size));
-  return <mesh geometry={geometry} material={material} position={position} rotation={rotation} castShadow={shadow} receiveShadow />;
+  return <mesh geometry={geometry} material={material} position={position} rotation={rotation} castShadow={castsShadow(geometry, material, shadow)} receiveShadow />;
 };
 
 // A 2D outline extruded into a slab, for armour with angled faces: sharp-edged, or bevelled by `bevel`.
@@ -39,7 +56,7 @@ export const Prism: React.FC<Placed & { outline: [number, number][]; depth: numb
     else { g.rotateX(-Math.PI / 2); g.translate(0, bevel, 0); }
     return g;
   });
-  return <mesh geometry={geometry} material={material} position={position} rotation={rotation} castShadow={shadow} receiveShadow />;
+  return <mesh geometry={geometry} material={material} position={position} rotation={rotation} castShadow={castsShadow(geometry, material, shadow)} receiveShadow />;
 };
 
 // A solid tapering from one outline to another: `bottom` at y = 0 and `top` at y = `height`, both
@@ -68,7 +85,7 @@ export const Loft: React.FC<Placed & { top: [number, number][]; bottom: [number,
     g.computeVertexNormals();
     return g;
   });
-  return <mesh geometry={geometry} material={material} position={position} rotation={rotation} castShadow={shadow} receiveShadow />;
+  return <mesh geometry={geometry} material={material} position={position} rotation={rotation} castShadow={castsShadow(geometry, material, shadow)} receiveShadow />;
 };
 
 // A part turned on a lathe, pointing along +Z: `profile` is [radius, distance along] points.
@@ -78,7 +95,7 @@ export const Turned: React.FC<Placed & { profile: [number, number][]; segments?:
     g.rotateX(Math.PI / 2);
     return g;
   });
-  return <mesh geometry={geometry} material={material} position={position} rotation={rotation} castShadow={shadow} />;
+  return <mesh geometry={geometry} material={material} position={position} rotation={rotation} castShadow={castsShadow(geometry, material, shadow)} />;
 };
 
 // A wheel or disc of `radius` and `width`, its axle along X.
@@ -88,7 +105,7 @@ export const Wheel: React.FC<Placed & { radius: number; width: number; segments?
     g.rotateZ(Math.PI / 2);
     return g;
   });
-  return <mesh geometry={geometry} material={material} position={position} rotation={rotation} castShadow={shadow} />;
+  return <mesh geometry={geometry} material={material} position={position} rotation={rotation} castShadow={castsShadow(geometry, material, shadow)} />;
 };
 
 // A thin strip of light.

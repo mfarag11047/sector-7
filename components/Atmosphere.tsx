@@ -11,7 +11,10 @@ const ENVIRONMENT_INTENSITY = 0.7;
 // of things to the suns, low enough for metal seen from the camera to catch.
 const SKY_RING = Array.from({ length: 8 }, (_, k) => [Math.cos(k * Math.PI / 4) * 7, Math.sin(k * Math.PI / 4) * 7]);
 
-const Atmosphere: React.FC = () => {
+// Memoised: it takes nothing from the app, and the environment re-captures its sky (six renders and
+// a fresh reflection map) whenever it re-renders, which the app's frequent updates would otherwise
+// cause many times a second.
+const Atmosphere: React.FC = React.memo(() => {
   return (
     <>
       <color attach="background" args={['#050510']} />
@@ -61,6 +64,6 @@ const Atmosphere: React.FC = () => {
       <Stars radius={700} depth={60} count={6000} factor={4} saturation={0} fade speed={1} />
     </>
   );
-};
+});
 
 export default Atmosphere;

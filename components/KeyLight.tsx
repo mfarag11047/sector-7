@@ -4,9 +4,10 @@
 // A directional light's shadow is a picture of the scene taken along the light, covering a box.
 // Stretched over the whole map the box gives about one shadow texel per world unit, and units'
 // shadows come out as soft smudges. So every frame the box is fitted to the ground the camera can
-// see: the screen's corners are traced down to the ground (no further than SHADOW_REACH, beyond
-// which fog takes over), and the box drawn round them in the light's own frame. Anything that
-// casts a shadow into the view lies along the light from it, so the box needs no more than that.
+// see: the screen's corners are traced down to the ground (no further than SHADOW_REACH, a little
+// past where the fog begins to thicken, beyond which shadows would cost a lot of drawing and barely
+// show), and the box drawn round them in the light's own frame. Anything that casts a shadow into
+// the view lies along the light from it, so the box needs no more than that.
 //
 // To keep shadows still while the camera pans, the box moves in whole texels; to keep them still
 // while it zooms, its size steps in powers of SIZE_STEP rather than following every change.
@@ -15,17 +16,22 @@
 // by screen-space noise. A surface must be lifted clear of its own shadow by more than that reach,
 // or it half-shadows itself and the noise shows as a texture crawling over it as the view moves; so
 // the lift (the normal bias) is set in texels too, and grows as the box does.
+//
+// Drawing the shadow map is drawing the scene again, from the light. It is redrawn every
+// REDRAW_EVERY frames rather than every frame: the map and the box it was drawn for are kept
+// together, so a skipped frame only means a moving unit's shadow trails it by a frame.
 
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { FOG_FAR } from '../constants';
+import { FOG_NEAR } from '../constants';
 
 // Where the light comes from.
 export const KEY_DIRECTION = new THREE.Vector3(400, 600, 400).normalize();
 const MAP_SIZE = 2048;
-const SHADOW_REACH = FOG_FAR;
+const SHADOW_REACH = FOG_NEAR + 60;
 const SIZE_STEP = 1.15;
+const REDRAW_EVERY = 2;
 const SOFTNESS = 1.5;
 // How far a surface is lifted toward the light before its shadow is looked up, in texels.
 const LIFT = SOFTNESS + 1.5;
@@ -41,7 +47,7 @@ const CORNERS: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
 
 const KeyLight: React.FC = () => {
   const light = useRef<THREE.DirectionalLight>(null);
-  const scratch = useMemo(() => ({ ray: new THREE.Vector3(), point: new THREE.Vector3(), centre: new THREE.Vector3() }), []);
+  const scratch = useMemo(() => ({ ray: new THREE.Vector3(), point: new THREE.Vector3(), centre: new THREE.Vector3(), frame: 0 }), []);
 
   // The light aims at its target, which has to be in the scene for its position to count.
   useEffect(() => {
@@ -54,6 +60,8 @@ const KeyLight: React.FC = () => {
   useFrame(({ camera }) => {
     const l = light.current;
     if (!l) return;
+    if (scratch.frame++ % REDRAW_EVERY) return;
+    l.shadow.needsUpdate = true;
     const { ray, point, centre } = scratch;
     // The ground in view, in the light's frame.
     let minA = Infinity, maxA = -Infinity, minB = Infinity, maxB = -Infinity;
@@ -89,6 +97,7 @@ const KeyLight: React.FC = () => {
       intensity={1.7}
       color="#e7fbff"
       castShadow
+      shadow-autoUpdate={false}
       shadow-mapSize={[MAP_SIZE, MAP_SIZE]}
       shadow-camera-near={1}
       shadow-camera-far={DEPTH}

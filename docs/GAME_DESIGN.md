@@ -307,17 +307,22 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   zooms; filtered (`shadows="percentage"`) with a soft-edge radius. Surfaces are lifted clear of
   their own shadow by a normal bias set in shadow texels, so it grows with the box; too little and
   the soft-edge sampling half-shadows a surface into a noise texture that crawls as the view moves.
+  The shadow map is redrawn every other frame, reaches only a little past where the fog thickens,
+  and small kit parts (under 0.2 units) and lights don't cast: together these cut the shadow pass
+  by more than half.
 - **Ambient occlusion** (`components/PostFx.tsx`, N8AO): darkens where surfaces close in (under
   hulls, where legs meet bodies, round buildings' feet) from the depth buffer alone, at full
   resolution (half shimmers on big walls), first in the post-processing chain so it works on the
-  scene's real brightness. A guard after it turns any non-finite pixel (NaN, infinity) black and
+  scene's real brightness. Its transparency mode is off: it would walk the whole scene and draw it
+  twice more every frame. A guard after it turns any non-finite pixel (NaN, infinity) black and
   clamps negative colours before bloom: bloom's blur would otherwise spread one such pixel over half
   the screen or all of it. Bloom's own brightness filter is off (the bloom layer selects what
   glows); at a threshold of zero it computes smoothstep(0, 0, x), undefined in GLSL and a NaN on
   some GPUs.
 - **Bloom** (`components/PostFx.tsx`): every opaque unlit light (the kit's `glow` parts, the
   city's neon, structure trim) glows with a soft halo in its own colour. It is selective: lights
-  are found by a sweep of the scene and put on a bloom layer, so lit surfaces never bloom however
+  are found by a sweep of the scene (a slice of it each frame, under half a millisecond, as the
+  whole scene is tens of thousands of objects) and put on a bloom layer, so lit surfaces never bloom however
   bright, and nothing has to be pushed to white to bloom. See-through lights (exhausts, the force
   field dome) don't. Tone mapping comes after bloom, then grading on the displayed image: a little
   more contrast and saturation, and a vignette. `?render=slow` (software rendering for tests) skips
