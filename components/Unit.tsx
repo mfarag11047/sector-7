@@ -9,7 +9,7 @@ import { abilitiesFor } from '../sim/unitAbilities';
 import { roleBadgeTexture, UNIT_ROLE } from './unitIcons';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
-import { CloakGeneratorModel } from './unitModels';
+import { CLOAK_VIOLET, CloakGeneratorModel } from './models/CloakGeneratorModel';
 import { FieldGeneratorModel } from './models/FieldGeneratorModel';
 import { forceFieldColor } from './ForceFieldFx';
 import { TrooperModel } from './models/TrooperModel';
@@ -424,9 +424,10 @@ const Unit: React.FC<UnitProps> = ({
     // Phantom Decoy tints cyan; a Cloaking Field (sim/cloak.ts) violet.
     const [tint, glow] = decoyActive ? ['#7dd3fc', '#38bdf8'] : ['#d8b4fe', '#a855f7'];
     // Tinted copies, never the materials themselves: models share materials between units
-    // (components/kit), and a cloak must not tint every other unit's.
+    // (components/kit), and a cloak must not tint every other unit's. A material marked
+    // `cloakExempt` keeps its look (the Cloaking Field Generator's lights are the field itself).
     const tintOf = (mat: THREE.Material) => {
-      if (mat.userData.cloakTint || mat.opacity === 0) return mat;
+      if (mat.userData.cloakTint || mat.userData.cloakExempt || mat.opacity === 0) return mat;
       const tinted = mat.clone() as THREE.MeshStandardMaterial;
       tinted.userData.cloakTint = true;
       tinted.transparent = true;
@@ -854,7 +855,7 @@ const Unit: React.FC<UnitProps> = ({
         <group position={[0, -hoverHeight + 0.3, 0]}>
           <mesh rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
             <ringGeometry args={[CLOAK_FIELD.radius * tileSize - 0.5, CLOAK_FIELD.radius * tileSize, 64]} />
-            <meshBasicMaterial color="#c084fc" transparent opacity={0.55} side={THREE.DoubleSide} depthWrite={false} toneMapped={false} />
+            <meshBasicMaterial color={CLOAK_VIOLET} transparent opacity={0.55} side={THREE.DoubleSide} depthWrite={false} toneMapped={false} />
           </mesh>
           <mesh raycast={() => null}>
             <sphereGeometry args={[CLOAK_FIELD.radius * tileSize, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />

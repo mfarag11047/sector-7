@@ -284,7 +284,7 @@ military: sharp-edged armour plate with flat, untextured tones, so the silhouett
 the plates carry the detail, team colour as stripes and markings, and only a few small lights.
 Edges are hard by default; a part is rounded or bevelled only where that makes sense (track
 belts). The Titan tank (`components/models/TitanTankModel.tsx`, also the orbital-drop Titan) and
-the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel, the Wasp, the Bombardment Drone, the Infiltrator, the Swarm Host, the Crawler Drone, the Lancer, the Trooper, the Ghost, the Field Fabricator and the Bulwark Field Generator are done; the rest of the roster follows by type.
+the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Banshee, the Mason, the Razorback, the Scout RC Car, the Hornet, the Helios, the Kestrel, the Wasp, the Bombardment Drone, the Infiltrator, the Swarm Host, the Crawler Drone, the Lancer, the Trooper, the Ghost, the Field Fabricator, the Bulwark Field Generator and the Cloaking Field Generator are done; the rest of the roster follows by type.
 - **Materials** (`materials.ts`): a shared palette as cached, flat-shaded materials: olive
   drab armour, dark olive secondary plates, bright metal, black, dark matte composite (skirts,
   panniers, bumpers) and pale equipment housings; team colour as paint; and lights (`glow`) that
@@ -485,6 +485,16 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   heat sink fins, crowned by three curved emitter vanes round a faceted lens. While the dome is up
   the lens and cells glow in the dome's colour and pulse and the crown turns; down, they go dark
   and a warning beacon blinks red.
+- **The Cloaking Field Generator** (`components/models/CloakGeneratorModel.tsx`, sim type
+  `cloak_generator`): a low twelve-sided armoured drum on four pads, ringed with lens intakes (a lit
+  lens set back in each deep housing, a smaller ring tilted up on the chamfer) as if watching the
+  ground round it, and a team band. On the deck a core with a violet crystal and four cradles;
+  above it four floating projectors. While the field is up they hover, bob and circle the core,
+  each throwing a faint violet beam out and down (nested additive cones, so it fades along its
+  length), and a bright sweep runs round the lenses; down, the projectors settle onto their
+  cradles, the lights go dark and an amber standby light comes on. Its lights are `cloakExempt`:
+  while the generator sits cloaked in its own field the rest of it takes the cloak's tint, but
+  they keep scanning and projecting.
 - **The missile** (`components/models/MissileModel.tsx`): one model for the Ballista's missile
   wherever it shows (the Field Fabricator's cages, the Ballista's launch tube, in flight): a long
   dark body, a forked tail of four prongs growing out of it and sweeping out round a nozzle, four
