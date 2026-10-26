@@ -543,6 +543,15 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   delivery cycle: the doors swing down, the hook lifts a crate (team band) out of the pit, the
   doors close, the gantry carries it to the conveyor and sets it down, and it rolls into the bay;
   when the work stops it finishes the cycle in hand and parks.
+- **The Ordnance Fab** (`components/models/OrdnanceFabModel.tsx`, structure type `ordnance_fab`):
+  a munitions plant with a silo. A round panelled dais with a lit pool in its middle; behind it a
+  tall fabrication tower (dark plinth, pale tapering body, team stripe, a service column and pipe up
+  its face, a dome, dishes and a beacon mast at the crown). Out from the tower over the pool, the
+  silo ring: a drum with a band of windows on a funnel, a feed pipe down into the pool, and standing
+  in three clamps on its collar the Ballista's missile. A lower block with a dome and antenna to the
+  east, two spherical tanks on legs to the west. While it fabricates, the missile carries the
+  warhead being made and its collar ring and the drum's windows pulse in that warhead's colour (and
+  the window band turns); idle, the missile is a bare body and the windows are dim.
 - **The missile** (`components/models/MissileModel.tsx`): one model for the Ballista's missile
   wherever it shows (the Field Fabricator's cages, the Ballista's launch tube, in flight): a long
   dark body, a forked tail of four prongs growing out of it and sweeping out round a nozzle, four

@@ -21,6 +21,7 @@ import { FactoryModel } from './models/FactoryModel';
 import { AirpadModel } from './models/AirpadModel';
 import { CommLinkModel } from './models/CommLinkModel';
 import { DepotModel } from './models/DepotModel';
+import { OrdnanceFabModel } from './models/OrdnanceFabModel';
 import { facingOwnerView } from './kit/facing';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
@@ -247,69 +248,6 @@ const DismantleFrame = ({ height, tileSize }: { height: number; tileSize: number
 };
 
 
-const OrdnanceFabModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
-  return (
-    <group>
-      {/* Base */}
-      <mesh position={[0, 0.5, 0]}>
-        <boxGeometry args={[5, 1, 5]} />
-        <meshStandardMaterial color="#1e293b" />
-        <Edges color={teamColor} />
-      </mesh>
-
-      {/* 4 Heavy Struts */}
-      {[45, 135, 225, 315].map((angle, i) => {
-        const rad = angle * Math.PI / 180;
-        const x = Math.cos(rad) * 2;
-        const z = Math.sin(rad) * 2;
-        return (
-          <group key={i} position={[x, 3, z]} rotation={[0, -rad, 0]}>
-             <mesh>
-                 <boxGeometry args={[1, 5, 1]} />
-                 <meshStandardMaterial color="#334155" metalness={0.6} />
-             </mesh>
-             <mesh position={[0, 0, -0.51]}>
-                 <planeGeometry args={[0.2, 4]} />
-                 <meshBasicMaterial color={color} />
-             </mesh>
-          </group>
-        )
-      })}
-
-      {/* Central Core (Glowing) */}
-      <group position={[0, 3, 0]}>
-          <mesh>
-              <cylinderGeometry args={[1.5, 1.5, 4.5, 8]} />
-              <meshStandardMaterial color="#0f172a" />
-          </mesh>
-          {[-1.5, -0.5, 0.5, 1.5].map((y, i) => (
-              <mesh key={i} position={[0, y, 0]}>
-                  <cylinderGeometry args={[1.55, 1.55, 0.2, 8]} />
-                  <meshBasicMaterial color={teamColor} toneMapped={false} />
-              </mesh>
-          ))}
-          {[0, 90, 180, 270].map((deg, i) => (
-              <mesh key={i} rotation={[0, deg * Math.PI/180, 0]} position={[0, 0, 0]}>
-                  <boxGeometry args={[0.2, 4, 3]} />
-                  <meshBasicMaterial color={color} transparent opacity={0.5} />
-              </mesh>
-          ))}
-      </group>
-
-      {/* Top Emitter (Angled) */}
-      <group position={[0, 6, 0]} rotation={[-Math.PI/6, 0, 0]}>
-           <mesh position={[0, 0.5, 0]}>
-               <cylinderGeometry args={[1.2, 1.5, 2, 8]} />
-               <meshStandardMaterial color="#334155" />
-           </mesh>
-           <mesh position={[0, 1.51, 0]}>
-               <circleGeometry args={[0.8, 8]} />
-               <meshBasicMaterial color="#ffffff" />
-           </mesh>
-      </group>
-    </group>
-  )
-}
 
 // CIWS turret: a white radar dome on a squat mount over a six-barrel rotary cannon, the barrels
 // angled up at the sky. The head sweeps slowly when idle; firing, the barrels spin up.
@@ -1012,7 +950,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
         return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><DepotModel teamColor={teamColor} active={(data.queue?.length ?? 0) > 0} /></group>;
     }
     if (data.type === 'ordnance_fab') {
-        return <group scale={[2.5, 2.5, 2.5]}><OrdnanceFabModel color={config.color} teamColor={teamColor} /></group>;
+        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><OrdnanceFabModel teamColor={teamColor} fabricating={data.production?.active ? data.production.item : null} /></group>;
     }
     if (data.type === 'refinery') {
         return <group scale={[1.9, 1.9, 1.9]}><RefineryModel color={config.color} teamColor={teamColor} level={data.refineryLevel === 2 ? 2 : 1} upgrading={!!data.refineryUpgrade} /></group>;
