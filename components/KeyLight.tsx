@@ -10,6 +10,11 @@
 //
 // To keep shadows still while the camera pans, the box moves in whole texels; to keep them still
 // while it zooms, its size steps in powers of SIZE_STEP rather than following every change.
+//
+// Shadow edges are softened by sampling round each point, SOFTNESS texels out, in a pattern turned
+// by screen-space noise. A surface must be lifted clear of its own shadow by more than that reach,
+// or it half-shadows itself and the noise shows as a texture crawling over it as the view moves; so
+// the lift (the normal bias) is set in texels too, and grows as the box does.
 
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
@@ -21,6 +26,9 @@ export const KEY_DIRECTION = new THREE.Vector3(400, 600, 400).normalize();
 const MAP_SIZE = 2048;
 const SHADOW_REACH = FOG_FAR;
 const SIZE_STEP = 1.15;
+const SOFTNESS = 1.5;
+// How far a surface is lifted toward the light before its shadow is looked up, in texels.
+const LIFT = SOFTNESS + 1.5;
 // Extra round the ground in view, for the height of what stands on its edge.
 const MARGIN = 12;
 // How far back along the light the shadow camera stands, and how deep it sees.
@@ -71,6 +79,7 @@ const KeyLight: React.FC = () => {
     if (cam.right !== half) {
       cam.left = -half; cam.right = half; cam.top = half; cam.bottom = -half;
       cam.updateProjectionMatrix();
+      l.shadow.normalBias = LIFT * texel;
     }
   });
 
@@ -83,9 +92,8 @@ const KeyLight: React.FC = () => {
       shadow-mapSize={[MAP_SIZE, MAP_SIZE]}
       shadow-camera-near={1}
       shadow-camera-far={DEPTH}
-      shadow-bias={-0.0004}
-      shadow-normalBias={0.04}
-      shadow-radius={2.5}
+      shadow-bias={-0.0002}
+      shadow-radius={SOFTNESS}
     />
   );
 };

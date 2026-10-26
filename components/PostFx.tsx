@@ -2,9 +2,15 @@
 //
 // Ambient occlusion (N8AO) darkens where surfaces close in on each other (under a hull, where a
 // leg meets the body, round a building's foot), worked out from the depth buffer alone, so it
-// costs no second drawing of the scene. It runs at half resolution, on the scene's real
-// brightness before bloom and tone mapping. AO.radius is in world units: a unit's creases, not a
+// costs no second drawing of the scene. It runs at full resolution (half resolution is cheaper but
+// shimmers from frame to frame on big flat walls), on the scene's real brightness before bloom and
+// tone mapping. AO.radius is in world units: a unit's creases, not a
 // city block's.
+//
+// Between them, a guard (FINITE_GUARD) that turns any pixel that isn't a finite number (a NaN or an
+// infinity, from a shader's edge case on some GPU) black. Bloom blurs each pixel into ever wider
+// averages, and one such pixel poisons every average it touches: unguarded, a single bad pixel
+// blacks out half the screen or all of it.
 //
 // Bloom, so lights glow with a soft halo. Selective: only what is on the bloom layer glows, so lit
 // surfaces, however bright, never do, and a light keeps its own colour rather than being pushed to
@@ -22,7 +28,7 @@ import React, { useEffect, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { BrightnessContrast, EffectComposer, HueSaturation, ToneMapping, Vignette } from '@react-three/postprocessing';
-import { SelectiveBloomEffect, ToneMappingMode } from 'postprocessing';
+import { SelectiveBloomEffect, ShaderPass, ToneMappingMode } from 'postprocessing';
 import { N8AOPostPass } from 'n8ao';
 
 const AO = { radius: 4, falloff: 1, intensity: 2 };
@@ -30,6 +36,15 @@ const BLOOM = { intensity: 1.6, radius: 0.75 };
 const GRADE = { contrast: 0.08, saturation: 0.08, vignetteOffset: 0.3, vignetteDarkness: 0.6 };
 const SWEEP_S = 0.4;
 const BLOOM_LAYER = 10;
+
+const FINITE_GUARD = `
+uniform sampler2D inputBuffer;
+varying vec2 vUv;
+void main() {
+  vec4 c = texture2D(inputBuffer, vUv);
+  gl_FragColor = any(isnan(c)) || any(isinf(c)) ? vec4(0.0, 0.0, 0.0, 1.0) : c;
+}`;
+const FULLSCREEN = 'varying vec2 vUv; void main() { vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 1.0, 1.0); }';
 
 // An opaque unlit light: drawn at full colour, outside tone mapping, writing depth.
 const isLight = (m: THREE.Material | THREE.Material[] | undefined) =>
@@ -41,13 +56,18 @@ const PostFx: React.FC = () => {
     const pass = new N8AOPostPass(scene, camera);
     Object.assign(pass.configuration, {
       aoRadius: AO.radius, distanceFalloff: AO.falloff, intensity: AO.intensity,
-      halfRes: true, depthAwareUpsampling: true,
+      halfRes: false,
       // Linear light: tone mapping and the output's gamma come later in the chain.
       gammaCorrection: false,
     });
     return pass;
   }, [scene, camera]);
   useEffect(() => () => ao.dispose(), [ao]);
+  const guard = useMemo(() => new ShaderPass(new THREE.ShaderMaterial({
+    uniforms: { inputBuffer: { value: null } }, vertexShader: FULLSCREEN, fragmentShader: FINITE_GUARD,
+    depthWrite: false, depthTest: false,
+  })), []);
+  useEffect(() => () => guard.dispose(), [guard]);
   const bloom = useMemo(() => {
     const effect = new SelectiveBloomEffect(scene, camera, { mipmapBlur: true, luminanceThreshold: 0, luminanceSmoothing: 0, intensity: BLOOM.intensity, radius: BLOOM.radius });
     effect.selection.layer = BLOOM_LAYER;
@@ -69,6 +89,7 @@ const PostFx: React.FC = () => {
   return (
     <EffectComposer multisampling={4}>
       <primitive object={ao} />
+      <primitive object={guard} />
       <primitive object={bloom} />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
       <BrightnessContrast contrast={GRADE.contrast} />

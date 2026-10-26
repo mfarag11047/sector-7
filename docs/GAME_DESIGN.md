@@ -304,10 +304,14 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   fitted every frame to the ground in view (the screen's corners traced to the ground, out to the
   fog), so units get crisp shadows and shadow each other rather than a map-wide blur. The box
   moves in whole shadow texels and steps in size, so shadows hold still while the camera pans or
-  zooms; filtered (`shadows="percentage"`) with a soft-edge radius.
+  zooms; filtered (`shadows="percentage"`) with a soft-edge radius. Surfaces are lifted clear of
+  their own shadow by a normal bias set in shadow texels, so it grows with the box; too little and
+  the soft-edge sampling half-shadows a surface into a noise texture that crawls as the view moves.
 - **Ambient occlusion** (`components/PostFx.tsx`, N8AO): darkens where surfaces close in (under
-  hulls, where legs meet bodies, round buildings' feet) from the depth buffer alone, at half
-  resolution, first in the post-processing chain so it works on the scene's real brightness.
+  hulls, where legs meet bodies, round buildings' feet) from the depth buffer alone, at full
+  resolution (half shimmers on big walls), first in the post-processing chain so it works on the
+  scene's real brightness. A guard after it turns any non-finite pixel (NaN, infinity) black before
+  bloom: bloom's blur would otherwise spread one such pixel over half the screen or all of it.
 - **Bloom** (`components/PostFx.tsx`): every opaque unlit light (the kit's `glow` parts, the
   city's neon, structure trim) glows with a soft halo in its own colour. It is selective: lights
   are found by a sweep of the scene and put on a bloom layer, so lit surfaces never bloom however
