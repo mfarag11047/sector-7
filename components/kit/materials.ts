@@ -112,7 +112,7 @@ export const smoothMaterial = (kind: Exclude<KitMaterial, 'tread'>) => cached(`s
 // Team paint: the side's colour as a plate.
 export const teamPaint = (color: string) => cached(`team:${color}`, () => plate(color, 0.1, 0.4, 0.45));
 
-// A light: unlit, full colour, glowing under the scene's tone mapping.
+// A light: unlit, full colour, outside the scene's tone mapping; opaque ones bloom (PostFx.tsx).
 export const glow = (color: string, opacity = 1) => cached(`glow:${color}:${opacity}`, () =>
   new THREE.MeshBasicMaterial({ color, toneMapped: false, transparent: opacity < 1, opacity, depthWrite: opacity >= 1 }));
 

@@ -298,6 +298,12 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   built once from light panels, not loaded: softboxes where the suns are, a dim sky overhead and
   in a ring all round, neon cyan and magenta strips low on the horizon and an amber city glow.
   It is what metal reflects, so steel reads as steel from any camera heading.
+- **Bloom** (`components/PostFx.tsx`): every opaque unlit light (the kit's `glow` parts, the
+  city's neon, structure trim) glows with a soft halo in its own colour. It is selective: lights
+  are found by a sweep of the scene and put on a bloom layer, so lit surfaces never bloom however
+  bright, and nothing has to be pushed to white to bloom. See-through lights (exhausts, the force
+  field dome) don't. Tone mapping runs at the end of the post-processing chain; `?render=slow`
+  (software rendering for tests) skips it all.
 - **Textures** (`textures.ts`): only two, drawn in code: a soft tread that scrolls so tracks
   visibly run, and a contact shadow.
 - **Parts** (`shapes.tsx`): `Plate` (a box, sharp unless given a `radius`), `Prism` (an outline

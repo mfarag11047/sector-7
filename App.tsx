@@ -8,6 +8,7 @@ import CityMap, { MatchInfo } from './components/CityMap';
 import { MatchEnd, MatchSetup, MatchSummary } from './components/MatchScreens';
 import DroneCamera from './components/DroneCamera';
 import Atmosphere from './components/Atmosphere';
+import PostFx from './components/PostFx';
 import UIOverlay from './components/UIOverlay';
 import { GameStats, UnitData, BuildingData, RoadTileData, MinimapData, StructureData, DoctrineState, DoctrineType } from './types';
 import { DOCTRINE_CONFIG, CAMERA_FAR, CITY_CONFIG, TEAM_BASES } from './constants';
@@ -311,6 +312,8 @@ function App() {
           />}
           <DroneCamera key={round} cameraStateRef={cameraStateRef} start={cameraStart} />
         </Suspense>
+        {/* Bloom; skipped where frames are drawn in software for tests. */}
+        {!SLOW_RENDER && <PostFx />}
       </Canvas>
       
       {match && <UIOverlay 
