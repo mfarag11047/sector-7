@@ -22,6 +22,7 @@ import { AirpadModel } from './models/AirpadModel';
 import { CommLinkModel } from './models/CommLinkModel';
 import { DepotModel } from './models/DepotModel';
 import { OrdnanceFabModel } from './models/OrdnanceFabModel';
+import { ResearchLabModel } from './models/ResearchLabModel';
 import { facingOwnerView } from './kit/facing';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
@@ -145,40 +146,6 @@ const getLoadingZoneTexture = () => {
 
 // Advanced Research: a lab block under a glass dome with a slowly turning holo-ring, which spins
 // up while an upgrade is being researched.
-const ResearchLabModel = ({ color, teamColor, active }: { color: string, teamColor: string, active: boolean }) => {
-    const ringRef = useRef<THREE.Group>(null);
-    useFrame((_, delta) => {
-        if (ringRef.current && isObjectInFrustum(ringRef.current, 6)) ringRef.current.rotation.y += delta * (active ? 2.4 : 0.4);
-    });
-    return (
-        <group>
-            <mesh position={[0, 0.4, 0]}>
-                <boxGeometry args={[7, 0.8, 7]} />
-                <meshStandardMaterial color="#1e293b" />
-                <Edges color={teamColor} />
-            </mesh>
-            <mesh position={[0, 2, 0]}>
-                <boxGeometry args={[5, 2.4, 5]} />
-                <meshStandardMaterial color="#0f172a" metalness={0.6} roughness={0.4} />
-                <Edges color={color} />
-            </mesh>
-            <mesh position={[0, 3.2, 0]}>
-                <sphereGeometry args={[2.2, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2]} />
-                <meshStandardMaterial color={color} transparent opacity={0.35} emissive={color} emissiveIntensity={active ? 0.9 : 0.3} />
-            </mesh>
-            <group ref={ringRef} position={[0, 4.4, 0]}>
-                <mesh rotation={[Math.PI / 2, 0, 0]}>
-                    <torusGeometry args={[2.8, 0.12, 8, 32]} />
-                    <meshBasicMaterial color={teamColor} toneMapped={false} />
-                </mesh>
-                <mesh position={[2.8, 0, 0]}>
-                    <boxGeometry args={[0.4, 0.4, 0.4]} />
-                    <meshBasicMaterial color={color} toneMapped={false} />
-                </mesh>
-            </group>
-        </group>
-    );
-};
 
 // Core Refinery (sim/refinery.ts): a glowing core column between storage silos. Level 2 adds two
 // more silos, a taller core and stacked energy rings, so an upgraded one stands out as a target.
@@ -956,7 +923,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
         return <group scale={[1.9, 1.9, 1.9]}><RefineryModel color={config.color} teamColor={teamColor} level={data.refineryLevel === 2 ? 2 : 1} upgrading={!!data.refineryUpgrade} /></group>;
     }
     if (data.type === 'research_lab') {
-        return <group scale={[1.9, 1.9, 1.9]}><ResearchLabModel color={config.color} teamColor={teamColor} active={!!data.research} /></group>;
+        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><ResearchLabModel teamColor={teamColor} active={!!data.research} /></group>;
     }
 
     // 2. Specialized Existing Models

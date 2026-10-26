@@ -552,6 +552,13 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   east, two spherical tanks on legs to the west. While it fabricates, the missile carries the
   warhead being made and its collar ring and the drum's windows pulse in that warhead's colour (and
   the window band turns); idle, the missile is a bare body and the windows are dim.
+- **Advanced Research** (`components/models/ResearchLabModel.tsx`, structure type `research_lab`):
+  the lab's dome, now of security glass in a cage of ribs, on a heavy armoured drum with a team
+  band, vents and a front airlock. Inside, hung from the crown by cable bundles, a black monolith
+  supercomputer: faceted down its front, rack modules with red lights down its sides, and a column
+  of red data running down into a floor socket. The team-colour ring still orbits the dome, its
+  track on two pylons. While research runs the data column flickers bright, the rack lights blink
+  and the ring turns fast.
 - **The missile** (`components/models/MissileModel.tsx`): one model for the Ballista's missile
   wherever it shows (the Field Fabricator's cages, the Ballista's launch tube, in flight): a long
   dark body, a forked tail of four prongs growing out of it and sweeping out round a nozzle, four
