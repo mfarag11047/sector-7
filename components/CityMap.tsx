@@ -80,6 +80,7 @@ import { glow, kitMaterial, PALETTE, teamPaint } from './kit/materials';
 import { Plate, Turned } from './kit/shapes';
 import { Missile } from './models/MissileModel';
 import { aaTurretMuzzle } from './models/AaTurretModel';
+import { sentryMuzzle } from './models/SentryTurretModel';
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
 import { dampenedUnits } from '../sim/ghost';
 import { heliosBeams, microwaveDamage } from '../sim/helios';
@@ -1640,6 +1641,13 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const miniRocketsRef = useRef<MiniRocket[]>([]);
   // Where each firing Aegis or AA Turret is shooting this frame (CiwsTracers), for its gun to track.
   const ciwsAimsRef = useRef(new Map<string, THREE.Vector3>());
+  // Where a unit or structure is now, for a Sentry Turret's gun to track its target.
+  const targetWorldOf = useCallback((id: string) => {
+      const u = unitsRef.current.find(x => x.id === id);
+      if (u) { const w = unitWorld(u, tileSize, offset, 1.4); return new THREE.Vector3(w.x, w.y, w.z); }
+      const s = structuresRef.current.find(x => x.id === id);
+      return s ? new THREE.Vector3(s.gridPos.x * tileSize - offset, 3, s.gridPos.z * tileSize - offset) : undefined;
+  }, [tileSize, offset]);
   // Thunderhead shells in flight. The ref is the authority; the state is for drawing them.
   const [shells, setShells] = useState<ArtilleryShell[]>([]);
   const shellsRef = useRef<ArtilleryShell[]>([]);
@@ -3839,7 +3847,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           }
           if (attacks.shots.length > 0) {
               // What each shot looks like: rifles and flak only flash at the muzzle; Lancers fire
-              // a small missile, cannons a shell, AP guns a fast round. Sentinels draw their own laser.
+              // a small missile, cannons a shell, AP guns a fast round, Sentry Turrets a railgun slug
+              // from the muzzle. Sentinels draw their own laser.
               const fx: TracerData[] = [];
               attacks.shots.forEach((shot, i) => {
                   const shooter = currentUnitsRef.find(u => u.id === shot.attackerId);
@@ -3853,16 +3862,19 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       fx.push({ id: `shot-${now}-${i}`, kind: 'flash', createdAt: now, attackerId: shot.attackerId, targetId: shot.targetId, from: at, to: at, flashSize: 1.4 });
                       return;
                   }
-                  const kind: ShotKind = goliath ? 'round'
+                  const sentry = structure && structuresRef.current.some(st => st.id === shot.attackerId && st.type === 'defense');
+                  const kind: ShotKind = sentry ? 'rail' : goliath ? 'round'
                       : shot.type === 'rifle' || shot.type === 'flak' || shot.type === 'mg' ? 'flash'
                       : shot.type === 'ap' ? (shooter?.type === 'lancer' ? 'missile' : 'round')
                       : 'shell';
                   const targetIsStructure = !currentUnitsRef.some(u => u.id === shot.targetId);
+                  const to = { x: shot.to.x * tileSize - offset, y: shot.toAir ? 75 : targetIsStructure ? 3 : 1.4, z: shot.to.z * tileSize - offset };
+                  const base = { x: shot.from.x * tileSize - offset, z: shot.from.z * tileSize - offset };
                   fx.push({
                       id: `shot-${now}-${i}`, kind, createdAt: now,
                       attackerId: shot.attackerId, targetId: shot.targetId,
-                      from: { x: shot.from.x * tileSize - offset, y: shot.fromAir ? 74 : structure ? 4 : goliath ? 4.6 : infantry ? 1.6 : 2.4, z: shot.from.z * tileSize - offset },
-                      to: { x: shot.to.x * tileSize - offset, y: shot.toAir ? 75 : targetIsStructure ? 3 : 1.4, z: shot.to.z * tileSize - offset },
+                      from: sentry ? sentryMuzzle(base, to) : { ...base, y: shot.fromAir ? 74 : structure ? 4 : goliath ? 4.6 : infantry ? 1.6 : 2.4 },
+                      to,
                       flashSize: structure ? 3.5 : shot.fromAir ? 2.6 : infantry ? 1.6 : 2.6,
                   });
               });
@@ -4407,6 +4419,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 income={s.type === 'refinery' && depotMenuOpenId === s.id && s.team === playerTeam ? incomeBreakdown(buildings, playerTeam, structuresState) : undefined}
                 refineryShare={s.type === 'refinery' && depotMenuOpenId === s.id ? refineryMultiplier(s, structuresState, coreNodeTiles) : undefined}
                 ciwsAims={s.type === 'aa_turret' ? ciwsAimsRef : undefined}
+                targetWorldOf={s.type === 'defense' ? targetWorldOf : undefined}
             /> 
         ))}
         {/* Only a fully held block shows a status; the rest drew nothing but still re-rendered every tick. */}

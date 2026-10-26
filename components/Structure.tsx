@@ -10,7 +10,7 @@ import { ABILITY_CONFIG, STRUCTURE_INFO, TEAM_COLORS, UNIT_CLASSES, UNIT_STATS }
 import * as THREE from 'three';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { MAX_QUEUE } from '../sim/orders';
-import { TIER_REQUIREMENT, UNIT_RULES, unitsProducedBy } from '../sim/units';
+import { STRUCTURE_RULES, TIER_REQUIREMENT, UNIT_RULES, unitsProducedBy } from '../sim/units';
 import { UPGRADE_BONUS } from '../sim/unitAbilities';
 import { REFINERY } from '../sim/refinery';
 import { builtCost, canDismantle, DISMANTLE, dismantleRefund, isUnfinished } from '../sim/dismantle';
@@ -25,6 +25,7 @@ import { OrdnanceFabModel } from './models/OrdnanceFabModel';
 import { ResearchLabModel } from './models/ResearchLabModel';
 import { RefineryModel } from './models/RefineryModel';
 import { AaTurretModel } from './models/AaTurretModel';
+import { SentryTurretModel } from './models/SentryTurretModel';
 import { facingOwnerView } from './kit/facing';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
@@ -58,6 +59,8 @@ interface StructureProps {
   refineryShare?: { multiplier: number; blocks: number | null };
   // Where each firing CIWS gun is shooting this frame (CityMap's CiwsTracers), for an AA Turret's gun to track.
   ciwsAims?: React.MutableRefObject<Map<string, THREE.Vector3>>;
+  // Where a unit or structure is in the world now, for a Sentry Turret's gun to track its target.
+  targetWorldOf?: (id: string) => THREE.Vector3 | undefined;
 }
 
 
@@ -167,81 +170,6 @@ const DismantleFrame = ({ height, tileSize }: { height: number; tileSize: number
 };
 
 
-
-const DefenseTurretModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
-    const headRef = useRef<THREE.Group>(null);
-    useFrame((state) => {
-        if(headRef.current && isObjectInFrustum(headRef.current, 10)) {
-            headRef.current.rotation.y = Math.sin(state.clock.elapsedTime * 0.5) * 0.5;
-        }
-    });
-
-    return (
-        <group>
-            {/* Quad Legs Base */}
-            <group position={[0, 0.5, 0]}>
-                {[45, 135, 225, 315].map((deg, i) => (
-                    <group key={i} rotation={[0, deg * Math.PI/180, 0]}>
-                        <mesh position={[0, 0, 1.5]}>
-                            <boxGeometry args={[1, 1, 2]} />
-                            <meshStandardMaterial color="#334155" />
-                            <Edges color="#000000" />
-                        </mesh>
-                        <mesh position={[0, -0.5, 2.2]}>
-                            <boxGeometry args={[1.2, 0.5, 1.2]} />
-                            <meshStandardMaterial color="#1e293b" />
-                        </mesh>
-                    </group>
-                ))}
-                <mesh>
-                    <cylinderGeometry args={[2, 2.5, 1.5, 8]} />
-                    <meshStandardMaterial color="#475569" />
-                </mesh>
-                <mesh position={[0, 0.2, 0]} rotation={[-Math.PI/2, 0, 0]}>
-                    <ringGeometry args={[1.8, 2, 8]} />
-                    <meshBasicMaterial color={teamColor} />
-                </mesh>
-            </group>
-
-            {/* Rotating Head */}
-            <group ref={headRef} position={[0, 2, 0]}>
-                <mesh>
-                    <boxGeometry args={[2.5, 1.5, 3]} />
-                    <meshStandardMaterial color="#334155" metalness={0.7} />
-                </mesh>
-                
-                <mesh position={[0.5, 1, -0.5]}>
-                    <boxGeometry args={[1, 0.8, 1]} />
-                    <meshStandardMaterial color="#475569" />
-                </mesh>
-                <mesh position={[0.5, 1, 0.01]}>
-                    <planeGeometry args={[0.8, 0.6]} />
-                    <meshBasicMaterial color={color} />
-                </mesh>
-
-                <group position={[0, 0, 1.5]}>
-                    <mesh position={[-0.6, 0, 1]}>
-                        <boxGeometry args={[0.6, 0.6, 2.5]} />
-                        <meshStandardMaterial color="#64748b" />
-                    </mesh>
-                    <mesh position={[0.6, 0, 1]}>
-                        <boxGeometry args={[0.6, 0.6, 2.5]} />
-                        <meshStandardMaterial color="#64748b" />
-                    </mesh>
-                    
-                    <mesh position={[-0.6, 0, 2.26]}>
-                        <planeGeometry args={[0.4, 0.4]} />
-                        <meshBasicMaterial color="#f97316" toneMapped={false} />
-                    </mesh>
-                    <mesh position={[0.6, 0, 2.26]}>
-                        <planeGeometry args={[0.4, 0.4]} />
-                        <meshBasicMaterial color="#f97316" toneMapped={false} />
-                    </mesh>
-                </group>
-            </group>
-        </group>
-    )
-}
 
 const wallSpan = (tileSize: number) => tileSize * 0.97;
 
@@ -356,7 +284,7 @@ const WallTier2Model = ({ teamColor, tileSize }: { color: string, teamColor: str
     );
 };
 
-const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES, income, refineryShare, doctrine, heroBlocked, ciwsAims }) => {
+const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES, income, refineryShare, doctrine, heroBlocked, ciwsAims, targetWorldOf }) => {
   // Advanced Research menu: a unit class, then a unit, then its upgrades.
   const [labClass, setLabClass] = React.useState<UnitClass | null>(null);
   // Disassemble asks twice.
@@ -869,21 +797,28 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
         const turretHeight = Math.max(0.25, 2.2 * buildRatio);
         return (
             <group>
-                <mesh position={[0, 0.2, 0]}>
-                    <cylinderGeometry args={[tileSize * 0.4, tileSize * 0.5, 1, 8]} />
-                    <meshStandardMaterial color="#1e293b" />
-                    <Edges color={teamColor} />
-                </mesh>
                 {data.isBlueprint && (
-                    <mesh position={[0, 1 + turretHeight / 2, 0]}>
-                        <cylinderGeometry args={[0.35, 0.5, turretHeight, 8]} />
-                        <meshStandardMaterial color="#ef4444" emissive={teamColor} emissiveIntensity={0.4} />
-                    </mesh>
+                    <group>
+                        <mesh position={[0, 0.2, 0]}>
+                            <cylinderGeometry args={[tileSize * 0.4, tileSize * 0.5, 1, 8]} />
+                            <meshStandardMaterial color="#1e293b" />
+                            <Edges color={teamColor} />
+                        </mesh>
+                        <mesh position={[0, 1 + turretHeight / 2, 0]}>
+                            <cylinderGeometry args={[0.35, 0.5, turretHeight, 8]} />
+                            <meshStandardMaterial color="#ef4444" emissive={teamColor} emissiveIntensity={0.4} />
+                        </mesh>
+                    </group>
                 )}
-                
+                {/* Facing out from the base, toward the map's centre, when it has nothing to shoot. */}
                 {!data.isBlueprint && (
-                    <group scale={[2.5, 2.5, 2.5]} position={[0, 1, 0]}>
-                        <DefenseTurretModel color={config.color} teamColor={teamColor} />
+                    <group rotation={[0, facingOwnerView(data.gridPos) + Math.PI, 0]}>
+                        <SentryTurretModel
+                            teamColor={teamColor}
+                            aimOf={() => data.combatTargetId ? targetWorldOf?.(data.combatTargetId) : undefined}
+                            lastFiredAt={data.lastAttackTime}
+                            cooldownMs={STRUCTURE_RULES.defense.weapon?.cooldownMs}
+                        />
                     </group>
                 )}
                 {renderProgressBar(5)}

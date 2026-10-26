@@ -577,6 +577,17 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   six-sided pod as the Aegis, a little larger. Firing, it turns and lifts the gun onto its target
   (the aim CityMap's tracer stream shares with the Aegis) and the barrels spin, and the stream
   leaves from the barrels' tips; idle, it turns slowly round, scanning the sky.
+- **The Sentry Turret** (`components/models/SentryTurretModel.tsx`, structure type `defense`): a
+  railgun on a heavy cradle, in the base greys. An octagonal plinth (team stripes, amber corner
+  lights) with a turret ring; on it a turntable with two braced brackets holding a chunky angular
+  receiver on trunnions, a power block at its back. Out of its front the railgun: a dark shroud,
+  then two bare rails with the charging slot lit between them, clamp bands and a blunt muzzle. On
+  the left a six-sided capacitor pack with four cell ends; on the right a sensor box with two
+  lenses; on top the sensor array, a gimbal sensor head on a mast that turns on its own, a radome
+  and a whip antenna. It faces out of the base, sweeping slowly; with a target it turns and lifts
+  the gun onto it. The slot and cells charge up over the reload and flash as it fires, and the
+  barrel kicks back. Its shot (`ShotFx` kind `rail`) leaves the muzzle as a white-hot slug in a cyan
+  glow, very fast, leaving a straight ion trail and a wake of shock rings that hang and fade.
 - **The missile** (`components/models/MissileModel.tsx`): one model for the Ballista's missile
   wherever it shows (the Field Fabricator's cages, the Ballista's launch tube, in flight): a long
   dark body, a forked tail of four prongs growing out of it and sweeping out round a nozzle, four
@@ -765,7 +776,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 ### Other producers
 
 - **Depot:** Mason (120, pop 1, T1), plus Dragon's Teeth and Bulwark walls; it also enables two turrets:
-  - **Sentry Turret** (400): anti-vehicle cannon, AP 40 / 1.5 s / 6, ground only, 900 HP.
+  - **Sentry Turret** (400): anti-vehicle railgun, AP 40 / 1.5 s / 6, ground only, 900 HP.
   - Both turrets are base defences: they only go on the four corner pads of one of your Command
     HQs (the starting one or one you built), built by clicking the + on a free corner. They need
     a finished Depot and a Mason. Walls come from the Depot menu and can go anywhere in your grid.
