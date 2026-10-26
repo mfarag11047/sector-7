@@ -24,6 +24,7 @@ import { DepotModel } from './models/DepotModel';
 import { OrdnanceFabModel } from './models/OrdnanceFabModel';
 import { ResearchLabModel } from './models/ResearchLabModel';
 import { RefineryModel } from './models/RefineryModel';
+import { AaTurretModel } from './models/AaTurretModel';
 import { facingOwnerView } from './kit/facing';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
@@ -55,6 +56,8 @@ interface StructureProps {
   income?: IncomeBreakdown;
   // A Core Refinery's own share of node income, from its base's distance to a core node.
   refineryShare?: { multiplier: number; blocks: number | null };
+  // Where each firing CIWS gun is shooting this frame (CityMap's CiwsTracers), for an AA Turret's gun to track.
+  ciwsAims?: React.MutableRefObject<Map<string, THREE.Vector3>>;
 }
 
 
@@ -164,73 +167,6 @@ const DismantleFrame = ({ height, tileSize }: { height: number; tileSize: number
 };
 
 
-
-// CIWS turret: a white radar dome on a squat mount over a six-barrel rotary cannon, the barrels
-// angled up at the sky. The head sweeps slowly when idle; firing, the barrels spin up.
-const CiwsTurretModel = ({ teamColor, firing }: { teamColor: string, firing: boolean }) => {
-    const headRef = useRef<THREE.Group>(null);
-    const barrelsRef = useRef<THREE.Group>(null);
-    useFrame((state, delta) => {
-        if (!headRef.current || !isObjectInFrustum(headRef.current, 10)) return;
-        headRef.current.rotation.y += delta * (firing ? 1.6 : 0.25);
-        if (barrelsRef.current) barrelsRef.current.rotation.z += delta * (firing ? 40 : 0);
-    });
-    return (
-        <group>
-            {/* Armoured mount */}
-            <mesh position={[0, 0.6, 0]}>
-                <cylinderGeometry args={[2.1, 2.6, 1.2, 10]} />
-                <meshStandardMaterial color="#334155" metalness={0.6} roughness={0.4} />
-                <Edges color="#0f172a" />
-            </mesh>
-            <mesh position={[0, 1.25, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                <ringGeometry args={[1.85, 2.05, 20]} />
-                <meshBasicMaterial color={teamColor} toneMapped={false} />
-            </mesh>
-            <group ref={headRef} position={[0, 1.3, 0]}>
-                {/* Pedestal and the white radar dome on top */}
-                <mesh position={[0, 0.9, 0]}>
-                    <cylinderGeometry args={[1.1, 1.3, 1.8, 12]} />
-                    <meshStandardMaterial color="#cbd5e1" metalness={0.4} roughness={0.35} />
-                </mesh>
-                <mesh position={[0, 2.25, 0]}>
-                    <cylinderGeometry args={[1.05, 1.1, 0.9, 16]} />
-                    <meshStandardMaterial color="#e2e8f0" roughness={0.5} />
-                </mesh>
-                <mesh position={[0, 2.7, 0]}>
-                    <sphereGeometry args={[1.05, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2]} />
-                    <meshStandardMaterial color="#f8fafc" roughness={0.45} />
-                </mesh>
-                <mesh position={[0, 1.6, 1.15]}>
-                    <boxGeometry args={[0.9, 0.25, 0.05]} />
-                    <meshBasicMaterial color="#38bdf8" toneMapped={false} />
-                </mesh>
-                {/* Rotary cannon, angled at the sky */}
-                <group position={[0, 1.2, 1.0]} rotation={[-0.6, 0, 0]}>
-                    <mesh rotation={[Math.PI / 2, 0, 0]}>
-                        <cylinderGeometry args={[0.45, 0.5, 0.8, 12]} />
-                        <meshStandardMaterial color="#475569" metalness={0.8} />
-                    </mesh>
-                    <group ref={barrelsRef} position={[0, 0, 1.2]}>
-                        {[0, 1, 2, 3, 4, 5].map(i => {
-                            const a = (i / 6) * Math.PI * 2;
-                            return (
-                                <mesh key={i} position={[Math.cos(a) * 0.22, Math.sin(a) * 0.22, 0]} rotation={[Math.PI / 2, 0, 0]}>
-                                    <cylinderGeometry args={[0.07, 0.07, 2.2, 6]} />
-                                    <meshStandardMaterial color="#0f172a" metalness={0.9} roughness={0.25} />
-                                </mesh>
-                            );
-                        })}
-                        <mesh position={[0, 0, 1.05]} rotation={[Math.PI / 2, 0, 0]}>
-                            <torusGeometry args={[0.3, 0.06, 6, 12]} />
-                            <meshStandardMaterial color="#1e293b" />
-                        </mesh>
-                    </group>
-                </group>
-            </group>
-        </group>
-    );
-};
 
 const DefenseTurretModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
     const headRef = useRef<THREE.Group>(null);
@@ -420,7 +356,7 @@ const WallTier2Model = ({ teamColor, tileSize }: { color: string, teamColor: str
     );
 };
 
-const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES, income, refineryShare, doctrine, heroBlocked }) => {
+const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES, income, refineryShare, doctrine, heroBlocked, ciwsAims }) => {
   // Advanced Research menu: a unit class, then a unit, then its upgrades.
   const [labClass, setLabClass] = React.useState<UnitClass | null>(null);
   // Disassemble asks twice.
@@ -959,21 +895,21 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
         const rise = Math.max(0.25, 3 * buildRatio);
         return (
             <group>
-                <mesh position={[0, 0.2, 0]}>
-                    <cylinderGeometry args={[tileSize * 0.4, tileSize * 0.5, 1, 10]} />
-                    <meshStandardMaterial color="#1e293b" />
-                    <Edges color={teamColor} />
-                </mesh>
                 {data.isBlueprint && (
-                    <mesh position={[0, 1 + rise / 2, 0]}>
-                        <cylinderGeometry args={[0.6, 0.8, rise, 10]} />
-                        <meshStandardMaterial color="#38bdf8" emissive={teamColor} emissiveIntensity={0.4} />
-                    </mesh>
+                    <group>
+                        <mesh position={[0, 0.2, 0]}>
+                            <cylinderGeometry args={[tileSize * 0.4, tileSize * 0.5, 1, 10]} />
+                            <meshStandardMaterial color="#1e293b" />
+                            <Edges color={teamColor} />
+                        </mesh>
+                        <mesh position={[0, 1 + rise / 2, 0]}>
+                            <cylinderGeometry args={[0.6, 0.8, rise, 10]} />
+                            <meshStandardMaterial color="#38bdf8" emissive={teamColor} emissiveIntensity={0.4} />
+                        </mesh>
+                    </group>
                 )}
                 {!data.isBlueprint && (
-                    <group scale={[2.2, 2.2, 2.2]} position={[0, 0.7, 0]}>
-                        <CiwsTurretModel teamColor={teamColor} firing={!!data.ciwsTargetId} />
-                    </group>
+                    <AaTurretModel teamColor={teamColor} firing={!!data.ciwsTargetId} aimOf={() => ciwsAims?.current.get(data.id)} />
                 )}
                 {renderProgressBar(5)}
             </group>

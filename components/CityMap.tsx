@@ -79,6 +79,7 @@ import { THUNDERHEAD_LAUNCH_Y } from './models/ThunderheadModel';
 import { glow, kitMaterial, PALETTE, teamPaint } from './kit/materials';
 import { Plate, Turned } from './kit/shapes';
 import { Missile } from './models/MissileModel';
+import { aaTurretMuzzle } from './models/AaTurretModel';
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
 import { dampenedUnits } from '../sim/ghost';
 import { heliosBeams, microwaveDamage } from '../sim/helios';
@@ -877,18 +878,19 @@ const CiwsTracers: React.FC<{
     flightRef: React.MutableRefObject<Map<string, LiveFlight>>;
     shellsRef: React.MutableRefObject<ArtilleryShell[]>;
     structuresRef: React.MutableRefObject<StructureData[]>;
-    // Filled each frame with where every firing Aegis is shooting, for its gun to track.
+    // Filled each frame with where every firing gun (Aegis or AA Turret) is shooting, for it to track.
     aimsRef: React.MutableRefObject<Map<string, THREE.Vector3>>;
     // Fire from an enemy Aegis you can't see isn't drawn, so it doesn't give the gun away.
     canSee: (aegis: UnitData) => boolean;
     tileSize: number;
     offset: number;
 }> = ({ linksRef, unitsRef, flightRef, shellsRef, structuresRef, aimsRef, canSee, tileSize, offset }) => {
-    // Where a gun's muzzle is: on an Aegis' turret, or atop a CIWS turret (always in plain view).
-    const muzzleOf = (link: CiwsLink) => {
+    // Where a gun's muzzle is: on an Aegis' turret, or at the tip of an AA Turret's barrels aimed
+    // at its target (always in plain view).
+    const muzzleOf = (link: CiwsLink, target?: { x: number; y: number; z: number }) => {
         if (link.fromStructure) {
             const s = structuresRef.current.find(x => x.id === link.gunId);
-            return s ? { x: s.gridPos.x * tileSize - offset, y: 11, z: s.gridPos.z * tileSize - offset } : null;
+            return s ? aaTurretMuzzle({ x: s.gridPos.x * tileSize - offset, z: s.gridPos.z * tileSize - offset }, target) : null;
         }
         const gun = unitsRef.current.find(u => u.id === link.gunId);
         return gun && canSee(gun) ? unitWorld(gun, tileSize, offset, 5.8) : null;
@@ -903,13 +905,13 @@ const CiwsTracers: React.FC<{
         if (!im) return;
         const now = Date.now();
         const t = state.clock.elapsedTime;
-        // New rounds for every gun firing this tick; each Aegis' gun told where to point.
+        // New rounds for every gun firing this tick; each gun (Aegis or AA Turret) told where to point.
         const aims = aimsRef.current;
         aims.clear();
         for (const link of linksRef.current) {
-            const muzzle = muzzleOf(link);
             const target = airThreatWorld(link.targetId, unitsRef.current, flightRef.current, shellsRef.current, tileSize, offset, now);
-            if (target && !link.fromStructure) aims.set(link.gunId, new THREE.Vector3(target.x, target.y, target.z));
+            const muzzle = muzzleOf(link, target ?? undefined);
+            if (target) aims.set(link.gunId, new THREE.Vector3(target.x, target.y, target.z));
             if (!muzzle || !target) continue;
             const n = (owed.current.get(link.gunId) || 0) + CIWS.roundsPerSecond * Math.min(delta, 0.5);
             const whole = Math.floor(n);
@@ -943,7 +945,7 @@ const CiwsTracers: React.FC<{
         if (flashes) {
             let n = 0;
             for (const link of linksRef.current) {
-                const w = muzzleOf(link);
+                const w = muzzleOf(link, aims.get(link.gunId));
                 if (!w || n >= flashes.children.length) continue;
                 const f = flashes.children[n++];
                 f.visible = true;
@@ -1636,7 +1638,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const [voltWarnings, setVoltWarnings] = useState<VoltCharge[]>([]);
   const [smokeScreens, setSmokeScreens] = useState<SmokeScreen[]>([]);
   const miniRocketsRef = useRef<MiniRocket[]>([]);
-  // Where each firing Aegis is shooting this frame (CiwsTracers), for its gun to track.
+  // Where each firing Aegis or AA Turret is shooting this frame (CiwsTracers), for its gun to track.
   const ciwsAimsRef = useRef(new Map<string, THREE.Vector3>());
   // Thunderhead shells in flight. The ref is the authority; the state is for drawing them.
   const [shells, setShells] = useState<ArtilleryShell[]>([]);
@@ -4404,6 +4406,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 heroBlocked={s.type === 'research_lab' && depotMenuOpenId === s.id ? playerHeroBlocked : undefined}
                 income={s.type === 'refinery' && depotMenuOpenId === s.id && s.team === playerTeam ? incomeBreakdown(buildings, playerTeam, structuresState) : undefined}
                 refineryShare={s.type === 'refinery' && depotMenuOpenId === s.id ? refineryMultiplier(s, structuresState, coreNodeTiles) : undefined}
+                ciwsAims={s.type === 'aa_turret' ? ciwsAimsRef : undefined}
             /> 
         ))}
         {/* Only a fully held block shows a status; the rest drew nothing but still re-rendered every tick. */}

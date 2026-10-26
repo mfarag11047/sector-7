@@ -570,6 +570,13 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   mesh, live wires humming in core yellow, a warning sign, and now and then an arc across a panel. Level 2 raises the stack and lights a second band and every prong's collar; while it
   upgrades the light pulses fast and the collar ring turns. The arms and the Comm Link's dish feed
   use the kit's `Strut`.
+- **The CIWS Turret** (`components/models/AaTurretModel.tsx`, structure type `aa_turret`): the
+  Aegis' gun on a fixed mount, in the base greys. An octagonal armoured plinth with sloped sides
+  over a dark skirt, team stripes on four faces, amber lights on the corners and an ammunition
+  hatch at the back; on its deck a turret ring carrying the same yoke, six-barrel rotary cannon and
+  six-sided pod as the Aegis, a little larger. Firing, it turns and lifts the gun onto its target
+  (the aim CityMap's tracer stream shares with the Aegis) and the barrels spin, and the stream
+  leaves from the barrels' tips; idle, it turns slowly round, scanning the sky.
 - **The missile** (`components/models/MissileModel.tsx`): one model for the Ballista's missile
   wherever it shows (the Field Fabricator's cages, the Ballista's launch tube, in flight): a long
   dark body, a forked tail of four prongs growing out of it and sweeping out round a nozzle, four
