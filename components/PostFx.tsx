@@ -8,9 +8,10 @@
 // city block's.
 //
 // Between them, a guard (FINITE_GUARD) that turns any pixel that isn't a finite number (a NaN or an
-// infinity, from a shader's edge case on some GPU) black. Bloom blurs each pixel into ever wider
-// averages, and one such pixel poisons every average it touches: unguarded, a single bad pixel
-// blacks out half the screen or all of it.
+// infinity, from a shader's edge case on some GPU) black, and any negative colour to zero (which an
+// 8-bit screen would have clamped, but this high-range chain keeps). Bloom blurs each pixel into
+// ever wider averages, and one such pixel poisons every average it touches: unguarded, a single bad
+// pixel blacks out half the screen or all of it.
 //
 // Bloom, so lights glow with a soft halo. Selective: only what is on the bloom layer glows, so lit
 // surfaces, however bright, never do, and a light keeps its own colour rather than being pushed to
@@ -18,7 +19,9 @@
 // On the layer go every opaque unlit light, which a sweep of the scene finds every SWEEP_S:
 // the unit kit's lights (kit/materials.ts `glow`), the city's neon, the structures' trim. Parts
 // are matched by depth, so a see-through light (one drawn without writing depth: exhausts, the
-// force field dome) doesn't bloom.
+// force field dome) doesn't bloom. The layer is all the selection there is: bloom's own brightness
+// filter is switched off, not set to zero. (At zero it computes smoothstep(0, 0, x), which GLSL
+// leaves undefined; on some GPUs that is a NaN on every unlit pixel, and the screen goes black.)
 //
 // Tone mapping, which the renderer would otherwise apply, comes after them. Then grading, on the
 // displayed image: a little more contrast and colour (GRADE), and a vignette darkening the screen's
@@ -42,7 +45,7 @@ uniform sampler2D inputBuffer;
 varying vec2 vUv;
 void main() {
   vec4 c = texture2D(inputBuffer, vUv);
-  gl_FragColor = any(isnan(c)) || any(isinf(c)) ? vec4(0.0, 0.0, 0.0, 1.0) : c;
+  gl_FragColor = any(isnan(c)) || any(isinf(c)) ? vec4(0.0, 0.0, 0.0, 1.0) : max(c, vec4(0.0));
 }`;
 const FULLSCREEN = 'varying vec2 vUv; void main() { vUv = position.xy * 0.5 + 0.5; gl_Position = vec4(position.xy, 1.0, 1.0); }';
 
@@ -69,8 +72,9 @@ const PostFx: React.FC = () => {
   })), []);
   useEffect(() => () => guard.dispose(), [guard]);
   const bloom = useMemo(() => {
-    const effect = new SelectiveBloomEffect(scene, camera, { mipmapBlur: true, luminanceThreshold: 0, luminanceSmoothing: 0, intensity: BLOOM.intensity, radius: BLOOM.radius });
+    const effect = new SelectiveBloomEffect(scene, camera, { mipmapBlur: true, intensity: BLOOM.intensity, radius: BLOOM.radius });
     effect.selection.layer = BLOOM_LAYER;
+    effect.luminancePass.enabled = false;
     return effect;
   }, [scene, camera]);
   useEffect(() => () => bloom.dispose(), [bloom]);

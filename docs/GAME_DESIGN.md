@@ -310,8 +310,11 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
 - **Ambient occlusion** (`components/PostFx.tsx`, N8AO): darkens where surfaces close in (under
   hulls, where legs meet bodies, round buildings' feet) from the depth buffer alone, at full
   resolution (half shimmers on big walls), first in the post-processing chain so it works on the
-  scene's real brightness. A guard after it turns any non-finite pixel (NaN, infinity) black before
-  bloom: bloom's blur would otherwise spread one such pixel over half the screen or all of it.
+  scene's real brightness. A guard after it turns any non-finite pixel (NaN, infinity) black and
+  clamps negative colours before bloom: bloom's blur would otherwise spread one such pixel over half
+  the screen or all of it. Bloom's own brightness filter is off (the bloom layer selects what
+  glows); at a threshold of zero it computes smoothstep(0, 0, x), undefined in GLSL and a NaN on
+  some GPUs.
 - **Bloom** (`components/PostFx.tsx`): every opaque unlit light (the kit's `glow` parts, the
   city's neon, structure trim) glows with a soft halo in its own colour. It is selective: lights
   are found by a sweep of the scene and put on a bloom layer, so lit surfaces never bloom however
