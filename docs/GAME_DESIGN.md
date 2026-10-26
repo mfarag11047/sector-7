@@ -516,6 +516,12 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   a double door, two team rank chevrons, a screen facing the yard, floodlights; on its roof a comms
   mast with dishes, a slowly turning satellite dish, AC boxes and exhaust stacks). In front of the
   bays a fenced training yard (assembly circle, targets, a pull-up frame), and supply crates.
+- **The Factory** (`components/models/FactoryModel.tsx`, structure type `armor`): a vehicle plant
+  on a raised concrete pad. A long assembly hangar with a chamfered roof and ribs, its front a
+  portal framed in dark plate opening on a lit bay where two robot arms work, sparks flashing;
+  rails run out across the pad. Beside it an office block (door, marked sign panel, AC unit) and a
+  machinery block with pipes; behind, two smokestacks, a domed tank on a lattice frame and a
+  lattice tower; over the east side a gantry crane whose trolley runs slowly along its beam.
 - **The missile** (`components/models/MissileModel.tsx`): one model for the Ballista's missile
   wherever it shows (the Field Fabricator's cages, the Ballista's launch tube, in flight): a long
   dark body, a forked tail of four prongs growing out of it and sweeping out round a nozzle, four
