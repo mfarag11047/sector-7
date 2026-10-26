@@ -1,4 +1,4 @@
-// Post-processing over the whole scene, in order: ambient occlusion, bloom, tone mapping.
+// Post-processing over the whole scene, in order: ambient occlusion, bloom, tone mapping, grading.
 //
 // Ambient occlusion (N8AO) darkens where surfaces close in on each other (under a hull, where a
 // leg meets the body, round a building's foot), worked out from the depth buffer alone, so it
@@ -14,17 +14,20 @@
 // are matched by depth, so a see-through light (one drawn without writing depth: exhausts, the
 // force field dome) doesn't bloom.
 //
-// Tone mapping, which the renderer would otherwise apply, moves to the end of the chain.
+// Tone mapping, which the renderer would otherwise apply, comes after them. Then grading, on the
+// displayed image: a little more contrast and colour (GRADE), and a vignette darkening the screen's
+// edges to draw the eye in.
 
 import React, { useEffect, useMemo } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { EffectComposer, ToneMapping } from '@react-three/postprocessing';
+import { BrightnessContrast, EffectComposer, HueSaturation, ToneMapping, Vignette } from '@react-three/postprocessing';
 import { SelectiveBloomEffect, ToneMappingMode } from 'postprocessing';
 import { N8AOPostPass } from 'n8ao';
 
 const AO = { radius: 4, falloff: 1, intensity: 2 };
 const BLOOM = { intensity: 1.6, radius: 0.75 };
+const GRADE = { contrast: 0.08, saturation: 0.08, vignetteOffset: 0.3, vignetteDarkness: 0.6 };
 const SWEEP_S = 0.4;
 const BLOOM_LAYER = 10;
 
@@ -68,6 +71,9 @@ const PostFx: React.FC = () => {
       <primitive object={ao} />
       <primitive object={bloom} />
       <ToneMapping mode={ToneMappingMode.ACES_FILMIC} />
+      <BrightnessContrast contrast={GRADE.contrast} />
+      <HueSaturation saturation={GRADE.saturation} />
+      <Vignette offset={GRADE.vignetteOffset} darkness={GRADE.vignetteDarkness} />
     </EffectComposer>
   );
 };

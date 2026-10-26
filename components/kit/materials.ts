@@ -12,7 +12,9 @@
 // tuned as what they are: bare metal is metallic and catches the city's light, paint has a satin
 // sheen, polymer less, rubber none. Every plate also carries a little wear (`weathered`): a faint
 // mottling of its roughness and tone, so light breaks up across a plate rather than lying on it
-// evenly.
+// evenly; and a rim, a cool light on the faces seen nearly edge-on, which on these faceted parts
+// are the thin bands along a unit's silhouette, so units stand out against the dark streets from
+// any heading.
 
 import * as THREE from 'three';
 import { treadMap } from './textures';
@@ -47,6 +49,8 @@ const cached = <T extends THREE.Material>(key: string, make: () => T): T => {
 
 // Wear, for a plate: its roughness and tone mottled by a soft noise in the part's own space (so it
 // stays on the part as the unit moves), at two scales. Patched into three's standard shader.
+// The rim: its colour and strength, and how tightly it hugs the edge (higher, thinner).
+const RIM = { color: new THREE.Color('#9cc2ff'), strength: 0.35, power: 6 };
 const WEAR_GLSL = `
 varying vec3 vKitPos;
 float kitHash(vec3 p) { p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
@@ -74,7 +78,10 @@ export function weathered<T extends THREE.MeshStandardMaterial>(m: T, fill = m.u
         float kitWear = kitNoise(vKitPos * 16.0) * 0.5 + kitNoise(vKitPos * 45.0) * 0.5;
         diffuseColor.rgb *= 0.95 + 0.07 * kitWear;`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
-        roughnessFactor = clamp(roughnessFactor + (kitWear - 0.5) * 0.05, 0.05, 1.0);`);
+        roughnessFactor = clamp(roughnessFactor + (kitWear - 0.5) * 0.05, 0.05, 1.0);`)
+      .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
+        totalEmissiveRadiance += vec3(${RIM.color.r}, ${RIM.color.g}, ${RIM.color.b}) * ${RIM.strength.toFixed(3)}
+          * pow(1.0 - saturate(dot(normal, normalize(vViewPosition))), ${RIM.power.toFixed(1)});`);
   };
   return m;
 }

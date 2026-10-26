@@ -292,7 +292,9 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   each part takes the material it would be made of, tuned as what it is: bare metal metallic, paint
   satin, polymer less, rubber matte. Every plate carries a little wear (`weathered`), a fine
   mottling of its tone and roughness in the part's own space, and sets how much of the
-  environment's soft fill it takes (paint little, so it isn't washed flat; metal all). A unit
+  environment's soft fill it takes (paint little, so it isn't washed flat; metal all). It also
+  adds a rim: a cool light on faces seen nearly edge-on, which on faceted parts are the thin bands
+  along a silhouette, so units stand out from the dark streets from any camera heading. A unit
   animating its own material (a scrolling track, a pulsing light) takes a copy with `own`.
 - **Lighting** (`components/Atmosphere.tsx`): besides the suns and fill lights, an environment
   built once from light panels, not loaded: softboxes where the suns are, a dim sky overhead and
@@ -310,8 +312,9 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   city's neon, structure trim) glows with a soft halo in its own colour. It is selective: lights
   are found by a sweep of the scene and put on a bloom layer, so lit surfaces never bloom however
   bright, and nothing has to be pushed to white to bloom. See-through lights (exhausts, the force
-  field dome) don't. Tone mapping runs at the end of the post-processing chain; `?render=slow`
-  (software rendering for tests) skips it all.
+  field dome) don't. Tone mapping comes after bloom, then grading on the displayed image: a little
+  more contrast and saturation, and a vignette. `?render=slow` (software rendering for tests) skips
+  the post-processing chain.
 - **Textures** (`textures.ts`): only two, drawn in code: a soft tread that scrolls so tracks
   visibly run, and a contact shadow.
 - **Parts** (`shapes.tsx`): `Plate` (a box, sharp unless given a `radius`), `Prism` (an outline
