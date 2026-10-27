@@ -84,7 +84,7 @@ import { aaTurretMuzzle } from './models/AaTurretModel';
 import { sentryMuzzle } from './models/SentryTurretModel';
 import { titanMuzzle } from './models/TitanTankModel';
 import { blocksPath, compoundStructures, heldAtGate, hostileGateAt, isCompoundPiece } from '../sim/compound';
-import { isBuildableWall, otherRun, snapRun, type WallRun } from '../sim/walls';
+import { bulwarkJoins, isBuildableWall, otherRun, snapRun, type WallRun } from '../sim/walls';
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
 import { dampenedUnits } from '../sim/ghost';
 import { heliosBeams, microwaveDamage } from '../sim/helios';
@@ -4503,6 +4503,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 refineryShare={s.type === 'refinery' && depotMenuOpenId === s.id ? refineryMultiplier(s, structuresState, coreNodeTiles) : undefined}
                 ciwsAims={s.type === 'aa_turret' ? ciwsAimsRef : undefined}
                 targetWorldOf={s.type === 'defense' ? targetWorldOf : undefined}
+                wallJoins={s.type === 'wall_tier2' ? bulwarkJoins(s, structuresState) : undefined}
             /> 
         ))}
         {/* Only a fully held block shows a status; the rest drew nothing but still re-rendered every tick. */}

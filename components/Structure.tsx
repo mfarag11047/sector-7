@@ -28,6 +28,8 @@ import { RefineryModel } from './models/RefineryModel';
 import { AaTurretModel } from './models/AaTurretModel';
 import { SentryTurretModel } from './models/SentryTurretModel';
 import { DragonsTeethModel } from './models/DragonsTeethModel';
+import { BulwarkWallModel } from './models/BulwarkWallModel';
+import type { WallJoins } from '../sim/walls';
 import { facingOwnerView } from './kit/facing';
 import { isCompoundPiece } from '../sim/compound';
 
@@ -64,6 +66,8 @@ interface StructureProps {
   ciwsAims?: React.MutableRefObject<Map<string, THREE.Vector3>>;
   // Where a unit or structure is in the world now, for a Sentry Turret's gun to track its target.
   targetWorldOf?: (id: string) => THREE.Vector3 | undefined;
+  // A Bulwark Wall: which ends meet another running the same way, to draw them clicked together.
+  wallJoins?: WallJoins;
 }
 
 
@@ -176,52 +180,8 @@ const DismantleFrame = ({ height, tileSize }: { height: number; tileSize: number
 
 const wallSpan = (tileSize: number) => tileSize * 0.97;
 
-// Tall armored block. A solid mass on every face, so the tile reads as a bastion rather than a fence.
-const WallTier2Model = ({ teamColor, tileSize }: { color: string, teamColor: string, tileSize: number }) => {
-    const span = wallSpan(tileSize);
-    const height = 3.6;
-    const merlons = 5;
-    const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
 
-    return (
-        <group>
-            <mesh position={[0, height / 2, 0]}>
-                <boxGeometry args={[span, height, span]} />
-                <meshStandardMaterial color="#334155" metalness={0.72} roughness={0.32} />
-                <Edges color="#0f172a" threshold={20} />
-            </mesh>
-            {[0, 1, 2, 3].map(face => (
-                <group key={face} rotation={[0, face * Math.PI / 2, 0]}>
-                    <mesh position={[0, height * 0.62, span / 2 + 0.05]}>
-                        <boxGeometry args={[span * 0.78, 0.22, 0.08]} />
-                        <meshBasicMaterial color={teamColor} toneMapped={false} />
-                    </mesh>
-                    <mesh position={[0, height * 0.32, span / 2 + 0.06]}>
-                        <boxGeometry args={[1.6, 0.28, 0.08]} />
-                        <meshBasicMaterial color="#f97316" toneMapped={false} />
-                    </mesh>
-                    {Array.from({ length: merlons }).map((_, i) => {
-                        const x = (i - (merlons - 1) / 2) * (span / merlons);
-                        return (
-                            <mesh key={i} position={[x, height + 0.32, span / 2 - 0.45]}>
-                                <boxGeometry args={[span / merlons * 0.52, 0.64, 0.9]} />
-                                <meshStandardMaterial color="#475569" metalness={0.6} roughness={0.4} />
-                            </mesh>
-                        );
-                    })}
-                </group>
-            ))}
-            {corners.map(([sx, sz], i) => (
-                <mesh key={i} position={[sx * (span / 2 - 0.35), height + 0.85, sz * (span / 2 - 0.35)]} rotation={[0, Math.PI / 4, 0]}>
-                    <coneGeometry args={[0.38, 0.95, 4]} />
-                    <meshStandardMaterial color="#94a3b8" metalness={0.85} roughness={0.2} />
-                </mesh>
-            ))}
-        </group>
-    );
-};
-
-const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES, income, refineryShare, doctrine, heroBlocked, ciwsAims, targetWorldOf }) => {
+const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES, income, refineryShare, doctrine, heroBlocked, ciwsAims, targetWorldOf, wallJoins }) => {
   // Advanced Research menu: a unit class, then a unit, then its upgrades.
   const [labClass, setLabClass] = React.useState<UnitClass | null>(null);
   // Disassemble asks twice.
@@ -736,26 +696,25 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
 
     if (data.type === 'wall_tier2') {
         const span = wallSpan(tileSize);
-        const fullHeight = 3.6;
+        const fullHeight = 5.5;
         const raised = Math.max(0.25, fullHeight * buildRatio);
         return (
             <group>
+            {/* Going up: the barrier's outline along the tile, the way it will run, filling as the Masons haul. */}
             {data.isBlueprint && (
-                <group>
+                <group rotation={[0, data.wallRun === 'z' ? Math.PI / 2 : 0, 0]}>
                     <mesh position={[0, fullHeight / 2, 0]}>
-                        <boxGeometry args={[span, fullHeight, span]} />
+                        <boxGeometry args={[span, fullHeight, 3.6]} />
                         <meshBasicMaterial color="#94a3b8" wireframe transparent opacity={0.4} />
                     </mesh>
                     <mesh position={[0, raised / 2, 0]}>
-                        <boxGeometry args={[span * 0.94, raised, span * 0.94]} />
-                        <meshStandardMaterial color="#334155" emissive={teamColor} emissiveIntensity={0.25} />
+                        <boxGeometry args={[span * 0.96, raised, 2.6]} />
+                        <meshStandardMaterial color="#4b5056" emissive={teamColor} emissiveIntensity={0.25} />
                     </mesh>
                 </group>
             )}
-            
-            {!data.isBlueprint && (
-                <WallTier2Model color={config.color} teamColor={teamColor} tileSize={tileSize} />
-            )}
+
+            {!data.isBlueprint && <BulwarkWallModel teamColor={teamColor} tileSize={tileSize} run={data.wallRun} joined={wallJoins} />}
             {renderProgressBar(fullHeight + 1.5)}
             </group>
         );

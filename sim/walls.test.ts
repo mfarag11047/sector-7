@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { StructureData } from '../types';
-import { otherRun, snapRun } from './walls';
+import { bulwarkJoins, otherRun, snapRun } from './walls';
 
 const wall = (x: number, z: number, wallRun: 'x' | 'z' = 'x', patch: Partial<StructureData> = {}): StructureData => ({
   id: `w${x}-${z}`, type: 'wall_tier1', team: 'blue', gridPos: { x, z }, isBlueprint: false, constructionProgress: 100,
@@ -35,5 +35,29 @@ describe('which way a placed wall runs', () => {
   it('turns either way', () => {
     expect(otherRun('x')).toBe('z');
     expect(otherRun('z')).toBe('x');
+  });
+});
+
+describe('Bulwark Walls clicking together', () => {
+  const bulwark = (x: number, z: number, run: 'x' | 'z', patch: Partial<StructureData> = {}) => wall(x, z, run, { type: 'wall_tier2', id: `b${x}-${z}`, ...patch });
+  it('joins the ends that meet a finished Bulwark of the side running the same way', () => {
+    const line = [bulwark(4, 5, 'x'), bulwark(5, 5, 'x'), bulwark(6, 5, 'x')];
+    expect(bulwarkJoins(line[0], line)).toEqual({ start: false, end: true });
+    expect(bulwarkJoins(line[1], line)).toEqual({ start: true, end: true });
+    expect(bulwarkJoins(line[2], line)).toEqual({ start: true, end: false });
+  });
+
+  it('maps a line along z to the turned model\'s ends', () => {
+    const line = [bulwark(5, 4, 'z'), bulwark(5, 5, 'z')];
+    // Turned a quarter, the model's +x end points to -z.
+    expect(bulwarkJoins(line[1], line)).toEqual({ start: false, end: true });
+    expect(bulwarkJoins(line[0], line)).toEqual({ start: true, end: false });
+  });
+
+  it('leaves a gap beside one running across, a blueprint, Dragon\'s Teeth or the other side\'s', () => {
+    const me = bulwark(5, 5, 'x');
+    for (const other of [bulwark(6, 5, 'z'), bulwark(6, 5, 'x', { isBlueprint: true }), wall(6, 5, 'x'), bulwark(6, 5, 'x', { team: 'red' })]) {
+      expect(bulwarkJoins(me, [me, other])).toEqual({ start: false, end: false });
+    }
   });
 });

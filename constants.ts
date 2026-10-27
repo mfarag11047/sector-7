@@ -272,7 +272,7 @@ export const STRUCTURE_INFO: Record<StructureType, { label: string, color: strin
     refinery: { label: 'Core Refinery', color: '#facc15', height: 7, cost: 600, maxProgress: 0, maxHealth: 900 },
     // Built by Masons
     wall_tier1: { label: "Dragons Teeth", color: '#475569', height: 1.5, cost: 150, maxProgress: 100, maxHealth: 400 }, // 1 Trip
-    wall_tier2: { label: "Bulwark Wall", color: '#334155', height: 4, cost: 400, maxProgress: 300, maxHealth: 1800 }, // 3 Trips
+    wall_tier2: { label: "Bulwark Wall", color: '#334155', height: 6.5, cost: 400, maxProgress: 300, maxHealth: 1800 }, // 3 Trips
     defense: { label: 'Sentry Turret', color: '#ef4444', height: 14, cost: 400, maxProgress: 200, maxHealth: 900 },
     aa_turret: { label: 'CIWS Turret', color: '#38bdf8', height: 5, cost: 450, maxProgress: 300, maxHealth: 800 },
     // Each side starts with one. Losing it loses the match.

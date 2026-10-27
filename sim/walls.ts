@@ -27,3 +27,20 @@ export function snapRun(at: GridPos, structures: readonly StructureData[], team:
   if (touching.length === 1) return touching[0];
   return continuing[0] ?? null;
 }
+
+// Which ends of a finished Bulwark Wall meet another running the same way, so the model draws them
+// clicked together with no gap (components/models/BulwarkWallModel.tsx). The model is built along
+// +x and turned a quarter for a wall running along z, which carries its +x end to -z: `start` is
+// the -x (along z, the +z) neighbour, `end` the +x (-z) one.
+export interface WallJoins { start: boolean; end: boolean }
+const JOINS: Record<string, WallJoins> = {
+  '00': { start: false, end: false }, '10': { start: true, end: false }, '01': { start: false, end: true }, '11': { start: true, end: true },
+};
+export function bulwarkJoins(wall: StructureData, structures: readonly StructureData[]): WallJoins {
+  const run = wall.wallRun ?? 'x';
+  const meets = (dx: number, dz: number) => structures.some(s =>
+    s.type === 'wall_tier2' && !s.isBlueprint && s.team === wall.team && (s.wallRun ?? 'x') === run &&
+    s.gridPos.x === wall.gridPos.x + dx && s.gridPos.z === wall.gridPos.z + dz);
+  const [start, end] = run === 'x' ? [meets(-1, 0), meets(1, 0)] : [meets(0, 1), meets(0, -1)];
+  return JOINS[`${start ? 1 : 0}${end ? 1 : 0}`];
+}

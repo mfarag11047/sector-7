@@ -791,6 +791,14 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
     at right angles, stood on three ends with three pointing up: each end chamfers in to a smaller
     face, with a dull ochre hazard band and a black stripe just inboard and a white light strip
     further in, and a line of the side's colour runs along the footing. While the Masons build it, its outline shows the way it runs.
+  - **Bulwark Wall** (`components/models/BulwarkWallModel.tsx`): a tall poured-concrete blast
+    barrier the length of its tile, the way it runs: a broad foot stepping in to a near-upright face
+    chamfered at the top and capped in dark steel. Each face has two recessed panels with a corner
+    brace and a hazard plaque between them, a strip of white light along the foot's step and a line
+    of the side's colour along the top edge. Bulwarks side by side running the same way click
+    together (`bulwarkJoins` in `sim/walls.ts`): the ends that meet run to the tile's edge with no
+    cap, so a line of them is one unbroken wall; an end with no neighbour stops just short behind a
+    dark steel end cap. While the Masons build one, its outline shows the way it runs.
   - **Sentry Turret** (400): anti-vehicle railgun, AP 40 / 1.5 s / 6, ground only, 900 HP.
   - Both turrets are base defences: they only go on the four corner pads of one of your Command
     HQs (the starting one or one you built), built by clicking the + on a free corner. They need
