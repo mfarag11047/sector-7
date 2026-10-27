@@ -679,6 +679,14 @@ nothing reaches Tier 2 in about 8 minutes.
   but has to go out and take it from its Sentinel, then hold it.
 - **Two contested flank nodes** on the line halfway between the bases, beside the outer core nodes.
 - **One in the centre.**
+- **The Sentinel** (`components/models/SentinelDroneModel.tsx`) hovers over its node's roof: a
+  round grey robot that is all one eye. A smooth grey shell with dark seam rings, a belt round its
+  middle with red lights and a stubby thruster pod on each side, a sensor mast with a blinking red
+  tip, and a hover emitter glowing underneath. In front, the eye: a heavy dark rim under an
+  armoured brow, a black socket ringed by eight shutter blades, a red iris round a white-hot pupil.
+  It turns its whole body to look at what it is shooting and fires a flickering laser from the
+  pupil (a white-hot core in a red glow, with a flare at each end); idle, it turns slowly round,
+  looking down over its node, its eye dimmed.
 
 Rough timings: holding just your own node, Tier 2 takes about 2 minutes of holding it, and Tier 3
 another 6. Holding three nodes gets you from Tier 2 to Tier 3 in about 2 minutes.

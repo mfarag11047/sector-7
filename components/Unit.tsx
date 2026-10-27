@@ -50,6 +50,7 @@ import { CrawlerDroneModel } from './models/CrawlerDroneModel';
 import { BallistaModel } from './models/BallistaModel';
 import { ThunderheadModel } from './models/ThunderheadModel';
 import { GuardianModel, GUARDIAN_BEAM_ORIGIN_Y } from './models/GuardianModel';
+import { SentinelDroneModel } from './models/SentinelDroneModel';
 import { TitanTankModel } from './models/TitanTankModel';
 import { KageRig } from './KageRig';
 import { GOLIATH } from '../sim/heavyMetalHero';
@@ -305,11 +306,22 @@ const Unit: React.FC<UnitProps> = ({
   const tetherLineRefs = useRef<(THREE.BufferGeometry | null)[]>([]);
   const batteryLineRefs = useRef<(THREE.BufferGeometry | null)[]>([]);
   const repairBeamRefs = useRef<(THREE.Mesh | null)[]>([]);
-  const laserRef = useRef<THREE.BufferGeometry>(null);
   const constructionLineRef = useRef<THREE.BufferGeometry>(null);
   // The tip of the Mason's lifting arm, where the construction beam starts.
   const masonTipRef = useRef<THREE.Object3D>(null);
   const scene = useThree((state) => state.scene); // Access scene for lookups
+  // Where a Sentinel's laser is aimed: the unit it is firing at, looked up each frame, so the
+  // model needn't re-render when its target changes.
+  const firingLaserAtRef = useRef(firingLaserAt);
+  firingLaserAtRef.current = firingLaserAt;
+  const sentinelAimOf = useMemo(() => {
+      const at = new THREE.Vector3();
+      return () => {
+          const id = firingLaserAtRef.current;
+          const target = id ? scene.getObjectByName(`unit-${id}`) : undefined;
+          return target ? target.getWorldPosition(at) : undefined;
+      };
+  }, [scene]);
   const flashRef = useRef<THREE.Mesh>(null);
 
   const teamColor = TEAM_COLORS[team];
@@ -368,7 +380,7 @@ const Unit: React.FC<UnitProps> = ({
 
   // Floating height difference
   // Raised ground units to 1.2 to clear the Base platform (height 1.0)
-  const hoverHeight = isBombard ? 42 : isDefenseDrone ? 12.0 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler || isTrooper || isLancer || isRazorback || isScoutCar || isAegis || isHowitzer || isCloakGen || isFieldGen) ? 1.2 : (isAir ? 75.0 : 2.0);
+  const hoverHeight = isBombard ? 42 : isDefenseDrone ? 15.5 : (isTank || isGhost || isGuardian || isMule || isMason || isSunPlate || isBallista || isCourier || isBanshee || isSwarmHost || isCrawler || isTrooper || isLancer || isRazorback || isScoutCar || isAegis || isHowitzer || isCloakGen || isFieldGen) ? 1.2 : (isAir ? 75.0 : 2.0);
   // Over its target and dropping: the Bombardment Drone opens its bay.
   const bombarding = isBombard && !!bombardmentTarget && path.length === 0 && gridPos.x === bombardmentTarget.x && gridPos.z === bombardmentTarget.z;
   
@@ -479,9 +491,6 @@ const Unit: React.FC<UnitProps> = ({
 
 
         
-        if (meshRef.current && isDefenseDrone) {
-            meshRef.current.rotation.y += delta * 0.5;
-        }
     }
 
     // Imperative Line Updates (Construction, Laser, Tether) ...
@@ -497,31 +506,6 @@ const Unit: React.FC<UnitProps> = ({
         } else {
             constructionLineRef.current.setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
             constructionLineRef.current.attributes.position.needsUpdate = true;
-        }
-    }
-
-    if (laserRef.current && meshRef.current && isDefenseDrone) {
-        if (firingLaserAt) {
-            const targetObj = scene.getObjectByName(`unit-${firingLaserAt}`);
-            if (targetObj) {
-                const start = new THREE.Vector3(0, 0, 0); 
-                const targetWorld = new THREE.Vector3();
-                targetObj.getWorldPosition(targetWorld);
-                const sourceWorld = new THREE.Vector3();
-                meshRef.current.getWorldPosition(sourceWorld);
-                const diffWorld = new THREE.Vector3().subVectors(targetWorld, sourceWorld);
-                diffWorld.x += Math.random() * 0.2 - 0.1;
-                diffWorld.z += Math.random() * 0.2 - 0.1;
-                const localEnd = diffWorld.applyQuaternion(meshRef.current.quaternion.clone().invert());
-                laserRef.current.setFromPoints([start, localEnd]);
-                laserRef.current.attributes.position.needsUpdate = true;
-            } else {
-                laserRef.current.setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
-                laserRef.current.attributes.position.needsUpdate = true;
-            }
-        } else {
-            laserRef.current.setFromPoints([new THREE.Vector3(0,0,0), new THREE.Vector3(0,0,0)]);
-            laserRef.current.attributes.position.needsUpdate = true;
         }
     }
 
@@ -608,7 +592,7 @@ const Unit: React.FC<UnitProps> = ({
 
     if (meshRef.current) {
         if (isDefenseDrone) {
-            meshRef.current.rotation.y += delta * 0.5;
+            // It turns itself to look about and at its target (SentinelDroneModel); here it only bobs.
             meshRef.current.position.y = logicalWorldPos.y + Math.sin(state.clock.elapsedTime * 2) * 0.5;
             return;
         }
@@ -715,10 +699,7 @@ const Unit: React.FC<UnitProps> = ({
     if (isHornet) return <HornetModel teamColor={teamColor} rockets={upgrades.includes('hunter_rockets')} aimRef={turretAimRef} flashRef={flashRef} />;
     if (type === 'hero_shadow_ops') return <KageRig teamColor={teamColor} lastAttackTime={lastAttackTime} moving={moving} />;
     if (type === 'hero_heavy_metal') return <GoliathRig teamColor={teamColor} flashRef={flashRef} grenadeAt={grenadeAt} lastAttackTime={lastAttackTime} moving={moving} />;
-     if (isDefenseDrone) {
-        const bodyColor = "#334155"; const glowColor = firingLaserAt ? "#ff0000" : "#ef4444"; const detailColor = "#1e293b";
-        return ( <group scale={[3, 3, 3]}> <mesh><sphereGeometry args={[0.6, 16, 16]} /><meshStandardMaterial color={bodyColor} metalness={0.8} roughness={0.3} /></mesh> <mesh rotation={[Math.PI/2, 0, 0]}><torusGeometry args={[0.605, 0.015, 6, 24]} /><meshBasicMaterial color={glowColor} toneMapped={false} /></mesh> <mesh position={[0, 0.35, 0]} rotation={[Math.PI/2, 0, 0]}><torusGeometry args={[0.48, 0.015, 6, 24]} /><meshBasicMaterial color={glowColor} toneMapped={false} /></mesh> <mesh position={[0, -0.35, 0]} rotation={[Math.PI/2, 0, 0]}><torusGeometry args={[0.48, 0.015, 6, 24]} /><meshBasicMaterial color={glowColor} toneMapped={false} /></mesh> <group position={[0, 0, 0.52]} rotation={[Math.PI/2, 0, 0]}> <mesh><cylinderGeometry args={[0.22, 0.25, 0.15, 8]} /><meshStandardMaterial color={detailColor} metalness={0.9} /></mesh> <mesh position={[0, 0.08, 0]}><sphereGeometry args={[0.15, 8, 8, 0, Math.PI * 2, 0, Math.PI * 0.5]} /><meshBasicMaterial color={glowColor} toneMapped={false} /></mesh> <mesh position={[0, 0.2, 0]} rotation={[Math.PI/2, 0, 0]}><ringGeometry args={[0.06, 0.12, 8]} /><meshBasicMaterial color="#ffffff" transparent opacity={0.4} blending={THREE.AdditiveBlending} /></mesh> </group> {[90, 180, 270].map((deg) => { const rad = deg * Math.PI / 180; return ( <group key={deg} rotation={[0, rad, 0]}> <group position={[0, 0, 0.55]} rotation={[Math.PI/2, 0, 0]}> <mesh><cylinderGeometry args={[0.1, 0.12, 0.1, 8]} /><meshStandardMaterial color={detailColor} /></mesh> <mesh position={[0, 0.06, 0]}><sphereGeometry args={[0.06, 8, 8, 0, Math.PI * 2, 0, Math.PI * 0.5]} /><meshBasicMaterial color={glowColor} /></mesh> </group> </group> ); })} {[ [1, 1, 1], [-1, 1, 1], [1, -1, 1], [-1, -1, 1], [1, 1, -1], [-1, 1, -1], [1, -1, -1], [-1, -1, -1] ].map((vec, i) => { const dir = new THREE.Vector3(...vec).normalize(); const pos = dir.clone().multiplyScalar(0.58); const quaternion = new THREE.Quaternion(); quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir); return ( <group key={i} position={pos} quaternion={quaternion}> <mesh position={[0, 0.05, 0]}><cylinderGeometry args={[0.06, 0.08, 0.1, 6]} /><meshStandardMaterial color={detailColor} /></mesh> <mesh position={[0, 0.25, 0]}><coneGeometry args={[0.03, 0.4, 8]} /><meshStandardMaterial color="#cbd5e1" metalness={1} roughness={0.1} /></mesh> </group> ); })} <group position={[0.2, 0.55, -0.2]} rotation={[0, 0, -0.2]}> <mesh position={[0, 0.2, 0]}><cylinderGeometry args={[0.02, 0.02, 0.6]} /><meshStandardMaterial color="#94a3b8" metalness={1} /></mesh> <mesh position={[0, 0.5, 0]}><sphereGeometry args={[0.03]} /><meshBasicMaterial color={glowColor} /></mesh> </group> <group position={[-0.2, 0.55, -0.1]} rotation={[0.1, 0, 0.2]}> <mesh position={[0, 0.15, 0]}><cylinderGeometry args={[0.015, 0.015, 0.4]} /><meshStandardMaterial color="#94a3b8" metalness={1} /></mesh> </group> <group position={[0, -0.6, 0]}> <mesh rotation={[Math.PI, 0, 0]}><cylinderGeometry args={[0.2, 0.3, 0.15, 6]} /><meshStandardMaterial color={detailColor} /></mesh> <mesh position={[0, -0.1, 0]}><cylinderGeometry args={[0.1, 0.1, 0.1, 8]} /><meshBasicMaterial color={glowColor} transparent opacity={0.8} /></mesh> </group> </group> );
-    }
+    if (isDefenseDrone) return <SentinelDroneModel aimOf={sentinelAimOf} />;
 
     if (isTank) return <TitanTankModel teamColor={teamColor} moving={moving} railFiredAt={railgunFiredAt} aimRef={turretAimRef} flashRef={flashRef} decoy={isDecoy} />;
 
@@ -763,7 +744,7 @@ const Unit: React.FC<UnitProps> = ({
   };
   const model = useMemo(renderModel, [
     type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
-    isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, firingLaserAt, courierPayload, constructionTargetId, ciwsTargetId,
+    isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, courierPayload, constructionTargetId, ciwsTargetId,
     grenadeAt, isHero || isLancer || isTrooper || isGhost ? lastAttackTime : 0, isHero || isLancer || isTrooper || isGhost || isMule || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback || isScoutCar || isSwarmHost || isCrawler ? moving : false, isTank ? railgunFiredAt : 0,
     isBallista ? Math.floor((loadingProgress || 0) / 10) : 0,
     isBanshee ? `${!!jammerActive && battery > 0}|${tetherTargetIds?.length ?? 0}` : 0,
@@ -921,7 +902,6 @@ const Unit: React.FC<UnitProps> = ({
           </mesh>
       )}
       {isMason && constructionTargetId && (<line><bufferGeometry ref={constructionLineRef} /><lineBasicMaterial color="#f97316" linewidth={4} transparent opacity={0.8} /></line>)}
-      {isDefenseDrone && (<line><bufferGeometry ref={laserRef} /><lineBasicMaterial color="#ef4444" linewidth={3} transparent opacity={0.8} /></line>)}
       
       {/* Updated Spotting Ring for Drones (Air & Ground Defense Drones) */}
       {(isAir || isDefenseDrone) && !isDrone && (
