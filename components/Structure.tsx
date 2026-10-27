@@ -27,6 +27,7 @@ import { ResearchLabModel } from './models/ResearchLabModel';
 import { RefineryModel } from './models/RefineryModel';
 import { AaTurretModel } from './models/AaTurretModel';
 import { SentryTurretModel } from './models/SentryTurretModel';
+import { DragonsTeethModel } from './models/DragonsTeethModel';
 import { facingOwnerView } from './kit/facing';
 import { isCompoundPiece } from '../sim/compound';
 
@@ -174,72 +175,6 @@ const DismantleFrame = ({ height, tileSize }: { height: number; tileSize: number
 
 
 const wallSpan = (tileSize: number) => tileSize * 0.97;
-
-// Low square of tank traps. The curb closes every side of the tile; the teeth fill the interior.
-const WallTier1Model = ({ color, teamColor, tileSize }: { color: string, teamColor: string, tileSize: number }) => {
-    const span = wallSpan(tileSize);
-    const curb = 0.9;
-    const count = 4;
-    const inner = span - curb * 2 - 1.2;
-    const step = inner / (count - 1);
-    const origin = -inner / 2;
-    const teeth = [];
-    for (let i = 0; i < count; i++) {
-        for (let j = 0; j < count; j++) {
-            teeth.push({
-                x: origin + i * step,
-                z: origin + j * step,
-                h: 1.15 + ((i + j * 2) % 3) * 0.42,
-            });
-        }
-    }
-    const sides = [
-        { pos: [0, 0.4, span / 2 - curb / 2] as [number, number, number], size: [span, 0.8, curb] as [number, number, number] },
-        { pos: [0, 0.4, -span / 2 + curb / 2] as [number, number, number], size: [span, 0.8, curb] as [number, number, number] },
-        { pos: [span / 2 - curb / 2, 0.4, 0] as [number, number, number], size: [curb, 0.8, span] as [number, number, number] },
-        { pos: [-span / 2 + curb / 2, 0.4, 0] as [number, number, number], size: [curb, 0.8, span] as [number, number, number] },
-    ];
-    const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
-
-    return (
-        <group>
-            <mesh position={[0, 0.06, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                <planeGeometry args={[span, span]} />
-                <meshStandardMaterial color="#0f172a" />
-            </mesh>
-            <mesh position={[0, 0.7, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-                <planeGeometry args={[span - curb * 1.4, span - curb * 1.4]} />
-                <meshBasicMaterial color={teamColor} transparent opacity={0.18} side={THREE.DoubleSide} depthWrite={false} />
-            </mesh>
-            {sides.map((side, i) => (
-                <mesh key={i} position={side.pos}>
-                    <boxGeometry args={side.size} />
-                    <meshStandardMaterial color="#1e293b" metalness={0.7} roughness={0.35} />
-                    <Edges color={color} />
-                </mesh>
-            ))}
-            {teeth.map((tooth, i) => (
-                <mesh key={i} position={[tooth.x, tooth.h / 2, tooth.z]} rotation={[0, Math.PI / 4, 0]}>
-                    <coneGeometry args={[0.72, tooth.h, 4]} />
-                    <meshStandardMaterial color="#334155" metalness={0.75} roughness={0.25} />
-                </mesh>
-            ))}
-            {corners.map(([sx, sz], i) => (
-                <group key={i} position={[sx * (span / 2 - 0.7), 0, sz * (span / 2 - 0.7)]}>
-                    <mesh position={[0, 1.15, 0]}>
-                        <boxGeometry args={[1.1, 2.3, 1.1]} />
-                        <meshStandardMaterial color="#334155" metalness={0.8} />
-                        <Edges color={color} />
-                    </mesh>
-                    <mesh position={[0, 2.45, 0]}>
-                        <sphereGeometry args={[0.28, 10, 10]} />
-                        <meshBasicMaterial color="#ef4444" toneMapped={false} />
-                    </mesh>
-                </group>
-            ))}
-        </group>
-    );
-};
 
 // Tall armored block. A solid mass on every face, so the tile reads as a bastion rather than a fence.
 const WallTier2Model = ({ teamColor, tileSize }: { color: string, teamColor: string, tileSize: number }) => {
@@ -776,25 +711,24 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
     // 2. Specialized Existing Models
     if (data.type === 'wall_tier1') {
         const span = wallSpan(tileSize);
-        const raised = Math.max(0.2, 2.4 * buildRatio);
+        const raised = Math.max(0.2, 2.6 * buildRatio);
         return (
             <group>
+            {/* Going up: the row's outline across the tile, the way it will run, filling as the Masons haul. */}
             {data.isBlueprint && (
-                <group>
-                    <mesh position={[0, 1.2, 0]}>
-                        <boxGeometry args={[span, 2.4, span]} />
+                <group rotation={[0, data.wallRun === 'z' ? Math.PI / 2 : 0, 0]}>
+                    <mesh position={[0, 1.3, 0]}>
+                        <boxGeometry args={[span * 0.93, 2.6, 3.2]} />
                         <meshBasicMaterial color={teamColor} wireframe transparent opacity={0.4} />
                     </mesh>
                     <mesh position={[0, raised / 2, 0]}>
-                        <boxGeometry args={[span * 0.92, raised, span * 0.92]} />
-                        <meshStandardMaterial color="#94a3b8" emissive={teamColor} emissiveIntensity={0.35} />
+                        <boxGeometry args={[span * 0.9, raised, 2.6]} />
+                        <meshStandardMaterial color="#4b5056" emissive={teamColor} emissiveIntensity={0.3} />
                     </mesh>
                 </group>
             )}
-            
-            {!data.isBlueprint && (
-                <WallTier1Model color={config.color} teamColor={teamColor} tileSize={tileSize} />
-            )}
+
+            {!data.isBlueprint && <DragonsTeethModel teamColor={teamColor} run={data.wallRun} />}
             {renderProgressBar(4)}
             </group>
         );

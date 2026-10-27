@@ -779,6 +779,18 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 ### Other producers
 
 - **Depot:** Mason (120, pop 1, T1), plus Dragon's Teeth and Bulwark walls; it also enables two turrets:
+  - **Walls** fill their tile and block it, but run one way across it (`wallRun`, `sim/walls.ts`).
+    While placing, R turns the wall. A wall placed beside one of the side's walls snaps to join it:
+    on along a neighbour already running toward it, else along the axis its neighbours lie on; R
+    turns it away from the snap there if wanted. The preview shows the row the way it will run,
+    cyan when it joins a wall beside it. Walls stay in hand after each one is placed, so a line can
+    be laid tile by tile, until right-click or the cores run out.
+  - **Dragon's Teeth** (`components/models/DragonsTeethModel.tsx`): three anti-tank hedgehogs
+    planted in a row across the middle of the tile on a low concrete footing the full tile long, so
+    a joined line runs on unbroken. Each hedgehog is three square steel beams crossing at right
+    angles, stood on three ends with three pointing up, in the base greys: dark end caps, a yellow
+    hazard band with a black stripe near each end, a white light strip inboard, and a line of the
+    side's colour along the footing. While the Masons build it, its outline shows the way it runs.
   - **Sentry Turret** (400): anti-vehicle railgun, AP 40 / 1.5 s / 6, ground only, 900 HP.
   - Both turrets are base defences: they only go on the four corner pads of one of your Command
     HQs (the starting one or one you built), built by clicking the + on a free corner. They need

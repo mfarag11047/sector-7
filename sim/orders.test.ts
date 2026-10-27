@@ -167,6 +167,18 @@ describe('placing structures', () => {
     expect(r.structures![1]).toMatchObject({ type: 'wall_tier1', isBlueprint: true });
   });
 
+  it('lays a wall the way it was turned, else on to join the side\'s wall beside it', () => {
+    const depot = structure('d', { type: 'builder' });
+    const v = view({ structures: [hq, depot], buildings: [node('b', 'residential', 'blue')] });
+    const turned = run(v, { type: 'PLACE_STRUCTURE', structureType: 'wall_tier1', at: { x: 40, z: 41 }, run: 'z' });
+    expect(turned.structures!.at(-1)).toMatchObject({ type: 'wall_tier1', wallRun: 'z' });
+    const first = structure('w1', { type: 'wall_tier1', gridPos: { x: 40, z: 41 }, wallRun: 'z' });
+    const joined = run({ ...v, structures: [hq, depot, first] }, { type: 'PLACE_STRUCTURE', structureType: 'wall_tier1', at: { x: 40, z: 42 } });
+    expect(joined.structures!.at(-1)).toMatchObject({ wallRun: 'z' });
+    const turret = run(v, { type: 'PLACE_STRUCTURE', structureType: 'defense', at: { x: 1, z: 1 } });
+    expect(turret.structures!.at(-1)!.wallRun).toBeUndefined();
+  });
+
   it('keeps turrets to the four corners of a Command HQ\'s block, but lets walls go anywhere on the grid', () => {
     const depot = structure('d', { type: 'builder' });
     // A captured building far from base puts the grid out there.

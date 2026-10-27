@@ -6,6 +6,7 @@
 //
 // Also here: the per-team numbers those rules need (population, tech tier, nodes held).
 
+import { isBuildableWall, snapRun, type WallRun } from './walls';
 import { ABILITY_CONFIG, BUILDING_VALUES, STRUCTURE_INFO } from '../constants';
 import type { BuildingData, DoctrineType, StructureData, StructureType, UnitData } from '../types';
 import type { GridPos, PlayerCommand, Team, Warhead } from './commands';
@@ -98,7 +99,7 @@ export function orderEffects(view: OrdersView, team: Team, command: OrderCommand
       return moveOrder(view, team, reachable.ids, command.target, !!command.attackMove, ctx);
     }
     case 'TRAIN_UNIT': return trainOrder(view, team, command.structureId, command.unitType);
-    case 'PLACE_STRUCTURE': return placeOrder(view, team, command.structureType, command.at, ctx);
+    case 'PLACE_STRUCTURE': return placeOrder(view, team, command.structureType, command.at, ctx, command.run);
     case 'SET_RALLY': return rallyOrder(view, team, command.structureId, command.at, ctx);
     case 'RESEARCH_TIER': return researchOrder(view, team, command.tier);
     case 'BUILD_WARHEAD': return warheadOrder(view, team, command.structureId, command.warhead);
@@ -218,7 +219,7 @@ function trainOrder(view: OrdersView, team: Team, structureId: string, unitType:
   });
 }
 
-function placeOrder(view: OrdersView, team: Team, type: StructureType, at: GridPos, ctx: OrdersContext): OrderOutcome {
+function placeOrder(view: OrdersView, team: Team, type: StructureType, at: GridPos, ctx: OrdersContext, run?: WallRun): OrderOutcome {
   const masonBuilt = MASON_BUILT.includes(type);
   if (!STRUCTURE_RULES[type].buildable && !masonBuilt) return reject('cannot build that');
   if (masonBuilt && !view.structures.some(s => s.team === team && s.type === 'builder' && isOperational(s))) {
@@ -253,6 +254,8 @@ function placeOrder(view: OrdersView, team: Team, type: StructureType, at: GridP
     health: info.maxHealth,
     maxHealth: info.maxHealth,
     ...(masonBuilt ? {} : { buildRemainingMs: buildMs, buildTotalMs: buildMs }),
+    // A wall runs the way it was placed, else on to join the walls beside it.
+    ...(isBuildableWall(type) ? { wallRun: run ?? snapRun(at, view.structures, team) ?? 'x' } : {}),
   };
   return effects({ economy: e => spend(e, team, cost), newStructures: [structure] });
 }

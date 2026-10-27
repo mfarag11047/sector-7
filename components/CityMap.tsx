@@ -84,6 +84,7 @@ import { aaTurretMuzzle } from './models/AaTurretModel';
 import { sentryMuzzle } from './models/SentryTurretModel';
 import { titanMuzzle } from './models/TitanTankModel';
 import { blocksPath, compoundStructures, heldAtGate, hostileGateAt, isCompoundPiece } from '../sim/compound';
+import { isBuildableWall, otherRun, snapRun, type WallRun } from '../sim/walls';
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
 import { dampenedUnits } from '../sim/ghost';
 import { heliosBeams, microwaveDamage } from '../sim/helios';
@@ -1685,6 +1686,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const [placementMode, setPlacementMode] = useState<{type: StructureType, cost: number} | null>(null);
   const placementModeRef = useRef(placementMode);
   placementModeRef.current = placementMode;
+  // Placing a wall (sim/walls.ts): the way the player has turned it with R, and the tile where they
+  // turned a wall away from the line it would snap on to (it snaps again elsewhere).
+  const [wallRunChoice, setWallRunChoice] = useState<WallRun>('x');
+  const [snapTurnedAt, setSnapTurnedAt] = useState<string | null>(null);
+  const wallRunRef = useRef({ choice: wallRunChoice, turnedAt: snapTurnedAt });
+  wallRunRef.current = { choice: wallRunChoice, turnedAt: snapTurnedAt };
   // Attack-move: armed with F for the next click, or hold Ctrl while clicking.
   const [attackMoveArmed, setAttackMoveArmed] = useState(false);
   const attackMoveArmedRef = useRef(false);
@@ -1692,6 +1699,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   useEffect(() => {
       const down = (e: KeyboardEvent) => {
           ctrlHeldRef.current = e.ctrlKey || e.metaKey;
+          // R turns a wall being placed: away from the wall it would join, or the player's own way.
+          const placing = placementModeRef.current;
+          if (e.code === 'KeyR' && !e.repeat && placing && isBuildableWall(placing.type)) {
+              const at = hoverStore.get();
+              const key = at ? `${at.x},${at.z}` : null;
+              if (at && snapRun(at, structuresRef.current, playerTeamRef.current)) setSnapTurnedAt(prev => (prev === key ? null : key));
+              else setWallRunChoice(prev => otherRun(prev));
+          }
           if (e.code === 'KeyF' && !e.repeat && selectedUnitIdsRef.current.size > 0) {
               attackMoveArmedRef.current = !attackMoveArmedRef.current;
               setAttackMoveArmed(attackMoveArmedRef.current);
@@ -2664,16 +2679,33 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       return best;
   };
 
+  // Which way a wall placed at `at` runs: on to join the player's walls beside it (unless they
+  // turned it away there with R), else the way they have turned it (sim/walls.ts).
+  const wallRunAt = (at: { x: number; z: number }): WallRun => {
+      const snap = snapRun(at, structuresRef.current, playerTeam);
+      if (!snap) return wallRunRef.current.choice;
+      return wallRunRef.current.turnedAt === `${at.x},${at.z}` ? otherRun(snap) : snap;
+  };
+
+  // A click's pointer-up places; its click event then reaches the tile too, so it is ignored for a
+  // moment after, or a wall (which stays in hand) would be laid twice.
+  const lastPlacedAtRef = useRef(0);
   const commitPlacement = (x: number, z: number) => {
       const mode = placementModeRef.current;
       if (!mode) return;
+      if (Date.now() - lastPlacedAtRef.current < 300) return;
       const spot = findPlacementSpot(x, z);
       if (!spot) {
           onNotice?.('Cannot build there: it must be open ground inside your energy grid', 'warn');
           return;
       }
-      if (!dispatchOrder({ type: 'PLACE_STRUCTURE', structureType: mode.type, at: spot })) return;
-      // Masons pick up new blueprints on their own (the Mason loop below).
+      const wall = isBuildableWall(mode.type);
+      if (!dispatchOrder({ type: 'PLACE_STRUCTURE', structureType: mode.type, at: spot, ...(wall ? { run: wallRunAt(spot) } : {}) })) return;
+      lastPlacedAtRef.current = Date.now();
+      setSnapTurnedAt(null);
+      // Walls stay in hand so a line can be laid tile by tile (right-click to stop), while there
+      // are cores for the next. Masons pick up new blueprints on their own (the Mason loop below).
+      if (wall && canAfford(economyRef.current, playerTeam, mode.cost)) return;
       placementModeRef.current = null;
       setPlacementMode(null);
       setDepotMenuOpenId(null);
@@ -3235,6 +3267,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           if (canAfford(economy, playerTeam, cost)) {
               setPlacementMode({ type, cost });
               setDepotMenuOpenId(null);
+              onNotice?.(`Placing ${STRUCTURE_INFO[type].label}: R rotates it; beside one of your walls it lines up to join it. Right-click to stop.`);
           }
       }
   };
@@ -4860,7 +4893,25 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         {/* Placement Preview */}
         <HoverTile store={hoverStore}>{hoverGridPos => placementMode && hoverGridPos && (
            <group position={[(hoverGridPos.x * tileSize) - offset, 2, (hoverGridPos.z * tileSize) - offset]}>
-               {checkIsValidPlacement(hoverGridPos.x, hoverGridPos.z) ? (
+               {checkIsValidPlacement(hoverGridPos.x, hoverGridPos.z) && isBuildableWall(placementMode.type) ? (
+                   // A wall: its row across the tile, the way it will run; cyan when it joins a wall beside it.
+                   (() => {
+                       const run = wallRunAt(hoverGridPos);
+                       const joins = !!snapRun(hoverGridPos, structuresRef.current, playerTeam) && snapTurnedAt !== `${hoverGridPos.x},${hoverGridPos.z}`;
+                       return (
+                           <group rotation={[0, run === 'z' ? Math.PI / 2 : 0, 0]}>
+                               <mesh position={[0, -0.7, 0]}>
+                                   <boxGeometry args={[tileSize * 0.93, 2.6, 3.2]} />
+                                   <meshBasicMaterial color={joins ? '#22d3ee' : '#ffffff'} transparent opacity={0.55} wireframe />
+                               </mesh>
+                               <mesh position={[0, -1.9, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+                                   <planeGeometry args={[tileSize * 0.93, 3.2]} />
+                                   <meshBasicMaterial color={joins ? '#22d3ee' : '#ffffff'} transparent opacity={0.18} depthWrite={false} />
+                               </mesh>
+                           </group>
+                       );
+                   })()
+               ) : checkIsValidPlacement(hoverGridPos.x, hoverGridPos.z) ? (
                    <mesh>
                        <boxGeometry args={[tileSize * 0.8, 2, tileSize * 0.8]} />
                        <meshBasicMaterial color={placementMode.type.includes('wall') ? '#ffffff' : TEAM_COLORS[playerTeam]} transparent opacity={0.5} wireframe />

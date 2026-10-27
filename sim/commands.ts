@@ -29,7 +29,8 @@ export interface MoveCommand { type: 'MOVE'; unitIds: string[]; target: GridPos;
 
 // Covers base buildings (from the HQ menu) and walls / turrets (from the Depot menu).
 // Walls and turrets start as blueprints that Masons build up.
-export interface PlaceStructureCommand { type: 'PLACE_STRUCTURE'; structureType: StructureType; at: GridPos }
+// `run`: for a wall, which way it runs across its tile (sim/walls.ts); by default it joins the walls beside it.
+export interface PlaceStructureCommand { type: 'PLACE_STRUCTURE'; structureType: StructureType; at: GridPos; run?: 'x' | 'z' }
 export interface TrainUnitCommand { type: 'TRAIN_UNIT'; structureId: string; unitType: UnitType }
 // Where a production structure sends the units it trains.
 export interface SetRallyCommand { type: 'SET_RALLY'; structureId: string; at: GridPos }
@@ -199,7 +200,7 @@ const unitList = (c: Fields) => isIdList(c.unitIds);
 
 const CHECKS: Record<CommandType, (c: Fields) => boolean> = {
   MOVE: c => isIdList(c.unitIds) && isTile(c.target) && (c.attackMove === undefined || typeof c.attackMove === 'boolean'),
-  PLACE_STRUCTURE: c => oneOf(STRUCTURE_TYPES, c.structureType) && isTile(c.at),
+  PLACE_STRUCTURE: c => oneOf(STRUCTURE_TYPES, c.structureType) && isTile(c.at) && (c.run === undefined || c.run === 'x' || c.run === 'z'),
   TRAIN_UNIT: c => isId(c.structureId) && oneOf(UNIT_TYPES, c.unitType),
   SET_RALLY: c => isId(c.structureId) && isTile(c.at),
   RESEARCH_TIER: c => c.tier === 2 || c.tier === 3,

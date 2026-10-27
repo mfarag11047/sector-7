@@ -260,6 +260,8 @@ export interface StructureData {
   // HQ and Sentry Turret weapons.
   lastAttackTime?: number;
   combatTargetId?: string | null;
+  // A buildable wall (Dragon's Teeth, Bulwark Wall): which way its barrier runs across the tile (sim/walls.ts).
+  wallRun?: 'x' | 'z';
   // Ordnance Fab: when its silo can launch again after a missile left it (sim/abilities.ts FAB_LAUNCH).
   siloReadyAt?: number;
   // CIWS turret (sim/ciws.ts): magazine used (ms of fire), reloading until, last shot, target.
