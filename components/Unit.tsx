@@ -7,6 +7,12 @@ import { TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, UNIT_STATS } from '../consta
 import { UnitType, UnitClass, UnitData } from '../types';
 import { abilitiesFor } from '../sim/unitAbilities';
 import { roleBadgeTexture, UNIT_ROLE } from './unitIcons';
+
+// A unit's role badge: its size on screen (a share of the view's height, about 40 px on a 1080 px
+// window), its opacity, and where it sits against the unit: the point of the badge on the unit, as
+// a share of its width and height from its bottom-left corner. Below and left of the badge, so the
+// badge sits above and a little right of the unit on screen, clear of it at the usual zoom.
+const ROLE_BADGE = { size: 0.04, opacity: 0.45, anchor: new THREE.Vector2(0.25, -0.75) };
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
 import { currentTilePosition, parseTile } from '../sim/movement';
 import { CLOAK_VIOLET, CloakGeneratorModel } from './models/CloakGeneratorModel';
@@ -796,11 +802,13 @@ const Unit: React.FC<UnitProps> = ({
         </mesh>
       )}
 
-      {/* Role badge: a team-coloured pictogram floating above the unit, the same size on screen at
-          any zoom and drawn over the city, so an army reads at a glance. Hidden while selected. */}
+      {/* Role badge: a team-coloured pictogram, the same size on screen at any zoom and drawn over
+          the city, so an army reads at a glance. The camera looks nearly straight down, so a badge
+          above the unit would sit right over it: it is shifted up and a little right on screen
+          instead (ROLE_BADGE.anchor), clear of the unit, and see-through. Hidden while selected. */}
       {!isSelected && !actionMenuOpen && (
-        <sprite position={[0, isAir ? 10 : 9, 0]} scale={[0.04, 0.04, 1]} renderOrder={20} raycast={() => null}>
-          <spriteMaterial map={roleBadgeTexture(UNIT_ROLE[type] ?? 'infantry', team)} sizeAttenuation={false} depthTest={false} depthWrite={false} transparent toneMapped={false} />
+        <sprite position={[0, isAir ? 10 : 9, 0]} center={ROLE_BADGE.anchor} scale={[ROLE_BADGE.size, ROLE_BADGE.size, 1]} renderOrder={20} raycast={() => null}>
+          <spriteMaterial map={roleBadgeTexture(UNIT_ROLE[type] ?? 'infantry', team)} opacity={ROLE_BADGE.opacity} sizeAttenuation={false} depthTest={false} depthWrite={false} transparent toneMapped={false} />
         </sprite>
       )}
 

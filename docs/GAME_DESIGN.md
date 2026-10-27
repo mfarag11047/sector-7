@@ -715,8 +715,9 @@ to their corners and clicks land where things are drawn).
 ### Role badges
 
 Every visible unit shows a role badge in its team colour, so an army's make-up reads at a
-glance. It floats above the unit at a fixed screen size and draws over buildings; the minimap
-uses the same badge. A unit's badge hides while that unit is selected. Roles come from
+glance. It is a fixed size on screen and draws over buildings; since the camera looks nearly
+straight down, it is shifted up and a little right of the unit on screen, clear of it at the usual
+zoom, and is see-through (45%), so the unit itself stays in view. The minimap uses the same badge. A unit's badge hides while that unit is selected. Roles come from
 `components/unitIcons.ts`:
 
 | Badge | Role | Units |
