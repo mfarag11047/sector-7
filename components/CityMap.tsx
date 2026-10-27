@@ -67,7 +67,8 @@ import { armMules, countdownOf, dueCharges, VOLT, VoltCharge, voltBlasts } from 
 import { canisterSpots, HE, WARHEAD_LIST, WP, wpGasDamage } from '../sim/warheads';
 import { heroBlocker, heroOf } from '../sim/heroes';
 import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade, upgradeDef, upgradeTitle, type UpgradeId } from '../sim/upgrades';
-import { teamPads } from '../sim/baseLayout';
+import { baseCentreOf, padKindOf, spawnTile, teamPads } from '../sim/baseLayout';
+import { facingBase } from './kit/facing';
 import BuildPads, { FreePad } from './BuildPads';
 import { advanceRefineryUpgrades, baseProximity, REFINERY, refineriesOf, refineryLimit, refineryMultiplier } from '../sim/refinery';
 import { advanceDismantling } from '../sim/dismantle';
@@ -4055,16 +4056,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               const { findPath, isWalkable } = aiHelpersRef.current;
               const taken = new Set(unitsRef.current.map(u => `${u.gridPos.x},${u.gridPos.z}`));
               const born = build.trained.map(({ structure, unitType }, i) => {
-                  const at = structure.gridPos;
-                  // First free road tile around the structure, widening the ring if crowded.
-                  let spawn = { ...at };
-                  search: for (let r = 1; r <= 3; r++) {
-                      for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
-                          if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
-                          const k = `${at.x + dx},${at.z + dz}`;
-                          if (isWalkable(at.x + dx, at.z + dz) && !taken.has(k)) { spawn = { x: at.x + dx, z: at.z + dz }; break search; }
-                      }
-                  }
+                  // The free road tile round the structure nearest the middle of its base (sim/baseLayout.ts).
+                  const spawn = spawnTile(structure.gridPos, baseCentreOf(structure.gridPos, structuresRef.current, structure.team),
+                      (x, z) => isWalkable(x, z) && !taken.has(`${x},${z}`));
                   taken.add(`${spawn.x},${spawn.z}`);
                   const unit = createUnit(unitType, structure.team, `u-${structure.team}-${now}-${i}`, spawn);
                   const rally = structure.rallyPoint;
@@ -4517,6 +4511,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 ciwsAims={s.type === 'aa_turret' ? ciwsAimsRef : undefined}
                 targetWorldOf={s.type === 'defense' ? targetWorldOf : undefined}
                 wallJoins={s.type === 'wall_tier2' ? bulwarkJoins(s, structuresState) : undefined}
+                facing={padKindOf(s.type) === 'building' ? facingBase(s.gridPos, baseCentreOf(s.gridPos, structuresState, s.team)) : undefined}
             /> 
         ))}
         {/* Only a fully held block shows a status; the rest drew nothing but still re-rendered every tick. */}

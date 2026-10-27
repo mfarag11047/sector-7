@@ -72,3 +72,33 @@ export function freePadsFor(type: StructureType, structures: readonly StructureD
 }
 
 export const isPad = (at: GridPos, pads: readonly GridPos[]) => pads.some(p => p.x === at.x && p.z === at.z);
+
+// The middle of the base a structure stands in: its side's nearest Command HQ, or null with none.
+export function baseCentreOf(at: GridPos, structures: readonly StructureData[], team: Team): GridPos | null {
+  let best: GridPos | null = null;
+  let bestD = Infinity;
+  for (const s of structures) {
+    if (s.type !== 'hq' || s.team !== team) continue;
+    const d = Math.hypot(s.gridPos.x - at.x, s.gridPos.z - at.z);
+    if (d < bestD) { best = s.gridPos; bestD = d; }
+  }
+  return best;
+}
+
+// Where a unit trained at `at` comes out: the nearest free tile in the rings round it, widening
+// the ring if crowded, and within a ring the one nearest the middle of its base (`centre`), so
+// new units come out on the inside of the base rather than against its walls. With no centre,
+// the first free tile of the ring. Nothing free within three rings: on the structure's own tile.
+export function spawnTile(at: GridPos, centre: GridPos | null, isFree: (x: number, z: number) => boolean): GridPos {
+  for (let r = 1; r <= 3; r++) {
+    const ring: GridPos[] = [];
+    for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+      if (Math.max(Math.abs(dx), Math.abs(dz)) === r && isFree(at.x + dx, at.z + dz)) ring.push({ x: at.x + dx, z: at.z + dz });
+    }
+    if (ring.length === 0) continue;
+    if (!centre) return ring[0];
+    const from = (p: GridPos) => Math.hypot(p.x - centre.x, p.z - centre.z);
+    return ring.reduce((best, p) => (from(p) < from(best) ? p : best));
+  }
+  return { ...at };
+}

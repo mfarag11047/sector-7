@@ -68,6 +68,8 @@ interface StructureProps {
   targetWorldOf?: (id: string) => THREE.Vector3 | undefined;
   // A Bulwark Wall: which ends meet another running the same way, to draw them clicked together.
   wallJoins?: WallJoins;
+  // A base building: the turn that faces its front in toward the middle of its base (kit/facing.ts facingBase).
+  facing?: number;
 }
 
 
@@ -181,7 +183,7 @@ const DismantleFrame = ({ height, tileSize }: { height: number; tileSize: number
 const wallSpan = (tileSize: number) => tileSize * 0.97;
 
 
-const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES, income, refineryShare, doctrine, heroBlocked, ciwsAims, targetWorldOf, wallJoins }) => {
+const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES, income, refineryShare, doctrine, heroBlocked, ciwsAims, targetWorldOf, wallJoins, facing }) => {
   // Advanced Research menu: a unit class, then a unit, then its upgrades.
   const [labClass, setLabClass] = React.useState<UnitClass | null>(null);
   // Disassemble asks twice.
@@ -635,37 +637,39 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
   const buildRatio = data.maxProgress > 0 ? Math.min(1, data.constructionProgress / data.maxProgress) : 1;
 
   // Determine which model to render
+  // Base buildings face in toward their base; anything else, its owner's view.
+  const face = facing ?? facingOwnerView(data.gridPos);
   const renderModel = () => {
     // The base walls and blast gates are drawn together by BaseCompound.tsx; only their health shows here.
     if (isCompoundPiece(data.type)) return null;
     // 1. Custom Models
     if (data.type === 'support') {
-        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><CommLinkModel teamColor={teamColor} /></group>;
+        return <group rotation={[0, face, 0]}><CommLinkModel teamColor={teamColor} /></group>;
     }
     if (data.type === 'infantry') {
-        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><BarracksModel teamColor={teamColor} /></group>;
+        return <group rotation={[0, face, 0]}><BarracksModel teamColor={teamColor} /></group>;
     }
     if (data.type === 'armor') {
-        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><FactoryModel teamColor={teamColor} /></group>;
+        return <group rotation={[0, face, 0]}><FactoryModel teamColor={teamColor} /></group>;
     }
     if (data.type === 'ordnance') {
         return <group scale={[1.9, 1.9, 1.9]}><MunitionsModel color={config.color} teamColor={teamColor} /></group>;
     }
     if (data.type === 'air') {
-        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><AirpadModel teamColor={teamColor} /></group>;
+        return <group rotation={[0, face, 0]}><AirpadModel teamColor={teamColor} /></group>;
     }
     if (data.type === 'builder') {
         // At work while it has a Mason in training.
-        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><DepotModel teamColor={teamColor} active={(data.queue?.length ?? 0) > 0} /></group>;
+        return <group rotation={[0, face, 0]}><DepotModel teamColor={teamColor} active={(data.queue?.length ?? 0) > 0} /></group>;
     }
     if (data.type === 'ordnance_fab') {
-        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><OrdnanceFabModel teamColor={teamColor} fabricating={data.production?.active ? data.production.item : null} siloReadyAt={data.siloReadyAt} /></group>;
+        return <group rotation={[0, face, 0]}><OrdnanceFabModel teamColor={teamColor} fabricating={data.production?.active ? data.production.item : null} siloReadyAt={data.siloReadyAt} /></group>;
     }
     if (data.type === 'refinery') {
-        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><RefineryModel teamColor={teamColor} level={data.refineryLevel === 2 ? 2 : 1} upgrading={!!data.refineryUpgrade} /></group>;
+        return <group rotation={[0, face, 0]}><RefineryModel teamColor={teamColor} level={data.refineryLevel === 2 ? 2 : 1} upgrading={!!data.refineryUpgrade} /></group>;
     }
     if (data.type === 'research_lab') {
-        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><ResearchLabModel teamColor={teamColor} active={!!data.research} /></group>;
+        return <group rotation={[0, face, 0]}><ResearchLabModel teamColor={teamColor} active={!!data.research} /></group>;
     }
 
     // 2. Specialized Existing Models

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { CITY_CONFIG, TEAM_BASES } from '../constants';
 import type { StructureData } from '../types';
-import { BUILDING_PADS, freePadsFor, hqPads, padKindOf, TURRET_PADS } from './baseLayout';
+import { baseCentreOf, BUILDING_PADS, freePadsFor, hqPads, padKindOf, spawnTile, TURRET_PADS } from './baseLayout';
+import { facingBase } from '../components/kit/facing';
 import { generateCity } from './mapgen';
 
 const N = CITY_CONFIG.gridSize;
@@ -53,5 +54,41 @@ describe('base pads', () => {
     expect(freePadsFor('wall_tier1', [hq], 'blue', N)).toBeNull();
     // A fallen HQ's pads are gone.
     expect(freePadsFor('infantry', [{ ...hq, health: 0 }], 'blue', N)).toEqual([]);
+  });
+});
+
+describe('the middle of a base', () => {
+  const hqAt = (id: string, team: 'blue' | 'red', x: number, z: number) =>
+    ({ id, type: 'hq', team, gridPos: { x, z }, isBlueprint: false, constructionProgress: 0, maxProgress: 0, health: 1, maxHealth: 1 }) as StructureData;
+  const hqs = [hqAt('a', 'blue', 4, 4), hqAt('b', 'blue', 21, 4), hqAt('c', 'red', 6, 3)];
+
+  it('is the side\'s nearest Command HQ', () => {
+    expect(baseCentreOf({ x: 1, z: 3 }, hqs, 'blue')).toEqual({ x: 4, z: 4 });
+    expect(baseCentreOf({ x: 19, z: 6 }, hqs, 'blue')).toEqual({ x: 21, z: 4 });
+    expect(baseCentreOf({ x: 1, z: 3 }, [], 'blue')).toBeNull();
+  });
+
+  it('is where every base building on an HQ\'s pads faces', () => {
+    const hq = TEAM_BASES.blue;
+    // Models face +Z; a turn of t points them along (sin t, cos t).
+    for (const pad of hqPads(hq, 'building', N)) {
+      const t = facingBase(pad, hq);
+      const [fx, fz] = [Math.round(Math.sin(t)), Math.round(Math.cos(t))];
+      expect(Math.abs(fx) + Math.abs(fz)).toBe(1);
+      // A step forward brings it nearer the HQ.
+      expect(Math.hypot(pad.x + fx - hq.x, pad.z + fz - hq.z)).toBeLessThan(Math.hypot(pad.x - hq.x, pad.z - hq.z));
+    }
+  });
+
+  it('is the side new units come out on', () => {
+    const open = () => true;
+    // A building west of its HQ: out on its east side, toward the HQ.
+    expect(spawnTile({ x: 1, z: 4 }, { x: 4, z: 4 }, open)).toEqual({ x: 2, z: 4 });
+    expect(spawnTile({ x: 4, z: 7 }, { x: 4, z: 4 }, open)).toEqual({ x: 4, z: 6 });
+    // The nearest ring still comes first, the inside of it where free.
+    expect(spawnTile({ x: 1, z: 4 }, { x: 4, z: 4 }, (x, z) => x !== 2)).toEqual({ x: 1, z: 3 });
+    expect(spawnTile({ x: 1, z: 4 }, { x: 4, z: 4 }, (x, z) => Math.max(Math.abs(x - 1), Math.abs(z - 4)) > 1)).toEqual({ x: 3, z: 4 });
+    expect(spawnTile({ x: 1, z: 4 }, null, open)).toEqual({ x: 0, z: 3 });
+    expect(spawnTile({ x: 1, z: 4 }, { x: 4, z: 4 }, () => false)).toEqual({ x: 1, z: 4 });
   });
 });

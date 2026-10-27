@@ -22,6 +22,7 @@ import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artil
 import { EmpRocket, empRocketImpact, empRocketTick, mergeUnitUpdates } from './empRocket';
 import { ArtilleryShell, fireArtillery, landShells, shellGroundPos } from './artillery';
 import { clearedBlocks, rubbleCleared } from './bases';
+import { baseCentreOf, spawnTile } from './baseLayout';
 import { captureTick } from './capture';
 import { applyCiwsState, ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
 import type { GridPos, Team } from './commands';
@@ -293,15 +294,8 @@ export function stepMatch(m: HeadlessMatch): void {
   m.structures = advanceRefineryUpgrades(m.structures, team => productionStep(team === 'blue' || team === 'red' ? m.opts.doctrine[team] : null)).structures;
   for (const { structure, unitType } of build.trained) {
     const taken = new Set(m.units.map(u => key(u.gridPos.x, u.gridPos.z)));
-    let spawn = { ...structure.gridPos };
-    search: for (let r = 1; r <= 3; r++) {
-      for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
-        if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
-        const x = structure.gridPos.x + dx;
-        const z = structure.gridPos.z + dz;
-        if (paths.walkable(x, z) && !taken.has(key(x, z))) { spawn = { x, z }; break search; }
-      }
-    }
+    const spawn = spawnTile(structure.gridPos, baseCentreOf(structure.gridPos, m.structures, structure.team),
+      (x, z) => paths.walkable(x, z) && !taken.has(key(x, z)));
     const unit = createUnit(unitType, structure.team, `h-${++m.nextId}`, spawn);
     if (structure.rallyPoint) unit.path = isAirType(unitType) ? paths.findAirPath(spawn, structure.rallyPoint) : paths.findPath(spawn, structure.rallyPoint);
     m.units.push(unit);

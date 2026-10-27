@@ -84,6 +84,10 @@ side can invest in its economy instead of only fighting for nodes.
     turrets on a turret corner (these need a finished Depot and a Mason). Pick one and it is
     placed on that pad and starts building. The HQ menu shows how many pads are left.
     (`components/BuildPads.tsx`)
+  - A trained unit comes out on the nearest free road tile round its building, and of those the
+    one nearest the middle of its base (the side's nearest Command HQ), so new units gather inside
+    the base rather than against its walls; the ring widens to three tiles if crowded
+    (`spawnTile`).
 - Base structures take time to construct. While under construction they can't produce.
 - **Disassembling** (`sim/dismantle.ts`): click one of your base buildings or turrets and choose
   Disassemble (it asks you to confirm) to change course. A finished one stops working at once,
@@ -506,9 +510,10 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   back. An overhanging control cab sits on an angled underside, dark windows all round, and on its
   roof a comms mast (antenna panels, two dishes, a blinking team beacon at the tip), two radomes
   and a turning radar array.
-- **Facing** (`kit/facing.ts`): base structures turn their fronts away from the middle of the map,
-  toward the corner their owner's camera starts in, so a player sees their own buildings' doors,
-  yards and markings rather than their backs.
+- **Facing** (`kit/facing.ts`): the base buildings on an HQ's pads turn their fronts (doors, yards,
+  markings) in toward the middle of their base, the nearest Command HQ of their side, squared to
+  the nearest of the four headings. The Command HQ itself faces away from the middle of the map,
+  toward the corner its owner's camera starts in.
 - **The Barracks** (`components/models/BarracksModel.tsx`, structure type `infantry`): an L of
   two blocks on a raised, chamfered concrete pad with ramps. The two-storey main block holds the
   bays (two roll-up doors under awnings, weapon lockers, hooded windows; AC units, a pipe run and a
