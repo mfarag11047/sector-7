@@ -21,18 +21,19 @@ import type { SmokeScreen } from './titan';
 import { unitAbilityEffects } from './unitAbilities';
 import { isTetherableDrone, JAMMED_REASON, MAX_TETHERS, tetheredIds, unjammedIds } from './jamming';
 import { addToInventory, missilesHeld } from './warheads';
+import { UNIT_RULES } from './units';
 import { isBatteryLinkable } from './energy';
 
 export type AbilityCommand = Extract<PlayerCommand, { type:
   | 'TOGGLE_DAMPENER' | 'SET_HELIOS_MODE' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD' | 'PHANTOM_DECOY'
   | 'LOAD_AMMO' | 'TAKE_WARHEAD' | 'FABRICATE' | 'RESUPPLY_MATERIAL' | 'TRANSFER_WARHEAD'
-  | 'ARTILLERY_FIRE' | 'SURVEILLANCE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD'
+  | 'ARTILLERY_FIRE' | 'SURVEILLANCE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD' | 'FAB_LAUNCH'
   | 'HARDLINE_TETHER' | 'DISCONNECT_TETHER' | 'BATTERY_LINK' | 'DISCONNECT_BATTERY' | 'UNIT_ABILITY' }>;
 
 const ABILITY_TYPES: ReadonlySet<string> = new Set<AbilityCommand['type']>([
   'TOGGLE_DAMPENER', 'SET_HELIOS_MODE', 'TOGGLE_JAMMER', 'TOGGLE_ANCHOR', 'TOGGLE_CLOAK_FIELD', 'PHANTOM_DECOY',
   'LOAD_AMMO', 'TAKE_WARHEAD', 'FABRICATE', 'RESUPPLY_MATERIAL', 'TRANSFER_WARHEAD',
-  'ARTILLERY_FIRE', 'SURVEILLANCE', 'FIRE_BALLISTA', 'FIRE_SWARM', 'BOMBARD',
+  'ARTILLERY_FIRE', 'SURVEILLANCE', 'FIRE_BALLISTA', 'FIRE_SWARM', 'BOMBARD', 'FAB_LAUNCH',
   'HARDLINE_TETHER', 'DISCONNECT_TETHER', 'BATTERY_LINK', 'DISCONNECT_BATTERY', 'UNIT_ABILITY',
 ]);
 export const isAbilityCommand = (c: PlayerCommand): c is AbilityCommand => ABILITY_TYPES.has(c.type);
@@ -76,6 +77,8 @@ export interface AbilityEffects {
   smoke?: SmokeScreen[];
   // Cores or stockpiled warheads the order uses. Returns null if they are gone by the time it applies.
   economy?: (e: Economy) => Economy | null;
+  // Applied to the latest copy of each structure (an Ordnance Fab's silo after a launch).
+  structureUpdates?: Map<string, (s: StructureData) => StructureData>;
 }
 
 export type AbilityOutcome = { ok: true; effects: AbilityEffects } | { ok: false; reason: string };
@@ -92,6 +95,12 @@ export { isBatteryLinkable } from './energy';
 
 const distance = (a: GridPos, b: GridPos) => Math.hypot(a.x - b.x, a.z - b.z);
 const world = (p: GridPos, y: number, ctx: AbilityContext) => ({ x: (p.x * ctx.tileSize) - ctx.offset, y, z: (p.z * ctx.tileSize) - ctx.offset });
+
+// Missiles launched straight from an Ordnance Fab's silo (FAB_LAUNCH): from the Ballista's tier,
+// as far as a Ballista reaches (its base range, not its upgrades), and the silo takes as long to
+// ready the next one as a Ballista takes to load. They leave from the top of the silo ring
+// (components/models/OrdnanceFabModel.tsx).
+export const FAB_LAUNCH = { tier: UNIT_RULES.ballista.tier, range: ABILITY_CONFIG.BALLISTA_RANGE, reloadMs: ABILITY_CONFIG.BALLISTA_LOAD_TIME, launchY: 11.5 };
 
 const besideOrdnanceFab = (u: UnitData, structures: readonly StructureData[]) => structures.some(s =>
   s.type === 'ordnance_fab' && s.team === u.team && !s.isBlueprint && distance(s.gridPos, u.gridPos) < ABILITY_CONFIG.FABRICATOR_DOCK_RANGE);
@@ -245,6 +254,28 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
           id: ctx.newId('missile'), ownerId: u.id, team: u.team, position: start, velocity: { x: 0, y: 0, z: 0 },
           damage: 0, radius: 1.0, maxDistance: flight, distanceTraveled: 0, targetPos: target,
           trajectory: 'ballistic', payload: u.loadedAmmo, startPos: start, startTime: ctx.now,
+        }],
+      });
+    }
+    case 'FAB_LAUNCH': {
+      const fab = view.structures.find(s => s.id === command.structureId);
+      if (!fab || fab.type !== 'ordnance_fab' || fab.team !== team || fab.health <= 0) return reject('no such Ordnance Fab');
+      if (fab.isBlueprint || (fab.buildRemainingMs || 0) > 0 || fab.dismantle) return reject('the Ordnance Fab is not working');
+      if (view.economy[team].tier < FAB_LAUNCH.tier) return reject(`launching from the silo needs Tier ${FAB_LAUNCH.tier}`);
+      if ((fab.siloReadyAt ?? 0) > ctx.now) return reject('the silo is readying the next missile');
+      if (distance(fab.gridPos, command.target) > FAB_LAUNCH.range) return reject(`out of range (${Math.floor(FAB_LAUNCH.range)} tiles)`);
+      const warhead = command.warhead;
+      if (!takeWarhead(view.economy, team, warhead)) return reject(`no ${warhead} in the stockpile`);
+      const start = world(fab.gridPos, FAB_LAUNCH.launchY, ctx);
+      const target = world(command.target, 1.0, ctx);
+      const readyAt = ctx.now + FAB_LAUNCH.reloadMs;
+      return effects({
+        economy: e => takeWarhead(e, team, warhead),
+        structureUpdates: new Map([[fab.id, s => ({ ...s, siloReadyAt: readyAt })]]),
+        spawnProjectiles: [{
+          id: ctx.newId('missile'), ownerId: fab.id, team, position: start, velocity: { x: 0, y: 0, z: 0 },
+          damage: 0, radius: 1.0, maxDistance: Math.hypot(target.x - start.x, target.z - start.z), distanceTraveled: 0, targetPos: target,
+          trajectory: 'ballistic', payload: warhead, startPos: start, startTime: ctx.now,
         }],
       });
     }

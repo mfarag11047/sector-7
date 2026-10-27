@@ -775,7 +775,6 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 | **Guardian** | 220 | 2 | T1 | 300 | Light | Heals 3 allies, Trophy system |
 | **Helios** | 110 | 1 | T1 | 90 | Air | Wireless charging |
 | **Banshee** | 320 | 3 | T2 | 380 | Light | Jammer, drone tether |
-| **Ballista** | 380 | 3 | T3 | 160 | Light | EMP, HE and White Phosphorus missiles up to 39 tiles away, half the map (see [Ballista warheads](#ballista-warheads)); missiles fly at 21 tiles/s |
 
 ### Other producers
 
@@ -789,10 +788,12 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
     the Aegis does (32/s to aircraft, 60/s to ordnance, 3.5 s bursts, 6 s reload); with the sky
     clear it fires on ground units within 6 tiles at half its flak damage (about 6/s to infantry
     and light vehicles, 3/s to heavy armour). 800 HP.
-- **Ordnance Fab:** Field Fabricator (260, T2), Swarm Host (340, T2, 3 pop, 30 s: anchors to release
-  up to 7 Crawler Drones that hunt nearby enemies) and EMP (500), HE (300) and White Phosphorus (350)
-  warheads. Couriers are sent by
-  Transfer Warhead, not trained.
+- **Ordnance Fab:** the **Ballista** (380, T3, 3 pop, 160 HP, light: EMP, HE and White Phosphorus
+  missiles up to 39 tiles away, half the map; see [Ballista warheads](#ballista-warheads)), trained
+  only here, beside the warheads it fires; Field Fabricator (260, T2), Swarm Host (340, T2, 3 pop,
+  30 s: anchors to release up to 7 Crawler Drones that hunt nearby enemies) and EMP (500), HE (300)
+  and White Phosphorus (350) warheads. From Tier 3 it also launches missiles straight from its silo
+  (see [Ballista warheads](#ballista-warheads)). Couriers are sent by Transfer Warhead, not trained.
 - **Command HQ:** 5000 HP; AP 30 / 1.0 s / 5, hits air.
 
 ## Healing
@@ -836,6 +837,16 @@ enemy Aegis you can't see doesn't show its stream.
 
 Rules: `sim/warheads.ts`. Built at the Ordnance Fab (or by a Field Fabricator), taken and loaded by
 the Ballista. Each suits a different enemy, so what you build follows what you face.
+
+**Launching from the Ordnance Fab** (`FAB_LAUNCH` in `sim/abilities.ts`): from Tier 3, the same tier
+as the Ballista, an Ordnance Fab fires a stockpiled warhead straight from its silo. Its menu's
+"Launch from the silo" section has a button per warhead with the stock left; pick one, then a tile
+on the map (a red ring shows the reach). It reaches as far as a Ballista does, 39 tiles (the
+Ballista's base range, not its upgrades), and the missile flies and lands exactly like a
+Ballista's. Then the silo takes 5 s, a Ballista's load time, to ready the next: it stands empty
+for a moment and the next missile rises up out of the drum into the clamps. The fab has to be
+finished and not coming down. The computer does it too, at the same targets its Ballistas pick,
+and keeps a couple of warheads in stock for it from Tier 3 even without a Ballista.
 
 - **EMP** (500): see [EMP](#emp). Shuts down vehicles and aircraft and blacks out the grid.
 - **HE** (300, 15 s): anti-armour. A 4-tile blast, 150 at the centre falling off to nothing at the
@@ -1265,6 +1276,8 @@ same kind of economy.
      the kind that suits your army (White Phosphorus against mostly infantry, EMP against a big air
      wing, otherwise HE); it loads the best one it holds and fires White Phosphorus at the thickest
      infantry crowd, HE at the thickest knot of vehicles or else a structure. It only fires at targets within its 39-tile range.
+     The Ballista is trained at the Ordnance Fab, and from Tier 3 the Fab itself launches stocked
+     warheads from its silo at the same kind of target.
    - **Masons** put up 1 (Normal) or 2 (Hard) **Sentry Turrets** on the turret corners facing
      you.
    - When rich, with a unit beside a cleared block, it builds a **new Command HQ** (up to 2 on

@@ -13,6 +13,10 @@
 // warhead and its collar ring pulses in the warhead's colour, as do the drum's windows; idle, the
 // missile is a bare body awaiting one and the windows are dim.
 //
+// It also launches missiles straight from the silo (sim/abilities.ts FAB_LAUNCH): once one has
+// gone (`siloReadyAt`, when the silo can launch again) the silo stands empty for a moment, then the
+// next missile rises up out of the drum into the clamps as the silo readies it.
+//
 // Team colour: the drum's band, a stripe round the tower, the beacon.
 //
 // Built facing +Z, about 12 by 12 across and 16 tall to the mast's tip, in world units.
@@ -23,6 +27,7 @@ import * as THREE from 'three';
 import { glow, kitMaterial, own, PALETTE, teamPaint } from '../kit/materials';
 import { Loft, Plate, Strip, Turned } from '../kit/shapes';
 import { Missile, Warhead, WARHEAD_COLORS } from './MissileModel';
+import { FAB_LAUNCH } from '../../sim/abilities';
 
 // Upright: the kit's turned parts point along +Z; this turns +Z to +Y.
 const UP: [number, number, number] = [-Math.PI / 2, 0, 0];
@@ -44,7 +49,12 @@ const sphere = (r: number, n = 8): [number, number][] => Array.from({ length: n 
 const chamfered = (h: number, c: number): [number, number][] =>
   [[-h + c, -h], [h - c, -h], [h, -h + c], [h, h - c], [h - c, h], [-h + c, h], [-h, h - c], [-h, -h + c]];
 
-export const OrdnanceFabModel: React.FC<{ teamColor: string; fabricating?: Warhead | null }> = ({ teamColor, fabricating = null }) => {
+// Of the silo's reload after a launch: how much it stands empty, and how deep the next missile
+// starts in the drum before it rises.
+const SILO_EMPTY = 0.3;
+const SILO_SINK = 1.6;
+
+export const OrdnanceFabModel: React.FC<{ teamColor: string; fabricating?: Warhead | null; siloReadyAt?: number }> = ({ teamColor, fabricating = null, siloReadyAt = 0 }) => {
   const light = kitMaterial('structLight'), grey = kitMaterial('structGrey'), dark = kitMaterial('structDark');
   const black = kitMaterial('black'), steel = kitMaterial('steel'), paint = teamPaint(teamColor);
   const lamp = glow('#dbeafe');
@@ -58,7 +68,14 @@ export const OrdnanceFabModel: React.FC<{ teamColor: string; fabricating?: Warhe
   useEffect(() => () => beacon.dispose(), [beacon]);
   const tint = useMemo(() => new THREE.Color(), []);
   const ring = useRef<THREE.Group>(null);
+  const silo = useRef<THREE.Group>(null);
   useFrame(({ clock }, delta) => {
+    // After a launch: empty, then the next missile rises into the clamps.
+    if (silo.current) {
+      const p = 1 - Math.max(0, siloReadyAt - Date.now()) / FAB_LAUNCH.reloadMs;
+      silo.current.visible = p >= SILO_EMPTY;
+      silo.current.position.y = -SILO_SINK * Math.max(0, 1 - (p - SILO_EMPTY) / (1 - SILO_EMPTY));
+    }
     const t = clock.elapsedTime;
     const level = fabricating ? 0.6 + 0.4 * Math.sin(t * 5) : 0.15;
     pulse.color.copy(tint.set(fabricating ? WARHEAD_COLORS[fabricating] : PALETTE.amber)).multiplyScalar(level);
@@ -138,8 +155,10 @@ export const OrdnanceFabModel: React.FC<{ teamColor: string; fabricating?: Warhe
             <Plate size={[0.22, 0.14, 0.5]} material={steel} position={[0, DRUM.y + DRUM.h + 1.4, MISSILE.r + 0.05]} />
           </group>
         ))}
-        <Missile warhead={fabricating} radius={MISSILE.r} length={MISSILE.length} ring={fabricating ? pulse : undefined}
-          position={[0, DRUM.y + DRUM.h + 0.45, 0]} rotation={[-Math.PI / 2, 0, 0]} />
+        <group ref={silo}>
+          <Missile warhead={fabricating} radius={MISSILE.r} length={MISSILE.length} ring={fabricating ? pulse : undefined}
+            position={[0, DRUM.y + DRUM.h + 0.45, 0]} rotation={[-Math.PI / 2, 0, 0]} />
+        </group>
       </group>
 
       {/* --- The east block: a dome, an antenna, a duct across to the drum --- */}

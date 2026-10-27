@@ -34,8 +34,9 @@ describe('computer opponent: what it trains', () => {
     expect(specialistPick('support', { ...needs, army: 12 })).toBe('helios');
     const helios = [unit('h1', { type: 'helios' }), unit('h2', { type: 'helios' })];
     expect(specialistPick('support', { ...needs, tier: 2, army: 12, mine: helios })).toBe('banshee');
-    const fab = structure('fab', 'ordnance_fab');
-    expect(specialistPick('support', { ...needs, tier: 3, army: 12, mine: [...helios, unit('b', { type: 'banshee' })], structures: [fab] })).toBe('ballista');
+    // The Ballista comes from the Ordnance Fab now, and only there.
+    expect(specialistPick('support', { ...needs, tier: 3, army: 12, mine: [...helios, unit('b', { type: 'banshee' })] })).toBeNull();
+    expect(specialistPick('ordnance_fab', { ...needs, tier: 3, army: 12 })).toBe('ballista');
     expect(specialistPick('ordnance_fab', { ...needs, tier: 2, army: 8 })).toBe('swarm_host');
     expect(specialistPick('builder', needs)).toBe('mason');
   });
@@ -83,6 +84,16 @@ describe('computer opponent: abilities', () => {
     const cluster = [0, 1, 2, 3].map(i => unit(`e${i}`, { type: 'tank', unitClass: 'armor', team: 'blue', gridPos: { x: 20 + i, z: 20 }, health: 600, maxHealth: 600 }));
     const fired = abilities({ mine: [{ ...ballista, ammoState: 'armed', loadedAmmo: 'he' }], theirs: cluster }).find(a => a.command.type === 'FIRE_BALLISTA');
     expect(fired).toBeDefined();
+  });
+
+  it('launches stockpiled warheads from its Ordnance Fab at Tier 3', () => {
+    const fab = structure('fab', 'ordnance_fab', { gridPos: { x: 40, z: 40 } });
+    const economy = createEconomy();
+    economy.red = { ...economy.red, stockpile: { emp: 0, he: 1, wp: 0 } };
+    const cluster = [0, 1, 2, 3].map(i => unit(`e${i}`, { type: 'tank', unitClass: 'armor', team: 'blue', gridPos: { x: 20 + i, z: 20 }, health: 600, maxHealth: 600 }));
+    const launch = abilities({ structures: [fab], economy, theirs: cluster }).find(a => a.command.type === 'FAB_LAUNCH');
+    expect(launch?.command).toMatchObject({ structureId: 'fab', warhead: 'he' });
+    expect(abilities({ tier: 2, structures: [fab], economy, theirs: cluster }).find(a => a.command.type === 'FAB_LAUNCH')).toBeUndefined();
   });
 
   it('sends Bombardment Drones against enemy production, not on top of its own army', () => {

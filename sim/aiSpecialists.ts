@@ -73,7 +73,6 @@ export function specialistPick(producer: StructureType, n: SupportNeeds): UnitTy
   const { tier, mine, army, random } = n;
   const have = (t: UnitType) => count(mine, t);
   const vehicles = mine.filter(u => u.unitClass === 'armor').length;
-  const hasFab = n.structures.some(s => s.type === 'ordnance_fab' && isOperational(s));
   const drones = n.strategy === 'drones';
   const air = n.strategy === 'air';
   switch (producer) {
@@ -91,9 +90,10 @@ export function specialistPick(producer: StructureType, n: SupportNeeds): UnitTy
     case 'support':
       if (drones ? have('helios') < Math.max(2, Math.floor(army / 3)) : have('helios') < Math.min(2, Math.floor(army / 6))) return 'helios';
       if (tier >= 2 && army >= (drones ? 3 : 6) && have('banshee') < (drones ? 2 : 1)) return 'banshee';
-      if (tier >= 3 && hasFab && have('ballista') < 1) return 'ballista';
       return null;
     case 'ordnance_fab':
+      // The Ballista is trained here, beside the warheads it fires.
+      if (tier >= 3 && have('ballista') < 1) return 'ballista';
       return tier >= 2 && army >= (drones ? 3 : 6) && have('swarm_host') < (drones ? 3 : 1) ? 'swarm_host' : null;
     case 'builder':
       return have('mason') < 1 ? 'mason' : null;
@@ -276,6 +276,16 @@ export function specialistAbilities(c: AbilityContext2): Action[] {
         break;
     }
   }
+  // At Tier 3 an Ordnance Fab launches stockpiled warheads straight from its silo, when one
+  // has a target worth it (FAB_LAUNCH; a silo still readying is refused and tries again later).
+  if (c.tier >= 3) {
+    const stock = c.economy[c.team].stockpile;
+    const want = preferredWarhead(c.theirs);
+    const warhead: Warhead | null = stock[want] > 0 ? want : WARHEAD_LIST.find(w => stock[w] > 0) ?? null;
+    const fab = c.structures.find(s => s.team === c.team && s.type === 'ordnance_fab' && isOperational(s));
+    const at = warhead && fab ? missileTarget(fab.gridPos, warhead, c, enemy) : null;
+    if (fab && warhead && at) actions.push({ kind: 'ability', command: { type: 'FAB_LAUNCH', structureId: fab.id, warhead, target: { ...at } } });
+  }
   if (flipDampener.length > 0) actions.push({ kind: 'ability', command: { type: 'TOGGLE_DAMPENER', unitIds: flipDampener } });
   if (jammerFlip.length > 0) actions.push({ kind: 'ability', command: { type: 'TOGGLE_JAMMER', unitIds: jammerFlip } });
   if (toBurn.length > 0) actions.push({ kind: 'ability', command: { type: 'SET_HELIOS_MODE', unitIds: toBurn, mode: 'burn' } });
@@ -295,18 +305,19 @@ export function preferredWarhead(theirs: readonly UnitData[]): Warhead {
   return infantry >= armour ? 'wp' : 'he';
 }
 
-// Where an armed Ballista's missile does the most good, within its reach (half the map across).
-function ballistaTarget(u: UnitData, c: AbilityContext2, enemy: Team): GridPos | null {
-  const reach = (p: GridPos) => dist(p, u.gridPos) <= ABILITY_CONFIG.BALLISTA_RANGE;
+// Where a missile with `warhead` launched from `from` (a Ballista, or an Ordnance Fab's silo) does
+// the most good, within the Ballista's reach (half the map across).
+function missileTarget(from: GridPos, warhead: Warhead | null | undefined, c: AbilityContext2, enemy: Team): GridPos | null {
+  const reach = (p: GridPos) => dist(p, from) <= ABILITY_CONFIG.BALLISTA_RANGE;
   const inReach = c.theirs.filter(t => t.type !== 'defense_drone' && reach(t.gridPos));
   const structure = c.structures.filter(s => s.team === enemy && s.health > 0 && s.type !== 'hq' && !s.isBlueprint && reach(s.gridPos))
     .sort((a, b) => strikeOrder(a) - strikeOrder(b) || dist(a.gridPos, c.home) - dist(b.gridPos, c.home))[0];
-  if (u.loadedAmmo === 'wp') {
+  if (warhead === 'wp') {
     // The gas only burns infantry, and it covers a wide area: the thickest crowd of them.
     const crowd = densest(inReach.filter(t => UNIT_RULES[t.type].armor === 'infantry'), WP.radius * 0.6);
     return crowd && crowd.value >= 240 ? crowd.at : null;
   }
-  if (u.loadedAmmo === 'he') {
+  if (warhead === 'he') {
     // Anti-armour: the thickest knot of vehicles, else a building.
     const armour = densest(inReach.filter(t => UNIT_RULES[t.type].armor === 'heavy' || UNIT_RULES[t.type].armor === 'light'), HE.radius * 0.6);
     return armour && armour.value >= 500 ? armour.at : structure?.gridPos ?? (armour && armour.value >= 250 ? armour.at : null);
@@ -318,7 +329,7 @@ function ballistaTarget(u: UnitData, c: AbilityContext2, enemy: Team): GridPos |
 // The Ballista's cycle beside the Ordnance Fab: take a warhead, load it, fire it.
 function ballistaMoves(u: UnitData, c: AbilityContext2, enemy: Team): Action[] {
   if (u.ammoState === 'armed') {
-    const at = ballistaTarget(u, c, enemy);
+    const at = missileTarget(u.gridPos, u.loadedAmmo, c, enemy);
     return at ? [{ kind: 'ability', command: { type: 'FIRE_BALLISTA', unitId: u.id, target: { ...at } } }] : [];
   }
   if (u.ammoState === 'loading') return [];
@@ -371,10 +382,11 @@ export function baseMoves(c: BaseContext): { actions: Action[]; spent: number } 
   let spent = 0;
   const mineS = c.structures.filter(s => s.team === c.team);
 
-  // Warheads for the Ballista: keep a couple in hand, of the kind that suits the enemy's army.
+  // Warheads for the Ballista and, at Tier 3, the Ordnance Fab's own silo: keep a couple in hand,
+  // of the kind that suits the enemy's army.
   const ballistas = c.mine.filter(u => u.type === 'ballista');
   const fab = mineS.find(s => s.type === 'ordnance_fab' && isOperational(s) && !s.production?.active);
-  if (fab && ballistas.length > 0) {
+  if (fab && (ballistas.length > 0 || c.tier >= 3)) {
     const stock = c.economy[c.team].stockpile;
     const carried = ballistas.reduce((n, b) => n + missilesHeld(b), 0);
     const warhead = preferredWarhead(c.theirs);

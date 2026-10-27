@@ -205,3 +205,29 @@ it('applyUnitEffects leaves the roster untouched when there is nothing to do', (
   const empty: AbilityEffects = { updates: new Map(), spawnUnits: [], spawnDecoys: [], clearDecoysOf: [], spawnProjectiles: [] };
   expect(applyUnitEffects(units, empty)).toBe(units);
 });
+
+describe('launching from an Ordnance Fab', () => {
+  const tier3 = (stockpile = { emp: 1, he: 0, wp: 0 }) => {
+    const e = createEconomy();
+    return { ...e, blue: { ...e.blue, tier: 3 as const, stockpile } };
+  };
+  const launch = (target = { x: 30, z: 6 }) => ({ type: 'FAB_LAUNCH' as const, structureId: 'fab', warhead: 'emp' as const, target });
+
+  it('launches a stockpiled warhead from the silo at a target in a Ballista\'s range, and readies the next', () => {
+    const r = run(view([], { structures: [fab()], economy: tier3() }), launch());
+    expect(r.refused).toBeUndefined();
+    expect(r.fx!.spawnProjectiles).toEqual([expect.objectContaining({ ownerId: 'fab', team: 'blue', trajectory: 'ballistic', payload: 'emp' })]);
+    expect(r.fx!.economy!(tier3())!.blue.stockpile.emp).toBe(0);
+    expect(r.fx!.structureUpdates!.get('fab')!(fab()).siloReadyAt).toBe(ctx.now + ABILITY_CONFIG.BALLISTA_LOAD_TIME);
+  });
+
+  it('refuses before Tier 3, with nothing in stock, out of range, while the silo readies, or from a fab not yet working', () => {
+    const e = createEconomy();
+    expect(run(view([], { structures: [fab()], economy: { ...e, blue: { ...e.blue, tier: 2 as const, stockpile: { emp: 1, he: 0, wp: 0 } } } }), launch()).refused).toMatch(/Tier 3/);
+    expect(run(view([], { structures: [fab()], economy: tier3({ emp: 0, he: 1, wp: 0 }) }), launch()).refused).toMatch(/stockpile/);
+    expect(run(view([], { structures: [fab()], economy: tier3() }), launch({ x: 5 + Math.ceil(ABILITY_CONFIG.BALLISTA_RANGE) + 1, z: 6 })).refused).toMatch(/range/);
+    expect(run(view([], { structures: [fab({ siloReadyAt: ctx.now + 1000 })], economy: tier3() }), launch()).refused).toMatch(/silo/);
+    expect(run(view([], { structures: [fab({ buildRemainingMs: 5000 })], economy: tier3() }), launch()).refused).toMatch(/not working/);
+    expect(run(view([], { structures: [fab()], economy: tier3() }), launch(), 'red').refused).toBeTruthy();
+  });
+});

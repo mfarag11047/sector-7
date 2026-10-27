@@ -87,7 +87,7 @@ export const UNIT_RULES: Record<UnitType, UnitRules> = {
   guardian: { armor: 'light', weapon: null, pop: 2, tier: 1, producer: 'support', buildTimeMs: 18000, role: 'Repairs three allies and knocks down heavy shells.' },
   helios: { armor: 'air', weapon: null, pop: 1, tier: 1, producer: 'support', buildTimeMs: 12000, role: 'Microwave drone: slowly charges friendly units, or slowly cooks enemies. One mode at a time.' },
   banshee: { armor: 'light', weapon: null, pop: 3, tier: 2, producer: 'support', buildTimeMs: 28000, role: 'Jams enemy drones\' control links and hardlines up to three friendly drones to its battery.' },
-  ballista: { armor: 'light', weapon: null, pop: 3, tier: 3, producer: 'support', buildTimeMs: 30000, role: 'Launches EMP and HE missiles up to half the map away.' },
+  ballista: { armor: 'light', weapon: null, pop: 3, tier: 3, producer: 'ordnance_fab', buildTimeMs: 30000, role: 'Launches EMP and HE missiles up to half the map away.' },
 
   // --- Depot and Ordnance Fab ---
   mason: { armor: 'light', weapon: null, pop: 1, tier: 1, producer: 'builder', buildTimeMs: 12000, role: 'Builds walls and turrets.' },

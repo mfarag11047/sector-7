@@ -30,7 +30,8 @@ import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from
 import { positionKey, publishMotion, simClock, stampPosition } from './glide';
 import { ArmyControls, ArmyInfo, MAX_ARMIES, SelectionSummary } from './ArmyPanel';
 import { cameraFocus } from './DroneCamera';
-import { AbilityCommand, abilityEffects, applyUnitEffects, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
+import { AbilityCommand, abilityEffects, applyUnitEffects, FAB_LAUNCH, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
+import { WARHEAD_LABEL } from '../sim/warheads';
 import { Warhead } from '../sim/commands';
 import { FlightEvent, FlightTickResult, LiveFlight, cloneProjectile, drawnShotPosition, ballisticProgress, flightUnitY, isHeavyOrdnance, sampleBallistic, stepProjectiles } from '../sim/projectiles';
 import { onRadar, radarRangeOf, radarSources, radarUnits, searchRadarSources } from '../sim/radar';
@@ -1677,7 +1678,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   
   const [targetingSourceId, setTargetingSourceId] = useState<string | null>(null);
   // 'UNIT:<ability id>' while aiming a new unit's ability (sim/unitAbilities.ts).
-  const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'BATTERY_TETHER' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'SWARM' | 'BOMBARD' | 'ARTILLERY' | `UNIT:${string}` | null>(null);
+  const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'BATTERY_TETHER' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'SWARM' | 'BOMBARD' | 'ARTILLERY' | `UNIT:${string}` | `FAB_LAUNCH:${Warhead}` | null>(null);
 
   // The open HQ menu: 'blue' or 'red' for a starting HQ, or a built HQ's id.
   const [baseMenuOpen, setBaseMenuOpen] = useState<string | null>(null);
@@ -1914,6 +1915,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       },
       setCompute: (team: 'blue' | 'red', amount: number) => {
         setEconomy(prev => setCompute(prev, team, amount));
+      },
+      addWarheads: (team: 'blue' | 'red', warhead: Warhead, count: number) => {
+        economyRef.current = addWarheads(economyRef.current, team, warhead, count);
+        setEconomy(prev => addWarheads(prev, team, warhead, count));
       },
       // For tests and debugging: issue a checked order for either side, and read the state.
       order: (command: OrderCommand, team: 'blue' | 'red') => asComputer(() => dispatchOrderRef.current(command, team)),
@@ -2718,6 +2723,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           const ids = unitsRef.current.filter(u => u.type === source?.type && (u.id === targetingSourceId || selectedUnitIds.has(u.id))).map(u => u.id);
           dispatchAbility({ type: 'UNIT_ABILITY', unitIds: ids, ability, target: { x, z } });
           clearTargeting();
+      } else if (targetingSourceId && targetingAbility?.startsWith('FAB_LAUNCH:')) {
+          const warhead = targetingAbility.slice('FAB_LAUNCH:'.length) as Warhead;
+          if (dispatchAbility({ type: 'FAB_LAUNCH', structureId: targetingSourceId, warhead, target: { x, z } })) {
+              onNotice?.(`${WARHEAD_LABEL[warhead]} missile away from the Ordnance Fab's silo`);
+          }
+          clearTargeting();
       } else if (targetingSourceId && targetingAbility && tileOrders[targetingAbility as keyof typeof tileOrders]) {
           // Every selected unit of the same type strikes the same tile together: a synchronised
           // volley from a group of Ballistas, Titans or Wasps.
@@ -2872,6 +2883,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (charge) economyRef.current = charge(economyRef.current) ?? economyRef.current;
       if (charge) setEconomy(prev => charge(prev) ?? prev);
       if (fx.updates.size > 0 || fx.spawnUnits.length > 0) setUnits(prev => applyUnitEffects(prev, fx));
+      const structureFx = fx.structureUpdates;
+      if (structureFx?.size) {
+          const applyStructureFx = (list: StructureData[]) => list.map(s => structureFx.get(s.id)?.(s) ?? s);
+          structuresRef.current = applyStructureFx(structuresRef.current);
+          setStructuresState(applyStructureFx);
+      }
       if (fx.clearDecoysOf.length > 0 || fx.spawnDecoys.length > 0) {
           setDecoys(prev => [...prev.filter(d => !d.ownerId || !fx.clearDecoysOf.includes(d.ownerId)), ...fx.spawnDecoys]);
       }
@@ -3175,6 +3192,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               else if (unfinished) { onNotice?.(`${STRUCTURE_INFO[struct.type].label} cancelled: cores refunded`); setDepotMenuOpenId(null); }
               else onNotice?.(`Disassembling the ${STRUCTURE_INFO[struct.type].label}`);
           }
+          return;
+      }
+      // A missile straight from the silo: pick its target on the map next (FAB_LAUNCH).
+      if (action === 'FAB_LAUNCH' && struct.type === 'ordnance_fab') {
+          setTargetingSourceId(struct.id);
+          setTargetingAbility(`FAB_LAUNCH:${payload as Warhead}`);
+          setDepotMenuOpenId(null);
+          onNotice?.(`Pick a target for the ${WARHEAD_LABEL[payload as Warhead]} missile, within ${Math.floor(FAB_LAUNCH.range)} tiles of the Ordnance Fab`);
           return;
       }
       if (action === 'UPGRADE_REFINERY' && struct.type === 'refinery') {
@@ -4654,6 +4679,16 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         {/* Movement Visualization for Friendly Moving Units */}
         {movePathElements}
 
+        {/* An Ordnance Fab picking a target for its silo: how far its missiles reach. */}
+        {targetingAbility?.startsWith('FAB_LAUNCH:') && (() => {
+            const fab = structuresState.find(s => s.id === targetingSourceId);
+            return fab ? (
+                <mesh position={[fab.gridPos.x * tileSize - offset, 0.6, fab.gridPos.z * tileSize - offset]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+                    <ringGeometry args={[FAB_LAUNCH.range * tileSize - 1, FAB_LAUNCH.range * tileSize + 1, 160]} />
+                    <meshBasicMaterial color="#ef4444" transparent opacity={0.5} side={THREE.DoubleSide} depthWrite={false} toneMapped={false} />
+                </mesh>
+            ) : null;
+        })()}
         {/* Targeting Cursor (Red for Cannon, Green for Surveillance, Orange for Missile, Cyan for Doctrine) */}
         <HoverTile store={hoverStore}>{hoverGridPos => hoverGridPos && (targetingAbility || interactionMode === 'target') && (
             <group position={[(hoverGridPos.x * tileSize) - offset, 0.5, (hoverGridPos.z * tileSize) - offset]}>
@@ -4680,7 +4715,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                             <meshBasicMaterial color="#38bdf8" transparent opacity={0.12} depthWrite={false} />
                         </mesh>
                     </group>
-                ) : targetingAbility === 'MISSILE' || (interactionMode === 'target' && targetingDoctrine?.type.includes('HEAVY_METAL')) ? (
+                ) : targetingAbility === 'MISSILE' || targetingAbility?.startsWith('FAB_LAUNCH:') || (interactionMode === 'target' && targetingDoctrine?.type.includes('HEAVY_METAL')) ? (
                      // Missile / Orbital Drop Targeting Reticle
                      <group>
                          {/* Spinning Ring Outer */}
@@ -4710,7 +4745,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                          {/* Impact Radius Warning: the loaded warhead's area */}
                          <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, -0.4, 0]}>
                               <circleGeometry args={[(() => {
-                                  const ammo = targetingAbility === 'MISSILE' ? units.find(u => u.id === targetingSourceId)?.loadedAmmo : null;
+                                  const ammo = targetingAbility === 'MISSILE' ? units.find(u => u.id === targetingSourceId)?.loadedAmmo
+                                      : targetingAbility?.startsWith('FAB_LAUNCH:') ? targetingAbility.slice('FAB_LAUNCH:'.length) as Warhead : null;
                                   return ammo === 'wp' ? WP.radius : ammo === 'emp' ? ABILITY_CONFIG.EMP_RADIUS : ammo === 'he' ? HE.radius : ABILITY_CONFIG.HE_RADIUS;
                               })() * tileSize, 32]} />
                               <meshBasicMaterial color="#fca5a5" transparent opacity={0.15} depthWrite={false} />

@@ -15,7 +15,8 @@ import { UPGRADE_BONUS } from '../sim/unitAbilities';
 import { REFINERY } from '../sim/refinery';
 import { builtCost, canDismantle, DISMANTLE, dismantleRefund, isUnfinished } from '../sim/dismantle';
 import type { IncomeBreakdown } from '../sim/economy';
-import { WARHEAD_LABEL } from '../sim/warheads';
+import { WARHEAD_LABEL, WARHEAD_LIST } from '../sim/warheads';
+import { FAB_LAUNCH } from '../sim/abilities';
 import { BarracksModel } from './models/BarracksModel';
 import { FactoryModel } from './models/FactoryModel';
 import { AirpadModel } from './models/AirpadModel';
@@ -623,6 +624,36 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                     </button>
                                 );
                             })}
+                            {/* Missiles straight from the silo (sim/abilities.ts FAB_LAUNCH). */}
+                            {(() => {
+                                const readyIn = Math.max(0, (data.siloReadyAt ?? 0) - Date.now());
+                                const blocked = tier < FAB_LAUNCH.tier ? `🔒 Tier ${FAB_LAUNCH.tier}`
+                                    : constructing || data.dismantle ? 'Not working'
+                                    : readyIn > 0 ? `Silo readying · ${Math.ceil(readyIn / 1000)}s` : null;
+                                return (
+                                    <>
+                                        <div className="text-[10px] text-slate-400 font-mono uppercase mb-1 px-1 mt-2 border-t border-slate-700 pt-1">Launch from the silo</div>
+                                        <div className="text-[9px] text-slate-500 font-mono px-1 mb-1">
+                                            {blocked ?? `A stockpiled warhead, up to ${Math.floor(FAB_LAUNCH.range)} tiles away`}
+                                        </div>
+                                        {WARHEAD_LIST.map(item => {
+                                            const stock = warheadStock?.[item] ?? 0;
+                                            const ok = !blocked && stock > 0;
+                                            return (
+                                                <button
+                                                    key={item}
+                                                    disabled={!ok}
+                                                    onClick={(e) => { e.stopPropagation(); onAction && onAction('FAB_LAUNCH', item); }}
+                                                    className={`flex items-center justify-between px-3 py-1.5 text-left transition-colors rounded text-xs font-mono ${ok ? 'hover:bg-red-900/40 text-slate-200 border border-red-500/40' : 'opacity-50 text-slate-500 cursor-not-allowed'}`}
+                                                >
+                                                    <span className={item === 'emp' ? 'text-sky-300' : item === 'wp' ? 'text-orange-200' : 'text-red-300'}>Launch {WARHEAD_LABEL[item]}</span>
+                                                    <span className="text-[10px]">{stock} in stock</span>
+                                                </button>
+                                            );
+                                        })}
+                                    </>
+                                );
+                            })()}
                         </>
                     )}
 
@@ -733,7 +764,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
         return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><DepotModel teamColor={teamColor} active={(data.queue?.length ?? 0) > 0} /></group>;
     }
     if (data.type === 'ordnance_fab') {
-        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><OrdnanceFabModel teamColor={teamColor} fabricating={data.production?.active ? data.production.item : null} /></group>;
+        return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><OrdnanceFabModel teamColor={teamColor} fabricating={data.production?.active ? data.production.item : null} siloReadyAt={data.siloReadyAt} /></group>;
     }
     if (data.type === 'refinery') {
         return <group rotation={[0, facingOwnerView(data.gridPos), 0]}><RefineryModel teamColor={teamColor} level={data.refineryLevel === 2 ? 2 : 1} upgrading={!!data.refineryUpgrade} /></group>;

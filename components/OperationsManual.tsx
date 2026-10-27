@@ -6,6 +6,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MAX_TETHERS } from '../sim/jamming';
+import { FAB_LAUNCH } from '../sim/abilities';
 import { HELIOS } from '../sim/helios';
 import { ABILITY_CONFIG, BUILDING_VALUES, DOCTRINE_CONFIG, STRUCTURE_INFO, UNIT_STATS } from '../constants';
 import type { DoctrineType, StructureType, UnitType } from '../types';
@@ -148,7 +149,7 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
     ],
   },
   ballista: {
-    use: 'Missile launcher. Strikes up to half the map away (39 tiles, red ring when selected) with EMP, HE or White Phosphorus warheads built at the Ordnance Fab.',
+    use: 'Missile launcher, trained at the Ordnance Fab. Strikes up to half the map away (39 tiles, red ring when selected) with EMP, HE or White Phosphorus warheads built there.',
     actions: [
       { name: 'Take / Load', text: 'Take warheads from your stockpile beside an Ordnance Fab, then load one.' },
       { name: 'Launch', text: `Fires the loaded missile at any tile. HE is anti-armour: a ${HE.radius}-tile blast of ${HE.damage} at the centre, x${HE.vs.heavy} against heavy armour and x${HE.vs.light} against light vehicles, but only x${HE.vs.infantry} against infantry and aircraft. White Phosphorus bursts high over the target into ${WP.canisters} canisters that blanket ${WP.radius} tiles in burning white gas for ${WP.durationMs / 1000}s, ${WP.dps} damage a second to enemy infantry inside it (vehicles and aircraft are untouched). EMP knocks out the enemy energy grid within ${ABILITY_CONFIG.EMP_RADIUS} tiles and shuts down every enemy vehicle and aircraft caught in the blast, both for ${ABILITY_CONFIG.EMP_DURATION / 1000}s.` },
@@ -531,9 +532,9 @@ const STRUCTURE_TEXT: Partial<Record<StructureType, string>> = {
   infantry: 'Trains infantry.',
   armor: 'Trains vehicles.',
   air: 'Trains aircraft.',
-  support: 'Trains support units and the Ballista.',
+  support: 'Trains support units.',
   builder: 'Trains Masons and unlocks walls and turrets.',
-  ordnance_fab: 'Builds EMP and HE warheads for Ballistas, and trains Field Fabricators.',
+  ordnance_fab: `Builds EMP, HE and White Phosphorus warheads, and trains the Ballista, Field Fabricators and Swarm Hosts. From Tier ${FAB_LAUNCH.tier} it also launches a stockpiled warhead straight from its silo at any tile up to ${Math.floor(FAB_LAUNCH.range)} tiles away (the Ballista's base range), then takes ${FAB_LAUNCH.reloadMs / 1000}s to ready the next.`,
   refinery: 'Core Refinery: makes cores at home. Each pays 1.5 cores/s plus a share of your core node income: 15% if its base is on the city block next to a core node, 4% fewer for each block further, down to 4% (the shares stack to +40% across refineries). Build new bases beside core nodes for the best refineries. Up to 2 per Command HQ, on a building pad. Upgrade one to level 2 at Tier 2 (500 cores) for 4 cores/s from that refinery; the multiplier stays the same.',
   research_lab: 'Advanced Research: researches unit upgrades, one at a time, for cores, compute and time. Each upgrade also gives that unit type +20% health and +15% damage. A unit\'s second ability, the Ghost\'s Dampener and Phantom Decoy, the Thunderhead\'s longer range and the Hornet\'s rockets all need researching here after reaching their tier.',
   wall_tier1: 'Cheap tank traps that block a lane. One Mason haul.',

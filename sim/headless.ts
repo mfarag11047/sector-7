@@ -405,6 +405,8 @@ function think(m: HeadlessMatch, team: Team, paths: ReturnType<typeof pathfinder
         if (outcome.effects.salvo) m.salvo.push(...outcome.effects.salvo);
         if (outcome.effects.smoke) m.smoke.push(...outcome.effects.smoke);
         if (outcome.effects.economy) m.economy = outcome.effects.economy(m.economy) ?? m.economy;
+        const silo = outcome.effects.structureUpdates;
+        if (silo?.size) m.structures = m.structures.map(s => silo.get(s.id)?.(s) ?? s);
       }
     } else if (action.kind === 'doctrine') {
       // Only Orbital Drop is modelled here: a Titan lands at the target.

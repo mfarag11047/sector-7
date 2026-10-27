@@ -260,6 +260,8 @@ export interface StructureData {
   // HQ and Sentry Turret weapons.
   lastAttackTime?: number;
   combatTargetId?: string | null;
+  // Ordnance Fab: when its silo can launch again after a missile left it (sim/abilities.ts FAB_LAUNCH).
+  siloReadyAt?: number;
   // CIWS turret (sim/ciws.ts): magazine used (ms of fire), reloading until, last shot, target.
   ciwsUsedMs?: number;
   ciwsReloadUntil?: number;
