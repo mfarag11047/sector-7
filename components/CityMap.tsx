@@ -29,7 +29,7 @@ import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from '../sim/movement';
 import { positionKey, publishMotion, simClock, stampPosition } from './glide';
 import { ArmyControls, ArmyInfo, MAX_ARMIES, SelectionSummary } from './ArmyPanel';
-import { cameraFocus } from './DroneCamera';
+import { cameraFocus, onRightClick } from './DroneCamera';
 import { AbilityCommand, abilityEffects, applyUnitEffects, FAB_LAUNCH, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
 import { WARHEAD_LABEL } from '../sim/warheads';
 import { Warhead } from '../sim/commands';
@@ -2799,7 +2799,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       }
   };
 
-  const handleRightClick = useCallback((x: number, z: number) => {
+  // A right-click clears the selection and cancels what was in hand, unless it turned the camera
+  // (DroneCamera.tsx onRightClick).
+  const handleRightClick = useCallback((x: number, z: number) => onRightClick(() => {
       setSelectedUnitIds(new Set());
       setTargetingSourceId(null);
       setTargetingAbility(null);
@@ -2807,7 +2809,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       setDepotMenuOpenId(null);
       setBaseMenuOpen(null);
       setPadMenuKey(null);
-  }, []);
+  }), []);
 
   const handleBgRightClick = useCallback((e: any) => {
       e.stopPropagation();

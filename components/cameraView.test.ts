@@ -3,16 +3,16 @@ import { CAMERA_PITCH, CITY_CONFIG, MAX_ZOOM } from '../constants';
 import { lookAhead, viewFootprint } from './cameraView';
 
 describe('the camera view', () => {
-  it('looks down a little off straight down', () => {
-    expect(CAMERA_PITCH * 180 / Math.PI).toBeGreaterThan(70);
-    expect(CAMERA_PITCH * 180 / Math.PI).toBeLessThan(85);
-    // The middle of the view is a short way ahead of the point under it.
-    expect(lookAhead(100)).toBeCloseTo(26.8, 1);
+  it('looks down steeply, but well off straight down', () => {
+    expect(CAMERA_PITCH * 180 / Math.PI).toBeGreaterThan(55);
+    expect(CAMERA_PITCH * 180 / Math.PI).toBeLessThan(75);
+    // The middle of the view is a way ahead of the point under it.
+    expect(lookAhead(100)).toBeCloseTo(100 / Math.tan(CAMERA_PITCH), 5);
   });
 
-  it('takes in a patch round the middle of the view, a little behind the point under it to well ahead', () => {
+  it('takes in a patch round the middle of the view, from about under the camera to well ahead', () => {
     const v = viewFootprint(100, 16 / 9);
-    expect(v.near).toBeLessThan(0);
+    expect(Math.abs(v.near)).toBeLessThan(10);
     expect(v.far).toBeGreaterThan(lookAhead(100));
     expect(v.width).toBeGreaterThan(v.far - v.near);
     // Wider at the top of the screen, further away, than at the bottom.

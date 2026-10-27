@@ -308,12 +308,12 @@ export const TEAM_COLORS = {
 export const CAMERA_SPEED = 1.2;
 // How fast the wheel zooms: each notch (100 of deltaY) changes the height by about this share.
 export const CAMERA_ZOOM_SPEED = 0.15;
-// The camera's view is fixed (components/cameraView.ts): it looks down at CAMERA_PITCH below the
-// horizon, a little off straight down, along a heading set per side, through a CAMERA_FOV lens
-// (vertical, degrees).
-export const CAMERA_PITCH = 75 * Math.PI / 180;
+// The camera's angle is fixed (components/cameraView.ts): it looks down at CAMERA_PITCH below the
+// horizon, steeply but well off straight down, through a CAMERA_FOV lens (vertical, degrees). Its
+// heading starts set per side and turns as the player rotates it (right-drag).
+export const CAMERA_PITCH = 65 * Math.PI / 180;
 export const CAMERA_FOV = 45;
-// The altitudes it zooms between. At MAX_ZOOM it takes in about 290 units across (21 tiles) and 170
+// The altitudes it zooms between. At MAX_ZOOM it takes in about 310 units across (22 tiles) and 200
 // deep on a 16:9 screen, a good stretch of the battle but about a quarter of the map's 1106 units
 // across: no more, so knowing the whole map still takes the minimap and scouting.
 export const MIN_ZOOM = 20;

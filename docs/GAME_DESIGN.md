@@ -693,14 +693,17 @@ another 6. Holding three nodes gets you from Tier 2 to Tier 3 in about 2 minutes
 
 ### Camera
 
-The camera's angle is fixed (`components/DroneCamera.tsx`, `components/cameraView.ts`): it looks
-down at 75 degrees, a little off straight down, along a diagonal heading set per side (each looks
-across from its own base's corner toward the centre, so a player sees their buildings' fronts). It
-pans with WASD or the arrow keys and zooms with the wheel by a share of its height per notch,
-between 20 and 190 units up. Right out, it takes in about 290 units across and 170 deep on a 16:9
-screen: a good stretch of the battle, about a quarter of the map's width, so the rest takes the
-minimap and scouting. The minimap's view box is the true patch of ground on screen, a trapezoid
-wider at the top of the screen.
+The camera's angle down is fixed (`components/DroneCamera.tsx`, `components/cameraView.ts`): it
+looks down at 65 degrees, steeply but well off straight down. It opens along a diagonal heading set
+per side (each looks across from its own base's corner toward the centre, so a player sees their
+buildings' fronts). It pans with WASD or the arrow keys, turns with the right mouse button held and
+dragged left or right (round the spot in the middle of the screen, which stays put; the right-click
+that ends a turn doesn't cancel orders or clear the selection), and zooms with the wheel by a share
+of its height per notch, on the middle of the screen, between 20 and 190 units up. Right out, it
+takes in about 310 units across and 200 deep on a 16:9 screen: a good stretch of the battle, under
+a third of the map's width, so the rest takes the minimap and scouting. The minimap's view box is
+the true patch of ground on screen, a trapezoid wider at the top of the screen, turning with the
+camera.
 
 ### HUD size
 

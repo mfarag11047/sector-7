@@ -1,5 +1,5 @@
-// What the camera sees: it looks down at a fixed angle (CAMERA_PITCH, a little off straight down)
-// along a fixed heading per side, and only its height changes as it zooms. Pure, for the camera
+// What the camera sees: it looks down at a fixed angle (CAMERA_PITCH, steeply but well off straight
+// down) along a heading the player can turn, and only its height changes as it zooms. Pure, for the camera
 // (DroneCamera.tsx), where a match opens (App.tsx), and the minimap's view box (UIOverlay.tsx).
 
 import { CAMERA_FOV, CAMERA_PITCH } from '../constants';
