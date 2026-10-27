@@ -10,6 +10,7 @@ import DroneCamera from './components/DroneCamera';
 import Atmosphere from './components/Atmosphere';
 import PostFx from './components/PostFx';
 import UIOverlay from './components/UIOverlay';
+import { useHudScale } from './components/hudScale';
 import { GameStats, UnitData, BuildingData, RoadTileData, MinimapData, StructureData, DoctrineState, DoctrineType } from './types';
 import { DOCTRINE_CONFIG, CAMERA_NEAR, CAMERA_FAR, CITY_CONFIG, TEAM_BASES } from './constants';
 import { MatchConfig, MatchMode, STARTING_CORES, doctrineOf } from './sim/match';
@@ -62,6 +63,8 @@ export interface Notice { id: number; text: string; tone: 'info' | 'warn'; at: n
 const NO_DOCTRINE: DoctrineState = { selected: null, unlockedTiers: 0, cooldowns: { tier2: 0, tier3: 0 } };
 
 function App() {
+  // The HUD drawn to suit the window's size (components/hudScale.ts).
+  useHudScale();
   // The setup screen fills this in. Each new match bumps `round`, which remounts the map.
   const [match, setMatch] = useState<MatchConfig | null>(() => AUTOSTART
       ? { mode: (['sandbox', 'spectate'] as MatchMode[]).find(m => m === PARAMS?.get('mode')) ?? 'ai', seed: Math.floor(Math.random() * 1e6), playerTeam: 'blue', difficulty: 'normal', playerDoctrine: AUTOSTART_DOCTRINE, aiDoctrine: 'netrunner' }

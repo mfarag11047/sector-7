@@ -35,6 +35,17 @@
         border-radius: 4px;
       }
 
+      /* The HUD drawn smaller in a smaller window (components/hudScale.ts sets --hud-scale). Zoom
+         scales every length inside the HUD's full-screen layer, while the layer itself, sized in
+         percentages, still covers the window, so the panels shrink and keep to its edges. Menus in
+         the world shrink with it. */
+      .hud-root {
+        zoom: var(--hud-scale, 1);
+      }
+      .hud-menu {
+        zoom: var(--hud-scale, 1);
+      }
+
       /* Cyberpunk HUD skin. Frames and glow only; components keep their layout. */
       .hud-plate,
       .hud-menu {

@@ -647,7 +647,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
   }, [minimapData.buildings, playerTeam]);
 
   return (
-    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4 z-50">
+    <div className="hud-root absolute inset-0 pointer-events-none flex flex-col justify-between p-4 z-50">
       {/* Targeting Overlay */}
       {interactionMode === 'target' && (
           <div className="absolute top-24 left-1/2 -translate-x-1/2 hud-alert hud-corners px-6 py-2 text-sm font-mono font-bold tracking-widest z-[60]">

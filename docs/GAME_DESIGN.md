@@ -691,6 +691,16 @@ nothing reaches Tier 2 in about 8 minutes.
 Rough timings: holding just your own node, Tier 2 takes about 2 minutes of holding it, and Tier 3
 another 6. Holding three nodes gets you from Tier 2 to Tier 3 in about 2 minutes.
 
+### HUD size
+
+The HUD (team panels, clock, minimap, army panel, messages, doctrine protocols and the panels it
+opens) and the build and unit menus in the world are laid out for a 1920x1080 window. In a smaller
+one they are drawn smaller by the share the window is smaller, by width or height, whichever is
+tighter (a 1440x900 laptop window gets three quarters), but never below 0.6, where text gets too
+small to read, and never above 1: a bigger screen just shows more of the game
+(`components/hudScale.ts`, applied with CSS zoom through the `--hud-scale` variable, so panels keep
+to their corners and clicks land where things are drawn).
+
 ### Role badges
 
 Every visible unit shows a role badge in its team colour, so an army's make-up reads at a
