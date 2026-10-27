@@ -3,16 +3,16 @@
 //
 // Simple but military: three anti-tank hedgehogs planted in a row across the middle of the tile on
 // a low concrete footing, the way the wall runs (`run`: along x or along z, sim/walls.ts). Each
-// hedgehog is three square steel beams crossing at right angles at the centre, turned so it stands
-// on three of its ends with the other three pointing up: a star from every side. Each beam has dark
-// end caps, a yellow hazard band near each end with a black stripe through it, and a white light
-// strip inboard of the bands. A line of the side's colour runs along both sides of the footing.
+// hedgehog is three square beams of near-black steel crossing at right angles at the centre, turned
+// so it stands on three of its ends with the other three pointing up: a star from every side. Each
+// beam's ends chamfer in to a smaller face, with a dull ochre hazard band just inboard, a black
+// stripe through it, and a white light strip further in. A line of the side's colour runs along both sides of the footing.
 //
 // Built across +X in world units, the tile long and about 3 tall; `run` 'z' turns it a quarter.
 
 import React from 'react';
 import { glow, kitMaterial, teamPaint } from '../kit/materials';
-import { ContactShadow, Plate, Strip } from '../kit/shapes';
+import { ContactShadow, Loft, Plate, Strip } from '../kit/shapes';
 
 // A hedgehog's beams: length and thickness.
 const BEAM = { length: 4.8, width: 0.66 };
@@ -25,22 +25,29 @@ const CENTRE_Y = BEAM.length / (2 * Math.sqrt(3)) + 0.12;
 const ROW = [{ x: -4.5, yaw: 0.35 }, { x: 0, yaw: 0 }, { x: 4.5, yaw: -0.35 }];
 // The full tile long, so a line of them runs on unbroken from tile to tile.
 const FOOTING = { length: 13.9, width: 2.8, h: 0.18 };
-const HAZARD = '#c9a227';
+// A dull, dark ochre: the hazard bands mark the ends without glaring.
+const HAZARD = '#6e5c24';
+// Each beam's ends chamfer in to a smaller square face over this length.
+const CHAMFER = { length: 0.34, tip: 0.55 };
+const square = (h: number): [number, number][] => [[-h, -h], [h, -h], [h, h], [-h, h]];
 
-// One beam along local x, with its caps, hazard bands and light strips.
+// One beam along local x: the dark steel body, its chamfered ends, hazard bands and light strips.
 const Beam: React.FC<{ rotation?: [number, number, number] }> = ({ rotation }) => {
-  const steel = kitMaterial('structGrey'), dark = kitMaterial('structDark'), black = kitMaterial('black');
+  const steel = kitMaterial('structDark'), black = kitMaterial('black');
   const hazard = teamPaint(HAZARD), light = glow('#eaf4ff');
   const { length: L, width: W } = BEAM;
+  const body = L - CHAMFER.length * 2;
   return (
     <group rotation={rotation}>
-      <Plate size={[L, W, W]} material={steel} />
+      <Plate size={[body, W, W]} material={steel} />
       {[-1, 1].map(s => (
         <group key={s}>
-          <Plate size={[0.14, W + 0.04, W + 0.04]} material={dark} position={[s * (L / 2 - 0.07), 0, 0]} />
-          <Plate size={[0.3, W + 0.02, W + 0.02]} material={hazard} position={[s * (L / 2 - 0.32), 0, 0]} />
-          <Plate size={[0.08, W + 0.025, W + 0.025]} material={black} position={[s * (L / 2 - 0.32), 0, 0]} />
-          <Strip size={[0.07, W + 0.03, W + 0.03]} material={light} position={[s * (L / 2 - 0.85), 0, 0]} />
+          {/* The chamfered end: from the full square in to a smaller face, along +x or -x. */}
+          <Loft bottom={square(W / 2)} top={square((W / 2) * CHAMFER.tip)} height={CHAMFER.length} material={steel}
+            position={[s * body / 2, 0, 0]} rotation={[0, 0, -s * Math.PI / 2]} />
+          <Plate size={[0.26, W + 0.02, W + 0.02]} material={hazard} position={[s * (body / 2 - 0.2), 0, 0]} />
+          <Plate size={[0.07, W + 0.025, W + 0.025]} material={black} position={[s * (body / 2 - 0.2), 0, 0]} />
+          <Strip size={[0.07, W + 0.03, W + 0.03]} material={light} position={[s * (body / 2 - 0.62), 0, 0]} />
         </group>
       ))}
     </group>
