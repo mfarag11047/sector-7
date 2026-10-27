@@ -783,8 +783,9 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
     While placing, R turns the wall. A wall placed beside one of the side's walls snaps to join it:
     on along a neighbour already running toward it, else along the axis its neighbours lie on; R
     turns it away from the snap there if wanted. The preview shows the row the way it will run,
-    cyan when it joins a wall beside it. Walls stay in hand after each one is placed, so a line can
-    be laid tile by tile, until right-click or the cores run out.
+    cyan when it joins a wall beside it. Placing ends after one wall, so the base pads come back;
+    with Shift held the next stays in hand, so a line can be laid tile by tile, until Shift is let
+    go, right-click, Esc or the cores run out. While placing, the base pads are hidden.
   - **Dragon's Teeth** (`components/models/DragonsTeethModel.tsx`): three anti-tank hedgehogs
     planted in a row across the middle of the tile on a low concrete footing the full tile long, so
     a joined line runs on unbroken. Each hedgehog is three square beams of near-black steel crossing

@@ -4,6 +4,7 @@
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Html } from '@react-three/drei';
+import { Mesh } from 'three';
 import { ABILITY_CONFIG, STRUCTURE_INFO, UNIT_CLASSES } from '../constants';
 import type { StructureType, UnitClass } from '../types';
 import { BASE_BUILDINGS, BASE_TURRETS, type PadKind } from '../sim/baseLayout';
@@ -31,6 +32,9 @@ export interface FreePad { at: GridPos; kind: PadKind; taken: boolean; refinery?
 export const padKey = (p: GridPos) => `${p.x},${p.z}`;
 
 const TURRET_COLOR = '#fbbf24';
+// A hidden pad takes no clicks. Shown again, it gets the mesh's own raycast back by name: a prop
+// set to undefined is skipped (react-three-fiber), so the pad would stay unclickable.
+const noRaycast = () => null;
 const Z_OPEN: [number, number] = [190, 0];
 
 const PadMenu: React.FC<{
@@ -126,7 +130,7 @@ const PadMarker: React.FC<{
       <mesh
         rotation={[-Math.PI / 2, 0, 0]}
         position={[0, 0.02, 0]}
-        raycast={show ? undefined : () => null}
+        raycast={show ? Mesh.prototype.raycast : noRaycast}
         onClick={(e) => { e.stopPropagation(); onToggle(); }}
         onPointerOver={(e) => { e.stopPropagation(); setHover(true); document.body.style.cursor = 'pointer'; }}
         onPointerOut={() => { setHover(false); document.body.style.cursor = ''; }}

@@ -1696,9 +1696,20 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const [attackMoveArmed, setAttackMoveArmed] = useState(false);
   const attackMoveArmedRef = useRef(false);
   const ctrlHeldRef = useRef(false);
+  // Shift held while placing a wall keeps the next in hand, to lay a line tile by tile.
+  const shiftHeldRef = useRef(false);
   useEffect(() => {
       const down = (e: KeyboardEvent) => {
           ctrlHeldRef.current = e.ctrlKey || e.metaKey;
+          shiftHeldRef.current = e.shiftKey;
+          // Escape puts down whatever is being placed and closes the build menus.
+          if (e.code === 'Escape') {
+              placementModeRef.current = null;
+              setPlacementMode(null);
+              setPadMenuKey(null);
+              setDepotMenuOpenId(null);
+              setBaseMenuOpen(null);
+          }
           // R turns a wall being placed: away from the wall it would join, or the player's own way.
           const placing = placementModeRef.current;
           if (e.code === 'KeyR' && !e.repeat && placing && isBuildableWall(placing.type)) {
@@ -1712,7 +1723,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               setAttackMoveArmed(attackMoveArmedRef.current);
           }
       };
-      const up = (e: KeyboardEvent) => { ctrlHeldRef.current = e.ctrlKey || e.metaKey; };
+      const up = (e: KeyboardEvent) => { ctrlHeldRef.current = e.ctrlKey || e.metaKey; shiftHeldRef.current = e.shiftKey; };
       window.addEventListener('keydown', down);
       window.addEventListener('keyup', up);
       return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); };
@@ -2703,9 +2714,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (!dispatchOrder({ type: 'PLACE_STRUCTURE', structureType: mode.type, at: spot, ...(wall ? { run: wallRunAt(spot) } : {}) })) return;
       lastPlacedAtRef.current = Date.now();
       setSnapTurnedAt(null);
-      // Walls stay in hand so a line can be laid tile by tile (right-click to stop), while there
-      // are cores for the next. Masons pick up new blueprints on their own (the Mason loop below).
-      if (wall && canAfford(economyRef.current, playerTeam, mode.cost)) return;
+      // With Shift held a wall stays in hand, so a line can be laid tile by tile, while there are
+      // cores for the next; otherwise placing ends and the base pads come back. Masons pick up new
+      // blueprints on their own (the Mason loop below).
+      if (wall && shiftHeldRef.current && canAfford(economyRef.current, playerTeam, mode.cost)) return;
       placementModeRef.current = null;
       setPlacementMode(null);
       setDepotMenuOpenId(null);
@@ -2799,6 +2811,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           setSelectedUnitIds(new Set());
           setDepotMenuOpenId(null); 
           setBaseMenuOpen(null);
+          setPadMenuKey(null);
       }
   };
 
@@ -3267,7 +3280,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           if (canAfford(economy, playerTeam, cost)) {
               setPlacementMode({ type, cost });
               setDepotMenuOpenId(null);
-              onNotice?.(`Placing ${STRUCTURE_INFO[type].label}: R rotates it; beside one of your walls it lines up to join it. Right-click to stop.`);
+              onNotice?.(`Placing ${STRUCTURE_INFO[type].label}: R rotates it; beside one of your walls it lines up to join it. Hold Shift to lay several; right-click or Esc to stop.`);
           }
       }
   };
