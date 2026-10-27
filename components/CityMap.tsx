@@ -81,6 +81,7 @@ import { Plate, Turned } from './kit/shapes';
 import { Missile } from './models/MissileModel';
 import { aaTurretMuzzle } from './models/AaTurretModel';
 import { sentryMuzzle } from './models/SentryTurretModel';
+import { titanMuzzle } from './models/TitanTankModel';
 import { blocksPath, compoundStructures, heldAtGate, hostileGateAt, isCompoundPiece } from '../sim/compound';
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
 import { dampenedUnits } from '../sim/ghost';
@@ -3614,7 +3615,16 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           railFired.forEach(id => railShotRef.current.set(id, now));
           rail.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
           rail.structureDamage.forEach((n, id) => attacks.structureDamage.set(id, (attacks.structureDamage.get(id) || 0) + n));
-          if (rail.shots.length > 0) setRailBeams(prev => [...prev, ...rail.shots.map((s, i) => ({ ...s, id: `rail-${now}-${i}`, createdAt: now }))]);
+          // A tank's main gun fires the railgun slug the Sentry Turret does (ShotFx 'rail'), from its
+          // muzzle; a Piercing Rail Round (sim/titan.ts) keeps its magenta beam down the lane.
+          const pierced = rail.shots.filter(s => s.pierced);
+          if (pierced.length > 0) setRailBeams(prev => [...prev, ...pierced.map((s, i) => ({ ...s, id: `rail-${now}-${i}`, createdAt: now }))]);
+          const slugs: TracerData[] = rail.shots.filter(s => !s.pierced).map((s, i) => {
+              const to = { x: s.to.x * tileSize - offset, y: s.structure ? 3 : 1.4, z: s.to.z * tileSize - offset };
+              const from = titanMuzzle({ x: s.from.x * tileSize - offset, z: s.from.z * tileSize - offset }, to);
+              return { id: `slug-${now}-${i}`, kind: 'rail', createdAt: now, attackerId: s.attackerId, targetId: s.targetId, from, to, flashSize: 3.2 };
+          });
+          if (slugs.length > 0) setTracers(prev => [...prev, ...slugs]);
 
           // Hornet anti-vehicle rockets at Tier 3, and Hellfire Salvo rockets coming down (sim/hornet.ts).
           const hornetReady = (u: UnitData) => {

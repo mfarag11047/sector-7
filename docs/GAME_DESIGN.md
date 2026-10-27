@@ -880,7 +880,12 @@ replaced the old manually aimed Main Cannon:
   50-damage short-range shell.
 - Stunned, EMP-disabled, out-of-battery or nano-clouded tanks hold fire, and it can't target
   cloaked units.
-- Drawn as a white-hot core in a cyan glow from muzzle to target, with a flash where it strikes.
+- Drawn as the Sentry Turret's railgun slug (`ShotFx` kind `rail`): from the tip of the tank's
+  barrel (`titanMuzzle`), a white-hot slug in a cyan glow, very fast, leaving a straight ion trail
+  and a wake of shock rings, with a cyan muzzle flash and a hard flash where it strikes. The gun
+  itself is a housing at the turret, then two parallel rails split by a charging slot that glows
+  between them and flares when it fires, held by clamp bands, ending in a steel muzzle plate and
+  a round extension barrel.
 
 
 ## Battery Mule Volt Core

@@ -4,12 +4,14 @@
 // Simple but military: sharp-edged armour, each part in what it would be made of. A long hull with
 // a sloped glacis and a row of armour blocks across the nose; dark composite side skirts over the
 // tracks, hung with add-on armour modules and two diagonal stripes in team colour; and a long, low,
-// angular turret stepped in two tiers, carrying the rail gun: a slab-sided shroud with cooling
-// slots and a glowing slit down each side, ending in a round barrel. A remote weapon station, a
+// angular turret stepped in two tiers, carrying the rail gun: a slab-sided housing with cooling
+// slots at the turret, then two parallel rails split by a charging slot that glows between them,
+// held by clamp bands, ending in a steel muzzle plate and a round extension barrel. A remote weapon station, a
 // commander's sight and two whip antennas on the roof; team colour on the turret roof.
 //
-// It moves: the turret turns to what the tank is shooting at, the rail gun recoils and its slits
-// flare when it fires, and the tracks run and the hull rocks while it drives.
+// It moves: the turret turns to what the tank is shooting at, the rail gun recoils and its slot
+// flares when it fires, and the tracks run and the hull rocks while it drives. Its shot is the
+// railgun slug the Sentry Turret fires (ShotFx kind 'rail'), from `titanMuzzle`.
 //
 // Built facing +Z, about 2.6 long in its own units; Unit.tsx scales it up.
 
@@ -29,8 +31,15 @@ const SKIRT: [number, number][] = [[-1.3, 0.3], [-1.3, 0.9], [0.95, 0.9], [1.3, 
 const TURRET: [number, number][] = [[-0.5, -0.85], [0.5, -0.85], [0.58, -0.2], [0.5, 0.5], [0.22, 0.95], [-0.22, 0.95], [-0.5, 0.5], [-0.58, -0.2]];
 // The turret's upper tier: the same outline drawn in, so the turret steps in at the top.
 const TURRET_TOP = TURRET.map(([x, z]) => [x * 0.82, z * 0.85 - 0.05] as [number, number]);
-// The rail gun's shroud, side view [forward, up]: deepest near the turret, tapering to the barrel.
-const SHROUD: [number, number][] = [[0.85, -0.1], [0.85, 0.1], [1.25, 0.11], [2.35, 0.075], [2.35, -0.075], [1.25, -0.11]];
+// The rail gun, side view [forward, up]: a housing at the turret, then the two rails, each
+// tapering toward the muzzle, with the charging slot between them.
+const HOUSING: [number, number][] = [[0.85, -0.1], [0.85, 0.1], [1.25, 0.11], [1.32, 0.105], [1.32, -0.105], [1.25, -0.11]];
+const RAIL: [number, number][] = [[1.32, -0.105], [1.32, 0.105], [2.3, 0.075], [2.3, -0.075]];
+const RAIL_W = 0.062;
+const SLOT_W = 0.085;
+const CLAMPS_Z = [1.6, 1.98];
+// The muzzle: the tip of the extension barrel, forward of the turret's centre.
+const MUZZLE_Z = 2.33 + 0.6;
 const ROAD_WHEELS_Z = [-0.95, -0.57, -0.19, 0.19, 0.57, 0.95];
 const TRACK_X = 0.78;
 const SKIRT_X = 1.02;
@@ -38,6 +47,16 @@ const MODULES_Z = [-1.05, -0.6, -0.15, 0.3, 0.75];
 const RECOIL_MS = 450;
 // The upper glacis's slope, for parts laid on it.
 const GLACIS = Math.atan2(0.96 - 0.66, 1.22 - 0.5);
+// How high the unit stands (Unit.tsx), and the gun's axis above it.
+const HOVER = 1.2;
+const GUN_Y = 1.02 + 0.13;
+
+// Where the muzzle is in the world for a tank standing at `base` aimed at `target`, for its shot.
+export const titanMuzzle = (base: { x: number; z: number }, target: { x: number; z: number }) => {
+  const dx = target.x - base.x, dz = target.z - base.z, flat = Math.hypot(dx, dz) || 1;
+  const reach = (MUZZLE_Z - 0.2) * TITAN_SCALE;
+  return { x: base.x + dx / flat * reach, y: HOVER + GUN_Y * TITAN_SCALE, z: base.z + dz / flat * reach };
+};
 
 export const TitanTankModel: React.FC<{
   teamColor: string;
@@ -166,14 +185,18 @@ export const TitanTankModel: React.FC<{
             </group>
           ))}
           {/* The rail gun on its recoil slide. */}
-          <group ref={rail} position={[0, 0.13, 0]}>
+          <group ref={rail} position={[0, GUN_Y - 1.02, 0]}>
             <Plate size={[0.36, 0.22, 0.2]} material={dark} position={[0, 0, 0.9]} />
-            <Prism outline={SHROUD} depth={0.2} axis="x" material={armour} />
-            {[1.0, 1.07, 1.14, 1.21, 1.28, 1.35].map(z => [-1, 1].map(s => (
+            <Prism outline={HOUSING} depth={0.2} axis="x" material={armour} />
+            {[1.0, 1.07, 1.14, 1.21].map(z => [-1, 1].map(s => (
               <Plate key={`${z}${s}`} size={[0.012, 0.11, 0.035]} material={black} position={[s * 0.1, 0, z]} />
             )))}
-            {[-1, 1].map(s => <Strip key={s} size={[0.012, 0.022, 0.75]} material={own_.core} position={[s * 0.1, 0, 1.88]} />)}
-            <Plate size={[0.06, 0.012, 1.0]} material={dark} position={[0, 0.1, 1.55]} rotation={[0.03, 0, 0]} />
+            <Plate size={[0.06, 0.012, 0.4]} material={dark} position={[0, 0.105, 1.05]} />
+            {/* The two rails, the charging slot glowing between them, and the clamps holding them. */}
+            {[-1, 1].map(s => <Prism key={s} outline={RAIL} depth={RAIL_W} axis="x" material={armour} position={[s * (SLOT_W + RAIL_W) / 2, 0, 0]} />)}
+            <Strip size={[SLOT_W - 0.025, 0.13, 0.96]} material={own_.core} position={[0, 0, 1.8]} />
+            <Plate size={[SLOT_W, 0.04, 0.96]} material={black} position={[0, -0.05, 1.8]} />
+            {CLAMPS_Z.map(z => <Plate key={z} size={[0.23, 0.24 - (z - 1.32) * 0.06, 0.05]} material={dark} position={[0, 0, z]} />)}
             <Plate size={[0.22, 0.17, 0.05]} material={steel} position={[0, 0, 2.3]} />
             <Turned profile={[[0.06, 0], [0.06, 0.5], [0.075, 0.5], [0.075, 0.6], [0.04, 0.6]]} segments={10} material={steel} position={[0, 0, 2.33]} />
             <mesh ref={flashRef} position={[0, 0, 3.0]} visible={false} raycast={() => null}>
