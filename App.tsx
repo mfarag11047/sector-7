@@ -12,7 +12,11 @@ import PostFx from './components/PostFx';
 import UIOverlay from './components/UIOverlay';
 import { useHudScale } from './components/hudScale';
 import { GameStats, UnitData, BuildingData, RoadTileData, MinimapData, StructureData, DoctrineState, DoctrineType } from './types';
-import { DOCTRINE_CONFIG, CAMERA_NEAR, CAMERA_FAR, CITY_CONFIG, TEAM_BASES } from './constants';
+import { DOCTRINE_CONFIG, CAMERA_FOV, CAMERA_NEAR, CAMERA_FAR, CITY_CONFIG, TEAM_BASES } from './constants';
+import { lookAhead } from './components/cameraView';
+
+// How high the camera opens each match, over your HQ.
+const CAMERA_START_HEIGHT = 80;
 import { MatchConfig, MatchMode, STARTING_CORES, doctrineOf } from './sim/match';
 import type { OrderCommand } from './sim/orders';
 import type { Victory } from './sim/victory';
@@ -253,9 +257,10 @@ function App() {
       const z = hq.z * CITY_CONFIG.tileSize - offset;
       // Forward is -Z turned by yaw: -3π/4 faces +x+z (from blue), π/4 faces -x-z (from red).
       const yaw = team === 'blue' ? -3 * Math.PI / 4 : Math.PI / 4;
-      const back = 40;
+      // Far enough back that the middle of the view lands on the HQ.
+      const back = lookAhead(CAMERA_START_HEIGHT);
       const fx = -Math.sin(yaw), fz = -Math.cos(yaw);
-      return { x: x - fx * back, z: z - fz * back, yaw };
+      return { x: x - fx * back, z: z - fz * back, y: CAMERA_START_HEIGHT, yaw };
   }, [match]);
 
   // Merge dynamic game stats with persistent doctrine state for UI consumption
@@ -290,7 +295,7 @@ function App() {
         dpr={[1, 1.5]}
         style={{ overflow: 'clip' }}
         gl={{ toneMapping: THREE.ACESFilmicToneMapping, toneMappingExposure: 1.22 }}
-        camera={{ position: [0, 50, 50], fov: 45, near: CAMERA_NEAR, far: CAMERA_FAR }}
+        camera={{ position: [0, 50, 50], fov: CAMERA_FOV, near: CAMERA_NEAR, far: CAMERA_FAR }}
       >
         {SLOW_RENDER && <SlowRender />}
         <Suspense fallback={null}>

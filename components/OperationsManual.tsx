@@ -589,8 +589,7 @@ const BasicsTab: React.FC = () => (
     <div>
       <H>Camera</H>
       <Item label="Pan"><Key>W</Key> <Key>A</Key> <Key>S</Key> <Key>D</Key> or the arrow keys.</Item>
-      <Item label="Rotate and tilt">Hold the right mouse button and drag.</Item>
-      <Item label="Zoom">Mouse wheel.</Item>
+      <Item label="Zoom">Mouse wheel, from close in over a few units out to a good stretch of the battle. The camera always looks down at the same angle.</Item>
       <H>Orders</H>
       <Item label="Select">Click a unit, or drag a box over several with the left mouse button. Clicking empty ground with nothing selected clears the selection.</Item>
       <Item label="Move">With units selected, click the ground. Ground units take the quickest route (main roads are twice as fast, open ground half as fast); aircraft fly straight.</Item>

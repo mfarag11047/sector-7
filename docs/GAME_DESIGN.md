@@ -691,6 +691,17 @@ nothing reaches Tier 2 in about 8 minutes.
 Rough timings: holding just your own node, Tier 2 takes about 2 minutes of holding it, and Tier 3
 another 6. Holding three nodes gets you from Tier 2 to Tier 3 in about 2 minutes.
 
+### Camera
+
+The camera's angle is fixed (`components/DroneCamera.tsx`, `components/cameraView.ts`): it looks
+down at 75 degrees, a little off straight down, along a diagonal heading set per side (each looks
+across from its own base's corner toward the centre, so a player sees their buildings' fronts). It
+pans with WASD or the arrow keys and zooms with the wheel by a share of its height per notch,
+between 20 and 190 units up. Right out, it takes in about 290 units across and 170 deep on a 16:9
+screen: a good stretch of the battle, about a quarter of the map's width, so the rest takes the
+minimap and scouting. The minimap's view box is the true patch of ground on screen, a trapezoid
+wider at the top of the screen.
+
 ### HUD size
 
 The HUD (team panels, clock, minimap, army panel, messages, doctrine protocols and the panels it

@@ -1,15 +1,19 @@
+// The player's camera: a fixed view down on the map (components/cameraView.ts), a little off
+// straight down along a heading set per side, that pans with WASD or the arrow keys and zooms
+// with the wheel between MIN_ZOOM and MAX_ZOOM. Its angle can't be changed.
 
 import React, { useRef, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { updateGlobalFrustum } from '../frustum';
 import { freezeContainer } from '../perf';
-import { CAMERA_SPEED, CITY_CONFIG, CAMERA_ZOOM_SPEED, MIN_ZOOM, MAX_ZOOM } from '../constants';
+import { CAMERA_PITCH, CAMERA_SPEED, CITY_CONFIG, CAMERA_ZOOM_SPEED, MIN_ZOOM, MAX_ZOOM } from '../constants';
+import { lookAhead } from './cameraView';
 
 interface DroneCameraProps {
     cameraStateRef?: React.MutableRefObject<{ x: number, y: number, z: number, yaw: number }>;
-    // Where the camera starts, in world units, and which way it faces.
-    start?: { x: number, z: number, yaw: number };
+    // Where the camera starts, in world units (and how high), and the heading it looks along.
+    start?: { x: number, z: number, y?: number, yaw: number };
 }
 
 // Somewhere for the rest of the game to ask the camera to look: a point on the ground in world
@@ -39,20 +43,15 @@ const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef, start }) => {
   }, [scene, gl, camera, raycaster]);
   
   // Position State
-  const positionRef = useRef(new THREE.Vector3(start?.x ?? 0, 80, start?.z ?? 80));
+  const positionRef = useRef(new THREE.Vector3(start?.x ?? 0, start?.y ?? 80, start?.z ?? 80));
   
-  // Rotation State
-  // Yaw: Rotation around Y axis (0 = North/-Z)
-  const yawRef = useRef(start?.yaw ?? 0);
+  // The heading it looks along (about Y; 0 = north, -Z), fixed for the match.
+  const yaw = start?.yaw ?? 0;
   // Start in place rather than gliding over from wherever the camera was.
   useEffect(() => { camera.position.copy(positionRef.current); }, [camera]);
-  // Pitch: Angle down from horizon (0 = Horizon, PI/2 = Straight Down)
-  const pitchRef = useRef(1.0); 
 
   // Input State
   const keys = useRef<{ [key: string]: boolean }>({});
-  const isDraggingRef = useRef(false);
-  const lastMousePos = useRef({ x: 0, y: 0 });
   
   // Map Bounds
   const maxPos = (CITY_CONFIG.gridSize * CITY_CONFIG.tileSize) / 2;
@@ -61,71 +60,38 @@ const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef, start }) => {
     const handleKeyDown = (e: KeyboardEvent) => { keys.current[e.code] = true; };
     const handleKeyUp = (e: KeyboardEvent) => { keys.current[e.code] = false; };
     
-    const handleMouseDown = (e: MouseEvent) => {
-        // Only allow rotation on Right Click (Button 2)
-        if (e.button === 2) { 
-            isDraggingRef.current = true;
-            lastMousePos.current = { x: e.clientX, y: e.clientY };
-            gl.domElement.style.cursor = 'grabbing';
-        }
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-        if (isDraggingRef.current) {
-            const deltaX = e.clientX - lastMousePos.current.x;
-            const deltaY = e.clientY - lastMousePos.current.y;
-            
-            const sensitivity = 0.004;
-
-            // Yaw (Horizontal): Drag Left -> Look Left (Increase Angle in Three.js)
-            yawRef.current -= deltaX * sensitivity;
-
-            // Pitch (Vertical): Drag Up -> Look Up (Decrease Angle from Horizon)
-            // Clamp between 0.1 (Horizon-ish) and 1.5 (Straight down)
-            pitchRef.current = Math.max(0.1, Math.min(Math.PI / 2 - 0.05, pitchRef.current + deltaY * sensitivity));
-            
-            lastMousePos.current = { x: e.clientX, y: e.clientY };
-        }
-    };
-
-    const handleMouseUp = () => {
-        isDraggingRef.current = false;
-        gl.domElement.style.cursor = 'auto';
-    };
-
-    // Prevent context menu on the canvas to allow smooth right-click dragging
+    // Right-click gives orders and cancels; no browser menu over the map.
     const handleContextMenu = (e: MouseEvent) => {
         e.preventDefault();
     };
 
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
-    gl.domElement.addEventListener('mousedown', handleMouseDown);
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
     gl.domElement.addEventListener('contextmenu', handleContextMenu);
     
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
-      gl.domElement.removeEventListener('mousedown', handleMouseDown);
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
       gl.domElement.removeEventListener('contextmenu', handleContextMenu);
     };
   }, [gl.domElement]);
 
-  // Handle Zoom separately via scroll
+  // The wheel zooms by changing the height, by a share of itself per notch so each notch feels
+  // the same near the ground or high up. It zooms on the middle of the screen: the camera slides
+  // along its heading so the line of sight stays on the same spot of ground.
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
-        // Zoom alters Y position (Altitude)
-        positionRef.current.y += e.deltaY * 0.05 * (CAMERA_ZOOM_SPEED / 2);
-        positionRef.current.y = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, positionRef.current.y));
+        const p = positionRef.current;
+        const y = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, p.y * Math.exp((e.deltaY / 100) * CAMERA_ZOOM_SPEED)));
+        const slide = lookAhead(p.y) - lookAhead(y);
+        p.x = Math.max(-maxPos, Math.min(maxPos, p.x - Math.sin(yaw) * slide));
+        p.z = Math.max(-maxPos, Math.min(maxPos, p.z - Math.cos(yaw) * slide));
+        p.y = y;
     };
     
     window.addEventListener('wheel', handleWheel);
     return () => window.removeEventListener('wheel', handleWheel);
-  }, []);
+  }, [yaw, maxPos]);
 
   // Runs before every other frame callback (priority -1). Buildings and units hide themselves
   // when off-screen using the frustum worked out here; when the camera ran after them they
@@ -134,20 +100,19 @@ const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef, start }) => {
   useFrame((state, rawDelta) => {
     // A long stall (tab in the background) shouldn't fling the camera across the map.
     const delta = Math.min(rawDelta, 0.1);
-    // 1. Apply Rotation directly from Yaw/Pitch refs
-    // This ensures Key movement cannot affect Angle.
-    camera.rotation.order = 'YXZ'; // Standard FPS rotation order
-    camera.rotation.y = yawRef.current;
-    camera.rotation.x = -pitchRef.current; // Negative because positive Pitch ref is "Down", but positive X rot is "Up"
-    camera.rotation.z = 0; // Lock roll
+    // 1. The fixed view: along the side's heading, CAMERA_PITCH down, no roll.
+    camera.rotation.order = 'YXZ';
+    camera.rotation.y = yaw;
+    camera.rotation.x = -CAMERA_PITCH;
+    camera.rotation.z = 0;
 
     // 2. Calculate Movement Vector relative to Yaw. Speed is per second (the old per-frame
     // value at 60 fps), so panning keeps its pace when the frame rate dips.
     const speed = CAMERA_SPEED * 60 * delta * (positionRef.current.y / 20); // Move faster when zoomed out
     
     // "Forward" is -Z in local space. We rotate that by Yaw to get World Forward.
-    const forward = _forward.set(0, 0, -1).applyAxisAngle(UP, yawRef.current);
-    const right = _right.set(1, 0, 0).applyAxisAngle(UP, yawRef.current);
+    const forward = _forward.set(0, 0, -1).applyAxisAngle(UP, yaw);
+    const right = _right.set(1, 0, 0).applyAxisAngle(UP, yaw);
 
     const moveVector = _move.set(0, 0, 0);
 
@@ -169,7 +134,7 @@ const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef, start }) => {
     if (cameraFocus.target) {
         const { x, z } = cameraFocus.target;
         cameraFocus.target = null;
-        const back = positionRef.current.y / Math.tan(Math.max(0.15, pitchRef.current));
+        const back = lookAhead(positionRef.current.y);
         positionRef.current.x = Math.max(-maxPos, Math.min(maxPos, x - forward.x * back));
         positionRef.current.z = Math.max(-maxPos, Math.min(maxPos, z - forward.z * back));
     }
@@ -198,7 +163,7 @@ const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef, start }) => {
             x: positionRef.current.x,
             y: positionRef.current.y,
             z: positionRef.current.z,
-            yaw: yawRef.current
+            yaw
         };
     }
   }, -1);

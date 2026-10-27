@@ -2,6 +2,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { GameStats, TeamStats, MinimapData, DoctrineType, DoctrineState } from '../types';
 import { OperationsManual } from './OperationsManual';
+import { viewFootprint } from './cameraView';
 import { ArmyControls, ArmyInfo, ArmyPanel, SelectionSummary } from './ArmyPanel';
 import { ROLE_GLYPH, roleGlyphFilled, teamBadgeColor, UNIT_ROLE } from './unitIcons';
 import { BUILDING_COLORS, TEAM_COLORS, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG, TEAM_BASES } from '../constants';
@@ -304,33 +305,23 @@ const MinimapViewfinder: React.FC<{
     gridSize: number;
     tileSize: number;
 }> = ({ cameraStateRef, gridSize, tileSize }) => {
-    const rectRef = useRef<SVGRectElement>(null);
+    const shapeRef = useRef<SVGPolygonElement>(null);
 
     useEffect(() => {
         let animId: number;
         
         const update = () => {
-            if (rectRef.current && cameraStateRef && cameraStateRef.current) {
+            if (shapeRef.current && cameraStateRef && cameraStateRef.current) {
                 const { x, y, z, yaw } = cameraStateRef.current;
                 const offset = (gridSize * tileSize) / 2;
-                
-                // Convert World Coords to Grid Coords (0 to gridSize)
-                const gx = (x + offset) / tileSize;
-                const gz = (z + offset) / tileSize;
-                
-                // Approximation of visible area based on Zoom Height (y)
-                const viewScalar = 1.2; 
-                const h = (y / tileSize) * viewScalar;
-                const aspect = window.innerWidth / window.innerHeight;
-                const w = h * aspect;
-
-                rectRef.current.setAttribute('x', String(gx - w/2));
-                rectRef.current.setAttribute('y', String(gz - h/2));
-                rectRef.current.setAttribute('width', String(w));
-                rectRef.current.setAttribute('height', String(h));
-                
-                const degrees = (yaw * 180) / Math.PI;
-                rectRef.current.setAttribute('transform', `rotate(${-degrees}, ${gx}, ${gz})`);
+                // The patch of ground on screen (components/cameraView.ts), corner by corner, in tiles.
+                const v = viewFootprint(y, window.innerWidth / window.innerHeight);
+                const fx = -Math.sin(yaw), fz = -Math.cos(yaw), rx = Math.cos(yaw), rz = -Math.sin(yaw);
+                const corner = (along: number, across: number) =>
+                    `${(x + fx * along + rx * across + offset) / tileSize},${(z + fz * along + rz * across + offset) / tileSize}`;
+                shapeRef.current.setAttribute('points', [
+                    corner(v.near, -v.nearHalf), corner(v.near, v.nearHalf), corner(v.far, v.farHalf), corner(v.far, -v.farHalf),
+                ].join(' '));
             }
             animId = requestAnimationFrame(update);
         };
@@ -338,7 +329,7 @@ const MinimapViewfinder: React.FC<{
         return () => cancelAnimationFrame(animId);
     }, [gridSize, tileSize, cameraStateRef]);
 
-    return <rect ref={rectRef} fill="none" stroke="#22d3ee" strokeWidth="0.5" strokeOpacity="0.8" />;
+    return <polygon ref={shapeRef} fill="none" stroke="#22d3ee" strokeWidth="0.5" strokeOpacity="0.8" strokeLinejoin="round" />;
 };
 
 // Internal Doctrine HUD for Quick Actions

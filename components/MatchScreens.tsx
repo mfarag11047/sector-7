@@ -142,7 +142,7 @@ export const MatchSetup: React.FC<{ initial?: Partial<MatchConfig>; onStart: (co
         <div className="flex flex-col md:flex-row gap-3 md:items-center justify-between border-t border-slate-700 pt-4">
           <p className="text-[11px] text-slate-500 font-mono leading-relaxed">
             Left-click select / move · drag to box-select · Ctrl-click or F: attack-move<br />
-            Click a + pad to build · WASD + right-drag: camera
+            Click a + pad to build · WASD: move camera · wheel: zoom
           </p>
           <button onClick={start} className="px-6 py-3 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-mono font-bold tracking-widest rounded">
             DEPLOY
