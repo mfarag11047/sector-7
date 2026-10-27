@@ -578,8 +578,12 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   (the aim CityMap's tracer stream shares with the Aegis) and the barrels spin, and the stream
   leaves from the barrels' tips; idle, it turns slowly round, scanning the sky.
 - **The Sentry Turret** (`components/models/SentryTurretModel.tsx`, structure type `defense`): a
-  railgun on a heavy cradle, in the base greys. An octagonal plinth (team stripes, amber corner
-  lights) with a turret ring; on it a turntable with two braced brackets holding a chunky angular
+  railgun on a heavy cradle, in the base greys, up on a gun tower so it fires down over the base
+  wall instead of through it. The tower is a tapered octagonal concrete shaft (panel seams, team
+  stripes, an armoured door and a ladder on the side facing into the base) flaring into a collar
+  with downlights under a cantilevered deck with a railing; its gun stands about 12 high, clear of
+  the wall's 7, and can look down 37 degrees onto targets just outside. On the deck, an octagonal
+  plinth (team stripes, amber corner lights) with a turret ring; on it a turntable with two braced brackets holding a chunky angular
   receiver on trunnions, a power block at its back. Out of its front the railgun: a dark shroud,
   then two bare rails with the charging slot lit between them, clamp bands and a blunt muzzle. On
   the left a six-sided capacitor pack with four cell ends; on the right a sensor box with two
