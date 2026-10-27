@@ -67,6 +67,7 @@ import { armMules, countdownOf, dueCharges, VOLT, VoltCharge, voltBlasts } from 
 import { canisterSpots, HE, WARHEAD_LIST, WP, wpGasDamage } from '../sim/warheads';
 import { heroBlocker, heroOf } from '../sim/heroes';
 import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade, upgradeDef, upgradeTitle, type UpgradeId } from '../sim/upgrades';
+import { FireballFx, fireballLifeMs } from './FireballFx';
 import { baseCentreOf, padKindOf, spawnTile, teamPads } from '../sim/baseLayout';
 import { facingBase } from './kit/facing';
 import BuildPads, { FreePad } from './BuildPads';
@@ -1269,29 +1270,11 @@ const ExplosionMesh: React.FC<{ explosion: Explosion }> = ({ explosion }) => {
     if (explosion.style === 'blackwall') return <BlackwallBurst position={explosion.position} radius={explosion.radius} createdAt={explosion.createdAt} duration={explosion.duration} />;
     return <FireballMesh explosion={explosion} />;
 };
-const FireballMesh: React.FC<{ explosion: Explosion }> = ({ explosion }) => {
-    const meshRef = useRef<THREE.Mesh>(null);
-    useFrame(() => {
-        if(meshRef.current) {
-            const age = Date.now() - explosion.createdAt;
-            const progress = age / explosion.duration;
-            const scale = 1 + (progress * 5); // Expansion
-            meshRef.current.scale.set(scale, scale, scale);
-            if (Array.isArray(meshRef.current.material)) {
-                // not an array
-            } else {
-                (meshRef.current.material as THREE.MeshBasicMaterial).opacity = 1 - progress;
-            }
-        }
-    });
-
-    return (
-        <mesh ref={meshRef} position={[explosion.position.x, explosion.position.y, explosion.position.z]}>
-             <sphereGeometry args={[explosion.radius, 16, 16]} />
-             <meshBasicMaterial color="#fb923c" transparent opacity={0.8} />
-        </mesh>
-    );
-};
+const FireballMesh: React.FC<{ explosion: Explosion }> = ({ explosion }) => (
+    <FireballFx position={explosion.position} radius={explosion.radius} createdAt={explosion.createdAt} duration={explosion.duration} />
+);
+// How long an explosion stays drawn: a fireball's smoke outlives its flame (components/FireballFx.tsx).
+const explosionLifeMs = (e: Explosion) => (e.style ? e.duration : fireballLifeMs(e.duration));
 
 // --- Hovered tile ---
 
@@ -3484,7 +3467,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             }
             return now - d.createdAt < ABILITY_CONFIG.DECOY_DURATION;
         }));
-        setExplosions(prev => prev.filter(e => now - e.createdAt < e.duration));
+        setExplosions(prev => prev.length === 0 ? prev : prev.filter(e => now - e.createdAt < explosionLifeMs(e)));
         setTracers(prev => prev.length === 0 ? prev : prev.filter(t => now - t.createdAt < shotFxLifeMs(t)));
         setRailBeams(prev => prev.length === 0 ? prev : prev.filter(b => now - b.createdAt < RAIL_BEAM_MS));
 

@@ -331,6 +331,18 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   field dome) don't. Tone mapping comes after bloom, then grading on the displayed image: a little
   more contrast and saturation, and a vignette. `?render=slow` (software rendering for tests) skips
   the post-processing chain.
+- **Explosions** (`components/FireballFx.tsx`): a high-explosive blast is a white-hot flash and a
+  glow thrown on the ground, a pressure ring racing out along it, a fireball of soft, ragged flame
+  puffs thrown out and up that cool from white through yellow and orange to a deep red, sparks
+  streaking out on falling arcs, dark debris thrown up that lands and lies a moment, then smoke
+  rising out of the dying fireball (lit orange underneath at first, then dark grey) that spreads
+  and thins away, and a scorch mark left on the ground. One in the air leaves no ring or scorch,
+  and its debris falls to the ground. The flame and smoke are camera-facing sprites with a cloudy
+  texture drawn in code, one instanced mesh per kind; flame, sparks and flash are added light
+  brighter than white, which tone mapping rolls off into a hot core. Nothing in it writes depth: a
+  see-through shape that did would hide whatever is drawn after it inside its outline, and the
+  ambient occlusion and bloom passes, which read depth, would shade and cut out the scene under it.
+  The flame lasts the explosion's duration (at least 0.7 s); the smoke and scorch 3.6 times that.
 - **Textures** (`textures.ts`): only two, drawn in code: a soft tread that scrolls so tracks
   visibly run, and a contact shadow.
 - **Parts** (`shapes.tsx`): `Plate` (a box, sharp unless given a `radius`), `Prism` (an outline
