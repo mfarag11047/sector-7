@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ABILITY_CONFIG, BUILDING_VALUES, UNIT_STATS } from '../constants';
 import type { BuildingData, UnitData } from '../types';
-import { captureTick } from './capture';
+import { CAPTURE_RANGE, captureTick } from './capture';
 import { ballistaLoadStep, BASE_REPAIR, courierStep, guardianRepair, inBaseBlock, landCrawlers, repairTick, slowTick, SlowTickContext, surveillanceStep } from './support';
 
 const unit = (id: string, patch: Partial<UnitData> = {}): UnitData => ({
@@ -21,6 +21,17 @@ describe('captureTick', () => {
     expect(b).toMatchObject({ capturingTeam: 'blue', captureProgress: push });
     const tank = unit('t', { type: 'tank', unitClass: 'armor' });
     expect(captureTick([building()], [tank])[0].captureProgress).toBe(0);
+  });
+
+  it('reaches two tiles each way, diagonals too: a building set back from the road is still taken', () => {
+    expect(CAPTURE_RANGE).toBe(2);
+    // The building is at (5, 6).
+    for (const at of [{ x: 5, z: 8 }, { x: 3, z: 6 }, { x: 7, z: 4 }, { x: 3, z: 8 }]) {
+      expect(captureTick([building()], [unit('g', { gridPos: at })])[0].captureProgress).toBe(push);
+    }
+    for (const at of [{ x: 5, z: 9 }, { x: 8, z: 6 }, { x: 2, z: 3 }]) {
+      expect(captureTick([building()], [unit('g', { gridPos: at })])[0].captureProgress).toBe(0);
+    }
   });
 
   it('hands the building over at 100', () => {

@@ -1,14 +1,19 @@
 // Capturing buildings and core nodes.
 //
-// Infantry standing within 1.5 tiles of a building push its capture bar toward their team,
-// at the building's capture speed times their capture power. Opposing infantry cancel out.
-// A bar left alone drains away. Moved out of the main loop in CityMap.tsx unchanged.
+// Infantry within CAPTURE_RANGE tiles of a building, straight or diagonal, push its capture bar
+// toward their team, at the building's capture speed times their capture power. Opposing infantry
+// cancel out. A bar left alone drains away.
+//
+// Two tiles, not one: many buildings stand a tile back from the street, and infantry walking by on
+// the road should still take them.
 
 import { BUILDING_VALUES, UNIT_STATS } from '../constants';
 import type { BuildingData, UnitData } from '../types';
 
 // Progress lost per tick by an abandoned capture.
 const ABANDONED_DECAY = 4;
+// How far, in tiles each way, infantry reach a building to capture it.
+export const CAPTURE_RANGE = 2;
 
 export function captureTick(buildings: BuildingData[], units: readonly UnitData[]): BuildingData[] {
   const living = units.filter(u => u.health > 0);
@@ -27,7 +32,7 @@ function captureStep(b: BuildingData, units: readonly UnitData[]): BuildingData 
   let redPower = 0;
   for (const u of units) {
     if (u.team === 'neutral') continue;
-    if (Math.abs(u.gridPos.x - b.gridX) > 1.5 || Math.abs(u.gridPos.z - b.gridZ) > 1.5) continue;
+    if (Math.abs(u.gridPos.x - b.gridX) > CAPTURE_RANGE || Math.abs(u.gridPos.z - b.gridZ) > CAPTURE_RANGE) continue;
     const stats = UNIT_STATS[u.type];
     // Buildings and core nodes are captured by infantry only.
     if (stats.unitClass !== 'infantry') continue;

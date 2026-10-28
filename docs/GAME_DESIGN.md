@@ -118,7 +118,9 @@ side can invest in its economy instead of only fighting for nodes.
   the grid again. Stranded far out they are slow and exposed, so overextending is still punished,
   but a unit is never stuck for the rest of the match.
 - Infantry don't need the grid to move, which is why they lead the way, capturing buildings to pull
-  the grid forward behind them.
+  the grid forward behind them. They capture anything within 2 tiles, straight or diagonal
+  (`CAPTURE_RANGE`, `sim/capture.ts`), so a squad walking down a street takes the buildings set a
+  tile back from it too.
 
 ## Movement
 

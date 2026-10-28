@@ -29,6 +29,7 @@ import {
   STRUCTURE_RULES, Tier, TIER_RESEARCH_COST, UNIT_RULES, unitsProducedBy, Weapon,
 } from '../sim/units';
 import { ROLE_GLYPH, ROLE_LABEL, roleGlyphFilled, teamBadgeColor, UnitRole, UNIT_ROLE } from './unitIcons';
+import { CAPTURE_RANGE } from '../sim/capture';
 
 type Tab = 'basics' | 'economy' | 'units' | 'structures' | 'combat' | 'doctrines' | 'interface' | 'winning';
 const TABS: { id: Tab; label: string }[] = [
@@ -615,7 +616,7 @@ const EconomyTab: React.FC = () => (
   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
     <div>
       <H>Cores (money)</H>
-      <Item label="Income">Your HQ pays {HQ_INCOME} cores a second. Each core node you hold pays {BUILDING_VALUES.core_node.income} more. Only infantry capture, and core nodes are slow to take.</Item>
+      <Item label="Income">Your HQ pays {HQ_INCOME} cores a second. Each core node you hold pays {BUILDING_VALUES.core_node.income} more. Only infantry capture: anything within {CAPTURE_RANGE} tiles of them, so a squad walking down a street takes the buildings set back from it too. Core nodes are slow to take.</Item>
       <Item label="Population">Starts at {POP_BASE}. Each core node held adds {POP_PER_CORE_NODE}, and every {GRID_TILES_PER_POP} tiles of energy grid your captured buildings cover add 1 more, so spreading across the city raises it bit by bit. Up to {POP_MAX}. Hover Pop in your team panel for the breakdown. Queued units reserve their population.</Item>
       <H>Compute and tiers</H>
       <Item label="Compute">Each server node you hold makes {COMPUTE_PER_SERVER_NODE} compute a second; your HQ adds {HQ_COMPUTE}. Spend it on Research in your team panel or the HQ menu.</Item>
