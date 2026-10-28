@@ -10,6 +10,7 @@ import { dropDamage } from './bombard';
 import type { BuildingData, CloudData, StructureType, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { isHidden } from './cloak';
+import { CoverMap, coverApplies, coverBetween, hitCover } from './cover';
 import { isScreened, SMOKE } from './titan';
 import { damageMultiplier, damageTakenMultiplier, fireRateMultiplier, hasBuff, isEmpDisabled, rangeBonus } from './unitAbilities';
 import { ArmorClass, canHit, DamageType, shotDamage, STRUCTURE_RULES, UNIT_RULES, Weapon } from './units';
@@ -101,16 +102,20 @@ export interface Shot {
   // The target is an aircraft, so the shot is drawn upward.
   toAir: boolean;
   fromAir: boolean;
+  // Stopped by cover (sim/cover.ts): `targetId` and `to` are the building or wall it hit.
+  covered?: boolean;
 }
 
 export interface AttackResult {
   unitDamage: DamageMap;
   structureDamage: DamageMap;
+  // Damage to city buildings that stopped shots (sim/cover.ts), by building id.
+  buildingDamage: DamageMap;
   // Damage to enemy force fields' shields, by generator id.
   shieldDamage: DamageMap;
   // Everyone who fired this tick, and at what.
   fired: Map<string, string>;
-  // Every armed unit's current target in range, or null. Attack-move holds while it has one.
+  // Every armed unit's current target in range, or null (also when it is behind cover). Attack-move holds while it has one.
   aiming: Map<string, string | null>;
   shots: Shot[];
   // Units caught in another target's splash, and who fired it (for the pacing report).
@@ -121,6 +126,8 @@ export interface AttackResult {
 export type ShieldBlock = { fieldId: string; at: GridPos };
 // Added to a target's score when it is behind an enemy dome, so it is picked only as a last resort.
 const SHIELDED_PENALTY = 1000;
+// Added when it is behind cover (sim/cover.ts): targets in the open come first.
+const COVERED_PENALTY = 500;
 
 type Target = { id: string; gridPos: GridPos; armor: ArmorClass; isAir: boolean; structure: boolean };
 
@@ -136,21 +143,27 @@ const tiles = (a: GridPos, b: GridPos) => Math.hypot(a.x - b.x, a.z - b.z);
 // `shieldOf` says whether a shot by a team between two tiles is stopped by an enemy force field
 // (sim/forcefield.ts), and where. Guns prefer targets in the open; a shot at one behind a dome
 // hits the dome instead (shieldDamage), and splash never reaches in.
+// `cover` is the city's buildings and walls (sim/cover.ts): a ground shot at a ground target
+// behind them hits the cover instead, and guns go for targets in the open first.
 export function resolveAttacks(
   units: readonly UnitData[],
   structures: readonly CombatStructure[],
   now: number,
   inNanoCloud: (pos: GridPos) => boolean,
   shieldOf: (team: UnitData['team'], from: GridPos, to: GridPos) => ShieldBlock | null = () => null,
+  cover: CoverMap | null = null,
 ): AttackResult {
-  const result: AttackResult = { unitDamage: new Map(), structureDamage: new Map(), shieldDamage: new Map(), fired: new Map(), aiming: new Map(), shots: [] };
+  const result: AttackResult = { unitDamage: new Map(), structureDamage: new Map(), buildingDamage: new Map(), shieldDamage: new Map(), fired: new Map(), aiming: new Map(), shots: [] };
   const blocked = (team: UnitData['team'], from: GridPos, to: GridPos) => shieldOf(team, from, to) !== null;
+  const byId = new Map(units.map(u => [u.id, u]));
+  const coverOf = (shooter: UnitData | null, team: UnitData['team'], from: GridPos, fromAir: boolean, target: { id: string; gridPos: GridPos }, toAir: boolean) =>
+    cover && coverApplies(shooter, fromAir, byId.get(target.id) ?? null, toAir) ? coverBetween(cover, team, from, target.gridPos) : null;
 
   const unitTargets = units.filter(u => u.health > 0 && !isHidden(u) && !inNanoCloud(u.gridPos));
   const structureTargets = structures.filter(s => s.health > 0);
 
   // Ground shooters can't pick out a unit in a friendly Smoke Screen (sim/titan.ts); aircraft can.
-  const pick = (team: UnitData['team'], at: GridPos, weapon: Weapon, current: string | null | undefined, fromAir = false): Target | null => {
+  const pick = (shooter: UnitData | null, team: UnitData['team'], at: GridPos, weapon: Weapon, current: string | null | undefined, fromAir = false): Target | null => {
     let best: Target | null = null;
     let bestDist = Infinity;
     for (const t of unitTargets) {
@@ -162,7 +175,8 @@ export function resolveAttacks(
       if (d > weapon.range) continue;
       // Stick with the current target rather than flicking between equals; anything behind an
       // enemy force field only when there is nothing in the open.
-      const score = (t.id === current ? -1 : d) + (blocked(team, at, t.gridPos) ? SHIELDED_PENALTY : 0);
+      let score = (t.id === current ? -1 : d) + (blocked(team, at, t.gridPos) ? SHIELDED_PENALTY : 0);
+      if (score < bestDist && coverOf(shooter, team, at, fromAir, t, isAir)) score += COVERED_PENALTY;
       if (score < bestDist) {
         bestDist = score;
         best = { id: t.id, gridPos: t.gridPos, armor, isAir, structure: false };
@@ -173,7 +187,8 @@ export function resolveAttacks(
       if (!hostile(team, s.team)) continue;
       const d = tiles(at, s.gridPos);
       if (d > weapon.range) continue;
-      const score = (s.id === current ? -1 : d) + (blocked(team, at, s.gridPos) ? SHIELDED_PENALTY : 0);
+      let score = (s.id === current ? -1 : d) + (blocked(team, at, s.gridPos) ? SHIELDED_PENALTY : 0);
+      if (score < bestDist && coverOf(shooter, team, at, fromAir, s, false)) score += COVERED_PENALTY;
       if (score < bestDist) {
         bestDist = score;
         best = { id: s.id, gridPos: s.gridPos, armor: 'structure', isAir: false, structure: true };
@@ -189,13 +204,21 @@ export function resolveAttacks(
   const screenedIds = new Set(unitTargets.filter(isScreened).map(t => t.id));
   const fromAirOn = (id: string, fromAir: boolean) => (fromAir && screenedIds.has(id) ? SMOKE.airDamage : 1);
 
-  const fire = (attackerId: string, team: UnitData['team'], from: GridPos, fromAir: boolean, weapon: Weapon, target: Target) => {
+  const fire = (shooter: UnitData | null, attackerId: string, team: UnitData['team'], from: GridPos, fromAir: boolean, weapon: Weapon, target: Target) => {
     // Stopped by an enemy force field: the dome takes the hit.
     const shield = shieldOf(team, from, target.gridPos);
     if (shield) {
       addDamage(result.shieldDamage, shield.fieldId, shotDamage(weapon, 'structure'));
       result.fired.set(attackerId, target.id);
       result.shots.push({ attackerId, targetId: target.id, from, to: shield.at, type: weapon.type, toAir: false, fromAir });
+      return;
+    }
+    // Stopped by a building or an enemy wall in the way: that takes the hit, and nothing splashes past it.
+    const hit = coverOf(shooter, team, from, fromAir, target, target.isAir);
+    if (hit) {
+      hitCover(hit, shotDamage(weapon, 'structure'), shooter ? UNIT_RULES[shooter.type].armor : 'structure', result.buildingDamage, result.structureDamage);
+      result.fired.set(attackerId, hit.id);
+      result.shots.push({ attackerId, targetId: hit.id, from, to: hit.at, type: weapon.type, toAir: false, fromAir, covered: true });
       return;
     }
     const damage = shotDamage(weapon, target.armor);
@@ -226,19 +249,21 @@ export function resolveAttacks(
       ...(hasBuff(u, 'barrage') ? { splash: 1.5, splashFactor: 0.5 } : {}),
     } : base;
     const fromAir = UNIT_RULES[u.type].armor === 'air';
-    const target = pick(u.team, u.gridPos, weapon, u.combatTargetId, fromAir);
-    result.aiming.set(u.id, target ? target.id : null);
+    const target = pick(u, u.team, u.gridPos, weapon, u.combatTargetId, fromAir);
+    // A target behind cover is shot at but doesn't hold an attack-move: the unit carries on until
+    // it has a clear line.
+    result.aiming.set(u.id, target && !coverOf(u, u.team, u.gridPos, fromAir, target, target.isAir) ? target.id : null);
     if (!target || now - (u.lastAttackTime || 0) < weapon.cooldownMs / fireRateMultiplier(u)) continue;
-    fire(u.id, u.team, u.gridPos, fromAir, weapon, target);
+    fire(u, u.id, u.team, u.gridPos, fromAir, weapon, target);
   }
 
   for (const s of structures) {
     const weapon = STRUCTURE_RULES[s.type].weapon;
     if (!weapon || weapon.ciws || s.health <= 0 || s.isBlueprint || (s.buildRemainingMs || 0) > 0 || s.dismantle) continue;
-    const target = pick(s.team, s.gridPos, weapon, s.combatTargetId);
+    const target = pick(null, s.team, s.gridPos, weapon, s.combatTargetId);
     result.aiming.set(s.id, target ? target.id : null);
     if (!target || now - (s.lastAttackTime || 0) < weapon.cooldownMs) continue;
-    fire(s.id, s.team, s.gridPos, false, weapon, target);
+    fire(null, s.id, s.team, s.gridPos, false, weapon, target);
   }
   return result;
 }

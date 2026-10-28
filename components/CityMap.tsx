@@ -53,6 +53,7 @@ import { ForceFieldDome, forceFieldColor, ShieldImpact } from './ForceFieldFx';
 import { ShotFx, ShotFxData, ShotKind, shotFxLifeMs } from './ShotFx';
 import { EmpRocket, EMP_ROCKET, empRocketImpact, empRocketTick, isEmpTarget, mergeUnitUpdates, topAttackHeight } from '../sim/empRocket';
 import { AirThreat, applyCiwsState, CIWS, CiwsLink, ciwsTick, ORDNANCE_INTEGRITY } from '../sim/ciws';
+import { coverMap, damageBuildings } from '../sim/cover';
 import { Blast, CombatStructure, applyDamage, applyStructureCombat, blastDamage, bombardBuildings, bombardUnitDamage, crawlerDetonations, heCloudDamage, resolveAttacks } from '../sim/combat';
 import { bombardTick } from '../sim/bombard';
 import { generateCity } from '../sim/mapgen';
@@ -1582,9 +1583,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
   // Map Generation State
   // The hand-drawn, mirrored city (sim/mapgen.ts): the same map every match, the same for both sides.
-  const { initialBuildings, initialBlocks, roadTiles, roadTileSet, tileTypeMap, initialDrones, landmarks, baseWalls, baseGates } = useMemo(() => {
+  const { initialBuildings, initialBlocks, roadTiles, roadTileSet, tileTypeMap, initialDrones, landmarks, baseWalls, baseGates, landmarkTiles } = useMemo(() => {
     const city = generateCity({ gridSize, tileSize, blueBase: baseA_Coord, redBase: baseB_Coord });
-    return { initialBuildings: city.buildings, initialBlocks: city.blocks, roadTiles: city.roadTiles, roadTileSet: city.roadTileSet, tileTypeMap: city.tileTypeMap, initialDrones: city.sentinels, landmarks: city.landmarks, baseWalls: city.baseWalls, baseGates: city.baseGates };
+    return { initialBuildings: city.buildings, initialBlocks: city.blocks, roadTiles: city.roadTiles, roadTileSet: city.roadTileSet, tileTypeMap: city.tileTypeMap, initialDrones: city.sentinels, landmarks: city.landmarks, baseWalls: city.baseWalls, baseGates: city.baseGates, landmarkTiles: city.landmarks.flatMap(l => l.tiles) };
   }, [gridSize, tileSize, baseA_Coord, baseB_Coord]);
 
   useEffect(() => { if (onMapInit) onMapInit({ roadTiles, gridSize }); }, [roadTiles, gridSize, onMapInit]);
@@ -3678,12 +3679,15 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               const shot = lastShotRef.current.get(x.id);
               return shot && shot > (x.lastAttackTime || 0) ? { ...x, lastAttackTime: shot } : x;
           };
+          // City buildings and enemy walls stop direct fire (sim/cover.ts).
+          const cover = coverMap(buildingsRef.current, structuresRef.current, landmarkTiles);
           const attacks = resolveAttacks(
               currentUnitsRef.map(reloaded),
               structuresRef.current.map(reloaded) as CombatStructure[],
               now,
               pos => isPointInCloud(pos, nanoClouds, 'nano'),
               shieldOf,
+              cover,
           );
           attacks.shieldDamage.forEach((n, id) => addShieldHit(shieldHits, id, n));
           attacks.fired.forEach((_, id) => lastShotRef.current.set(id, now));
@@ -3707,7 +3711,13 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               const t = railShotRef.current.get(u.id);
               return t && t > (u.railgunFiredAt ?? -Infinity) ? { ...u, railgunFiredAt: t } : u;
           };
-          const rail = fireRailguns(currentUnitsRef.map(railReady), structuresRef.current, now, pos => isPointInCloud(pos, nanoClouds, 'nano'), shieldOf, aiHelpersRef.current.isWalkable);
+          const rail = fireRailguns(currentUnitsRef.map(railReady), structuresRef.current, now, pos => isPointInCloud(pos, nanoClouds, 'nano'), shieldOf, aiHelpersRef.current.isWalkable, cover);
+          // What the buildings in the way took.
+          rail.buildingDamage.forEach((n, id) => attacks.buildingDamage.set(id, (attacks.buildingDamage.get(id) || 0) + n));
+          if (attacks.buildingDamage.size > 0) {
+              const hits = attacks.buildingDamage;
+              setBuildings(prev => damageBuildings(prev, hits));
+          }
           if (pacing && rail.pierceHits.length > 0) recordWeaponHits(pacing, { shots: rail.pierceHits }, currentUnitsRef, structuresRef.current);
           rail.shieldDamage.forEach((n, id) => addShieldHit(shieldHits, id, n));
           const railFired = new Set(rail.shots.map(s => s.attackerId));

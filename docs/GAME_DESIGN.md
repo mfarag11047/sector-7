@@ -798,6 +798,26 @@ tiles, a damage type, and whether it can hit ground and/or air.
 - **Attack-move** (used by the AI, and by the player with Ctrl-click, or F then click) stops to
   fight whatever comes into range, then carries on. (A is taken by the camera's WASD.)
 - Enemy structures and the HQ can be attacked.
+
+**Cover** (`sim/cover.ts`): city buildings, the landmark towers and the other side's walls stop
+direct fire.
+- A ground gun firing at a ground target (weapons fire and tank rail slugs) needs a clear line to
+  it. The first standing city building, landmark tower, or enemy base wall, blast gate or Bulwark
+  Wall that the line passes through takes the shot instead, and nothing splashes past it. A line
+  that only clips a building's corner gets past. Dragon's Teeth are low enough to shoot over.
+- A side's own walls don't stop its own fire: defenders shoot out from behind their walls, and
+  attackers have to break through them.
+- A unit behind cover can still be targeted when it is seen, but guns go for targets in the open
+  first, and a target behind cover doesn't hold an attack-move: the unit carries on until it has
+  a clear line.
+- A wall takes a stopped shot as it would one aimed at it. A city building takes only a share of
+  the shot's damage against structures, by the shooter's weight: 20% from infantry, 50% from light
+  vehicles and turrets, all of it from heavy vehicles. So a rifle barely marks a building (a Trooper
+  needs 500 shots for a 200-health building), while a tank's shell or rail slug knocks one down in three. A building brought to nothing is destroyed, as a Bombardment Drone leaves it. The
+  landmark towers can't be knocked down.
+- Out of it: aircraft, and the Sentinels hovering above the server nodes, fire from above the
+  rooftops and are shot at above them; shots at aircraft; and anything lobbed (Thunderhead
+  shells, missiles, grenades).
 - The HQ and Sentry Turrets shoot back.
 - Neutral Sentinels are hostile to both sides. Ground units route around a living Sentinel's
   reach when a detour of about a block or less is available. Their route still goes through it

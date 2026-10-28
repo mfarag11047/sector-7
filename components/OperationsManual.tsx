@@ -660,6 +660,7 @@ const CombatTab: React.FC = () => (
         <H>Counters</H>
         <Item label="Rock, paper, scissors">Razorbacks hunt Troopers; Lancers and Hornets hunt vehicles; Aegis and Troopers shoot down aircraft; Titans break infantry blobs and bases; Thunderheads shell anything that stands still.</Item>
         <Item label="Targeting">Units fire at the nearest enemy they can hit and stick with it. They only shoot buildings when no unit is in range.</Item>
+        <Item label="Cover">City buildings, the landmark towers and enemy walls stop direct fire: shots at a unit behind one hit the building instead. Units still shoot at enemies they can see behind cover, but prefer ones in the open. Rifles barely scratch a building; tanks knock them down. Your own walls don't block your fire, so defend from behind them. Aircraft, artillery and missiles go over the top.</Item>
       </div>
       <div>
         <H>Tactics</H>

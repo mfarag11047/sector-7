@@ -7,6 +7,9 @@
 // soldier does far less than one through a hull, so Lancers can still close on tanks. Each shot
 // costs battery and the gun recharges between shots.
 //
+// A slug doesn't go through city buildings or the other side's walls (sim/cover.ts): it hits the
+// first one in the way, and hits it hard. Guns go for targets in the open first.
+//
 // It can't pick out a unit in an enemy Smoke Screen (sim/titan.ts). With a Piercing Rail Round
 // loaded (the tank's researched ability), the next slug doesn't stop at its target: it carries on
 // down the lane to the end of the street, hitting every enemy within PIERCE.width of its path.
@@ -19,6 +22,7 @@ import type { StructureData, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { spottedBy } from './artillery';
 import { isHidden } from './cloak';
+import { CoverMap, coverApplies, coverBetween, hitCover } from './cover';
 import { damageTakenMultiplier, upgradeDamage, hasBuff, isEmpDisabled } from './unitAbilities';
 import { isScreened, PIERCE } from './titan';
 import { ArmorClass, shotDamage, UNIT_RULES, Weapon } from './units';
@@ -37,7 +41,8 @@ const WEAPON: Weapon = { damage: RAILGUN.damage, cooldownMs: RAILGUN.cooldownMs,
 export const hasRailgun = (u: Pick<UnitData, 'type'>) => u.type === 'tank' || u.type === 'titan_dropped';
 export const railgunReady = (u: UnitData, now: number) => now - (u.railgunFiredAt ?? -Infinity) >= RAILGUN.cooldownMs;
 
-export interface RailShot { attackerId: string; targetId: string; team: UnitData['team']; from: GridPos; to: GridPos; structure: boolean; pierced?: boolean }
+// `covered`: stopped by a building or wall, which `targetId` and `to` then name.
+export interface RailShot { attackerId: string; targetId: string; team: UnitData['team']; from: GridPos; to: GridPos; structure: boolean; pierced?: boolean; covered?: boolean }
 
 const tiles = (a: GridPos, b: GridPos) => Math.hypot(a.x - b.x, a.z - b.z);
 // Heavy armour, then light, then infantry; nearer first within each.
@@ -55,14 +60,27 @@ export function fireRailguns(
   shieldOf: (team: UnitData['team'], from: GridPos, to: GridPos) => ShieldBlock | null = () => null,
   // Open ground a piercing slug carries on down; it stops at the first tile that isn't.
   laneOpen: (x: number, z: number) => boolean = () => true,
-): { shots: RailShot[]; unitDamage: Map<string, number>; structureDamage: Map<string, number>; shieldDamage: Map<string, number>; pierceHits: { attackerId: string; targetId: string }[] } {
+  // City buildings and walls in the way (sim/cover.ts).
+  cover: CoverMap | null = null,
+): { shots: RailShot[]; unitDamage: Map<string, number>; structureDamage: Map<string, number>; buildingDamage: Map<string, number>; shieldDamage: Map<string, number>; pierceHits: { attackerId: string; targetId: string }[] } {
   const pierceHits: { attackerId: string; targetId: string }[] = [];
   const shieldDamage = new Map<string, number>();
   const shots: RailShot[] = [];
   const unitDamage = new Map<string, number>();
   const structureDamage = new Map<string, number>();
+  const buildingDamage = new Map<string, number>();
   const add = (m: Map<string, number>, id: string, n: number) => m.set(id, (m.get(id) || 0) + n);
 
+  const coverOf = (u: UnitData, target: UnitData | null, at: GridPos) =>
+    cover && coverApplies(u, false, target, false) ? coverBetween(cover, u.team, u.gridPos, at) : null;
+  // A slug stopped by cover: the building or wall takes it.
+  const stopped = (u: UnitData, at: GridPos): boolean => {
+    const hit = coverOf(u, null, at);
+    if (!hit) return false;
+    hitCover(hit, shotDamage(WEAPON, 'structure') * upgradeDamage(u), UNIT_RULES[u.type].armor, buildingDamage, structureDamage);
+    shots.push({ attackerId: u.id, targetId: hit.id, team: u.team, from: u.gridPos, to: hit.at, structure: true, covered: true });
+    return true;
+  };
   for (const u of units) {
     if (!hasRailgun(u) || u.health <= 0 || u.isStunned || isEmpDisabled(u) || u.battery < RAILGUN.batteryCost) continue;
     if (!railgunReady(u, now) || inNanoCloud(u.gridPos)) continue;
@@ -73,9 +91,11 @@ export function fireRailguns(
       if (armor === 'air') continue;
       const d = tiles(u.gridPos, t.gridPos);
       if (d > RAILGUN.range) continue;
-      const key = priority(armor) * 1000 + d + (shieldOf(u.team, u.gridPos, t.gridPos) ? 10_000 : 0);
+      let key = priority(armor) * 1000 + d + (shieldOf(u.team, u.gridPos, t.gridPos) ? 10_000 : 0);
       if (best && key >= best.key) continue;
       if (!spottedBy(u.team, t.gridPos, units, structures)) continue;
+      if (coverOf(u, t, t.gridPos)) key += 5000;
+      if (best && key >= best.key) continue;
       best = { t, key };
     }
     if (best) {
@@ -85,6 +105,7 @@ export function fireRailguns(
         shots.push({ attackerId: u.id, targetId: best.t.id, team: u.team, from: u.gridPos, to: shield.at, structure: false });
         continue;
       }
+      if (coverApplies(u, false, best.t, false) && stopped(u, best.t.gridPos)) continue;
       if (hasBuff(u, 'piercing_round')) {
         // Down the whole lane: everything in the slug's path, the target first.
         const end = laneEnd(u.gridPos, best.t.gridPos, laneOpen);
@@ -115,12 +136,13 @@ export function fireRailguns(
       if (d > RAILGUN.range || (wall && d >= wall.d) || shieldOf(u.team, u.gridPos, s.gridPos) || !spottedBy(u.team, s.gridPos, units, structures)) continue;
       wall = { s, d };
     }
+    if (wall && stopped(u, wall.s.gridPos)) continue;
     if (wall) {
       add(structureDamage, wall.s.id, shotDamage(WEAPON, 'structure') * upgradeDamage(u));
       shots.push({ attackerId: u.id, targetId: wall.s.id, team: u.team, from: u.gridPos, to: wall.s.gridPos, structure: true });
     }
   }
-  return { shots, unitDamage, structureDamage, shieldDamage, pierceHits };
+  return { shots, unitDamage, structureDamage, buildingDamage, shieldDamage, pierceHits };
 }
 
 // Where a piercing slug fired from `from` through `through` stops: the last open tile along the

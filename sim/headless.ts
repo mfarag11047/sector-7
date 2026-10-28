@@ -27,6 +27,7 @@ import { baseCentreOf, spawnTile } from './baseLayout';
 import { captureTick } from './capture';
 import { applyCiwsState, ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
 import type { GridPos, Team } from './commands';
+import { coverMap, damageBuildings } from './cover';
 import { applyStructureCombat, bombardBuildings, bombardUnitDamage, resolveAttacks } from './combat';
 import { addWarheads, advanceWarheadProduction, createEconomy, Economy, payIncome, productionStep, refund } from './economy';
 import { chargeSources, isInsideEnergyGrid, muleRange, powerTick } from './energy';
@@ -65,6 +66,8 @@ export interface HeadlessMatch {
   units: UnitData[];
   structures: StructureData[];
   buildings: BuildingData[];
+  // The landmark towers' tiles, cover nothing knocks down (sim/cover.ts).
+  landmarkTiles: GridPos[];
   economy: Economy;
   memory: Record<Team, AiMemory>;
   nextThink: Record<Team, number>;
@@ -114,6 +117,7 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     units: [...startingRoster(config, gridSize, TEAM_BASES.blue), ...city.sentinels],
     structures: [hq('blue'), hq('red'), ...compoundStructures(city.baseWalls, city.baseGates, gridSize)],
     buildings: city.buildings,
+    landmarkTiles: city.landmarks.flatMap(l => l.tiles),
     economy: createEconomy(opts.startingCores ?? 1000),
     memory: { blue: freshAiMemory(), red: freshAiMemory() },
     nextThink: thinkOffsets(opts.firstThinker ?? (seededRandom(opts.seed ^ 0xf1257)() < 0.5 ? 'blue' : 'red'),
@@ -204,14 +208,17 @@ export function stepMatch(m: HeadlessMatch): void {
   // Units in a friendly Smoke Screen are screened this tick (sim/titan.ts).
   m.smoke = pruneSmoke(m.smoke, now);
   m.units = markScreened(m.units, m.smoke, now);
-  const attacks = resolveAttacks(m.units.map(reloaded), m.structures.map(reloaded) as never, now, () => false);
+  // City buildings and enemy walls stop direct fire (sim/cover.ts).
+  const cover = coverMap(m.buildings, m.structures, m.landmarkTiles);
+  const attacks = resolveAttacks(m.units.map(reloaded), m.structures.map(reloaded) as never, now, () => false, undefined, cover);
   attacks.fired.forEach((_, id) => m.lastShot.set(id, now));
   m.structures = applyStructureCombat(m.structures, attacks, now);
   // Artillery: new shells go up, and the ones whose flight is over come down.
   const volley = fireArtillery(m.units.map(reloaded), m.structures, now, team => (team === 'neutral' ? 1 : artilleryTierOf(m.economy[team])), m.random, () => `shell-${++m.nextId}`);
   volley.fired.forEach((_, id) => { m.lastShot.set(id, now); attacks.fired.set(id, ''); });
   // Tank rail guns: long-range shots at what the side can see.
-  const rail = fireRailguns(m.units, m.structures, now, undefined, undefined, paths.walkable);
+  const rail = fireRailguns(m.units, m.structures, now, undefined, undefined, paths.walkable, cover);
+  m.buildings = damageBuildings(damageBuildings(m.buildings, attacks.buildingDamage), rail.buildingDamage);
   const railFired = new Set(rail.shots.map(s => s.attackerId));
   if (railFired.size > 0) m.units = m.units.map(u => railFired.has(u.id) ? afterRailShot(u, now) : u);
   rail.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
