@@ -2,15 +2,18 @@
 //
 // It is a truck on the move and a gun only when planted: it can't fire while mobile, anchors
 // down only when stationary, and then takes a few seconds to set up. Anchored, it shells
-// whatever tile the player orders (a fire mission, blind if need be) or, with no orders, the
-// nearest enemy its side can see within range. Shells take time to fly, so moving targets can
-// get out from under them. Its range grows with the side's researched tier.
+// whatever tile the player orders (a fire mission, blind if need be) or, with no orders, fires on
+// sight: the nearest armed enemy that it or any friendly unit can see within range, then any other
+// enemy ground unit, then an enemy structure. Shells take time to fly, so moving targets can get
+// out from under them. Its range grows with the side's researched tier. Shells also knock down
+// city buildings, though far more slowly than a Bombardment Drone.
 //
 // Everything here is pure: it reads the state it is given and reports what happens. CityMap and
 // the headless runner keep the shells in flight and apply the damage.
 
 import { ForceField, impactAbsorbed, shotBlocked } from './forcefield';
-import type { StructureData, UnitData } from '../types';
+import type { BuildingData, StructureData, UnitData } from '../types';
+import { dropDamage } from './bombard';
 import type { GridPos } from './commands';
 import { isHidden } from './cloak';
 import { damageTakenMultiplier, upgradeDamage, isEmpDisabled, visionOf } from './unitAbilities';
@@ -34,6 +37,9 @@ export const ARTILLERY = {
   flightPerTileMs: 90,
   // Friendly structures see this far, for counter-battery fire around the base.
   structureVision: 5,
+  // Each shell does this share of a Bombardment Drone drop to every city building in its splash
+  // (sim/bombard.ts), so a block that takes 2 drops takes 8 shells.
+  buildingShare: 0.25,
 };
 
 export interface ArtilleryShell {
@@ -75,8 +81,9 @@ export function spottedBy(team: UnitData['team'], at: GridPos, units: readonly U
   return false;
 }
 
-// What each ready battery fires at this tick: its fire mission, or failing that the nearest enemy
-// ground unit it can see in range, then the nearest enemy structure. Aircraft are out of reach.
+// What each ready battery fires at this tick: its fire mission, or failing that (firing on sight)
+// the nearest armed enemy ground unit it or its side can see in range, then the nearest unarmed
+// one, then the nearest enemy structure. Aircraft are out of reach.
 export function fireArtillery(
   units: readonly UnitData[],
   structures: readonly StructureData[],
@@ -92,22 +99,7 @@ export function fireArtillery(
     if (now - (u.lastAttackTime || 0) < ARTILLERY.cooldownMs) continue;
     const tier = tierOf(u.team);
     let aim: GridPos | null = u.artilleryTarget && inArtilleryReach(u.gridPos, u.artilleryTarget, tier) ? u.artilleryTarget : null;
-    if (!aim) {
-      let best = Infinity;
-      for (const t of units) {
-        // Nothing to aim at inside an enemy Smoke Screen (sim/titan.ts); a fire mission on the tile still lands.
-        if (t.team === u.team || t.health <= 0 || isHidden(t) || isScreened(t) || UNIT_RULES[t.type].armor === 'air') continue;
-        const d = tiles(u.gridPos, t.gridPos);
-        if (d < best && inArtilleryReach(u.gridPos, t.gridPos, tier) && spottedBy(u.team, t.gridPos, units, structures)) { best = d; aim = t.gridPos; }
-      }
-      if (!aim) {
-        for (const s of structures) {
-          if (s.team === u.team || s.health <= 0) continue;
-          const d = tiles(u.gridPos, s.gridPos);
-          if (d < best && inArtilleryReach(u.gridPos, s.gridPos, tier) && spottedBy(u.team, s.gridPos, units, structures)) { best = d; aim = s.gridPos; }
-        }
-      }
-    }
+    if (!aim) aim = onSight(u, units, structures, tier);
     if (!aim) continue;
     const angle = random() * Math.PI * 2;
     const drift = random() * ARTILLERY.scatter;
@@ -119,6 +111,28 @@ export function fireArtillery(
     fired.set(u.id, { ...aim });
   }
   return { shells, fired };
+}
+
+// The fire-on-sight pick for a battery with no fire mission, or null when nothing is in view.
+function onSight(gun: UnitData, units: readonly UnitData[], structures: readonly StructureData[], tier: Tier): GridPos | null {
+  // Armed enemies first (0), then unarmed ones (1); nearest within each.
+  let best: { at: GridPos; rank: number; d: number } | null = null;
+  for (const t of units) {
+    // Nothing to aim at inside an enemy Smoke Screen (sim/titan.ts); a fire mission on the tile still lands.
+    if (t.team === gun.team || t.health <= 0 || isHidden(t) || isScreened(t) || UNIT_RULES[t.type].armor === 'air') continue;
+    const rank = UNIT_RULES[t.type].weapon ? 0 : 1;
+    const d = tiles(gun.gridPos, t.gridPos);
+    if (best && (rank > best.rank || (rank === best.rank && d >= best.d))) continue;
+    if (inArtilleryReach(gun.gridPos, t.gridPos, tier) && spottedBy(gun.team, t.gridPos, units, structures)) best = { at: t.gridPos, rank, d };
+  }
+  if (best) return best.at;
+  let near: { at: GridPos; d: number } | null = null;
+  for (const s of structures) {
+    if (s.team === gun.team || s.health <= 0) continue;
+    const d = tiles(gun.gridPos, s.gridPos);
+    if ((!near || d < near.d) && inArtilleryReach(gun.gridPos, s.gridPos, tier) && spottedBy(gun.team, s.gridPos, units, structures)) near = { at: s.gridPos, d };
+  }
+  return near?.at ?? null;
 }
 
 const shellDamage = (armor: ArmorClass, distance: number) =>
@@ -159,4 +173,24 @@ export function landShells(
     }
   }
   return { landed, flying, absorbed, unitDamage, structureDamage };
+}
+
+// Damage one shell does to a city building: a share of a Bombardment Drone drop.
+export const shellBuildingDamage = (b: BuildingData) => Math.ceil(dropDamage(b) * ARTILLERY.buildingShare);
+
+// Landed shells knock down the city buildings in their splash, as Bombardment Drone drops do, only
+// slower. A side's own captured buildings are spared, as its troops are.
+export function shellBuildings(buildings: readonly BuildingData[], landed: readonly Pick<ArtilleryShell, 'team' | 'at'>[]): BuildingData[] {
+  if (landed.length === 0) return buildings as BuildingData[];
+  let changed = false;
+  const next = buildings.map(b => {
+    if (b.destroyed) return b;
+    const hits = landed.filter(s => b.owner !== s.team && tiles({ x: b.gridX, z: b.gridZ }, s.at) <= ARTILLERY.splash).length;
+    if (hits === 0) return b;
+    changed = true;
+    const health = (b.health ?? b.maxHealth) - hits * shellBuildingDamage(b);
+    if (health <= 0) return { ...b, health: 0, destroyed: true, owner: null, capturingTeam: null, captureProgress: 0 };
+    return { ...b, health };
+  });
+  return changed ? next : (buildings as BuildingData[]);
 }

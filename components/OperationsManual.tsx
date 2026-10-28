@@ -88,11 +88,11 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
   lancer: { use: 'Rocket team: bring them against tanks, Razorbacks and gunships. Keep them behind Troopers, as rifles shred them.' },
   razorback: { use: 'Fast raider buggy. Chase down infantry and capture squads, then fall back before Lancers or Titans arrive.' },
   howitzer: {
-    use: `Mobile rail-gun battery. It cannot fire while moving: stop it, anchor it, wait ${ARTILLERY.setupMs / 1000}s for setup, then it shells enemies your side can see. Keep it behind your army.`,
+    use: `Mobile rail-gun battery. It cannot fire while moving: stop it, anchor it, wait ${ARTILLERY.setupMs / 1000}s for setup, then, with no fire mission, it shells the nearest armed enemy that it or any of your units can see in range. Its shells also wear down city buildings, ${Math.round(1 / ARTILLERY.buildingShare)} shells to a Bombardment Drone drop. Keep it behind your army.`,
     actions: [
       { name: 'Anchor Down / Pack Up', text: 'Plants the battery (only when stopped). Any move order packs it up and cancels its fire mission.' },
       { name: 'Fire Mission', text: `Click a tile inside the orange range ring: it shells that spot every ${ARTILLERY.cooldownMs / 1000}s, even into fog, until you Cease Fire or move it. Nothing within ${ARTILLERY.minRange} tiles can be shelled.` },
-      { name: 'Cease Fire', text: 'Cancels the fire mission. It goes back to firing at enemies it can see.' },
+      { name: 'Cease Fire', text: 'Cancels the fire mission. It goes back to firing on sight: armed enemies first, then anything else in view.' },
     ],
   },
   tank: {

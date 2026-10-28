@@ -1215,8 +1215,9 @@ Tier 1. It trades every close-range strength for reach:
 
 - **Mobile, it cannot fire.** It anchors only once it has stopped (Anchor Down), then takes
   3 s to set up. A move order packs it up straight away and drops its fire mission.
-- **Anchored, it fires on its own** at the nearest enemy ground unit, then structure, that its
-  side can see in range. It never hits aircraft.
+- **Anchored with no fire mission, it fires on sight:** at the nearest armed enemy ground unit in
+  range that it, or any friendly unit, can see; failing that the nearest unarmed one, then the
+  nearest enemy structure (friendly structures spot 5 tiles around them). It never hits aircraft.
 - **Fire Mission** shells a tile the player picks, again every 5 s, whether or not anyone can
   see it, until Cease Fire, a new mission, or packing up. Several selected batteries take the
   same mission.
@@ -1228,6 +1229,9 @@ Tier 1. It trades every close-range strength for reach:
   target that keeps moving can get out from under it. A shell does 70 explosive damage at the
   centre, down to 40% at the 1.6-tile edge, to enemy ground units and structures. Enemy shells
   show only on the way down.
+- **Shells knock down city buildings** in the splash, like a Bombardment Drone, only slower: each
+  shell does a quarter of a drop's damage, so a residential tile takes 8 shells and a commercial
+  one 20. A side's own captured buildings are spared.
 
 The AI fields about one Thunderhead for every six units, keeps it standing off behind the army,
 plants it when something is in reach and packs up to follow when nothing is.

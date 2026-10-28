@@ -1,8 +1,9 @@
 import type { UpgradeId } from './upgrades';
 import { describe, expect, it } from 'vitest';
-import type { StructureData, UnitData } from '../types';
+import type { BuildingData, StructureData, UnitData } from '../types';
 import { AbilityCommand, AbilityContext, abilityEffects, applyUnitEffects } from './abilities';
-import { ARTILLERY, artilleryRange, fireArtillery, landShells } from './artillery';
+import { ARTILLERY, artilleryRange, fireArtillery, landShells, shellBuildingDamage, shellBuildings } from './artillery';
+import { dropDamage } from './bombard';
 import { resolveAttacks } from './combat';
 import { createEconomy, Economy } from './economy';
 import { applyOrderToUnits, orderEffects } from './orders';
@@ -101,6 +102,21 @@ describe('fire missions', () => {
     expect(fire([planted()], 99_999, [hq('red', 9), hq('blue', 6)]).shells).toHaveLength(1);
   });
 
+  it('firing on sight, goes for the nearest armed enemy before unarmed ones and structures', () => {
+    const units = [planted(), enemy('scout_car', 6, 'car'), enemy('razorback', 9, 'raider'), spotter(6), spotter(9)];
+    expect(fire(units, 99_999, [hq('red', 5)]).fired.get('h')).toEqual({ x: 9, z: 0 });
+    // With no armed enemy in view, the unarmed one; with no units at all, the structure.
+    expect(fire(units.filter(u => u.id !== 'raider'), 99_999, [hq('red', 5)]).fired.get('h')).toEqual({ x: 6, z: 0 });
+    expect(fire([planted(), spotter(6)], 99_999, [hq('red', 5)]).fired.get('h')).toEqual({ x: 5, z: 0 });
+  });
+
+  it('fires on what it sees itself, and a fire mission takes priority', () => {
+    const self = planted();
+    const close = Math.min(self.visionRange, artilleryRange(1));
+    expect(fire([self, enemy('tank', close)], 99_999).fired.get('h')).toEqual({ x: close, z: 0 });
+    expect(fire([planted({ artilleryTarget: { x: 10, z: 3 } }), enemy('tank', close), spotter(8)], 99_999).fired.get('h')).toEqual({ x: 10, z: 3 });
+  });
+
   it('reloads between shots', () => {
     const h = planted({ artilleryTarget: { x: 10, z: 0 }, lastAttackTime: 50_000 });
     expect(fire([h], 50_000 + ARTILLERY.cooldownMs - 1).shells).toHaveLength(0);
@@ -120,5 +136,27 @@ describe('shells landing', () => {
     expect(r.unitDamage.get('hit')).toBeCloseTo(ARTILLERY.damage * DAMAGE_MULTIPLIER.explosive.infantry);
     expect([...r.unitDamage.keys()]).toEqual(['hit']);
     expect(r.structureDamage.get('hq-red')).toBeGreaterThan(0);
+  });
+});
+
+describe('shells and city buildings', () => {
+  const building = (x: number, patch: Partial<BuildingData> = {}): BuildingData => ({
+    id: `b-${x}`, gridX: x, gridZ: 0, position: [0, 0, 0], scale: [1, 1, 1], color: '#fff', type: 'residential', height: 1,
+    blockId: 'blk', owner: null, captureProgress: 0, capturingTeam: null, health: 400, maxHealth: 400, ...patch,
+  });
+  const shot = (x: number) => ({ team: 'blue' as const, at: { x, z: 0 } });
+
+  it('damage buildings in the splash, less than a Bombardment Drone drop', () => {
+    const [hit, missed] = shellBuildings([building(10), building(13)], [shot(10)]);
+    expect(hit.health).toBe(400 - shellBuildingDamage(hit));
+    expect(shellBuildingDamage(hit)).toBeLessThan(dropDamage(hit));
+    expect(missed.health).toBe(400);
+  });
+
+  it('bring a building down after enough hits, and spare the side\'s own', () => {
+    let b = [building(10), building(11, { owner: 'blue' })];
+    for (let i = 0; i < Math.ceil(400 / shellBuildingDamage(b[0])); i++) b = shellBuildings(b, [shot(10)]);
+    expect(b[0]).toMatchObject({ destroyed: true, owner: null, health: 0 });
+    expect(b[1].health).toBe(400);
   });
 });

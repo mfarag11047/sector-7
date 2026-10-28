@@ -39,7 +39,7 @@ import { onRadar, radarRangeOf, radarSources, radarUnits, searchRadarSources } f
 import { Blackout, chargeSources, isInsideEnergyGrid, muleRange, powerTick } from '../sim/energy';
 import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, canisterLandsAt, courierStep, fabricationStep, landCrawlers, leashStep, repairTick, slowTick, surveillanceStep } from '../sim/support';
-import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells, shellGroundPos } from '../sim/artillery';
+import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells, shellBuildings, shellGroundPos } from '../sim/artillery';
 import { afterRailShot, fireRailguns, RailShot } from '../sim/railgun';
 import { fireHornetRockets, landSalvo, MiniRocket } from '../sim/hornet';
 import { fireGrenades } from '../sim/heavyMetalHero';
@@ -3885,6 +3885,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               if (pacing) recordWeaponHits(pacing, { blasts: impact.landed.map(s => ({ attackerId: s.attackerId, team: s.team, at: s.at, radius: 2 })) }, currentUnitsRef, structuresRef.current);
               impact.structureDamage.forEach((n, id) => attacks.structureDamage.set(id, (attacks.structureDamage.get(id) || 0) + n));
               if (impact.landed.length > 0) {
+                  setBuildings(prev => shellBuildings(prev, impact.landed));
                   setExplosions(prev => [...prev, ...impact.landed.map(s => ({
                       id: `shell-exp-${s.id}`,
                       position: { x: (s.at.x * CITY_CONFIG.tileSize) - offset, y: 1.5, z: (s.at.z * CITY_CONFIG.tileSize) - offset },

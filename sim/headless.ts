@@ -20,7 +20,7 @@ import { advanceRefineryUpgrades } from './refinery';
 import { advanceDismantling } from './dismantle';
 import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade } from './upgrades';
 import { EmpRocket, empRocketImpact, empRocketTick, mergeUnitUpdates } from './empRocket';
-import { ArtilleryShell, fireArtillery, landShells, shellGroundPos } from './artillery';
+import { ArtilleryShell, fireArtillery, landShells, shellBuildings, shellGroundPos } from './artillery';
 import { clearedBlocks, commandPosts, rubbleCleared } from './bases';
 import { bombardTick } from './bombard';
 import { baseCentreOf, spawnTile } from './baseLayout';
@@ -253,6 +253,7 @@ export function stepMatch(m: HeadlessMatch): void {
   m.units = applyCiwsState(m.units, ciws.updates);
   const impact = landShells([...m.shells, ...volley.shells], now, m.units, m.structures);
   m.shells = impact.flying;
+  m.buildings = shellBuildings(m.buildings, impact.landed);
   impact.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
   // Lancer EMP rockets: the ones that arrive go off.
   if (m.rockets.length > 0) {
