@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { ABILITY_CONFIG } from '../constants';
 import type { UnitData } from '../types';
-import { muleLinks } from './energy';
+import { chargeSources, muleLinks, muleRange } from './energy';
 import { createHeadlessMatch, stepMatch } from './headless';
 import { createUnit } from './production';
 
@@ -55,3 +55,35 @@ describe('Battery Mule automatic charging', () => {
     expect(m.units.find(u => u.id === 'tk')!.battery).toBeGreaterThan(before);
   });
 });
+
+describe('Battery Mule range', () => {
+  it('is 7 tiles, and 10 once the side has the Mk III Refit', () => {
+    expect(muleRange({ upgrades: [] })).toBe(7);
+    expect(muleRange({ upgrades: ['volt_core'] })).toBe(7);
+    expect(muleRange({ upgrades: ['volt_core', 'sun_plate_mk3'] })).toBe(10);
+    expect(muleRange(undefined)).toBe(7);
+  });
+
+  it('charges only what is within it', () => {
+    const units = [mule(), low('at7', 0.5, 7), low('at8', 0.4, 8), low('at10', 0.3, 10), low('at11', 0.2, 11)];
+    expect(muleLinks(units[0], units)).toEqual(['at7']);
+    expect(muleLinks(units[0], units, 10)).toEqual(['at10', 'at8', 'at7']);
+    // The charge itself goes only as far as the mule's range, whatever it is linked to.
+    const linked = { ...units[0], batteryTetherIds: ['at7', 'at8', 'at10'] };
+    expect([...chargeSources([linked, ...units.slice(1)]).mule.keys()]).toEqual(['at7']);
+    expect([...chargeSources([linked, ...units.slice(1)], () => 10).mule.keys()]).toEqual(['at7', 'at8', 'at10']);
+  });
+
+  it('reaches further in a match once the side has researched the Mk III Refit', () => {
+    const m = createHeadlessMatch({ seed: 1, difficulty: { blue: 'normal', red: 'normal' }, doctrine: { blue: null, red: null } });
+    m.nextThink = { blue: Infinity, red: Infinity };
+    const tank = { ...createUnit('tank', 'blue', 'tk', { x: 30, z: 30 }), battery: 100 };
+    m.units = [createUnit('sun_plate', 'blue', 'mm', { x: 21, z: 30 }), tank];
+    for (let i = 0; i < 5; i++) stepMatch(m);
+    expect(m.units.find(u => u.id === 'mm')!.batteryTetherIds ?? []).not.toContain('tk');
+    m.economy.blue.upgrades = [...m.economy.blue.upgrades, 'sun_plate_mk3'];
+    for (let i = 0; i < 5; i++) stepMatch(m);
+    expect(m.units.find(u => u.id === 'mm')!.batteryTetherIds).toContain('tk');
+  });
+});
+

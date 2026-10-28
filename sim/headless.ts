@@ -28,7 +28,7 @@ import { applyCiwsState, ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
 import type { GridPos, Team } from './commands';
 import { applyStructureCombat, resolveAttacks } from './combat';
 import { addWarheads, advanceWarheadProduction, createEconomy, Economy, payIncome, productionStep, refund } from './economy';
-import { chargeSources, isInsideEnergyGrid, powerTick } from './energy';
+import { chargeSources, isInsideEnergyGrid, muleRange, powerTick } from './energy';
 import { generateCity, seededRandom } from './mapgen';
 import { Difficulty, MatchConfig, startingRoster } from './match';
 import { advanceMover, arriveAtNextTile, MovementEnv, MOVE_TICK_MS } from './movement';
@@ -306,7 +306,9 @@ export function stepMatch(m: HeadlessMatch): void {
   m.units = applyUpgradeBonuses(m.units, m.economy);
 
   // Damage, repair and batteries.
-  const power = chargeSources(m.units);
+  // A Battery Mule reaches further once its side has its last upgrade (sim/energy.ts).
+  const muleRangeOf = (mule: UnitData) => muleRange(mule.team === 'blue' || mule.team === 'red' ? m.economy[mule.team] : undefined);
+  const power = chargeSources(m.units, muleRangeOf);
   const repair = repairTick(m.units, MOVE_TICK_MS, bases, team => (team === 'blue' || team === 'red') ? m.opts.doctrine[team] : null, team => m.economy[team].tier, now);
   const helios = m.units.filter(u => u.type === 'helios');
   // Helios in Microwave mode cook the enemies around them (sim/helios.ts).
@@ -334,7 +336,7 @@ export function stepMatch(m: HeadlessMatch): void {
     if (draft.health > 0) {
       ballistaLoadStep(u, draft, MOVE_TICK_MS);
       powerTick(u, draft, {
-        units: living, sources: power, helios, inNanoCloud: false,
+        units: living, sources: power, helios, inNanoCloud: false, muleRangeOf,
         onGrid: isInsideEnergyGrid(u.gridPos, u.team, m.buildings, bases.blue, bases.red),
       });
     }

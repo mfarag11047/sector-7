@@ -60,6 +60,7 @@ import { SentinelDroneModel } from './models/SentinelDroneModel';
 import { TitanTankModel } from './models/TitanTankModel';
 import { KageRig } from './KageRig';
 import { GOLIATH } from '../sim/heavyMetalHero';
+import { muleRange } from '../sim/energy';
 
 const NO_UPGRADES: readonly UpgradeId[] = [];
 
@@ -316,6 +317,8 @@ const Unit: React.FC<UnitProps> = ({
   // The tip of the Mason's lifting arm, where the construction beam starts.
   const masonTipRef = useRef<THREE.Object3D>(null);
   const scene = useThree((state) => state.scene); // Access scene for lookups
+  // How far a Battery Mule charges, from its side's research (sim/energy.ts muleRange).
+  const muleReach = muleRange({ upgrades: [...upgrades] });
   // Where a Sentinel's laser is aimed: the unit it is firing at, looked up each frame, so the
   // model needn't re-render when its target changes.
   const firingLaserAtRef = useRef(firingLaserAt);
@@ -969,7 +972,7 @@ const Unit: React.FC<UnitProps> = ({
       )}
       {showBatteryRange && (
         <mesh rotation={[-Math.PI/2, 0, 0]} position={[0, 0.15, 0]} raycast={() => null}>
-          <ringGeometry args={[ABILITY_CONFIG.BATTERY_MULE_RANGE * tileSize, ABILITY_CONFIG.BATTERY_MULE_RANGE * tileSize + 0.45, 64]} />
+          <ringGeometry args={[muleReach * tileSize, muleReach * tileSize + 0.45, 64]} />
           <meshBasicMaterial color="#facc15" transparent opacity={0.45} side={THREE.DoubleSide} />
         </mesh>
       )}
@@ -1210,7 +1213,7 @@ const Unit: React.FC<UnitProps> = ({
                           <span className="text-yellow-300">Auto-charging</span>
                           <span className="text-slate-400">{(batteryTetherIds || []).length}/{ABILITY_CONFIG.BATTERY_MULE_SLOTS}</span>
                         </div>
-                        <div className="text-[9px] text-slate-500 px-1">Lowest battery first · {ABILITY_CONFIG.BATTERY_MULE_RANGE} tiles</div>
+                        <div className="text-[9px] text-slate-500 px-1">Lowest battery first · {muleReach} tiles</div>
                       </>
                   )}
                   {isDrone && (

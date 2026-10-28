@@ -36,7 +36,7 @@ import { WARHEAD_LABEL } from '../sim/warheads';
 import { Warhead } from '../sim/commands';
 import { FlightEvent, FlightTickResult, LiveFlight, cloneProjectile, drawnShotPosition, ballisticProgress, flightUnitY, isHeavyOrdnance, sampleBallistic, stepProjectiles } from '../sim/projectiles';
 import { onRadar, radarRangeOf, radarSources, radarUnits, searchRadarSources } from '../sim/radar';
-import { Blackout, chargeSources, isInsideEnergyGrid, powerTick } from '../sim/energy';
+import { Blackout, chargeSources, isInsideEnergyGrid, muleRange, powerTick } from '../sim/energy';
 import { captureTick } from '../sim/capture';
 import { Delivery, SLOW_TICK_MS, ballistaLoadStep, canisterLandsAt, courierStep, fabricationStep, landCrawlers, leashStep, repairTick, slowTick, surveillanceStep } from '../sim/support';
 import { ARTILLERY, ArtilleryShell, artilleryRange, fireArtillery, landShells, shellGroundPos } from '../sim/artillery';
@@ -1771,6 +1771,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const [economy, setEconomy] = useState<Economy>(() => createEconomy(STARTING_CORES[match.mode]));
   const economyRef = useRef(economy);
   economyRef.current = economy;
+  // How far each Battery Mule reaches, from its side's research (sim/energy.ts muleRange).
+  const muleRangeOf = useCallback((mule: UnitData) => muleRange(mule.team === 'blue' || mule.team === 'red' ? economyRef.current[mule.team] : undefined), []);
   const teamResources = useMemo(() => ({ blue: economy.blue.cores, red: economy.red.cores }), [economy]);
   const stockpile = useMemo(() => ({ blue: economy.blue.stockpile, red: economy.red.stockpile }), [economy]);
   // The player's tech tier and population, for menus.
@@ -4122,7 +4124,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           setUnits(prevUnits => {
                   let unitsChanged = false;
                   // Who charges whom this tick (sim/energy.ts).
-                  const power = chargeSources(prevUnits);
+                  const power = chargeSources(prevUnits, muleRangeOf);
 
                   // Courier Delivery Events to be processed after map
                   const deliveries: Delivery[] = [];
@@ -4268,6 +4270,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                           onGrid: isInsideEnergyGrid(u.gridPos, u.team, buildingsRef.current, teamBasesRef.current.blue, teamBasesRef.current.red, blackouts),
                           inNanoCloud: isPointInCloud(u.gridPos, activeClouds, 'nano'),
                           helios: chargers,
+                          muleRangeOf,
                       })) uChanged = true;
 
                       if (uChanged) {
@@ -4574,7 +4577,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
              const showTetherRange = u.type === 'banshee' && ((u.tetherTargetIds?.length ?? 0) > 0 || (targetingSourceId === u.id && targetingAbility === 'TETHER'));
              const showBatteryRange = u.type === 'sun_plate' && (selectedUnitIds.has(u.id) || (targetingSourceId === u.id && targetingAbility === 'BATTERY_TETHER'));
              const isTetherCandidate = targetingAbility === 'TETHER' && !!tetherTargetingSource && isTetherableDrone(u) && u.team === tetherTargetingSource.team && u.id !== tetherTargetingSource.id;
-             const isBatteryLinkCandidate = !!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= ABILITY_CONFIG.BATTERY_MULE_RANGE;
+             const isBatteryLinkCandidate = !!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= muleRangeOf(batteryTargetingSource);
              const warheadStock = u.team === playerTeam && (playerTeam === 'blue' || playerTeam === 'red') ? stockpile[playerTeam] : undefined;
              const cores = menuOpen && (u.team === 'blue' || u.team === 'red') ? teamResources[u.team] : 0;
              const deps = [teamCompute, upgrades, radarRange, ownJammer, selected, isVisible, menuOpen, isTargetingMode, showTetherRange, showBatteryRange, isLockCandidate, isTetherCandidate, isBatteryLinkCandidate, warheadStock, atOrdnanceFab, ballistaInRange, cores];

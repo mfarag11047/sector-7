@@ -22,7 +22,7 @@ import { unitAbilityEffects } from './unitAbilities';
 import { isTetherableDrone, JAMMED_REASON, MAX_TETHERS, tetheredIds, unjammedIds } from './jamming';
 import { addToInventory, missilesHeld } from './warheads';
 import { UNIT_RULES } from './units';
-import { isBatteryLinkable } from './energy';
+import { isBatteryLinkable, muleRange } from './energy';
 
 export type AbilityCommand = Extract<PlayerCommand, { type:
   | 'TOGGLE_DAMPENER' | 'SET_HELIOS_MODE' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD' | 'PHANTOM_DECOY'
@@ -356,7 +356,7 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
       if (typeof u === 'string') return reject(u);
       const target = view.units.find(t => t.id === command.targetUnitId);
       if (!target || !isBatteryLinkable(target) || target.team !== u.team) return reject('cannot link that unit');
-      if (distance(u.gridPos, target.gridPos) > ABILITY_CONFIG.BATTERY_MULE_RANGE) return reject('out of range');
+      if (distance(u.gridPos, target.gridPos) > muleRange(view.economy[team])) return reject('out of range');
       const links = u.batteryTetherIds || [];
       // Clicking a linked vehicle unlinks it.
       if (links.includes(target.id)) {

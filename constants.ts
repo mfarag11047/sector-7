@@ -187,7 +187,10 @@ export const ABILITY_CONFIG = {
   BATTERY_MULE_MAX_BATTERY: 800,
   BATTERY_MULE_CHARGE_RATE: 0.8,
   BATTERY_MULE_SLOTS: 4,
-  BATTERY_MULE_RANGE: 18,
+  // How far, in tiles, a Battery Mule charges: BATTERY_MULE_RANGE, out to BATTERY_MULE_RANGE_MAX
+  // once its side has the Mk III Refit (sim/energy.ts muleRange).
+  BATTERY_MULE_RANGE: 7,
+  BATTERY_MULE_RANGE_MAX: 10,
   SMOG_DURATION: 60000,
   SMOG_RADIUS: 5, 
 

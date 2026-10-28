@@ -108,7 +108,7 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
   sun_plate: {
     use: 'Mobile power. Send it with your vehicles beyond the energy grid so they can keep going: it charges them as it drives.',
     actions: [
-      { name: 'Auto-charge', text: `Moving or parked, it charges up to ${ABILITY_CONFIG.BATTERY_MULE_SLOTS} friendly ground vehicles (not aircraft) within ${ABILITY_CONFIG.BATTERY_MULE_RANGE} tiles (yellow ring) on its own, like a Guardian heals: lowest battery first, staying on each until it is full.` },
+      { name: 'Auto-charge', text: `Moving or parked, it charges up to ${ABILITY_CONFIG.BATTERY_MULE_SLOTS} friendly ground vehicles (not aircraft) within ${ABILITY_CONFIG.BATTERY_MULE_RANGE} tiles (${ABILITY_CONFIG.BATTERY_MULE_RANGE_MAX} with its Mk III Refit; yellow ring) on its own, like a Guardian heals: lowest battery first, staying on each until it is full.` },
     ],
   },
   attack_drone: { use: 'A cheap armed drone from the Airpad at Tier 1. Its machine gun does decent damage to everything, infantry, vehicles, armour and aircraft, without being the best answer to any of them: mass a few to back up any army, or as the core of a drone force. Fragile, needs the energy grid like other aircraft, and remote-controlled, so a Banshee can jam it or hardline it.' },

@@ -9,7 +9,7 @@
 // the structure (StructureData.research) and is lost if the building is destroyed before it
 // finishes; finished upgrades belong to the side (TeamEconomy.upgrades) for the rest of the match.
 
-import { UNIT_STATS } from '../constants';
+import { ABILITY_CONFIG, UNIT_STATS } from '../constants';
 import type { DoctrineType, StructureData, UnitClass, UnitType } from '../types';
 import type { Team } from './commands';
 import type { Economy, TeamEconomy } from './economy';
@@ -115,7 +115,7 @@ export const UPGRADES: readonly UpgradeDef[] = [
   refit('trooper_mk3', 'trooper', 3, 3),
   refit('lancer_mk2', 'lancer', 2, 2),
   refit('razorback_mk3', 'razorback', 3, 3),
-  refit('sun_plate_mk3', 'sun_plate', 3, 3),
+  { ...refit('sun_plate_mk3', 'sun_plate', 3, 3), description: `Refit: tougher, and it charges vehicles out to ${ABILITY_CONFIG.BATTERY_MULE_RANGE_MAX} tiles instead of ${ABILITY_CONFIG.BATTERY_MULE_RANGE}.` },
   refit('tank_mk2', 'tank', 2, 2),
   refit('aegis_mk2', 'aegis', 2, 2),
   refit('drone_mk2', 'drone', 2, 2),

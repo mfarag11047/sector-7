@@ -17,6 +17,8 @@ import { CLOAK_FIELD } from './cloak';
 import { tetheredIds } from './jamming';
 import { isAirType } from './units';
 import { HELIOS, heliosCharge, heliosMode } from './helios';
+import type { TeamEconomy } from './economy';
+import { hasUpgrade } from './upgrades';
 
 // Where an EMP missile has knocked out the grid. `team` fired it: only the other side's grid
 // goes dark there.
@@ -96,8 +98,16 @@ export interface ChargeSources {
   tetherDrain: Map<string, number>;
 }
 
+// How far a Battery Mule charges: BATTERY_MULE_RANGE tiles, and BATTERY_MULE_RANGE_MAX once its
+// side has researched the Mule's last upgrade, the Mk III Refit.
+export const muleRange = (team: Pick<TeamEconomy, 'upgrades'> | undefined) =>
+  hasUpgrade(team, 'sun_plate_mk3') ? ABILITY_CONFIG.BATTERY_MULE_RANGE_MAX : ABILITY_CONFIG.BATTERY_MULE_RANGE;
+// A mule's range from its side's research, for the functions below; without one, the base range.
+export type MuleRangeOf = (mule: UnitData) => number;
+const baseMuleRange: MuleRangeOf = () => ABILITY_CONFIG.BATTERY_MULE_RANGE;
+
 // Who feeds whom this tick, worked out before any unit changes.
-export function chargeSources(units: readonly UnitData[]): ChargeSources {
+export function chargeSources(units: readonly UnitData[], rangeOf: MuleRangeOf = baseMuleRange): ChargeSources {
   const sources: ChargeSources = { tether: new Map(), mule: new Map(), muleDrain: new Map(), tetherHosts: new Map(), tetherDrain: new Map() };
 
   // A Banshee's hardline pack feeds each of its drones in turn while it has charge left.
@@ -124,7 +134,7 @@ export function chargeSources(units: readonly UnitData[]): ChargeSources {
       const target = units.find(t => t.id === linkId && t.health > 0 && t.team === mule.team);
       if (!target || target.battery >= target.maxBattery || sources.mule.has(target.id)) continue;
       const dist = Math.hypot(target.gridPos.x - mule.gridPos.x, target.gridPos.z - mule.gridPos.z);
-      if (dist > ABILITY_CONFIG.BATTERY_MULE_RANGE) continue;
+      if (dist > rangeOf(mule)) continue;
       const amount = Math.min(ABILITY_CONFIG.BATTERY_MULE_CHARGE_RATE, remaining, target.maxBattery - target.battery);
       if (amount <= 0) continue;
       remaining -= amount;
@@ -145,11 +155,11 @@ export const isBatteryLinkable = (u: UnitData) =>
 // stays on the ones it is charging until they are full or out of range, and fills its free links
 // (BATTERY_MULE_SLOTS) with the friendly ground vehicles in range lowest on battery, by share
 // of a full battery, nearest first on a tie. A unit another mule is already charging is left to it.
-export function muleLinks(mule: UnitData, units: readonly UnitData[]): string[] {
+export function muleLinks(mule: UnitData, units: readonly UnitData[], range = ABILITY_CONFIG.BATTERY_MULE_RANGE): string[] {
   if (mule.type !== 'sun_plate' || mule.health <= 0) return [];
   const distance = (t: UnitData) => Math.hypot(t.gridPos.x - mule.gridPos.x, t.gridPos.z - mule.gridPos.z);
   const wants = (t: UnitData) => t.team === mule.team && t.id !== mule.id && isBatteryLinkable(t)
-    && t.battery < t.maxBattery && distance(t) <= ABILITY_CONFIG.BATTERY_MULE_RANGE;
+    && t.battery < t.maxBattery && distance(t) <= range;
   const others = units.filter(m => m.id !== mule.id && m.type === 'sun_plate' && m.health > 0);
   // Two mules that picked the same unit at once: the one with the lower id keeps it.
   const claimedFirst = new Set(others.filter(m => m.id < mule.id).flatMap(m => m.batteryTetherIds || []));
@@ -191,6 +201,8 @@ export interface PowerContext {
   onGrid: boolean;
   inNanoCloud: boolean;
   helios: readonly UnitData[];
+  // How far each Battery Mule reaches (muleRange); the base range if not given.
+  muleRangeOf?: MuleRangeOf;
 }
 
 // One tick of battery for one unit. `u` is the unit as the tick started; `draft` is the
@@ -203,7 +215,7 @@ export function powerTick(u: UnitData, draft: UnitData, ctx: PowerContext): bool
   // A Battery Mule picks who to charge on its own, lowest battery first, even on the move (muleLinks).
   if (u.type === 'sun_plate') {
     const previousLinks = u.batteryTetherIds || [];
-    const keptLinks = muleLinks(u, ctx.units);
+    const keptLinks = muleLinks(u, ctx.units, (ctx.muleRangeOf ?? baseMuleRange)(u));
     if (keptLinks.length !== previousLinks.length || keptLinks.some((linkId, index) => previousLinks[index] !== linkId)) {
       draft.batteryTetherIds = keptLinks;
       changed = true;

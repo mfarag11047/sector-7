@@ -820,7 +820,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 |---|---|---|---|---|---|---|---|
 | **Razorback** (new) | 200 | 2 | T1 | 300 | Light | Rifle 10 / 0.5 s / 3, hits air | Fast raider, anti-infantry |
 | **Thunderhead** (new) | 320 | 3 | T1 | 240 | Light | Explosive 70 / 5 s / 12–20, splash 1.6, ground only | Mobile artillery; fires only when anchored |
-| **Battery Mule** | 250 | 2 | T1 | 500 | Heavy | None | Mobile power for vehicles, as fast as a Titan (0.7×). Moving or parked (it no longer anchors), it charges up to 4 friendly ground vehicles (not aircraft) within 18 tiles automatically, lowest battery first (`muleLinks`, `sim/energy.ts`); Volt Core (T2, researched) |
+| **Battery Mule** | 250 | 2 | T1 | 500 | Heavy | None | Mobile power for vehicles, as fast as a Titan (0.7×). Moving or parked (it no longer anchors), it charges up to 4 friendly ground vehicles (not aircraft) within 7 tiles automatically (10 once its Mk III Refit is researched, `muleRange`), lowest battery first (`muleLinks`, `sim/energy.ts`); Volt Core (T2, researched) |
 | **Titan MBT** | 420 | 3 | T2 | 600 | Heavy | Explosive 50 / 2.2 s / 4, splash 1 (10%); rail gun AP 120 / 5 s / 14 | Main battle tank, automatic rail gun; Smoke Screen, Piercing Rail Round (T3, researched) |
 | **Aegis** (new) | 240 | 2 | T2 | 300 | Light | Flak 30 / 1.2 s / 5, air only | Anti-air escort |
 
