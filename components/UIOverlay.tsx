@@ -3,6 +3,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { GameStats, TeamStats, MinimapData, DoctrineType, DoctrineState } from '../types';
 import { OperationsManual } from './OperationsManual';
 import { viewFootprint } from './cameraView';
+import { isMuted, setMuted } from './sfx';
 import { ArmyControls, ArmyInfo, ArmyPanel, SelectionSummary } from './ArmyPanel';
 import { ROLE_GLYPH, roleGlyphFilled, teamBadgeColor, UNIT_ROLE } from './unitIcons';
 import { BUILDING_COLORS, TEAM_COLORS, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG, TEAM_BASES } from '../constants';
@@ -543,6 +544,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
   const [isIntelOpen, setIsIntelOpen] = useState(false);
   const [isDoctrineOpen, setIsDoctrineOpen] = useState(false);
   const [minimapExpanded, setMinimapExpanded] = useState(false);
+  const [soundMuted, setSoundMuted] = useState(isMuted);
 
   // Minimap Scale / Viewbox
   const gridSize = minimapData.gridSize || 40;
@@ -683,6 +685,18 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                     title="Manual / Intel"
                 >
                     <span className="font-mono font-bold text-sm">?</span>
+                </button>
+                {/* Sound on or off (components/sfx.ts), remembered between visits. */}
+                <button
+                    onClick={() => { setMuted(!soundMuted); setSoundMuted(!soundMuted); }}
+                    className="w-8 h-8 flex items-center justify-center border transition-all pointer-events-auto hud-corners hud-plate text-cyan-200 hover:text-white"
+                    title={soundMuted ? 'Sound off: click to turn it on' : 'Sound on: click to mute'}
+                    aria-label={soundMuted ? 'Unmute sound' : 'Mute sound'}
+                >
+                    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M4 9h4l5-4v14l-5-4H4z" fill="currentColor" />
+                        {soundMuted ? <path d="M17 9l5 6M22 9l-5 6" /> : <path d="M17 8.5a5 5 0 0 1 0 7M19.5 6a8.5 8.5 0 0 1 0 12" />}
+                    </svg>
                 </button>
                 {onPacing && (
                     <button

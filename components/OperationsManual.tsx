@@ -699,6 +699,7 @@ const InterfaceTab: React.FC<{ color: string }> = ({ color }) => (
       <Item label="Grid / Cores / Tier / Pop">Buildings captured, core nodes held out of 6, researched tier, and population used of your cap.</Item>
       <H>Top of the screen</H>
       <Item label="Clock">The match clock.</Item>
+      <Item label="Sound">The speaker button under the clock mutes or unmutes the battle's sounds; it remembers your choice. Sounds are loudest in the middle of the view and come from the side of the screen they happen on.</Item>
       <Item label="System message">Your current objective, and notices such as finished structures or refused orders.</Item>
       <Item label="Active Protocols">Your doctrine's powers, with their cost and what unlocks them.</Item>
     </div>

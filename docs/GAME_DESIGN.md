@@ -707,6 +707,20 @@ a third of the map's width, so the rest takes the minimap and scouting. The mini
 the true patch of ground on screen, a trapezoid wider at the top of the screen, turning with the
 camera.
 
+### Sound
+
+Weapons and explosions have sound effects, made in code with the Web Audio API rather than played
+from files (`components/sfx.ts`): rifle cracks, machine guns, flak, the CIWS guns' buzz-saw, cannon
+booms, the railgun (a crack, an electric zap, a metallic ring and a sub-bass punch) for the tank's
+main gun and the Sentry Turret, missile and rocket whooshes at launch, the Sentinel's laser, Kage's
+blade, and explosions that roar and rumble longer and lower the bigger they are, with EMP blasts
+crackling and shots on a force field thudding. A sound is fainter the further it is from the middle
+of the view (heard further when zoomed out, and explosions further than gunfire) and panned by
+where it is across the screen. Each kind has a cap on how many play at once and how soon another
+may start, and everything runs through a compressor, so a big fight stays a din rather than a wall
+of noise. Audio starts on the player's first click or key press, as browsers require. The speaker
+button under the match clock mutes it, remembered between visits.
+
 ### HUD size
 
 The HUD (team panels, clock, minimap, army panel, messages, doctrine protocols and the panels it

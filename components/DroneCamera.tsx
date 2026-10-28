@@ -11,6 +11,7 @@ import { updateGlobalFrustum } from '../frustum';
 import { freezeContainer } from '../perf';
 import { CAMERA_PITCH, CAMERA_SPEED, CITY_CONFIG, CAMERA_ZOOM_SPEED, MIN_ZOOM, MAX_ZOOM } from '../constants';
 import { lookAhead } from './cameraView';
+import { listen } from './sfx';
 
 interface DroneCameraProps {
     cameraStateRef?: React.MutableRefObject<{ x: number, y: number, z: number, yaw: number }>;
@@ -222,6 +223,10 @@ const DroneCamera: React.FC<DroneCameraProps> = ({ cameraStateRef, start }) => {
     camera.position.lerp(positionRef.current, 1 - Math.exp(-12 * delta));
 
     updateGlobalFrustum(camera);
+
+    // Sounds are heard from the middle of the view (components/sfx.ts).
+    const ahead = lookAhead(camera.position.y);
+    listen(camera.position.x - Math.sin(yaw) * ahead, camera.position.z - Math.cos(yaw) * ahead, yaw, camera.position.y);
 
     // 5. Sync State for Minimap
     if (cameraStateRef) {

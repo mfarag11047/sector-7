@@ -30,6 +30,7 @@ import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from
 import { positionKey, publishMotion, simClock, stampPosition } from './glide';
 import { ArmyControls, ArmyInfo, MAX_ARMIES, SelectionSummary } from './ArmyPanel';
 import { cameraFocus, onRightClick } from './DroneCamera';
+import { playSound, SoundKind } from './sfx';
 import { AbilityCommand, abilityEffects, applyUnitEffects, FAB_LAUNCH, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
 import { WARHEAD_LABEL } from '../sim/warheads';
 import { Warhead } from '../sim/commands';
@@ -59,7 +60,7 @@ import { MatchConfig, STARTING_CORES, aiTeamsOf, doctrineOf, incomeMultipliers, 
 import { AI_PROFILES, aiThink, freshAiMemory, nextThinkDelay, thinkOffsets } from '../sim/ai';
 import { OrderCommand, applyOrderToStructures, applyOrderToUnits, isOperational, orderEffects, popUsed, coreNodesHeld, serverNodesHeld, teamPopCap, teamTier } from '../sim/orders';
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
-import { UNIT_RULES, isAirType } from '../sim/units';
+import { UNIT_RULES, isAirType, type DamageType } from '../sim/units';
 import { airPath, fastestPath, sentinelHazardOf } from '../sim/pathfinding';
 import { fireFlechettes, regenerateShield, shieldedHit } from '../sim/kestrel';
 import { markScreened, pruneSmoke, SMOKE, SmokeScreen } from '../sim/titan';
@@ -690,6 +691,17 @@ const ENGAGEMENT_MS = 6000;
 // and for heavier weapons the projectile flying to the target. Who shot whom is kept for the
 // minimap's engagement arrows.
 type TracerData = ShotFxData & { attackerId: string; targetId: string };
+
+// What a shot sounds like (components/sfx.ts): the Sentinel's laser, the Sentry Turret's railgun,
+// Kage's blade, rifles, machine guns, flak, a Lancer's missile, and cannons for the rest.
+const shotSound = (type: DamageType, shooter: UnitType | undefined, sentry: boolean): SoundKind =>
+    shooter === 'defense_drone' ? 'laser' : sentry ? 'rail' : type === 'blade' ? 'blade'
+    : shooter === 'hero_heavy_metal' ? 'cannon'
+    : type === 'rifle' ? 'rifle' : type === 'mg' ? 'mg' : type === 'flak' ? 'flak'
+    : type === 'ap' && shooter === 'lancer' ? 'missile' : 'cannon';
+// What an explosion sounds like: a blast, an EMP's crackle, a shot stopped on a force field.
+const explosionSound = (e: Explosion): SoundKind | null =>
+    e.style === 'emp' || e.style === 'blackwall' ? 'emp' : e.style === 'shield' ? 'shield' : 'explosion';
 
 // Thunderhead rockets (sim/artillery.ts): a rocket on a high arc from the launcher's raised pods to
 // where it lands, nose along its flight, a flame behind. Enemy rockets show only on the way down,
@@ -1601,6 +1613,29 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const [clouds, setClouds] = useState<CloudData[]>([]);
   const [projectiles, setProjectiles] = useState<Projectile[]>([]);
   const [explosions, setExplosions] = useState<Explosion[]>([]);
+  // Explosions and launched missiles are made in many places; each is heard once, the first time
+  // it appears here (components/sfx.ts).
+  const heardRef = useRef(new Set<string>());
+  useEffect(() => {
+      const heard = heardRef.current;
+      for (const e of explosions) {
+          if (heard.has(e.id)) continue;
+          heard.add(e.id);
+          const kind = explosionSound(e);
+          if (kind) playSound(kind, e.position.x, e.position.z, e.radius / 4);
+      }
+      for (const p of projectiles) {
+          if (heard.has(p.id)) continue;
+          heard.add(p.id);
+          const from = p.startPos ?? p.position;
+          playSound(p.trajectory === 'swarm' ? 'rocket' : 'missile', from.x, from.z);
+      }
+      // Forget what has gone, so the list stays short.
+      if (heard.size > 400) {
+          const live = new Set([...explosions.map(e => e.id), ...projectiles.map(p => p.id)]);
+          for (const id of heard) if (!live.has(id)) heard.delete(id);
+      }
+  }, [explosions, projectiles]);
   // Brief weapon tracers from sim/combat.ts shots, cleared after TRACER_MS.
   const [tracers, setTracers] = useState<TracerData[]>([]);
   // Tank rail gun shots in the air for a moment, and when each gun last fired (ahead of state).
@@ -3658,7 +3693,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               t => (t === 'blue' || t === 'red') ? artilleryTierOf(economyRef.current[t]) : 1,
               Math.random, () => `shell-${now}-${Math.random().toString(36).slice(2, 8)}`,
           );
-          volley.fired.forEach((_, id) => { lastShotRef.current.set(id, now); attacks.fired.set(id, ''); });
+          volley.fired.forEach((_, id) => {
+              lastShotRef.current.set(id, now);
+              attacks.fired.set(id, '');
+              const gun = currentUnitsRef.find(u => u.id === id);
+              if (gun) playSound('rocket', gun.gridPos.x * tileSize - offset, gun.gridPos.z * tileSize - offset);
+          });
 
           // Tank rail guns (sim/railgun.ts): long-range shots at anything the side can see.
           const railReady = (u: UnitData) => {
@@ -3674,6 +3714,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           rail.structureDamage.forEach((n, id) => attacks.structureDamage.set(id, (attacks.structureDamage.get(id) || 0) + n));
           // A tank's main gun fires the railgun slug the Sentry Turret does (ShotFx 'rail'), from its
           // muzzle; a Piercing Rail Round (sim/titan.ts) keeps its magenta beam down the lane.
+          rail.shots.forEach(s => playSound('rail', s.from.x * tileSize - offset, s.from.z * tileSize - offset));
           const pierced = rail.shots.filter(s => s.pierced);
           if (pierced.length > 0) setRailBeams(prev => [...prev, ...pierced.map((s, i) => ({ ...s, id: `rail-${now}-${i}`, createdAt: now }))]);
           const slugs: TracerData[] = rail.shots.filter(s => !s.pierced).map((s, i) => {
@@ -3744,6 +3785,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   to: { x: (s.to.x + spread) * tileSize - offset, y: 1.4, z: (s.to.z - spread) * tileSize - offset },
               })))]);
           }
+          hornetVolley.shots.forEach(s => playSound('rocket', s.from.x * tileSize - offset, s.from.z * tileSize - offset));
           if (hornetVolley.shots.length > 0) setRailBeams(prev => [...prev, ...hornetVolley.shots.map((s, i) => ({ ...s, id: `hrocket-${now}-${i}`, createdAt: now, kind: 'rocket' as const, fromY: 74 }))]);
           if (miniRocketsRef.current.length > 0) {
               const salvo = landSalvo(miniRocketsRef.current, now, currentUnitsRef, structuresRef.current, fields);
@@ -3781,6 +3823,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               setStructuresState(prev => applyCiwsState(prev, ciws.structureUpdates));
           }
           ciwsLinksRef.current = ciws.links;
+          for (const link of ciws.links) {
+              const gun = link.fromStructure ? structuresRef.current.find(st => st.id === link.gunId) : currentUnitsRef.find(u => u.id === link.gunId);
+              if (gun) playSound('ciws', gun.gridPos.x * tileSize - offset, gun.gridPos.z * tileSize - offset);
+          }
           if (pacing) {
               recordWeaponHits(pacing, {
                   fired: attacks.fired, shots: [...(attacks.splashed ?? []), ...rail.shots, ...hornetVolley.shots], ciws: ciws.links,
@@ -3934,6 +3980,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               const fx: TracerData[] = [];
               attacks.shots.forEach((shot, i) => {
                   const shooter = currentUnitsRef.find(u => u.id === shot.attackerId);
+                  const sentryShot = !shooter && structuresRef.current.some(st => st.id === shot.attackerId && st.type === 'defense');
+                  playSound(shotSound(shot.type, shooter?.type, sentryShot), shot.from.x * tileSize - offset, shot.from.z * tileSize - offset);
                   if (shooter?.type === 'defense_drone') return;
                   const structure = !shooter;
                   const infantry = shooter ? UNIT_RULES[shooter.type].armor === 'infantry' : false;
@@ -3944,7 +3992,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       fx.push({ id: `shot-${now}-${i}`, kind: 'flash', createdAt: now, attackerId: shot.attackerId, targetId: shot.targetId, from: at, to: at, flashSize: 1.4 });
                       return;
                   }
-                  const sentry = structure && structuresRef.current.some(st => st.id === shot.attackerId && st.type === 'defense');
+                  const sentry = sentryShot;
                   const kind: ShotKind = sentry ? 'rail' : goliath ? 'round'
                       : shot.type === 'rifle' || shot.type === 'flak' || shot.type === 'mg' ? 'flash'
                       : shot.type === 'ap' ? (shooter?.type === 'lancer' ? 'missile' : 'round')
