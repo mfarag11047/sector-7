@@ -40,6 +40,8 @@ import { heroBlocker, heroOf, isHeroType } from './heroes';
 import { baseMoves, ESCORTS, SCOUT_REPLACE_MS, specialistAbilities, specialistMoves, specialistPick, SPECIALIST_MOVERS } from './aiSpecialists';
 import { freshStrategyMemory, lossTypeMix, STRATEGY_PLANS, StrategyMemory, updateStrategy } from './aiStrategy';
 import { blendMix, EnemyMix, matchup, typeMix } from './counters';
+import { expansionPlan } from './aiExpansion';
+import { BASE_SITE } from './bases';
 
 export interface AiView {
   units: readonly UnitData[];
@@ -276,6 +278,13 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     }
   }
 
+  // New bases: whether it wants one, where it could go, and the city block its Bombardment Drones
+  // should level when it has nowhere (sim/aiExpansion.ts).
+  const padsFull = (freePadsFor('infantry', view.structures, team, ctx.gridSize) ?? []).length === 0;
+  const expansion = expansionPlan({
+    team, tier, padsFull, maxBases: profile.bases, home, enemyHome, mine, theirs, structures: view.structures, buildings: view.buildings,
+  });
+
   // --- 2. Where the army stands and what it's for ---
   const gather = gatherPoint(view, team, ctx);
   // A threat only counts once it has lasted the profile's reaction time.
@@ -480,7 +489,10 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   for (const id of Object.keys(mem.lastOrder)) if (!living.has(id)) delete mem.lastOrder[id];
 
   // --- 4. Production ---
-  const spendable = () => cores - (threat ? 0 : reserve);
+  // With a cleared block ready for a new base (sim/aiExpansion.ts), it saves up for the HQ:
+  // production and research only spend what is over the base's price, unless it is under attack.
+  const saveForBase = expansion.sites.length > 0 ? { cores: BASE_SITE.cores + 500, compute: BASE_SITE.compute } : { cores: 0, compute: 0 };
+  const spendable = () => cores - (threat ? 0 : reserve + saveForBase.cores);
   let pop = popUsed(view.units, view.structures, team);
   const cap = teamPopCap(view.buildings, team);
   // What to counter, by unit type (sim/counters.ts): the enemy army, leaning toward whatever has
@@ -525,6 +537,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
       tier, mine, structures: myStructures, army: armyUnits.length, needInfantry,
       hard: ctx.difficulty === 'hard', random: ctx.random, strategy: mem.plan.strategy!,
       scoutLostRecently: now - (mem.scoutLostAt ?? -Infinity) < SCOUT_REPLACE_MS,
+      levelBlock: !!expansion.level,
     }) ?? chooseUnit(s.type, tier, threatMix, {
       counterAccuracy: profile.counterAccuracy, random: ctx.random,
       needInfantry, guardians, howitzers, army: armyUnits.length, weights,
@@ -552,7 +565,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     // Never at the expense of the army: only with cores to spare. And never at the expense of the
     // next tier: its compute comes first.
     if (!pick || spendable() < pick.u.cost + 150) continue;
-    if (compute - pick.u.compute < (tier < 3 ? researchCost((tier + 1) as 2 | 3) : 0)) continue;
+    if (compute - pick.u.compute < (tier < 3 ? researchCost((tier + 1) as 2 | 3) : 0) + saveForBase.compute) continue;
     actions.push({ kind: 'order', command: { type: 'RESEARCH_UPGRADE', structureId: lab.id, upgrade: pick.u.id } });
     started.add(pick.u.id);
     cores -= pick.u.cost;
@@ -580,14 +593,13 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   actions.push(...unitAbilityMoves(mine, theirs, view.economy[team], mode, now, profile, ctx.random));
   actions.push(...specialistAbilities({
     team, tier, mode, objective, home, mine, theirs, structures: view.structures, economy: view.economy,
-    attention: profile.attention, random: ctx.random,
+    attention: profile.attention, random: ctx.random, levelAt: expansion.level,
   }));
   // Warheads, turrets and new Command HQs.
   const base = baseMoves({
     team, tier, cores, mine, theirs, structures: view.structures, buildings: view.buildings, economy: view.economy,
     bases: ctx.bases, gather, canBuildOn: ctx.canBuildOn,
-    maxTurrets: profile.turrets, maxBases: profile.bases, gridSize: ctx.gridSize,
-    padsFull: (freePadsFor('infantry', view.structures, team, ctx.gridSize) ?? []).length === 0,
+    maxTurrets: profile.turrets, gridSize: ctx.gridSize, expansion, send,
   });
   actions.push(...base.actions);
   cores -= base.spent;

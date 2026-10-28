@@ -27,7 +27,8 @@ import type { OrderCommand } from './orders';
 import { isOperational } from './orders';
 import { freePadsFor } from './baseLayout';
 import { baseProximity } from './refinery';
-import { type Tier, UNIT_RULES } from './units';
+import { STRUCTURE_RULES, type Tier, UNIT_RULES } from './units';
+import { canFoundAt, type ExpansionPlan } from './aiExpansion';
 import { HE, inventoryOf, missilesHeld, WARHEAD_LIST, WP } from './warheads';
 import type { AiStrategy } from './aiStrategy';
 
@@ -59,6 +60,8 @@ export interface SupportNeeds {
   strategy?: AiStrategy;
   // A scout car was lost recently: it waits a while before sending another (SCOUT_REPLACE_MS).
   scoutLostRecently?: boolean;
+  // It wants a city block levelled for a new base and needs a Bombardment Drone to do it (sim/aiExpansion.ts).
+  levelBlock?: boolean;
 }
 
 // How long after losing a scout car it waits before training another.
@@ -85,6 +88,8 @@ export function specialistPick(producer: StructureType, n: SupportNeeds): UnitTy
       return tier >= 2 && vehicles >= 5 && have('sun_plate') < 1 ? 'sun_plate' : null;
     case 'air':
       if (have('drone') < 1) return 'drone';
+      // A block to level for a new base: one Bombardment Drone, first thing.
+      if (tier >= 3 && n.levelBlock && have('bombard') < 1) return 'bombard';
       if (tier >= 3 && have('bombard') < (n.hard ? 2 : 1) + (air || drones ? 1 : 0) && random() < 0.5) return 'bombard';
       return null;
     case 'support':
@@ -199,6 +204,8 @@ export interface AbilityContext2 {
   economy: Economy;
   attention: number;
   random: () => number;
+  // The city block to level for a new base (sim/aiExpansion.ts), or null.
+  levelAt?: GridPos | null;
 }
 
 export function specialistAbilities(c: AbilityContext2): Action[] {
@@ -265,7 +272,8 @@ export function specialistAbilities(c: AbilityContext2): Action[] {
         }
         break;
       case 'bombard': {
-        // Strikes when loaded and idle: enemy production first, nearest our side.
+        // Strikes when loaded and idle: the block being levelled for a new base, else enemy units
+        // left without anti-air (bombardTarget).
         if (u.bombardmentTarget || u.bombardReturning || munitionsOf(u) <= 0) break;
         const target = bombardTarget(c, enemy);
         if (target) actions.push({ kind: 'ability', command: { type: 'BOMBARD', unitId: u.id, target } });
@@ -343,16 +351,32 @@ function ballistaMoves(u: UnitData, c: AbilityContext2, enemy: Team): Action[] {
   return stocked ? [{ kind: 'ability', command: { type: 'TAKE_WARHEAD', unitId: u.id, warhead: stocked } }] : [];
 }
 
-// Which enemy structures to hit first: an upgraded Core Refinery, then any refinery, then the rest,
-// the HQ last (sim/refinery.ts).
+// A strike levels city blocks and hurts units under it, but leaves structures standing
+// (sim/combat.ts), and a drone sent over the enemy's guns is shot down long before it drops. So its
+// work is clearing the block for a new base (sim/aiExpansion.ts); otherwise it goes for a group of
+// enemy units worth the trip that nothing of theirs can shoot it down over: parked artillery, a
+// tank column without escorts. Never on top of our own units.
+const BOMBARD_WORTH = 400;
+// Which enemy structures a missile hits first: an upgraded Core Refinery, then any refinery, then
+// the rest, the HQ last (sim/refinery.ts).
 const strikeOrder = (s: StructureData) => (s.type === 'refinery' ? (s.refineryLevel === 2 ? 0 : 1) : s.type === 'hq' ? 3 : 2);
-
 function bombardTarget(c: AbilityContext2, enemy: Team): GridPos | null {
-  // Not on top of our own units.
+  if (c.levelAt) return { ...c.levelAt };
   const clear = (p: GridPos) => !c.mine.some(u => u.type !== 'bombard' && dist(u.gridPos, p) <= 3);
-  const structures = c.structures.filter(s => s.team === enemy && s.health > 0 && !s.isBlueprint && clear(s.gridPos))
-    .sort((a, b) => strikeOrder(a) - strikeOrder(b) || dist(a.gridPos, c.home) - dist(b.gridPos, c.home));
-  return structures[0] ? { ...structures[0].gridPos } : null;
+  const antiAir = [
+    ...c.theirs.filter(t => UNIT_RULES[t.type].weapon?.hitsAir).map(t => ({ at: t.gridPos, reach: (UNIT_RULES[t.type].weapon?.range ?? 0) + 2 })),
+    ...c.structures.filter(s => s.team === enemy && s.health > 0 && !s.isBlueprint && STRUCTURE_RULES[s.type].weapon?.hitsAir)
+      .map(s => ({ at: s.gridPos, reach: (STRUCTURE_RULES[s.type].weapon?.range ?? 0) + 2 })),
+  ];
+  const covered = (p: GridPos) => antiAir.some(a => dist(a.at, p) <= a.reach);
+  let best: { at: GridPos; worth: number } | null = null;
+  for (const t of c.theirs) {
+    if (t.type === 'defense_drone' || UNIT_RULES[t.type].armor === 'air' || covered(t.gridPos) || !clear(t.gridPos)) continue;
+    const worth = c.theirs.filter(o => Math.max(Math.abs(o.gridPos.x - t.gridPos.x), Math.abs(o.gridPos.z - t.gridPos.z)) <= 2)
+      .reduce((sum, o) => sum + (UNIT_STATS[o.type]?.cost ?? 0), 0);
+    if (worth >= BOMBARD_WORTH && (!best || worth > best.worth)) best = { at: { ...t.gridPos }, worth };
+  }
+  return best?.at ?? null;
 }
 
 // --- Structures: warheads, turrets and new bases ---
@@ -370,10 +394,11 @@ export interface BaseContext {
   gather: GridPos;
   canBuildOn: (x: number, z: number) => boolean;
   maxTurrets: number;
-  maxBases: number;
   gridSize: number;
-  // Every building pad is taken: more production needs another Command HQ.
-  padsFull: boolean;
+  // Whether it wants another Command HQ and where it could go (sim/aiExpansion.ts).
+  expansion: ExpansionPlan;
+  // sim/ai.ts' de-duplicating move order.
+  send: (u: UnitData, target: GridPos, attackMove: boolean) => void;
 }
 
 // Orders for the base itself. Returns the cores they spend.
@@ -414,18 +439,22 @@ export function baseMoves(c: BaseContext): { actions: Action[]; spent: number } 
     }
   }
 
-  // A new Command HQ on a cleared block one of its units stands by, when rich and teched, or
-  // sooner once its building pads are all taken.
-  const hqs = mineS.filter(s => s.type === 'hq' && s.health > 0).length;
-  if ((c.tier >= 3 || (c.tier >= 2 && c.padsFull)) && hqs < c.maxBases && c.cores - spent >= BASE_SITE.cores + 500 && c.economy[c.team].compute >= BASE_SITE.compute) {
-    // Nearest a core node first: its Core Refineries will pay more there (sim/refinery.ts).
-    const coreNodes = c.buildings.filter(b => b.type === 'core_node' && !b.destroyed).map(b => ({ x: b.gridX, z: b.gridZ }));
-    const site = baseSites(c.buildings, c.structures).filter(s => c.mine.some(u => dist(u.gridPos, s.at) <= BASE_SITE.reach - 0.5)
-      && !c.theirs.some(t => dist(t.gridPos, s.at) <= 6))
-      .sort((a, b) => baseProximity(b.at, coreNodes).multiplier - baseProximity(a.at, coreNodes).multiplier)[0];
-    if (site) {
-      actions.push({ kind: 'order', command: { type: 'BUILD_BASE', at: site.at } });
-      spent += BASE_SITE.cores;
+  // A new Command HQ on the best cleared block on its side (sim/aiExpansion.ts), when it wants one:
+  // a unit goes to stand by the site, and it founds the base there once it can pay. Its
+  // Bombardment Drones clear a block first when there is none.
+  const site = c.expansion.wants ? c.expansion.sites[0] : undefined;
+  if (site) {
+    const affordable = c.cores - spent >= BASE_SITE.cores + 500 && c.economy[c.team].compute >= BASE_SITE.compute;
+    if (canFoundAt(c.mine, site.at)) {
+      if (affordable) {
+        actions.push({ kind: 'order', command: { type: 'BUILD_BASE', at: site.at } });
+        spent += BASE_SITE.cores;
+      }
+    } else {
+      // Someone quick and cheap to stand by it: a scout car, else the nearest infantry.
+      const walker = [...c.mine.filter(u => u.type === 'scout_car'), ...c.mine.filter(u => u.unitClass === 'infantry')]
+        .sort((a, b) => (a.type === 'scout_car' ? 0 : 1) - (b.type === 'scout_car' ? 0 : 1) || dist(a.gridPos, site.at) - dist(b.gridPos, site.at))[0];
+      if (walker) c.send(walker, site.at, false);
     }
   }
   return { actions, spent };

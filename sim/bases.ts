@@ -23,7 +23,7 @@ export const BASE_SITE = {
 };
 
 const STRIDE = 6;
-const lotOf = (x: number, z: number) => ({ ix: Math.floor(x / STRIDE), iz: Math.floor(z / STRIDE) });
+export const lotOf = (x: number, z: number) => ({ ix: Math.floor(x / STRIDE), iz: Math.floor(z / STRIDE) });
 const lotKey = (ix: number, iz: number) => `${ix},${iz}`;
 export const lotCenter = (ix: number, iz: number): GridPos => ({ x: ix * STRIDE + 3, z: iz * STRIDE + 3 });
 

@@ -6,7 +6,7 @@
 // sim/ modules alone, including warhead production and Ballista loading. Not yet included: projectiles and unit abilities other than Titan
 // smoke, clouds, doctrine powers other than Orbital Drop, Masons and walls, and breaching.
 
-import { CITY_CONFIG, STRUCTURE_INFO, TEAM_BASES } from '../constants';
+import { ABILITY_CONFIG, CITY_CONFIG, STRUCTURE_INFO, TEAM_BASES } from '../constants';
 import type { BuildingData, DoctrineType, RoadType, StructureData, UnitData } from '../types';
 import { abilityEffects, applyUnitEffects } from './abilities';
 import { AiMemory, AI_PROFILES, aiThink, freshAiMemory, nextThinkDelay, thinkOffsets } from './ai';
@@ -21,12 +21,13 @@ import { advanceDismantling } from './dismantle';
 import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade } from './upgrades';
 import { EmpRocket, empRocketImpact, empRocketTick, mergeUnitUpdates } from './empRocket';
 import { ArtilleryShell, fireArtillery, landShells, shellGroundPos } from './artillery';
-import { clearedBlocks, rubbleCleared } from './bases';
+import { clearedBlocks, commandPosts, rubbleCleared } from './bases';
+import { bombardTick } from './bombard';
 import { baseCentreOf, spawnTile } from './baseLayout';
 import { captureTick } from './capture';
 import { applyCiwsState, ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
 import type { GridPos, Team } from './commands';
-import { applyStructureCombat, resolveAttacks } from './combat';
+import { applyStructureCombat, bombardBuildings, bombardUnitDamage, resolveAttacks } from './combat';
 import { addWarheads, advanceWarheadProduction, createEconomy, Economy, payIncome, productionStep, refund } from './economy';
 import { chargeSources, isInsideEnergyGrid, muleRange, powerTick } from './energy';
 import { generateCity, seededRandom } from './mapgen';
@@ -262,12 +263,22 @@ export function stepMatch(m: HeadlessMatch): void {
     if (pulse.size > 0) m.units = m.units.map(u => pulse.get(u.id)?.(u) ?? u);
   }
   if (impact.structureDamage.size > 0) m.structures = applyStructureCombat(m.structures, { structureDamage: impact.structureDamage, fired: new Map(), aiming: new Map() }, now);
+  // Bombardment Drones over their target drop their strikes, levelling city buildings and hurting
+  // the units under them; empty, they fly home to rearm (sim/bombard.ts), as in the game.
+  const bombard = bombardTick(m.units, now, team => (team === 'blue' || team === 'red') ? commandPosts(m.structures, team, TEAM_BASES[team]) : [], paths.findAirPath);
+  if (bombard.updates.size > 0) m.units = m.units.map(u => bombard.updates.get(u.id)?.(u) ?? u);
+  const strikes = bombard.strikes.map(s => ({ ...s, team: m.units.find(u => u.id === s.droneId)?.team ?? 'neutral' as const }));
+  if (strikes.length > 0) {
+    m.buildings = bombardBuildings(m.buildings, strikes.map(s => s.at));
+    bombardUnitDamage(m.units, strikes).forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+  }
   // Who hit whom, for the pacing report's damage tally.
   recordWeaponHits(m.pacing, {
     fired: attacks.fired, shots: [...(attacks.splashed ?? []), ...rail.shots, ...rail.pierceHits, ...hornets.shots, ...flechettes.shots, ...volt.hits], ciws: ciws.links,
     blasts: [
       ...impact.landed.map(s => ({ attackerId: s.attackerId, team: s.team, at: s.at, radius: 2 })),
       ...salvo.landed.map(s => ({ attackerId: s.attackerId, team: s.team, at: s.at, radius: 2 })),
+      ...strikes.map(s => ({ attackerId: s.droneId, team: s.team, at: s.at, radius: ABILITY_CONFIG.BOMBARD_RADIUS })),
     ],
     beams: heliosBeams(m.units),
   }, m.units, m.structures);

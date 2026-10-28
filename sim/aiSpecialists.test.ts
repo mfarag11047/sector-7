@@ -96,22 +96,28 @@ describe('computer opponent: abilities', () => {
     expect(abilities({ tier: 2, structures: [fab], economy, theirs: cluster }).find(a => a.command.type === 'FAB_LAUNCH')).toBeUndefined();
   });
 
-  it('sends Bombardment Drones against enemy production, not on top of its own army', () => {
+  it('sends Bombardment Drones to level the city block planned for a new base', () => {
     const bombard = unit('bm', { type: 'bombard', unitClass: 'air' });
-    const factory = structure('f', 'armor', { team: 'blue', gridPos: { x: 10, z: 10 } });
-    const strike = abilities({ mine: [bombard], structures: [factory] }).find(a => a.command.type === 'BOMBARD');
-    expect(strike?.command).toMatchObject({ target: { x: 10, z: 10 } });
-    expect(abilities({ mine: [bombard, unit('t', { gridPos: { x: 11, z: 10 } })], structures: [factory] }).find(a => a.command.type === 'BOMBARD')).toBeUndefined();
+    const strike = abilities({ mine: [bombard], levelAt: { x: 21, z: 27 } }).find(a => a.command.type === 'BOMBARD');
+    expect(strike?.command).toMatchObject({ target: { x: 21, z: 27 } });
+    // Not while it is already on its way, or empty.
+    expect(abilities({ mine: [{ ...bombard, bombardmentTarget: { x: 1, z: 1 } }], levelAt: { x: 21, z: 27 } }).some(a => a.command.type === 'BOMBARD')).toBe(false);
+    expect(abilities({ mine: [{ ...bombard, bombardMunitions: 0 }], levelAt: { x: 21, z: 27 } }).some(a => a.command.type === 'BOMBARD')).toBe(false);
   });
 
-  it('strikes an upgraded Core Refinery first, then any refinery, before nearer production', () => {
+  it('otherwise strikes enemy units nothing of theirs can shoot it down over, and never their structures', () => {
     const bombard = unit('bm', { type: 'bombard', unitClass: 'air' });
-    const factory = structure('f', 'armor', { team: 'blue', gridPos: { x: 60, z: 60 } });
-    const plain = structure('r1', 'refinery', { team: 'blue', gridPos: { x: 20, z: 20 } });
-    const upgraded = structure('r2', 'refinery', { team: 'blue', gridPos: { x: 10, z: 10 }, refineryLevel: 2 });
-    const aim = (structures: StructureData[]) => abilities({ mine: [bombard], structures }).find(a => a.command.type === 'BOMBARD')?.command;
-    expect(aim([factory, plain])).toMatchObject({ target: { x: 20, z: 20 } });
-    expect(aim([factory, plain, upgraded])).toMatchObject({ target: { x: 10, z: 10 } });
+    const tanks = [unit('t1', { team: 'blue', type: 'tank', unitClass: 'armor', gridPos: { x: 10, z: 10 } }), unit('t2', { team: 'blue', type: 'tank', unitClass: 'armor', gridPos: { x: 11, z: 10 } })];
+    const aim = (theirs: UnitData[], structures: StructureData[] = []) => abilities({ mine: [bombard], theirs, structures }).find(a => a.command.type === 'BOMBARD')?.command;
+    // Structures alone: a strike would leave them standing.
+    expect(aim([], [structure('f', 'armor', { team: 'blue', gridPos: { x: 10, z: 10 } })])).toBeUndefined();
+    expect(aim(tanks)).toMatchObject({ target: { x: 10, z: 10 } });
+    // A Trooper's rifle or a CIWS Turret covering them: it would be shot down.
+    expect(aim([...tanks, unit('tr', { team: 'blue', gridPos: { x: 12, z: 11 } })])).toBeUndefined();
+    expect(aim(tanks, [structure('aa', 'aa_turret', { team: 'blue', gridPos: { x: 14, z: 10 } })])).toBeUndefined();
+    // Not worth the trip for one cheap unit, nor on top of its own army.
+    expect(aim([unit('sc', { team: 'blue', type: 'scout_car', unitClass: 'support', gridPos: { x: 10, z: 10 } })])).toBeUndefined();
+    expect(abilities({ mine: [bombard, unit('t', { gridPos: { x: 11, z: 11 } })], theirs: tanks }).some(a => a.command.type === 'BOMBARD')).toBe(false);
   });
 });
 
@@ -161,7 +167,8 @@ describe('computer opponent: specialist movement and the base', () => {
       team: 'red', tier: 3, cores: 3000, mine: [unit('bal', { type: 'ballista' })], theirs: [],
       structures: [structure('fab', 'ordnance_fab')], buildings: [], economy: createEconomy(),
       bases: { blue: { x: 4, z: 4 }, red: { x: 74, z: 74 } }, gather: { x: 60, z: 60 },
-      canBuildOn: () => false, maxTurrets: 0, maxBases: 1, gridSize: 79, padsFull: false,
+      canBuildOn: () => false, maxTurrets: 0, gridSize: 79,
+      expansion: { wants: false, sites: [], level: null }, send: () => {},
     });
     expect(commands(r.actions)).toContain('BUILD_WARHEAD');
     expect(r.spent).toBeGreaterThan(0);

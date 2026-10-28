@@ -67,8 +67,8 @@ side can invest in its economy instead of only fighting for nodes.
   builds new bases on the site nearest a core node it can reach.
 - **Level 2** (Tier 2, 500 cores, 25 s, from the refinery's own menu) raises only that refinery's
   flat income, to 4 cores/s. The multiplier doesn't change. An upgraded refinery is a bigger loss,
-  and the computer's Bombardment Drones and Ballistas strike upgraded refineries first, then any
-  refinery, before other buildings.
+  and the computer's Ballistas strike upgraded refineries first, then any refinery, before other
+  buildings.
 - The refinery's menu shows its level and income, what all your refineries add, and the
   multiplier against your node income.
 - The computer builds one once its Barracks and Factory are up (Hard: a second at Tier 2) and
@@ -1377,8 +1377,20 @@ same kind of economy.
      warheads from its silo at the same kind of target.
    - **Masons** put up 1 (Normal) or 2 (Hard) **Sentry Turrets** on the turret corners facing
      you.
-   - When rich, with a unit beside a cleared block, it builds a **new Command HQ** (up to 2 on
-     Normal, 3 on Hard). This happens at T3, or at T2 once its building pads are all taken.
+   - It opens **new Command HQs** (up to 2 on Normal, 3 on Hard; none on Easy) at T3, or at T2
+     once its building pads are all taken (`sim/aiExpansion.ts`). It builds on the best cleared
+     block on its own half of the map with no enemy near, nearest a core node first. With none, it
+     makes one: it trains a Bombardment Drone and has its drones level a city block on its own
+     half (near a core node, quick to bring down, nothing built on it, none of its own captured
+     buildings or units in it, no enemy close), sticking with the same block until it is down. Once
+     a site is ready it saves up for the HQ (2000 cores and 200 compute, plus 500 to spare;
+     production and research only spend what is over that, unless it is under attack), sends a
+     scout car or the nearest infantry to stand by it, and founds the base there.
+   - Its **Bombardment Drones** otherwise strike only a group of enemy units worth at least 400
+     cores that nothing of theirs can shoot them down over (no anti-air unit or CIWS Turret in
+     reach): parked artillery, an unescorted tank column. A strike levels city buildings and hurts
+     units, but leaves structures standing, and a drone sent over a defended base is shot down, so
+     they never go for the enemy base.
 7. **Powers:** Doctrine powers on Normal (T2) and Hard (T2 and T3): Orbital
    Drop into a fight, a Force Field over its army in a big fight, Decoys on an attack, EMP in a big fight, a Nano Cloud
    over a retreat, a Black Wall Infect bomb on a big enemy cluster.
@@ -1430,8 +1442,9 @@ same report (`m.pacing`), so pacing can be checked over many seeds in seconds.
 `sim/headless.ts` runs a whole match without the browser (map, economy, production, orders,
 movement, combat, capture, batteries, victory) on the sim modules alone. A 15-minute match takes
 under 10 seconds. `sim/ai.test.ts` uses it; it is also a first draft of the authoritative server.
-It doesn't yet model projectiles, most unit abilities, clouds, doctrine powers other than Orbital
-Drop, or Masons.
+Bombardment Drones strike as in the game, levelling city blocks and hurting units under them, so
+the computer's new bases can be tested here. It doesn't yet model projectiles, most unit abilities,
+clouds, doctrine powers other than Orbital Drop, or Masons.
 
 ## Map
 
