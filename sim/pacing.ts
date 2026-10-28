@@ -19,7 +19,7 @@
 import type { BuildingData, StructureData, UnitData } from '../types';
 import type { GridPos, Team } from './commands';
 import type { Economy } from './economy';
-import { UNIT_STATS } from '../constants';
+import { TEAM_NAMES, UNIT_STATS } from '../constants';
 import { type AiStrategy, strategyArmy } from './aiStrategy';
 import { upgradeDef } from './upgrades';
 
@@ -87,7 +87,7 @@ export const freshPacing = (): PacingRecord => ({
 });
 
 const isSide = (t: unknown): t is Team => t === 'blue' || t === 'red';
-const sideName = (t: Team) => (t === 'blue' ? 'Blue' : 'Red');
+const sideName = (t: Team) => TEAM_NAMES[t];
 const tally = (r: PacingRecord, team: Owner, type: string) =>
   team === 'neutral' ? r.neutral : (r.tallies[team][type] ??= emptyTally());
 

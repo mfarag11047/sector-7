@@ -6,6 +6,16 @@ complete match: a fair map, an opponent, a counter-based roster, production that
 way to win. The numbers live in code (`sim/units.ts`, `constants.ts`). This file explains the intent,
 so tuning keeps the shape.
 
+## The factions
+
+The two sides are rival corporations, each in the colours of its tower in the city
+(`components/Landmarks.tsx`): **Vanta** in cool white, from the north-west base, and **Tokugen** in
+green, from the south-east. Their colours (`TEAM_COLORS`) mark units, bases, badges, force fields,
+the minimap and the HUD, and their names (`TEAM_NAMES`) are used wherever a side is named: the team
+panels, the setup and end screens, base labels and the pacing report. Both colours are light, so
+the role badges draw their symbols in dark ink (`components/factions.ts`). In the code the sides keep
+their ids: `blue` is Vanta and `red` is Tokugen.
+
 ## The match
 
 1. **Setup screen.** Choose your side, the opponent (AI Easy, Normal or Hard, Sandbox where you

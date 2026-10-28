@@ -80,7 +80,7 @@ describe('pacing recorder', () => {
     expect(r.samples.map(s => s.atMs)).toEqual([100, 40_000]);
     expect(r.samples[1].blue.coreNodes).toBe(1);
     expect(SAMPLE_MS).toBe(30_000);
-    expect(pacingText(r)).toContain('Red won by destroying every enemy Command HQ');
+    expect(pacingText(r)).toContain('Tokugen won by destroying every enemy Command HQ');
     expect(JSON.parse(JSON.stringify(pacingJson(r))).events).toHaveLength(6);
   });
 });

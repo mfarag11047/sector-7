@@ -14,6 +14,7 @@ import type { MatchConfig } from '../sim/match';
 import type { MatchInfo } from './CityMap';
 import type { Notice } from '../App';
 import { dampenedUnits } from '../sim/ghost';
+import { FACTION_GLOW, FACTION_INK, FACTION_TEXT, teamName } from './factions';
 
 const EditableStat: React.FC<{
   value: number;
@@ -104,8 +105,8 @@ const DoctrineIcon: React.FC<{ type: DoctrineType | null, className?: string }> 
 };
 
 const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left' | 'right'; isVisible: boolean; cheats: boolean; onResearch?: (tier: 2 | 3) => void }> = ({ team, stats, isVisible, cheats, onResearch }) => {
-  const isBlue = team === 'blue';
-  const baseColor = isBlue ? 'text-cyan-300' : 'text-rose-400';
+  // The side's corporation, in its colours (components/factions.ts).
+  const baseColor = FACTION_TEXT[team];
   
   return (
     <div className={`
@@ -116,8 +117,8 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
 
       <div className="flex justify-between items-baseline border-b border-cyan-400/25 pb-2 relative z-10">
         <div className="flex items-center gap-2">
-            <h2 className={`text-xl font-bold font-mono uppercase tracking-widest ${baseColor} ${isBlue ? 'hud-glow-blue' : 'hud-glow-red'}`}>
-            {team} TEAM
+            <h2 className={`text-xl font-bold font-mono uppercase tracking-widest ${baseColor} ${FACTION_GLOW[team]}`}>
+            {teamName(team)}
             </h2>
             {/* Doctrine Indicator */}
             {stats.doctrine?.selected && (
@@ -666,7 +667,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                 className="hud-plate hud-corners px-3 py-1 text-[10px] text-cyan-200 font-mono uppercase tracking-widest transition-colors hover:text-white"
                 title={spectate ? "Switch whose view you watch from: their move orders, energy grid, radar and jamming" : "Admin: Switch Player Team"}
              >
-                {spectate ? 'Viewing as' : 'Playing As'}: <span className={playerTeam === 'blue' ? 'text-blue-400' : 'text-red-400'}>{playerTeam.toUpperCase()}</span>
+                {spectate ? 'Viewing as' : 'Playing As'}: <span className={playerTeam === 'blue' || playerTeam === 'red' ? FACTION_TEXT[playerTeam] : 'text-slate-300'}>{teamName(playerTeam).toUpperCase()}</span>
              </button>}
         </div>
 
@@ -775,7 +776,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                 System Message
               </h3>
               <p className="relative text-xs text-cyan-200 font-mono leading-relaxed hud-glow-cyan">
-                &gt; {spectate ? `Spectating: the computer plays both sides. You see every unit; move orders, grid, radar and jamming are shown from ${playerTeam === 'blue' ? 'Blue' : 'Red'}'s side (switch under the clock). The pacing report has the timeline.` : objective(activeStats)}
+                &gt; {spectate ? `Spectating: the computer plays both sides. You see every unit; move orders, grid, radar and jamming are shown from ${teamName(playerTeam)}'s side (switch under the clock). The pacing report has the timeline.` : objective(activeStats)}
               </p>
               {notices.length > 0 && (
                 <div className="relative mt-2 flex flex-col gap-0.5">
@@ -894,11 +895,11 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
               {visibleUnits.map((u) => {
                   const role = UNIT_ROLE[u.type] ?? 'infantry';
                   const filled = roleGlyphFilled(role);
-                  // A 1.6-tile team badge centred on the unit, with its role pictogram in white.
+                  // A 1.6-tile team badge centred on the unit, with its role pictogram in dark ink.
                   return (
                       <g key={u.id} transform={`translate(${u.gridPos.x - 0.3} ${u.gridPos.z - 0.3}) scale(${1.6 / 24})`}>
                           <rect x={0} y={0} width={24} height={24} rx={5} fill={teamBadgeColor(u.team)} stroke="#020617" strokeWidth={2} />
-                          <path d={ROLE_GLYPH[role]} fill={filled ? '#fff' : 'none'} stroke={filled ? 'none' : '#fff'} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+                          <path d={ROLE_GLYPH[role]} fill={filled ? FACTION_INK : 'none'} stroke={filled ? 'none' : FACTION_INK} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
                       </g>
                   );
               })}
@@ -964,7 +965,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
 
               {/* Your own missiles in flight, with the path to impact. */}
               {(minimapData.missiles || []).map((m) => {
-                  const color = m.team === 'red' ? '#f87171' : (m.team === 'blue' ? '#38bdf8' : '#fbbf24');
+                  const color = m.team === 'blue' || m.team === 'red' ? TEAM_COLORS[m.team] : '#fbbf24';
                   const showTrajectory = m.team === playerTeam;
                   return (
                       <g key={`missile-${m.id}`}>

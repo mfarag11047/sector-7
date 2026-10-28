@@ -8,6 +8,7 @@
 import * as THREE from 'three';
 import { TEAM_COLORS } from '../constants';
 import type { UnitType } from '../types';
+import { FACTION_INK } from './factions';
 
 export type UnitRole =
   | 'infantry' | 'anti_armor' | 'raider' | 'armor' | 'anti_air' | 'gunship' | 'scout'
@@ -91,8 +92,9 @@ export function roleBadgeTexture(role: UnitRole, team: string): THREE.CanvasText
   ctx.translate(8, 8);
   ctx.scale((size - 16) / 24, (size - 16) / 24);
   const path = new Path2D(ROLE_GLYPH[role]);
-  ctx.strokeStyle = '#ffffff';
-  ctx.fillStyle = '#ffffff';
+  // Dark ink: both sides' colours are light (components/factions.ts).
+  ctx.strokeStyle = FACTION_INK;
+  ctx.fillStyle = FACTION_INK;
   ctx.lineWidth = 2.6;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';

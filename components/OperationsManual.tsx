@@ -30,6 +30,7 @@ import {
 } from '../sim/units';
 import { ROLE_GLYPH, ROLE_LABEL, roleGlyphFilled, teamBadgeColor, UnitRole, UNIT_ROLE } from './unitIcons';
 import { CAPTURE_RANGE } from '../sim/capture';
+import { FACTION_INK } from './factions';
 
 type Tab = 'basics' | 'economy' | 'units' | 'structures' | 'combat' | 'doctrines' | 'interface' | 'winning';
 const TABS: { id: Tab; label: string }[] = [
@@ -195,7 +196,7 @@ const RoleBadge: React.FC<{ role: UnitRole; color: string; size?: number }> = ({
     <svg width={size} height={size} viewBox="0 0 24 24" className="shrink-0" aria-label={ROLE_LABEL[role]}>
       <rect x={1} y={1} width={22} height={22} rx={5} fill={color} stroke="#020617" strokeWidth={1.5} />
       <g transform="translate(3 3) scale(0.75)">
-        <path d={ROLE_GLYPH[role]} fill={filled ? '#fff' : 'none'} stroke={filled ? 'none' : '#fff'} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
+        <path d={ROLE_GLYPH[role]} fill={filled ? FACTION_INK : 'none'} stroke={filled ? 'none' : FACTION_INK} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
       </g>
     </svg>
   );

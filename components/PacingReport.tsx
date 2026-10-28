@@ -4,6 +4,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { clock, pacingJson, pacingText, unitLabel, type PacingEvent, type PacingRecord, type PacingSample, type TeamSample, type UnitTally } from '../sim/pacing';
+import { FACTION_TEXT, FACTION_TEXT_SOFT } from './factions';
+import { TEAM_COLORS, TEAM_NAMES } from '../constants';
 
 type Tab = 'milestones' | 'timeline' | 'units';
 
@@ -23,12 +25,12 @@ const snapshot = (r: PacingRecord): Snapshot => ({
   neutral: { ...r.neutral },
 });
 
-const SIDE_TEXT = { blue: 'text-blue-300', red: 'text-red-300' } as const;
-const SIDE_STROKE = { blue: '#60a5fa', red: '#f87171' } as const;
+const SIDE_TEXT = FACTION_TEXT;
+const SIDE_STROKE = { blue: TEAM_COLORS.blue, red: TEAM_COLORS.red } as const;
 
 const eventTone = (e: PacingEvent) =>
   e.kind === 'victory' ? 'text-amber-300 font-bold'
-    : e.team === 'blue' ? 'text-blue-200' : e.team === 'red' ? 'text-red-200' : 'text-slate-200';
+    : e.team === 'blue' || e.team === 'red' ? FACTION_TEXT_SOFT[e.team] : 'text-slate-200';
 
 const KIND_TAG: Record<PacingEvent['kind'], string> = {
   core_captured: 'CORE', core_lost: 'CORE', server_captured: 'SERVER', server_lost: 'SERVER', tier: 'TIER', upgrade: 'UPGRADE',
@@ -68,7 +70,7 @@ const UnitTable: React.FC<{ team: 'blue' | 'red'; tallies: Record<string, UnitTa
   const cell = 'py-1 px-1.5 text-right tabular-nums';
   return (
     <div className="overflow-x-auto">
-      <h3 className={`hud-label text-[10px] uppercase mb-1 ${SIDE_TEXT[team]}`}>{team === 'blue' ? 'Blue' : 'Red'}</h3>
+      <h3 className={`hud-label text-[10px] uppercase mb-1 ${SIDE_TEXT[team]}`}>{TEAM_NAMES[team]}</h3>
       <table className="w-full font-mono text-[11px] min-w-[480px]">
         <thead>
           <tr className="text-slate-500">

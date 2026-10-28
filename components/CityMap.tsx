@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, useCallback, useEffect, useRef, useLayoutEffect, useSyncExternalStore } from 'react';
-import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, BUILDING_VALUES, BUILDING_HEALTH, TEAM_BASES, UNIT_STATS, ABILITY_CONFIG, STRUCTURE_COST, BUILD_RADIUS, STRUCTURE_INFO, COMPUTE_GATES, DOCTRINE_CONFIG } from '../constants';
+import { CITY_CONFIG, BUILDING_COLORS, TEAM_COLORS, TEAM_NAMES, BUILDING_VALUES, BUILDING_HEALTH, TEAM_BASES, UNIT_STATS, ABILITY_CONFIG, STRUCTURE_COST, BUILD_RADIUS, STRUCTURE_INFO, COMPUTE_GATES, DOCTRINE_CONFIG } from '../constants';
 import { BuildingData, UnitData, BuildingBlock, GameStats, DoctrineType, RoadType, RoadTileData, StructureData, UnitClass, DecoyData, UnitType, StructureType, CloudData, Projectile, Explosion, DoctrineState, MinimapMissile, MinimapData } from '../types';
 import Building from './Building';
 import Landmarks from './Landmarks';
@@ -4695,7 +4695,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             position={[(baseA_Coord.x * CITY_CONFIG.tileSize) - offset, 0, (baseA_Coord.z * CITY_CONFIG.tileSize) - offset]} 
             gridPos={baseA_Coord} 
             teamColor={TEAM_COLORS.blue} 
-            label="BLUE CMD" 
+            label={`${TEAM_NAMES.blue.toUpperCase()} CMD`} 
             onMoveCommand={handleTileClick} 
             onDoubleClick={() => setBaseMenuOpen('blue')} 
             menuOpen={baseMenuOpen === 'blue'} 
@@ -4713,7 +4713,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             position={[(baseB_Coord.x * CITY_CONFIG.tileSize) - offset, 0, (baseB_Coord.z * CITY_CONFIG.tileSize) - offset]} 
             gridPos={baseB_Coord} 
             teamColor={TEAM_COLORS.red} 
-            label="RED CMD" 
+            label={`${TEAM_NAMES.red.toUpperCase()} CMD`} 
             onMoveCommand={handleTileClick} 
             onDoubleClick={() => { if(playerTeam === 'red') setBaseMenuOpen('red'); }} 
             menuOpen={baseMenuOpen === 'red'} 
@@ -4737,7 +4737,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                     position={[(s.gridPos.x * CITY_CONFIG.tileSize) - offset, 0, (s.gridPos.z * CITY_CONFIG.tileSize) - offset]}
                     gridPos={s.gridPos}
                     teamColor={TEAM_COLORS[team]}
-                    label={`${team.toUpperCase()} BASE`}
+                    label={`${TEAM_NAMES[team].toUpperCase()} BASE`}
                     onMoveCommand={handleTileClick}
                     onDoubleClick={() => { if (mine && !(s.buildRemainingMs! > 0)) setBaseMenuOpen(s.id); }}
                     menuOpen={baseMenuOpen === s.id}

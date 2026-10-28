@@ -1,11 +1,12 @@
 // The screens around a match: setup before it, results after it.
 
 import React, { useState } from 'react';
-import { DOCTRINE_CONFIG } from '../constants';
+import { DOCTRINE_CONFIG, TEAM_NAMES } from '../constants';
 import type { DoctrineType } from '../types';
 import type { Difficulty, MatchConfig, MatchMode } from '../sim/match';
 import type { Victory } from '../sim/victory';
 import type { Team } from '../sim/commands';
+import { FACTION_TEXT } from './factions';
 
 export interface MatchSummary {
   durationMs: number;
@@ -92,8 +93,8 @@ export const MatchSetup: React.FC<{ initial?: Partial<MatchConfig>; onStart: (co
               <>
                 <h2 className="hud-label text-[10px] uppercase">Side</h2>
                 <div className="grid grid-cols-2 gap-2">
-                  <Choice active={playerTeam === 'blue'} onClick={() => setPlayerTeam('blue')}><span className="text-blue-400">■</span> Blue (north-west)</Choice>
-                  <Choice active={playerTeam === 'red'} onClick={() => setPlayerTeam('red')}><span className="text-red-400">■</span> Red (south-east)</Choice>
+                  <Choice active={playerTeam === 'blue'} onClick={() => setPlayerTeam('blue')}><span className={FACTION_TEXT.blue}>■</span> {TEAM_NAMES.blue} (north-west)</Choice>
+                  <Choice active={playerTeam === 'red'} onClick={() => setPlayerTeam('red')}><span className={FACTION_TEXT.red}>■</span> {TEAM_NAMES.red} (south-east)</Choice>
                 </div>
               </>
             )}
@@ -113,7 +114,7 @@ export const MatchSetup: React.FC<{ initial?: Partial<MatchConfig>; onStart: (co
         </div>
 
         <section className="flex flex-col gap-2">
-          <h2 className="hud-label text-[10px] uppercase">{spectate ? <><span className="text-blue-400">■</span> Blue doctrine</> : 'Doctrine'}</h2>
+          <h2 className="hud-label text-[10px] uppercase">{spectate ? <><span className={FACTION_TEXT.blue}>■</span> {TEAM_NAMES.blue} doctrine</> : 'Doctrine'}</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
             {(Object.keys(DOCTRINE_CONFIG) as DoctrineType[]).map(d => {
               const c = DOCTRINE_CONFIG[d];
@@ -128,7 +129,7 @@ export const MatchSetup: React.FC<{ initial?: Partial<MatchConfig>; onStart: (co
           </div>
           {spectate && (
             <>
-              <h2 className="hud-label text-[10px] uppercase mt-2"><span className="text-red-400">■</span> Red doctrine</h2>
+              <h2 className="hud-label text-[10px] uppercase mt-2"><span className={FACTION_TEXT.red}>■</span> {TEAM_NAMES.red} doctrine</h2>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                 <Choice active={redDoctrine === null} onClick={() => setRedDoctrine(null)}>From seed</Choice>
                 {(Object.keys(DOCTRINE_CONFIG) as DoctrineType[]).map(d => (
@@ -160,12 +161,12 @@ const clock = (ms: number) => {
 
 export const MatchEnd: React.FC<{ victory: Victory; playerTeam: Team; summary: MatchSummary; onRematch: () => void; onSetup: () => void; onContinue: () => void; spectate?: boolean; onReport?: () => void }> = ({ victory, playerTeam, summary, onRematch, onSetup, onContinue, spectate, onReport }) => {
   const won = spectate ? victory.winner === 'blue' : victory.winner === playerTeam;
-  const side = victory.winner === 'blue' ? 'Blue' : 'Red';
+  const side = TEAM_NAMES[victory.winner];
   const reason = spectate
     ? `${side} destroyed every enemy Command HQ.`
     : won ? 'Every enemy Command HQ is destroyed.' : 'Your last Command HQ has fallen.';
   const heading = spectate ? `${side.toUpperCase()} WINS` : won ? 'VICTORY' : 'DEFEAT';
-  const headingTone = spectate ? (victory.winner === 'blue' ? 'text-blue-300' : 'text-red-300') : won ? 'text-cyan-300 hud-glow-cyan' : 'text-rose-400 hud-glow-red';
+  const headingTone = spectate ? FACTION_TEXT[victory.winner] : won ? 'text-cyan-300 hud-glow-cyan' : 'text-rose-400 hud-glow-red';
   const rows: [string, keyof MatchSummary['teams']['blue']][] = [
     ['Units trained', 'trained'], ['Units lost', 'lost'], ['Cores earned', 'earned'], ['Core nodes held', 'coreNodes'], ['Server nodes held', 'serverNodes'],
   ];
@@ -179,7 +180,7 @@ export const MatchEnd: React.FC<{ victory: Victory; playerTeam: Team; summary: M
         </div>
         <table className="w-full font-mono text-xs">
           <thead>
-            <tr className="text-slate-500"><th className="text-left font-normal pb-2"></th><th className="pb-2 text-blue-400">BLUE</th><th className="pb-2 text-red-400">RED</th></tr>
+            <tr className="text-slate-500"><th className="text-left font-normal pb-2"></th><th className={`pb-2 uppercase ${FACTION_TEXT.blue}`}>{TEAM_NAMES.blue}</th><th className={`pb-2 uppercase ${FACTION_TEXT.red}`}>{TEAM_NAMES.red}</th></tr>
           </thead>
           <tbody>
             {rows.map(([label, key]) => (
