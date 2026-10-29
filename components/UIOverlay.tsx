@@ -918,27 +918,6 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                   tileSize={CITY_CONFIG.tileSize} 
               />
 
-              {/* Known danger band around the central server nodes. Drawn last so the
-                  warning mark stays readable over the camera viewfinder. Exact guard
-                  positions stay hidden until a unit scouts them. */}
-              <g>
-                  <circle
-                      cx={gridSize / 2}
-                      cy={gridSize / 2}
-                      r={ABILITY_CONFIG.CENTER_THREAT_RADIUS}
-                      fill="#ef4444"
-                      fillOpacity={0.14}
-                      stroke="#f97316"
-                      strokeWidth={0.35}
-                      strokeDasharray="1.4 0.9"
-                  />
-                  <g transform={`translate(${gridSize / 2}, ${gridSize / 2})`}>
-                      <polygon points="0,-3.6 3.2,2.6 -3.2,2.6" fill="#f97316" stroke="#fff7ed" strokeWidth={0.2} />
-                      <rect x={-0.28} y={-1.2} width={0.56} height={1.7} rx={0.1} fill="#1c1917" />
-                      <rect x={-0.28} y={0.85} width={0.56} height={0.56} rx={0.1} fill="#1c1917" />
-                  </g>
-              </g>
-
               {/* Enemy missile launches: a warning triangle where it took off, then one blip at the
                   midpoint once it has passed halfway. Never its live position. */}
               {(minimapData.missileWarnings || []).map(w => (

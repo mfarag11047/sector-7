@@ -253,9 +253,6 @@ export const ABILITY_CONFIG = {
   DEFENSE_DRONE_DAMAGE: 10,
   DEFENSE_DRONE_RANGE: 2,
   UNIT_RETALIATION_DAMAGE: 5,
-  // Sentinel drones only spawn on server nodes inside this distance of the map center.
-  // The minimap marks that whole band as a threat zone instead of plotting each guard.
-  CENTER_THREAT_RADIUS: 12, 
 };
 
 export const STRUCTURE_COST = 1000;
