@@ -368,5 +368,19 @@ export function generateCity(opts: CityOptions): City {
     }
   }
 
+  // City lots a street or main avenue runs through are two half-blocks, not one whole block:
+  // their buildings say so, and clearing them never makes a base site (sim/bases.ts).
+  const lotSplit = (x: number, z: number) => {
+    const x0 = Math.floor(x / ROAD_STRIDE) * ROAD_STRIDE, z0 = Math.floor(z / ROAD_STRIDE) * ROAD_STRIDE;
+    for (let tx = x0 + 1; tx < x0 + ROAD_STRIDE; tx++) {
+      for (let tz = z0 + 1; tz < z0 + ROAD_STRIDE; tz++) {
+        const type = tileTypeMap[key(tx, tz)];
+        if (type === 'main' || type === 'street') return true;
+      }
+    }
+    return false;
+  };
+  for (const b of buildings) if (lotSplit(b.gridX, b.gridZ)) b.splitLot = true;
+
   return { buildings, blocks, roadTiles, roadTileSet, tileTypeMap, sentinels, landmarks, baseWalls, baseGates };
 }

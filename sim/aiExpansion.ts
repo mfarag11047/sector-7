@@ -79,7 +79,8 @@ function blockToLevel(v: ExpansionView, payout: (at: GridPos) => number): GridPo
     const key = `${ix},${iz}`;
     const lot = lots.get(key) ?? { at: lotCenter(ix, iz), drops: 0, standing: 0, blocked: false };
     // Node blocks never clear (nodes can't be destroyed); its own captured buildings feed its grid.
-    if (b.type === 'core_node' || b.type === 'server_node' || (!b.destroyed && b.owner === v.team)) lot.blocked = true;
+    // Nor do lots a road runs through, which are no base site once cleared (sim/bases.ts).
+    if (b.type === 'core_node' || b.type === 'server_node' || b.splitLot || (!b.destroyed && b.owner === v.team)) lot.blocked = true;
     if (!b.destroyed) lot.standing++;
     if (!b.destroyed && !isIndestructible(b)) lot.drops = Math.max(lot.drops, DROPS_TO_DESTROY[b.type]);
     lots.set(key, lot);

@@ -26,6 +26,23 @@ describe('generateCity', () => {
     }
   });
 
+  it('marks the buildings of lots a street or main avenue runs through, and only those', () => {
+    const city = generateCity(options());
+    for (const b of city.buildings) {
+      const x0 = Math.floor(b.gridX / 6) * 6, z0 = Math.floor(b.gridZ / 6) * 6;
+      let road = false;
+      for (let x = x0 + 1; x < x0 + 6; x++) for (let z = z0 + 1; z < z0 + 6; z++) {
+        const type = city.tileTypeMap[`${x},${z}`];
+        if (type === 'main' || type === 'street') road = true;
+      }
+      expect(!!b.splitLot, `building at ${b.gridX},${b.gridZ}`).toBe(road);
+    }
+    // The main avenues cut through the middle lots; most lots are whole.
+    const split = city.buildings.filter(b => b.splitLot);
+    expect(split.some(b => b.gridX >= 37 && b.gridX <= 41)).toBe(true);
+    expect(split.length).toBeLessThan(city.buildings.length / 4);
+  });
+
   it('places 6 core nodes and 5 guarded server nodes', () => {
     const city = generateCity(options());
     expect(city.buildings.filter(b => b.type === 'core_node')).toHaveLength(6);

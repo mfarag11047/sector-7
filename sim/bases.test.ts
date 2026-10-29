@@ -43,6 +43,12 @@ describe('base sites', () => {
     expect(rubbleCleared(bldg(30, 30, true), cleared)).toBe(false);
   });
 
+  it('never makes a site of a lot a road runs through, even levelled', () => {
+    const split = levelled.map(b => ({ ...b, splitLot: true }));
+    expect(clearedBlocks(split).size).toBe(1);
+    expect(baseSites(split, [])).toHaveLength(0);
+  });
+
   it('never makes a site of a node block or a block already built on', () => {
     expect(baseSites([bldg(13, 13, true, 'core_node')], [])).toHaveLength(0);
     expect(baseSites(levelled, [hq('x', 'red', 15, 15)])).toHaveLength(0);

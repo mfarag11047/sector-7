@@ -725,7 +725,7 @@ const WinningTab: React.FC = () => (
       <H>Destruction</H>
       <p className="text-xs text-slate-300 leading-relaxed">Destroy every enemy Command HQ: its starting one and any new bases it has built. Each has {STRUCTURE_INFO.hq.maxHealth} health and an anti-vehicle gun, so bring Titans, Lancers or artillery.</p>
       <H>New bases</H>
-      <p className="text-xs text-slate-300 leading-relaxed">Level every building in a city block and its rubble clears away, leaving a base site marked with a button in the middle. Click it to build a new Command HQ there: {BASE_SITE.cores} cores and {BASE_SITE.compute} compute, {BASE_SITE.buildMs / 1000}s to build, and one of your units must be within {BASE_SITE.reach} tiles. It extends your energy grid, repairs units in its block and has the HQ menu.</p>
+      <p className="text-xs text-slate-300 leading-relaxed">Level every building in a whole city block and its rubble clears away, leaving a base site marked with a button in the middle. A block with a road running through it is two half-blocks: no base can go there. Click it to build a new Command HQ there: {BASE_SITE.cores} cores and {BASE_SITE.compute} compute, {BASE_SITE.buildMs / 1000}s to build, and one of your units must be within {BASE_SITE.reach} tiles. It extends your energy grid, repairs units in its block and has the HQ menu.</p>
     </div>
     <div>
       <H>Territory</H>

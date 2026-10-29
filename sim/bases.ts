@@ -1,7 +1,9 @@
 // New command bases on cleared ground.
 //
 // Once every building in a city block (the 5x5 lot between roads) has been destroyed, the rubble
-// is cleared away and the block becomes a base site, marked at its centre. Either side can build
+// is cleared away and, if it is one whole block, it becomes a base site, marked at its centre. A
+// lot that a street or main avenue runs through (BuildingData.splitLot, from sim/mapgen.ts) is two
+// half-blocks: its rubble clears the same, but no base goes there. Either side can build
 // a new Command HQ there: it is expensive, costing cores and compute, needs one of the side's
 // units close by, and takes a while to go up.
 //
@@ -51,10 +53,23 @@ export const rubbleCleared = (b: Pick<BuildingData, 'gridX' | 'gridZ' | 'destroy
 
 export interface BaseSite { id: string; at: GridPos }
 
-// Cleared blocks with nothing built on them yet.
+// The lots a road runs through, as lot keys: never a base site.
+export function splitLots(buildings: readonly BuildingData[]): Set<string> {
+  const split = new Set<string>();
+  for (const b of buildings) {
+    if (!b.splitLot) continue;
+    const { ix, iz } = lotOf(b.gridX, b.gridZ);
+    split.add(lotKey(ix, iz));
+  }
+  return split;
+}
+
+// Cleared whole blocks with nothing built on them yet.
 export function baseSites(buildings: readonly BuildingData[], structures: readonly StructureData[]): BaseSite[] {
   const sites: BaseSite[] = [];
+  const split = splitLots(buildings);
   for (const k of clearedBlocks(buildings)) {
+    if (split.has(k)) continue;
     const [ix, iz] = k.split(',').map(Number);
     const at = lotCenter(ix, iz);
     const taken = structures.some(s => {

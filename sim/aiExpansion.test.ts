@@ -38,6 +38,8 @@ describe('the computer opening new bases', () => {
     const lot = city.buildings.filter(b => sameLot(at, b.gridX, b.gridZ));
     expect(lot.length).toBeGreaterThan(0);
     expect(lot.some(b => b.type === 'core_node' || b.type === 'server_node')).toBe(false);
+    // Nor one a road runs through, which would never be a site.
+    expect(lot.some(b => b.splitLot)).toBe(false);
     // The same block think after think, however much of it is down.
     const half = city.buildings.map((b, i) => sameLot(at, b.gridX, b.gridZ) && i % 2 === 0 ? { ...b, destroyed: true, health: 0 } : b);
     expect(expansionPlan(view({ buildings: half })).level).toEqual(at);

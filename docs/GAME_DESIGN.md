@@ -144,7 +144,10 @@ side can invest in its economy instead of only fighting for nodes.
 
 Rules: `sim/bases.ts`. Once every building in a city block (the 5x5 lot between roads) is
 destroyed, the block's rubble is cleared away and a base site appears at its centre: a glowing
-hex pad with a button over it. Core and server node blocks never become sites.
+hex pad with a button over it. Only a whole block does: a lot that a street or main avenue runs
+through (the lots along the two central avenues, and a few by the bases) is two half-blocks, and
+its rubble clears but no site appears (`splitLot`, marked by `sim/mapgen.ts`). Core and server
+node blocks never become sites either, and the computer never levels a block that wouldn't make one.
 
 - Clicking the button opens the site menu: **Build Command HQ** for 2000 cores and 200 compute
   (`BUILD_BASE`, checked in `sim/orders.ts`). One of your units must be within 6 tiles of the

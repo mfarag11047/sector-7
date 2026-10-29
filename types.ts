@@ -73,6 +73,9 @@ export interface BuildingData {
   // The whole building this tile is part of, for city buildings: its first tile and size in
   // tiles, and on a tower-on-podium building, the tile the tower rises from.
   footprint?: { x: number; z: number; w: number; d: number; tower?: { x: number; z: number } };
+  // Its city lot (sim/bases.ts) has a street or avenue running through it, so it is two blocks
+  // split by a road, not one whole block: levelling it never opens a base site.
+  splitLot?: boolean;
 }
 
 export interface BuildingBlock {
