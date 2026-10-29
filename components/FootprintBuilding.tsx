@@ -108,21 +108,54 @@ const podiumMaterial = new THREE.MeshStandardMaterial({ color: '#111827', metaln
 const plantMaterial = new THREE.MeshStandardMaterial({ color: '#334155', metalness: 0.5, roughness: 0.6 });
 const sawtoothMaterial = new THREE.MeshStandardMaterial({ color: '#64748b', metalness: 0.6, roughness: 0.4 });
 
-// The roof slab: dark, or in the owner's colour once the building is taken.
-const roofCaps = new Map<string, THREE.MeshStandardMaterial>();
-const roofCapMaterial = (owner: 'blue' | 'red' | null) => {
-  const k = owner ?? 'none';
-  let m = roofCaps.get(k);
+// The roof slab stays dark whoever holds the building. A captured tile shows its owner on the
+// roof as a band in their colour round the building's outside edge (the lit rim, plus a strip
+// along the slab's edge) and small hash marks over the middle, not a slab painted solid.
+const roofCap = new THREE.MeshStandardMaterial({ color: '#0b1120', metalness: 0.5, roughness: 0.7 });
+const roofBands = new Map<string, THREE.MeshStandardMaterial>();
+const roofBandMaterial = (owner: 'blue' | 'red') => {
+  let m = roofBands.get(owner);
   if (!m) {
-    m = owner
-      ? new THREE.MeshStandardMaterial({ color: TEAM_COLORS[owner], emissive: TEAM_COLORS[owner], emissiveIntensity: 0.35, metalness: 0.4, roughness: 0.6 })
-      : new THREE.MeshStandardMaterial({ color: '#0b1120', metalness: 0.5, roughness: 0.7 });
-    roofCaps.set(k, m);
+    m = new THREE.MeshStandardMaterial({ color: TEAM_COLORS[owner], emissive: TEAM_COLORS[owner], emissiveIntensity: 0.45, metalness: 0.4, roughness: 0.6 });
+    roofBands.set(owner, m);
+  }
+  return m;
+};
+// The hash marks: one short diagonal slash per cell of a repeating texture, in white, tinted by
+// the material, staggered row to row.
+let hashTexture: THREE.Texture | null = null;
+const hashMarks = () => {
+  if (hashTexture) return hashTexture;
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const g = canvas.getContext('2d')!;
+  g.strokeStyle = '#ffffff';
+  g.lineWidth = 12;
+  g.lineCap = 'round';
+  const slash = (x: number, y: number) => { g.beginPath(); g.moveTo(x - 14, y + 14); g.lineTo(x + 14, y - 14); g.stroke(); };
+  slash(32, 32); slash(96, 96);
+  hashTexture = new THREE.CanvasTexture(canvas);
+  hashTexture.wrapS = hashTexture.wrapT = THREE.RepeatWrapping;
+  hashTexture.anisotropy = 4;
+  return hashTexture;
+};
+const roofHashes = new Map<string, THREE.MeshBasicMaterial>();
+const roofHashMaterial = (owner: 'blue' | 'red') => {
+  let m = roofHashes.get(owner);
+  if (!m) {
+    m = new THREE.MeshBasicMaterial({ color: TEAM_COLORS[owner], map: hashMarks(), transparent: true, opacity: 0.6, depthWrite: false });
+    roofHashes.set(owner, m);
   }
   return m;
 };
 // How far the roof slab stops short of the building's outside edge, leaving a lit rim.
 const ROOF_RIM = 0.7;
+// The coloured strip along the slab's outside edge, inside the rim.
+const ROOF_BAND = 0.6;
+// The hash marks keep this far in from the band, and repeat every this many world units.
+const HASH_GAP = 1.2;
+const HASH_PERIOD = 5;
 
 // A plane for one face, its texture coordinates set in world units so the windows line up.
 function faceGeometry(width: number, height: number, u0: number, v0: number, texW: number, texH: number) {
@@ -587,13 +620,32 @@ const FootprintSegmentView: React.FC<{
     const shops = facade?.shops && !tower ? windows.filter(w => w.key.endsWith('-0')).map(w => ({
       ...w, geometry: faceGeometry(w.width, SHOP_HEIGHT, w.start / 8, 0, 8, SHOP_HEIGHT),
     })) : [];
-    return { box, body: top, tower, windows, faces, cap, billboard, scales, bodyGeometry, shops };
+    // Where the owner's colour goes on the roof: a strip along each outside edge of the slab, and
+    // the hash marks over the rest, lined up in world space so they run on across tiles.
+    const edge = (side: Side) => tower || outside[side];
+    const bands = (Object.keys(outside) as Side[]).filter(edge).map(side => {
+      const alongX = side === 'north' || side === 'south';
+      const at = side === 'west' ? cap.x0 + ROOF_BAND / 2 : side === 'east' ? cap.x1 - ROOF_BAND / 2 : side === 'north' ? cap.z0 + ROOF_BAND / 2 : cap.z1 - ROOF_BAND / 2;
+      return alongX
+        ? { side, position: [(cap.x0 + cap.x1) / 2, at] as const, size: [cap.x1 - cap.x0, ROOF_BAND] as const }
+        : { side, position: [at, (cap.z0 + cap.z1) / 2] as const, size: [ROOF_BAND, cap.z1 - cap.z0] as const };
+    });
+    const hashInset = (side: Side) => (edge(side) ? ROOF_BAND + HASH_GAP : 0);
+    const hx0 = cap.x0 + hashInset('west'), hx1 = cap.x1 - hashInset('east'), hz0 = cap.z0 + hashInset('north'), hz1 = cap.z1 - hashInset('south');
+    let hashGeometry: THREE.BufferGeometry | null = null;
+    if (hx1 - hx0 > 1 && hz1 - hz0 > 1) {
+      hashGeometry = new THREE.PlaneGeometry(hx1 - hx0, hz1 - hz0).rotateX(-Math.PI / 2).translate((hx0 + hx1) / 2, 0, (hz0 + hz1) / 2);
+      const pos = hashGeometry.attributes.position as THREE.BufferAttribute;
+      const uv = hashGeometry.attributes.uv as THREE.BufferAttribute;
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, (worldX + pos.getX(i)) / HASH_PERIOD, -(worldZ + pos.getZ(i)) / HASH_PERIOD);
+    }
+    return { box, body: top, tower, windows, faces, cap, billboard, scales, bodyGeometry, shops, bands, hashGeometry };
   }, [T, lx, lz, f, isTower, data.gridX, data.gridZ, h, style, kind, facade, texW, texH]);
 
   useEffect(() => () => {
-    parts.windows.forEach(w => w.geometry.dispose()); parts.scales.forEach(w => w.geometry.dispose()); parts.shops.forEach(w => w.geometry.dispose()); parts.bodyGeometry.dispose();
+    parts.windows.forEach(w => w.geometry.dispose()); parts.scales.forEach(w => w.geometry.dispose()); parts.shops.forEach(w => w.geometry.dispose()); parts.bodyGeometry.dispose(); parts.hashGeometry?.dispose();
   }, [parts]);
-  const { box, body, tower, windows, cap, billboard, scales, bodyGeometry, shops } = parts;
+  const { box, body, tower, windows, cap, billboard, scales, bodyGeometry, shops, bands, hashGeometry } = parts;
   const bw = body.x1 - body.x0;
   const bd = body.z1 - body.z0;
   const bx = (body.x0 + body.x1) / 2;
@@ -614,9 +666,15 @@ const FootprintSegmentView: React.FC<{
         {hovered && <Edges color="#ffffff" threshold={40} />}
       </mesh>
 
-      <mesh position={[(cap.x0 + cap.x1) / 2, h + 0.12, (cap.z0 + cap.z1) / 2]} material={roofCapMaterial(data.owner)}>
+      <mesh position={[(cap.x0 + cap.x1) / 2, h + 0.12, (cap.z0 + cap.z1) / 2]} material={roofCap}>
         <boxGeometry args={[cap.x1 - cap.x0, 0.25, cap.z1 - cap.z0]} />
       </mesh>
+      {data.owner && bands.map(b => (
+        <mesh key={`band-${b.side}`} position={[b.position[0], h + 0.27, b.position[1]]} material={roofBandMaterial(data.owner!)}>
+          <boxGeometry args={[b.size[0], 0.06, b.size[1]]} />
+        </mesh>
+      ))}
+      {data.owner && hashGeometry && <mesh geometry={hashGeometry} position={[0, h + 0.27, 0]} material={roofHashMaterial(data.owner)} />}
 
       {windows.map(w => (
         <group key={w.key}>

@@ -1620,8 +1620,9 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   a hex pad with pulses running in. The rim, rings and pylon lights take the holder's colour.
 - A building bigger than one tile is drawn as one building (`components/FootprintBuilding.tsx`),
   though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
-  run along its outside faces only, a dark roof slab with a lit rim covers it (in the owner's
-  colour once taken), and one tile carries its rooftop pieces: a crown and spire on commercial
+  run along its outside faces only, a dark roof slab with a lit rim covers it (once a tile is
+  taken, its stretch of the rim and a band along the slab's edge turn the owner's colour, with
+  small diagonal hash marks in that colour over the middle of the roof), and one tile carries its rooftop pieces: a crown and spire on commercial
   towers, plant and an antenna on high-tech blocks, a smokestack and storage tank on industrial
   sheds (which also get sawtooth roofs, pipe runs along their walls and, on many, a tower crane)
   and a water tank on housing. Towers on podiums stand slim on a low base. Downtown towers carry
