@@ -27,7 +27,7 @@ that name in `SAMPLES` in `components/sfx.ts`. Names the game already plays are 
 **Weapons and blasts** plus `hornet_rocket`, `wasp_swarm` and `ballista_launch`; each plays its
 made-in-code sound until it has a recording. The others need hooking up where they happen.
 
-In the game so far: `rocket` (3 takes), `missile` (1 take).
+In the game so far: `rifle` (2 takes), `rocket` (3 takes), `missile` (1 take).
 
 ## Weapons and blasts (replace the current sounds)
 

@@ -726,8 +726,8 @@ holder's colour once taken.
 
 Weapons and explosions have sound effects, played with the Web Audio API (`components/sfx.ts`).
 A sound with recordings plays one of its takes from `public/sfx/` (listed in `SAMPLES`), a
-different take from last time and a touch faster or slower each time; so far the Thunderhead's
-rocket launch (three takes) and the Lancer's missile have them. The rest are made in code until
+different take from last time and a touch faster or slower each time; so far rifles (two takes), the
+Thunderhead's rocket launch (three takes) and the Lancer's missile have them. The rest are made in code until
 their recordings arrive (prompts for them: `docs/SOUND_PROMPTS.md`), as is any sound whose file
 hasn't loaded: rifle cracks, machine guns, flak, the CIWS guns' buzz-saw, cannon
 booms, the railgun (a crack, an electric zap, a metallic ring and a sub-bass punch) for the tank's

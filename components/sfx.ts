@@ -34,6 +34,7 @@ export type SoundKind = 'rifle' | 'mg' | 'flak' | 'ciws' | 'cannon' | 'rail' | '
 
 // The recorded takes for each sound, by file name in public/sfx/. A sound not listed is made in code.
 export const SAMPLES: Partial<Record<SoundKind, readonly string[]>> = {
+  rifle: ['rifle_1.mp3', 'rifle_2.mp3'],
   rocket: ['rocket_1.mp3', 'rocket_2.mp3', 'rocket_3.mp3'],
   missile: ['missile_1.mp3'],
 };
