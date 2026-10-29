@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { spatial } from './sfx';
+import { existsSync } from 'fs';
+import { resolve } from 'path';
+import { pickTake, SAMPLES, SOUNDS, spatial } from './sfx';
 
 describe('where a sound is heard from', () => {
   // Looking along -Z (heading 0), so +X is to the right of the screen.
@@ -26,5 +28,31 @@ describe('where a sound is heard from', () => {
     expect(spatial(l, 0, -280, 1).gain).toBe(0);
     expect(spatial(l, 0, -280, 1.8).gain).toBeGreaterThan(0);
     expect(spatial({ ...l, height: 190 }, 0, 0).gain).toBeLessThan(spatial({ ...l, height: 20 }, 0, 0).gain);
+  });
+});
+
+describe('recorded sounds', () => {
+  it('has every listed take in public/sfx', () => {
+    for (const files of Object.values(SAMPLES)) {
+      for (const file of files!) expect(existsSync(resolve(__dirname, '../public/sfx', file)), file).toBe(true);
+    }
+  });
+
+  it('has a made-in-code version of every sound, to play until (or unless) its recording loads', () => {
+    for (const kind of Object.keys(SAMPLES)) expect(SOUNDS[kind as keyof typeof SOUNDS]).toBeTypeOf('function');
+  });
+
+  it('never plays the same take twice running when there is a choice', () => {
+    expect(pickTake(1, 0)).toBe(0);
+    for (let last = 0; last < 3; last++) {
+      for (const r of [0, 0.3, 0.5, 0.7, 0.99]) {
+        const take = pickTake(3, last, () => r);
+        expect(take).not.toBe(last);
+        expect(take).toBeGreaterThanOrEqual(0);
+        expect(take).toBeLessThan(3);
+      }
+    }
+    // Every other take still comes up.
+    expect(new Set([0, 0.6].map(r => pickTake(3, 1, () => r)))).toEqual(new Set([0, 2]));
   });
 });

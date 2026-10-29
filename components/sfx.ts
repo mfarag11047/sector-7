@@ -1,13 +1,19 @@
-// Sound effects, made in code with the Web Audio API: no sound files.
+// Sound effects, played with the Web Audio API.
 //
-// Each sound is built from a few oscillators and bursts of filtered noise, shaped by quick volume
-// envelopes, with a little randomness so a volley doesn't sound like one sample repeated:
+// A sound with recordings (SAMPLES below, files in public/sfx/, prompts in docs/SOUND_PROMPTS.md)
+// plays one of its takes, picked at random and never the same take twice running, a touch faster
+// or slower each time so a volley doesn't sound like one clip repeated. The recordings load once
+// the audio starts; until one has loaded, or if it can't be, that sound is made in code instead.
+//
+// A sound made in code is built from a few oscillators and bursts of filtered noise, shaped by
+// quick volume envelopes, with a little randomness:
 //   - rifle, mg: a sharp crack of noise with a short low thump; machine guns a touch lower.
 //   - flak: a duller, heavier pop. ciws: a short buzz-saw burst, for a gun firing thousands a minute.
 //   - cannon: a deep boom falling in pitch under a burst of noise.
 //   - rail: the railgun. A hard crack, an electric zap sweeping down, a metallic ring that hangs
 //     in the air, and a sub-bass punch.
-//   - missile, rocket: a rushing whoosh rising in pitch as it leaves the tube.
+//   - missile (Lancer), rocket (Thunderhead), hornet_rocket, wasp_swarm, ballista_launch: a
+//     rushing whoosh rising in pitch as it leaves the tube.
 //   - laser: the Sentinel's beam, a buzzing tone sweeping down.
 //   - blade: a quick swish.
 //   - explosion: a roar of noise that darkens as it fades over a deep falling boom, longer and
@@ -24,7 +30,15 @@
 // audio starts on the first one. The player can mute it (the speaker button on the HUD); that is
 // remembered between visits.
 
-export type SoundKind = 'rifle' | 'mg' | 'flak' | 'ciws' | 'cannon' | 'rail' | 'missile' | 'rocket' | 'laser' | 'blade' | 'explosion' | 'emp' | 'shield';
+export type SoundKind = 'rifle' | 'mg' | 'flak' | 'ciws' | 'cannon' | 'rail' | 'missile' | 'rocket' | 'hornet_rocket' | 'wasp_swarm' | 'ballista_launch' | 'laser' | 'blade' | 'explosion' | 'emp' | 'shield';
+
+// The recorded takes for each sound, by file name in public/sfx/. A sound not listed is made in code.
+export const SAMPLES: Partial<Record<SoundKind, readonly string[]>> = {
+  rocket: ['rocket_1.mp3', 'rocket_2.mp3', 'rocket_3.mp3'],
+  missile: ['missile_1.mp3'],
+};
+// How far a recording's speed (and so its pitch) varies from take to take.
+const SAMPLE_RATE_SPREAD = 0.06;
 
 // For each kind: how loud, how many at once, the least time between two starting, and how far it
 // carries compared with gunfire.
@@ -37,6 +51,9 @@ const KINDS: Record<SoundKind, { gain: number; voices: number; gapMs: number; re
   rail: { gain: 0.65, voices: 4, gapMs: 50, reach: 1.4 },
   missile: { gain: 0.65, voices: 4, gapMs: 80, reach: 1.2 },
   rocket: { gain: 0.6, voices: 5, gapMs: 50, reach: 1.3 },
+  hornet_rocket: { gain: 0.6, voices: 5, gapMs: 50, reach: 1.3 },
+  wasp_swarm: { gain: 0.55, voices: 4, gapMs: 60, reach: 1.2 },
+  ballista_launch: { gain: 0.65, voices: 3, gapMs: 80, reach: 1.4 },
   laser: { gain: 0.4, voices: 3, gapMs: 140, reach: 1 },
   blade: { gain: 0.5, voices: 3, gapMs: 80, reach: 0.8 },
   explosion: { gain: 0.85, voices: 8, gapMs: 25, reach: 1.8 },
@@ -118,11 +135,55 @@ function unlock(): void {
     master = ctx.createGain();
     master.gain.value = muted ? 0 : MASTER_GAIN;
     master.connect(compressor).connect(ctx.destination);
+    loadSamples(ctx);
   }
   if (ctx.state === 'suspended') void ctx.resume();
 }
 if (typeof window !== 'undefined') {
   for (const type of ['pointerdown', 'keydown'] as const) window.addEventListener(type, unlock, { capture: true });
+}
+
+// --- Recordings ---
+
+const buffers: Partial<Record<SoundKind, AudioBuffer[]>> = {};
+const lastTake: Partial<Record<SoundKind, number>> = {};
+const sampleUrl = (file: string) => `${(import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/'}sfx/${file}`;
+
+// Fetch and decode every take. Each sound can use its takes as soon as they are in; one that
+// fails to load is left out, and a sound with none keeps its made-in-code version.
+function loadSamples(c: AudioContext): void {
+  for (const [kind, files] of Object.entries(SAMPLES) as [SoundKind, readonly string[]][]) {
+    for (const file of files) {
+      fetch(sampleUrl(file))
+        .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))))
+        .then(data => c.decodeAudioData(data))
+        .then(buffer => { (buffers[kind] ??= []).push(buffer); })
+        .catch(e => console.warn(`sound ${file} didn't load:`, e));
+    }
+  }
+}
+
+// Which take to play out of `count`: any but the one played last, when there is a choice.
+export function pickTake(count: number, last: number | undefined, random = Math.random): number {
+  if (count <= 1) return 0;
+  const pick = Math.floor(random() * (count - 1));
+  return last !== undefined && pick >= last ? pick + 1 : pick;
+}
+
+// Plays a take of `kind`'s recording into `out` at `t`, returning how long it lasts, or null when
+// it has none loaded.
+function playSample(c: BaseAudioContext, kind: SoundKind, out: AudioNode, t: number): number | null {
+  const takes = buffers[kind];
+  if (!takes?.length) return null;
+  const take = pickTake(takes.length, lastTake[kind]);
+  lastTake[kind] = take;
+  const src = c.createBufferSource();
+  src.buffer = takes[take];
+  src.playbackRate.value = rand(1 - SAMPLE_RATE_SPREAD, 1 + SAMPLE_RATE_SPREAD);
+  src.connect(out);
+  src.start(t);
+  if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV) ((window as unknown as { __SFX_TAKES?: string[] }).__SFX_TAKES ??= []).push(`${kind}_${take + 1}`);
+  return takes[take].duration / src.playbackRate.value;
 }
 
 // --- Building blocks: each starts at `t`, plays into `out`, and is gone by `t + dur` ---
@@ -166,7 +227,19 @@ function tone(c: BaseAudioContext, out: AudioNode, t: number, o: { type: Oscilla
   osc.stop(t + (o.attack ?? 0.002) + o.decay + 0.05);
 }
 
-// Each sound, played into `out` at `t`; `size` scales an explosion. Returns how long it lasts.
+// Launch whooshes, shared by the missiles and rockets that don't have recordings of their own.
+function missileWhoosh(c: BaseAudioContext, out: AudioNode, t: number) {
+  noiseBurst(c, out, t, { type: 'bandpass', f0: 500, f1: 2600, q: 1.4, peak: 1, attack: 0.03, decay: 0.42 });
+  tone(c, out, t, { type: 'sine', f0: 160, f1: 60, peak: 0.4, decay: 0.08 });
+  return 0.5;
+}
+function rocketWhoosh(c: BaseAudioContext, out: AudioNode, t: number) {
+  noiseBurst(c, out, t, { type: 'bandpass', f0: 400, f1: 2000, q: 1.2, peak: 1, attack: 0.04, decay: 0.6 });
+  tone(c, out, t, { type: 'sine', f0: 140, f1: 50, peak: 0.45, decay: 0.1 });
+  return 0.7;
+}
+
+// Each sound made in code, played into `out` at `t`; `size` scales an explosion. Returns how long it lasts.
 // Exported to render previews offline (an OfflineAudioContext).
 export const SOUNDS: Record<SoundKind, (c: BaseAudioContext, out: AudioNode, t: number, size: number) => number> = {
   rifle: (c, out, t) => {
@@ -211,16 +284,11 @@ export const SOUNDS: Record<SoundKind, (c: BaseAudioContext, out: AudioNode, t: 
     tone(c, out, t, { type: 'sine', f0: 75, f1: 32, peak: 0.85, attack: 0.003, decay: 0.3 });
     return 0.78;
   },
-  missile: (c, out, t) => {
-    noiseBurst(c, out, t, { type: 'bandpass', f0: 500, f1: 2600, q: 1.4, peak: 1, attack: 0.03, decay: 0.42 });
-    tone(c, out, t, { type: 'sine', f0: 160, f1: 60, peak: 0.4, decay: 0.08 });
-    return 0.5;
-  },
-  rocket: (c, out, t) => {
-    noiseBurst(c, out, t, { type: 'bandpass', f0: 400, f1: 2000, q: 1.2, peak: 1, attack: 0.04, decay: 0.6 });
-    tone(c, out, t, { type: 'sine', f0: 140, f1: 50, peak: 0.45, decay: 0.1 });
-    return 0.7;
-  },
+  missile: (c, out, t) => missileWhoosh(c, out, t),
+  ballista_launch: (c, out, t) => missileWhoosh(c, out, t),
+  rocket: (c, out, t) => rocketWhoosh(c, out, t),
+  hornet_rocket: (c, out, t) => rocketWhoosh(c, out, t),
+  wasp_swarm: (c, out, t) => rocketWhoosh(c, out, t),
   laser: (c, out, t) => {
     const filter = c.createBiquadFilter();
     filter.type = 'bandpass';
@@ -272,7 +340,8 @@ export function playSound(kind: SoundKind, x: number, z: number, size = 1): void
   const panner = ctx.createStereoPanner();
   panner.pan.value = pan;
   out.connect(panner).connect(master);
-  const dur = SOUNDS[kind](ctx, out, ctx.currentTime + 0.005, size);
+  const t = ctx.currentTime + 0.005;
+  const dur = playSample(ctx, kind, out, t) ?? SOUNDS[kind](ctx, out, t, size);
   playing[kind] = (playing[kind] ?? 0) + 1;
   voices++;
   // In development, a log of what played, for checking from the console.

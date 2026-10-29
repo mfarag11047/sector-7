@@ -724,10 +724,15 @@ holder's colour once taken.
 
 ### Sound
 
-Weapons and explosions have sound effects, made in code with the Web Audio API rather than played
-from files (`components/sfx.ts`): rifle cracks, machine guns, flak, the CIWS guns' buzz-saw, cannon
+Weapons and explosions have sound effects, played with the Web Audio API (`components/sfx.ts`).
+A sound with recordings plays one of its takes from `public/sfx/` (listed in `SAMPLES`), a
+different take from last time and a touch faster or slower each time; so far the Thunderhead's
+rocket launch (three takes) and the Lancer's missile have them. The rest are made in code until
+their recordings arrive (prompts for them: `docs/SOUND_PROMPTS.md`), as is any sound whose file
+hasn't loaded: rifle cracks, machine guns, flak, the CIWS guns' buzz-saw, cannon
 booms, the railgun (a crack, an electric zap, a metallic ring and a sub-bass punch) for the tank's
-main gun and the Sentry Turret, missile and rocket whooshes at launch, the Sentinel's laser, Kage's
+main gun and the Sentry Turret, launch whooshes for missiles and rockets (the Lancer, Thunderhead, Hornet, Wasp and Ballista each
+have their own sound, so each can get its own recording), the Sentinel's laser, Kage's
 blade, and explosions that roar and rumble longer and lower the bigger they are, with EMP blasts
 crackling and shots on a force field thudding. A sound is fainter the further it is from the middle
 of the view (heard further when zoomed out, and explosions further than gunfire) and panned by

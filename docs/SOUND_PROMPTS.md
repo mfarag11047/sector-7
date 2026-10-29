@@ -17,7 +17,17 @@ the synthesised sounds directly; the rest are sounds the game doesn't have yet.
   distance itself, so baked-in reverb, stereo width or a long tail will fight that.
 - **Trim** the silence at the start of each file; the game fires the sound on the exact frame.
 - **Loops** (marked *loop*) should be generated a little long and cut to loop seamlessly.
-- Save as `.ogg` (or `.mp3`), 44.1 kHz, peaks around −3 dB. Suggested folder: `public/sfx/`.
+- Save as `.mp3` (plays in every browser), peaks around −3 dB. Generators often make clips far
+  longer than asked; a long one is fine, it gets trimmed and faded to length.
+
+## Adding a recording to the game
+
+Put the trimmed takes in `public/sfx/` as `<name>_1.mp3`, `<name>_2.mp3`, … and list them under
+that name in `SAMPLES` in `components/sfx.ts`. Names the game already plays are those in
+**Weapons and blasts** plus `hornet_rocket`, `wasp_swarm` and `ballista_launch`; each plays its
+made-in-code sound until it has a recording. The others need hooking up where they happen.
+
+In the game so far: `rocket` (3 takes), `missile` (1 take).
 
 ## Weapons and blasts (replace the current sounds)
 

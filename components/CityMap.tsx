@@ -1629,7 +1629,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           if (heard.has(p.id)) continue;
           heard.add(p.id);
           const from = p.startPos ?? p.position;
-          playSound(p.trajectory === 'swarm' ? 'rocket' : 'missile', from.x, from.z);
+          playSound(p.trajectory === 'swarm' ? 'wasp_swarm' : 'ballista_launch', from.x, from.z);
       }
       // Forget what has gone, so the list stays short.
       if (heard.size > 400) {
@@ -3797,7 +3797,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   to: { x: (s.to.x + spread) * tileSize - offset, y: 1.4, z: (s.to.z - spread) * tileSize - offset },
               })))]);
           }
-          hornetVolley.shots.forEach(s => playSound('rocket', s.from.x * tileSize - offset, s.from.z * tileSize - offset));
+          hornetVolley.shots.forEach(s => playSound('hornet_rocket', s.from.x * tileSize - offset, s.from.z * tileSize - offset));
           if (hornetVolley.shots.length > 0) setRailBeams(prev => [...prev, ...hornetVolley.shots.map((s, i) => ({ ...s, id: `hrocket-${now}-${i}`, createdAt: now, kind: 'rocket' as const, fromY: 74 }))]);
           if (miniRocketsRef.current.length > 0) {
               const salvo = landSalvo(miniRocketsRef.current, now, currentUnitsRef, structuresRef.current, fields);
