@@ -16,8 +16,8 @@ const unit = (id: string, patch: Partial<UnitData> = {}): UnitData => ({
 });
 
 const building = (patch: Partial<BuildingData> = {}): BuildingData => ({
-  id: 'b', gridX: 5, gridZ: 5, position: [0, 0, 0], scale: [1, 1, 1], color: '#fff', type: 'server_node', height: 1,
-  blockId: 'b', owner: null, captureProgress: 0, capturingTeam: null, health: 450, maxHealth: 450, ...patch,
+  id: 'b', gridX: 5, gridZ: 5, position: [0, 0, 0], scale: [1, 1, 1], color: '#fff', type: 'residential', height: 1,
+  blockId: 'b', owner: null, captureProgress: 0, capturingTeam: null, health: 200, maxHealth: 200, ...patch,
 });
 
 describe('blastDamage', () => {
@@ -128,6 +128,11 @@ describe('Bombardment Drone strikes', () => {
     const [hit, missed] = bombardBuildings([inside, outside], [{ x: 4, z: 4 }]);
     expect(hit).toMatchObject({ destroyed: true, health: 0, owner: null });
     expect(missed).toBe(outside);
+  });
+
+  it('never touch core or server nodes', () => {
+    const nodes = [building({ id: 'core', type: 'core_node', gridX: 4, gridZ: 4, health: 1 }), building({ id: 'srv', type: 'server_node', gridX: 5, gridZ: 4, health: 1 })];
+    expect(bombardBuildings(nodes, [{ x: 4, z: 4 }])).toEqual(nodes);
   });
 
   it('hurt every unit under the strike except the drone', () => {

@@ -86,4 +86,10 @@ describe('damaged buildings', () => {
     expect(hit.health).toBe(150);
     expect(gone).toMatchObject({ destroyed: true, owner: null, health: 0 });
   });
+
+  it('never include core or server nodes, which still stop shots', () => {
+    const node = building(1, 0, { id: 'srv', type: 'server_node' });
+    expect(damageBuildings([node], new Map([['srv', 5000]]))[0]).toBe(node);
+    expect(coverBetween(coverMap([node], []), 'blue', { x: 0, z: 0 }, { x: 2, z: 0 })).toMatchObject({ id: 'srv' });
+  });
 });

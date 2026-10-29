@@ -26,18 +26,22 @@ export const BOMBARD = {
   rearmRange: 3,
 };
 
+// Core and server (compute) nodes are the map's objectives: nothing ever damages or destroys
+// them, whether Bombardment Drone drops, Thunderhead shells or shots stopped by them as cover.
+type NodeType = 'core_node' | 'server_node';
+export const isIndestructible = (b: Pick<BuildingData, 'type'>): b is Pick<BuildingData, 'type'> & { type: NodeType } =>
+  b.type === 'core_node' || b.type === 'server_node';
+
 // Drops it takes to bring down each kind of building, rising toward the city centre.
-export const DROPS_TO_DESTROY: Record<BuildingData['type'], number> = {
+export const DROPS_TO_DESTROY: Record<Exclude<BuildingData['type'], NodeType>, number> = {
   residential: 2, // outskirts, blue
   industrial: 3, // outskirts, orange
   hightech: 4, // the ring around the centre, green
   commercial: 5, // downtown, purple
-  server_node: 2,
-  core_node: 4,
 };
 
-// Damage one drop does to a building, so that DROPS_TO_DESTROY of them bring it down.
-export const dropDamage = (b: BuildingData) => Math.ceil(b.maxHealth / DROPS_TO_DESTROY[b.type]);
+// Damage one drop does to a building, so that DROPS_TO_DESTROY of them bring it down; none to a node.
+export const dropDamage = (b: BuildingData) => (isIndestructible(b) ? 0 : Math.ceil(b.maxHealth / DROPS_TO_DESTROY[b.type]));
 
 export const munitionsOf = (u: UnitData) => u.bombardMunitions ?? BOMBARD.magazine;
 

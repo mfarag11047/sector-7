@@ -715,7 +715,9 @@ of its height per notch, on the middle of the screen, between 20 and 190 units u
 takes in about 310 units across and 200 deep on a 16:9 screen: a good stretch of the battle, under
 a third of the map's width, so the rest takes the minimap and scouting. The minimap's view box is
 the true patch of ground on screen, a trapezoid wider at the top of the screen, turning with the
-camera.
+camera. The objectives have their own minimap icons so they're easy to find: a cyan chip with pins
+for each server (compute) node and an amber hex with a dark core for each core node, ringed in the
+holder's colour once taken.
 
 ### Sound
 
@@ -814,7 +816,7 @@ direct fire.
   the shot's damage against structures, by the shooter's weight: 20% from infantry, 50% from light
   vehicles and turrets, all of it from heavy vehicles. So a rifle barely marks a building (a Trooper
   needs 500 shots for a 200-health building), while a tank's shell or rail slug knocks one down in three. A building brought to nothing is destroyed, as a Bombardment Drone leaves it. The
-  landmark towers can't be knocked down.
+  landmark towers, server nodes and core nodes can't be knocked down.
 - Out of it: aircraft, and the Sentinels hovering above the server nodes, fire from above the
   rooftops and are shot at above them; shots at aircraft; and anything lobbed (Thunderhead
   shells, missiles, grenades).
@@ -1186,7 +1188,9 @@ deeper the fight goes:
 | Industrial (orange) | Outskirts | 3 |
 | High-tech (green) | Ring round the centre | 4 |
 | Commercial (purple) | Downtown | 5 |
-| Server node / core node | Objectives | 2 / 4 |
+
+Server (compute) nodes and core nodes are the map's objectives and can't be destroyed: no drop,
+Thunderhead shell or stopped shot ever damages them (`isIndestructible` in `sim/bombard.ts`).
 
 ## Infiltrator Drone ground-search radar
 

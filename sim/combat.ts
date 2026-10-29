@@ -6,7 +6,7 @@
 
 import { ForceField, shotBlocked } from './forcefield';
 import { ABILITY_CONFIG } from '../constants';
-import { dropDamage } from './bombard';
+import { dropDamage, isIndestructible } from './bombard';
 import type { BuildingData, CloudData, StructureType, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { isHidden } from './cloak';
@@ -304,7 +304,7 @@ export function bombardBuildings(buildings: readonly BuildingData[], strikes: re
   if (strikes.length === 0) return buildings as BuildingData[];
   let changed = false;
   const next = buildings.map(b => {
-    if (b.destroyed) return b;
+    if (b.destroyed || isIndestructible(b)) return b;
     const hits = strikes.filter(origin => inBombardBlast(b.gridX, b.gridZ, origin)).length;
     if (hits === 0) return b;
     changed = true;

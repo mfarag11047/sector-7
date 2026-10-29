@@ -125,7 +125,7 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
   bombard: {
     use: 'Slow heavy drone that flattens city blocks to open new lanes.',
     actions: [
-      { name: 'Bombard', text: `Flies to a spot and keeps dropping cluster strikes on the ${ABILITY_CONFIG.BOMBARD_RADIUS * 2 + 1}×${ABILITY_CONFIG.BOMBARD_RADIUS * 2 + 1} patch below, one every ${BOMBARD.intervalMs / 1000}s, until you Cease Bombard or its ${BOMBARD.magazine} munitions run out. Each drop does ${ABILITY_CONFIG.BOMBARD_UNIT_DAMAGE} damage to every unit under it, friend or foe. Buildings take more drops toward the centre: residential ${DROPS_TO_DESTROY.residential}, industrial ${DROPS_TO_DESTROY.industrial}, high-tech ${DROPS_TO_DESTROY.hightech}, commercial ${DROPS_TO_DESTROY.commercial}.` },
+      { name: 'Bombard', text: `Flies to a spot and keeps dropping cluster strikes on the ${ABILITY_CONFIG.BOMBARD_RADIUS * 2 + 1}×${ABILITY_CONFIG.BOMBARD_RADIUS * 2 + 1} patch below, one every ${BOMBARD.intervalMs / 1000}s, until you Cease Bombard or its ${BOMBARD.magazine} munitions run out. Each drop does ${ABILITY_CONFIG.BOMBARD_UNIT_DAMAGE} damage to every unit under it, friend or foe. Buildings take more drops toward the centre: residential ${DROPS_TO_DESTROY.residential}, industrial ${DROPS_TO_DESTROY.industrial}, high-tech ${DROPS_TO_DESTROY.hightech}, commercial ${DROPS_TO_DESTROY.commercial}. Core and server nodes can't be destroyed.` },
       { name: 'Rearm', text: `Empty, it flies home to the nearest command base on its own and reloads there in ${BOMBARD.rearmMs / 1000}s. A part-used drone parked by a base tops up the same way.` },
     ],
   },
@@ -708,7 +708,7 @@ const InterfaceTab: React.FC<{ color: string }> = ({ color }) => (
     <div>
       <H>Minimap</H>
       <Item label="Missile launch">A flashing MISSILE LAUNCH alert, an orange warning triangle where an enemy missile took off, and a red blip halfway along its course once it gets there. Its live position shows only inside your Aegis radar.</Item>
-      <Item label="What it shows">Team-coloured role badges for every unit you can see, your HQs as squares, the camera's view, and your energy grid outline.</Item>
+      <Item label="What it shows">Team-coloured role badges for every unit you can see, your HQs as squares, server (compute) nodes as cyan chips and core nodes as amber hexes (ringed in the holder's colour once taken), the camera's view, and your energy grid outline.</Item>
       <H>On the map</H>
       <Item label={<span className="flex items-center gap-2"><RoleBadge role="infantry" color={color} size={18} /> Role badges</span>}>Above each unit you can see. A unit's badge hides while it is selected.</Item>
       <Item label="Rings">Team-coloured ring: selected. Coloured ring at a unit's feet: an ability is running (electric indigo with blue static: knocked out by an EMP). Orange ring: a Thunderhead's range. Red reticle: its fire mission. Yellow ring: a Battery Mule's reach. Blue ring: a Banshee's tether leash.</Item>
@@ -729,7 +729,7 @@ const WinningTab: React.FC = () => (
     </div>
     <div>
       <H>Territory</H>
-      <p className="text-xs text-slate-300 leading-relaxed">Core and server nodes never win the match on their own. They pay for it: income and population from core nodes, compute for the next tier from server nodes. Destroying every enemy Command HQ is the only way to win.</p>
+      <p className="text-xs text-slate-300 leading-relaxed">Core and server nodes can't be destroyed, and never win the match on their own. They pay for it: income and population from core nodes, compute for the next tier from server nodes. Destroying every enemy Command HQ is the only way to win.</p>
     </div>
   </div>
 );

@@ -19,6 +19,7 @@
 import type { BuildingData, StructureData, UnitData } from '../types';
 import type { GridPos } from './commands';
 import type { ArmorClass } from './units';
+import { isIndestructible } from './bombard';
 
 export const COVER = {
   // Share of a stopped shot's damage (as against a structure) a city building takes, by the
@@ -105,13 +106,13 @@ export function hitCover(hit: CoverHit, structureDamage: number, shooterArmor: A
 }
 
 // Applies a tick's damage to city buildings; one brought to nothing is destroyed, as a
-// Bombardment Drone leaves it.
+// Bombardment Drone leaves it. Core and server nodes stand whatever hits them.
 export function damageBuildings(buildings: readonly BuildingData[], damage: ReadonlyMap<string, number>): BuildingData[] {
   if (damage.size === 0) return buildings as BuildingData[];
   let changed = false;
   const next = buildings.map(b => {
     const n = damage.get(b.id);
-    if (!n || b.destroyed) return b;
+    if (!n || b.destroyed || isIndestructible(b)) return b;
     changed = true;
     const health = (b.health ?? b.maxHealth) - n;
     if (health <= 0) return { ...b, health: 0, destroyed: true, owner: null, capturingTeam: null, captureProgress: 0 };

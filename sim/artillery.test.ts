@@ -159,4 +159,9 @@ describe('shells and city buildings', () => {
     expect(b[0]).toMatchObject({ destroyed: true, owner: null, health: 0 });
     expect(b[1].health).toBe(400);
   });
+
+  it('leave core and server nodes standing', () => {
+    const nodes = [building(10, { type: 'core_node', health: 1 }), building(11, { type: 'server_node', health: 1 })];
+    expect(shellBuildings(nodes, [shot(10)])).toEqual(nodes);
+  });
 });

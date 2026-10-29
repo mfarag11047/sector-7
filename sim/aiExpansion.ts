@@ -18,7 +18,7 @@
 
 import type { BuildingData, StructureData, UnitData } from '../types';
 import { BASE_SITE, baseSites, lotCenter, lotOf, type BaseSite } from './bases';
-import { BOMBARD, DROPS_TO_DESTROY } from './bombard';
+import { BOMBARD, DROPS_TO_DESTROY, isIndestructible } from './bombard';
 import type { GridPos, Team } from './commands';
 import { baseProximity } from './refinery';
 import type { Tier } from './units';
@@ -78,12 +78,10 @@ function blockToLevel(v: ExpansionView, payout: (at: GridPos) => number): GridPo
     const { ix, iz } = lotOf(b.gridX, b.gridZ);
     const key = `${ix},${iz}`;
     const lot = lots.get(key) ?? { at: lotCenter(ix, iz), drops: 0, standing: 0, blocked: false };
-    // Node blocks never clear; its own captured buildings feed its grid.
+    // Node blocks never clear (nodes can't be destroyed); its own captured buildings feed its grid.
     if (b.type === 'core_node' || b.type === 'server_node' || (!b.destroyed && b.owner === v.team)) lot.blocked = true;
-    if (!b.destroyed) {
-      lot.standing++;
-      lot.drops = Math.max(lot.drops, DROPS_TO_DESTROY[b.type]);
-    }
+    if (!b.destroyed) lot.standing++;
+    if (!b.destroyed && !isIndestructible(b)) lot.drops = Math.max(lot.drops, DROPS_TO_DESTROY[b.type]);
     lots.set(key, lot);
   }
   let best: { at: GridPos; score: number } | null = null;

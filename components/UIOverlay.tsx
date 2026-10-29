@@ -301,6 +301,48 @@ const MinimapBackground = React.memo(({
     );
 });
 
+// The map's objectives, marked so they're easy to find: a compute chip for each server node and
+// a hex core for each core node, a little over three tiles across, ringed in the holder's colour
+// once taken.
+const COMPUTE_COLOR = '#22d3ee';
+const CORE_COLOR = BUILDING_COLORS.core_node;
+const NODE_INK = '#020617';
+const holderRing = (owner: 'blue' | 'red' | null) => (owner ? TEAM_COLORS[owner] : '#94a3b8');
+// A hexagon of radius r around the origin, point up.
+const hexPoints = (r: number) => Array.from({ length: 6 }, (_, i) => {
+    const a = Math.PI / 6 + (i * Math.PI) / 3;
+    return `${(Math.cos(a) * r).toFixed(3)},${(Math.sin(a) * r).toFixed(3)}`;
+}).join(' ');
+const ComputeNodeIcon: React.FC<{ x: number; z: number; owner: 'blue' | 'red' | null }> = ({ x, z, owner }) => (
+    <g transform={`translate(${x} ${z})`}>
+        {owner && <rect x={-2} y={-2} width={4} height={4} rx={0.7} fill="none" stroke={holderRing(owner)} strokeWidth={0.45} />}
+        {/* Pins, three to a side. */}
+        {[-0.75, 0, 0.75].map(o => (
+            <g key={o} stroke={COMPUTE_COLOR} strokeWidth={0.32} strokeLinecap="round">
+                <line x1={o} y1={-1.65} x2={o} y2={-1.1} /><line x1={o} y1={1.1} x2={o} y2={1.65} />
+                <line x1={-1.65} y1={o} x2={-1.1} y2={o} /><line x1={1.1} y1={o} x2={1.65} y2={o} />
+            </g>
+        ))}
+        <rect x={-1.15} y={-1.15} width={2.3} height={2.3} rx={0.3} fill={NODE_INK} stroke={COMPUTE_COLOR} strokeWidth={0.3} />
+        <rect x={-0.5} y={-0.5} width={1} height={1} rx={0.12} fill={COMPUTE_COLOR} />
+    </g>
+);
+const CoreNodeIcon: React.FC<{ x: number; z: number; owner: 'blue' | 'red' | null }> = ({ x, z, owner }) => (
+    <g transform={`translate(${x} ${z})`}>
+        {owner && <polygon points={hexPoints(2.2)} fill="none" stroke={holderRing(owner)} strokeWidth={0.45} strokeLinejoin="round" />}
+        <polygon points={hexPoints(1.65)} fill={CORE_COLOR} stroke={NODE_INK} strokeWidth={0.3} strokeLinejoin="round" />
+        <circle r={0.8} fill={NODE_INK} />
+        <circle r={0.4} fill={CORE_COLOR} />
+    </g>
+);
+const MinimapNodes = React.memo(({ nodes }: { nodes: { id: string; type: string; x: number; z: number; owner: 'blue' | 'red' | null }[] }) => (
+    <g>
+        {nodes.map(n => n.type === 'core_node'
+            ? <CoreNodeIcon key={n.id} x={n.x} z={n.z} owner={n.owner} />
+            : <ComputeNodeIcon key={n.id} x={n.x} z={n.z} owner={n.owner} />)}
+    </g>
+), (a, b) => a.nodes.length === b.nodes.length && a.nodes.every((n, i) => n.id === b.nodes[i].id && n.owner === b.nodes[i].owner));
+
 // Component to render the viewfinder rectangle
 const MinimapViewfinder: React.FC<{ 
     cameraStateRef?: React.MutableRefObject<{ x: number, y: number, z: number, yaw: number }>;
@@ -602,6 +644,10 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
     return { visibleUnits: visible, revealedServerKey: revealed.sort().join('|') };
   }, [minimapData.units, minimapData.buildings, playerTeam, spectate]);
 
+  // Where the server and core nodes are, and who holds each, for their minimap icons.
+  const nodeMarkers = useMemo(() => minimapData.buildings
+      .filter(b => b.type === 'server_node' || b.type === 'core_node')
+      .map(b => ({ id: b.id, type: b.type, x: b.gridX + 0.5, z: b.gridZ + 0.5, owner: b.owner })), [minimapData.buildings]);
   const revealedServerIds = useMemo(
     () => new Set(revealedServerKey ? revealedServerKey.split('|') : []),
     [revealedServerKey]
@@ -816,6 +862,9 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                   revealedServerIds={revealedServerIds}
                   gridSize={gridSize}
               />
+
+              {/* Server (compute) and core nodes. */}
+              <MinimapNodes nodes={nodeMarkers} />
 
               {/* Outer rim of the friendly energy grid. Interior overlaps stay blank. */}
               {energyGridOutline.map((points, index) => (

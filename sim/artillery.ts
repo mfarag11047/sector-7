@@ -13,7 +13,7 @@
 
 import { ForceField, impactAbsorbed, shotBlocked } from './forcefield';
 import type { BuildingData, StructureData, UnitData } from '../types';
-import { dropDamage } from './bombard';
+import { dropDamage, isIndestructible } from './bombard';
 import type { GridPos } from './commands';
 import { isHidden } from './cloak';
 import { damageTakenMultiplier, upgradeDamage, isEmpDisabled, visionOf } from './unitAbilities';
@@ -184,7 +184,7 @@ export function shellBuildings(buildings: readonly BuildingData[], landed: reado
   if (landed.length === 0) return buildings as BuildingData[];
   let changed = false;
   const next = buildings.map(b => {
-    if (b.destroyed) return b;
+    if (b.destroyed || isIndestructible(b)) return b;
     const hits = landed.filter(s => b.owner !== s.team && tiles({ x: b.gridX, z: b.gridZ }, s.at) <= ARTILLERY.splash).length;
     if (hits === 0) return b;
     changed = true;
