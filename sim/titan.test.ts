@@ -25,9 +25,9 @@ describe('tank Smoke Screen', () => {
     const hidden = addBuff(unit('t', 'trooper', 'blue', 10), 'smoke', NOW + 250);
     const rifle = unit('r', 'trooper', 'red', 12);
     expect(resolveAttacks([hidden, rifle], [], NOW, () => false).aiming.get('r')).toBeNull();
-    const wasp = unit('w', 'wasp', 'red', 12);
-    const open = resolveAttacks([unit('t', 'trooper', 'blue', 10), wasp], [], NOW, () => false).unitDamage.get('t')!;
-    const smoked = resolveAttacks([hidden, wasp], [], NOW, () => false).unitDamage.get('t')!;
+    const kestrel = unit('k', 'attack_drone', 'red', 12);
+    const open = resolveAttacks([unit('t', 'trooper', 'blue', 10), kestrel], [], NOW, () => false).unitDamage.get('t')!;
+    const smoked = resolveAttacks([hidden, kestrel], [], NOW, () => false).unitDamage.get('t')!;
     expect(smoked).toBeCloseTo(open * SMOKE.airDamage);
     // Rail guns can't pick it out either.
     expect(fireRailguns([unit('k', 'tank', 'red', 20), hidden, unit('s', 'scout_car', 'red', 11)], [], NOW).shots).toHaveLength(0);

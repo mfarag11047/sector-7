@@ -7,6 +7,7 @@ import { UNIT_STATS } from '../constants';
 import type { UnitData, UnitType } from '../types';
 import { applyCiwsState, ciwsTick } from './ciws';
 import { applyDamage, resolveAttacks } from './combat';
+import { damageDrones, emptySwarm, swarmThreats, swarmTick } from './microdrones';
 import { BASE_SPEED, MOVE_TICK_MS } from './movement';
 import { afterRailShot, fireRailguns } from './railgun';
 import { UNIT_RULES } from './units';
@@ -57,16 +58,23 @@ export function simulateBattle(blue: ArmyEntry[], red: ArmyEntry[], maxSeconds =
   const startRed = value(units, 'red');
   let lastHit = 0;
   let now = 0;
+  // Wasps' micro-drones (sim/microdrones.ts).
+  let swarm = emptySwarm();
+  let droneIds = 0;
 
   for (; now < maxSeconds * 1000; now += MOVE_TICK_MS) {
     const attack = resolveAttacks(units, [], now, () => false);
+    // Wasps' swarms hunt what is near them; Aegis guns shoot the drones down like any ordnance.
+    const drones = swarmTick(swarm, units, now, MOVE_TICK_MS, () => `md-${++droneIds}`);
     // Aegis rotary cannons fire in bursts (sim/ciws.ts).
-    const ciws = ciwsTick(units, [], now, MOVE_TICK_MS);
+    const ciws = ciwsTick(units, swarmThreats(drones.swarm), now, MOVE_TICK_MS);
+    swarm = damageDrones(drones.swarm, ciws.ordnanceDamage).swarm;
+    drones.engaged.forEach((target, waspId) => attack.aiming.set(waspId, target));
     // Tank rail guns (sim/railgun.ts), at whatever the side can see.
     const rail = fireRailguns(units, [], now);
     const railFired = new Set(rail.shots.map(s => s.attackerId));
-    if (attack.fired.size > 0 || ciws.links.length > 0 || railFired.size > 0) lastHit = now;
-    units = applyDamage(applyCiwsState(units, ciws.updates).map(u => railFired.has(u.id) ? afterRailShot(u, now) : u), attack.unitDamage, ciws.unitDamage, rail.unitDamage).map(u => ({
+    if (attack.fired.size > 0 || ciws.links.length > 0 || railFired.size > 0 || drones.hits.length > 0) lastHit = now;
+    units = applyDamage(applyCiwsState(units, ciws.updates).map(u => railFired.has(u.id) ? afterRailShot(u, now) : u), attack.unitDamage, ciws.unitDamage, rail.unitDamage, drones.unitDamage).map(u => ({
       ...u,
       combatTargetId: u.type === 'aegis' ? u.ciwsTargetId ?? null : attack.aiming.get(u.id) ?? null,
       lastAttackTime: attack.fired.has(u.id) ? now : u.lastAttackTime,

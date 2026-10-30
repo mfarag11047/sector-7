@@ -36,7 +36,6 @@ export function createUnit(type: UnitType, team: UnitData['team'], id: string, g
       battery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY, maxBattery: ABILITY_CONFIG.BATTERY_MULE_MAX_BATTERY,
     };
     case 'swarm_host': return { ...unit, cooldowns: { spawnCrawler: 0 } };
-    case 'wasp': return { ...unit, cooldowns: { swarmLaunch: 0 }, charges: { swarm: ABILITY_CONFIG.WASP_MAX_CHARGES } };
     case 'scout_car': return { ...unit, battery: ABILITY_CONFIG.SCOUT_CAR_BATTERY, maxBattery: ABILITY_CONFIG.SCOUT_CAR_BATTERY };
     case 'bombard': return { ...unit, battery: ABILITY_CONFIG.BOMBARD_BATTERY, maxBattery: ABILITY_CONFIG.BOMBARD_BATTERY };
     // A new Ballista rolls out with one of each warhead.

@@ -66,6 +66,8 @@ import { airPath, fastestPath, sentinelHazardOf } from '../sim/pathfinding';
 import { fireFlechettes, regenerateShield, shieldedHit } from '../sim/kestrel';
 import { markScreened, pruneSmoke, SMOKE, SmokeScreen } from '../sim/titan';
 import { armMules, countdownOf, dueCharges, VOLT, VoltCharge, voltBlasts } from '../sim/voltCore';
+import { damageDrones, emptySwarm, swarmThreats, swarmTick } from '../sim/microdrones';
+import { DRONE_AIR_Y, MicrodroneSwarm } from './MicrodroneSwarm';
 import { canisterSpots, HE, WARHEAD_LIST, WP, wpGasDamage } from '../sim/warheads';
 import { heroBlocker, heroOf } from '../sim/heroes';
 import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade, upgradeDef, upgradeTitle, type UpgradeId } from '../sim/upgrades';
@@ -341,7 +343,7 @@ const ProjectileMesh: React.FC<{ projectile: Projectile; flightRef: React.Mutabl
         lookTarget.current.set(x + vx, y + vy, z + vz);
         orient.current.position.set(x, y, z);
         orient.current.lookAt(lookTarget.current);
-        const turn = projectile.trajectory === 'swarm' ? 12 : (projectile.trajectory === 'ballistic' ? 10 : 18);
+        const turn = projectile.trajectory === 'ballistic' ? 10 : 18;
         group.quaternion.slerp(orient.current.quaternion, 1 - Math.exp(-Math.min(delta, 0.05) * turn));
     });
 
@@ -387,21 +389,6 @@ const ProjectileMesh: React.FC<{ projectile: Projectile; flightRef: React.Mutabl
         );
     }
 
-    if (projectile.trajectory === 'swarm') {
-        return (
-            <group ref={meshRef}>
-                <mesh rotation={[-Math.PI/2, 0, 0]}>
-                    <coneGeometry args={[0.15, 0.6, 8]} />
-                    <meshBasicMaterial color="#facc15" />
-                </mesh>
-                {/* Trail */}
-                <mesh position={[0, 0, 0.4]} rotation={[-Math.PI/2, 0, 0]}>
-                    <coneGeometry args={[0.1, 0.8, 8, 1, true]} />
-                    <meshBasicMaterial color="#fbbf24" transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} />
-                </mesh>
-            </group>
-        );
-    }
 
     return (
         <group ref={meshRef}>
@@ -529,6 +516,8 @@ const RailBeam: React.FC<{ beam: RailBeamData; tileSize: number; offset: number 
     );
 };
 
+// The reticle for the Netrunner protocols that aim at an area, in tiles.
+const NETRUNNER_RETICLE = 2;
 // The fireball of a Volt Core's physical blast: about two tiles across, with the large explosion sound.
 const VOLT_FIREBALL = 12;
 // A Battery Mule's Volt Core gone critical (sim/voltCore.ts): its core sparks where it fell, a red
@@ -1634,7 +1623,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           if (heard.has(p.id)) continue;
           heard.add(p.id);
           const from = p.startPos ?? p.position;
-          playSound(p.trajectory === 'swarm' ? 'wasp_swarm' : 'ballista_launch', from.x, from.z);
+          playSound('ballista_launch', from.x, from.z);
       }
       // Forget what has gone, so the list stays short.
       if (heard.size > 400) {
@@ -1662,6 +1651,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const [miniRockets, setMiniRockets] = useState<MiniRocket[]>([]);
   // Tank Smoke Screens on the ground (sim/titan.ts), ahead of state for the tick.
   const smokeRef = useRef<SmokeScreen[]>([]);
+  // Wasps' micro-drones (sim/microdrones.ts), stepped on the game tick and drawn from the ref.
+  const swarmRef = useRef(emptySwarm());
   // Battery Mule Volt Cores counting down, by mule (sim/voltCore.ts), and the warnings drawn.
   const voltRef = useRef(new Map<string, VoltCharge>());
   // Units playing their death after the game has removed them (components/FallenUnits.tsx).
@@ -1704,7 +1695,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   
   const [targetingSourceId, setTargetingSourceId] = useState<string | null>(null);
   // 'UNIT:<ability id>' while aiming a new unit's ability (sim/unitAbilities.ts).
-  const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'BATTERY_TETHER' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'SWARM' | 'BOMBARD' | 'ARTILLERY' | `UNIT:${string}` | `FAB_LAUNCH:${Warhead}` | null>(null);
+  const [targetingAbility, setTargetingAbility] = useState<'TETHER' | 'BATTERY_TETHER' | 'SURVEILLANCE' | 'MISSILE' | 'DECOY' | 'BOMBARD' | 'ARTILLERY' | `UNIT:${string}` | `FAB_LAUNCH:${Warhead}` | null>(null);
 
   // The open HQ menu: 'blue' or 'red' for a starting HQ, or a built HQ's id.
   const [baseMenuOpen, setBaseMenuOpen] = useState<string | null>(null);
@@ -2024,7 +2015,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       },
       // Units still playing their death (components/FallenUnits.tsx).
       fallen: () => [...fallenRef.current.values()],
-      state: () => ({ units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, selected: [...selectedUnitIdsRef.current], smoke: smokeRef.current }),
+      state: () => ({ units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, selected: [...selectedUnitIdsRef.current], smoke: smokeRef.current, swarm: swarmRef.current }),
     };
     return () => { (window as any).GAME_CHEATS = undefined; };
   }, []);
@@ -2769,8 +2760,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           return;
       }
 
-      const tileOrders: Record<string, 'SURVEILLANCE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD'> = {
-          SURVEILLANCE: 'SURVEILLANCE', MISSILE: 'FIRE_BALLISTA', SWARM: 'FIRE_SWARM', BOMBARD: 'BOMBARD',
+      const tileOrders: Record<string, 'SURVEILLANCE' | 'FIRE_BALLISTA' | 'BOMBARD'> = {
+          SURVEILLANCE: 'SURVEILLANCE', MISSILE: 'FIRE_BALLISTA', BOMBARD: 'BOMBARD',
       };
       if (targetingSourceId && targetingAbility === 'ARTILLERY') {
           // Every selected Thunderhead joins the fire mission; ones out of reach are refused.
@@ -3145,10 +3136,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       'TOGGLE_CLOAK_FIELD': 'TOGGLE_CLOAK_FIELD',
   };
   // Abilities that need a target pick it on the next map or unit click.
-  const TARGETED_ABILITIES: Record<string, 'SURVEILLANCE' | 'MISSILE' | 'SWARM' | 'BOMBARD'> = {
+  const TARGETED_ABILITIES: Record<string, 'SURVEILLANCE' | 'MISSILE' | 'BOMBARD'> = {
       'LOITERING SURVEILLANCE': 'SURVEILLANCE',
       'FIRE_BALLISTA': 'MISSILE',
-      'FIRE_SWARM': 'SWARM',
       'BOMBARD': 'BOMBARD',
   };
   const warheadIn = (action: string): Warhead => action.endsWith('EMP') ? 'emp' : action.endsWith('WP') ? 'wp' : 'he';
@@ -3827,9 +3817,28 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               }
           }
 
-          // Aegis rotary cannons (sim/ciws.ts): hose down aircraft, and missiles, shells and drop
-          // pods in flight. Ordnance that has taken enough fire is knocked out of the sky.
-          const ordnance: AirThreat[] = [];
+          // Wasps' micro-drones (sim/microdrones.ts): new ones launch from the pods, the swarm hunts
+          // what is near its Wasp, and a Wasp whose swarm is fighting holds its attack-move there.
+          const drones = swarmTick(swarmRef.current, currentUnitsRef, now, TICK_RATE, () => `md-${now}-${Math.random().toString(36).slice(2, 8)}`, fields);
+          drones.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+          drones.engaged.forEach((target, waspId) => attacks.aiming.set(waspId, target));
+          drones.launched.forEach(l => playSound('wasp_swarm', l.at.x * tileSize - offset, l.at.z * tileSize - offset));
+          drones.absorbed.forEach(a => absorbHit(a.team, a.at, FORCE_FIELD.absorb.mini, a.from));
+          if (drones.strikes.length > 0 || drones.absorbed.length > 0) {
+              setExplosions(prev => [...prev,
+                  ...drones.strikes.map((st, i) => ({
+                      id: `drone-hit-${now}-${i}`, radius: 1.8, duration: 400, createdAt: now,
+                      position: { x: st.at.x * tileSize - offset, y: st.air ? DRONE_AIR_Y : 1.2, z: st.at.z * tileSize - offset },
+                  })),
+                  ...drones.absorbed.map((a, i) => shieldFlash(`drone-${now}-${i}`, a.at, 6)),
+              ]);
+          }
+          if (pacing && drones.hits.length > 0) recordWeaponHits(pacing, { shots: drones.hits }, currentUnitsRef, structuresRef.current);
+          drones.hits.forEach(h => engagementsRef.current.set(h.attackerId, { targetId: h.targetId, at: now }));
+
+          // Aegis rotary cannons (sim/ciws.ts): hose down aircraft, and missiles, shells, drop
+          // pods and micro-drones in flight. Ordnance that has taken enough fire is knocked out of the sky.
+          const ordnance: AirThreat[] = [...swarmThreats(drones.swarm)];
           for (const live of flightRef.current.values()) {
               const p = live.shot;
               if (live.impacted) continue;
@@ -3869,9 +3878,19 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           hornetVolley.shots.forEach(s => engage(s.attackerId, s.targetId));
           ciws.links.forEach(l => { if (!l.ordnance) engage(l.gunId, l.targetId); });
           ciws.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+          // Micro-drones the guns caught come apart in a puff.
+          const shotDown = damageDrones(drones.swarm, ciws.ordnanceDamage);
+          swarmRef.current = shotDown.swarm;
+          if (shotDown.downed.length > 0) {
+              setExplosions(prev => [...prev, ...shotDown.downed.map(d => ({
+                  id: `drone-down-${d.id}`, radius: 1.2, duration: 350, createdAt: now,
+                  position: { x: d.at.x * tileSize - offset, y: DRONE_AIR_Y, z: d.at.z * tileSize - offset },
+              }))]);
+          }
           if (ciws.ordnanceDamage.size > 0) {
               const downed: AirThreat[] = [];
               ciws.ordnanceDamage.forEach((n, id) => {
+                  if (id.startsWith('md-')) return;
                   const taken = (ordnanceHitsRef.current.get(id) || 0) + n;
                   ordnanceHitsRef.current.set(id, taken);
                   const o = ordnance.find(x => x.id === id)!;
@@ -4713,6 +4732,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             .map(t => <ShotFx key={t.id} shot={t} />)}
         {smokeScreens.map(s => <SmokeCloud key={s.id} screen={s} tileSize={tileSize} offset={offset} />)}
         {voltWarnings.map(c => <VoltWarning key={c.muleId} charge={c} tileSize={tileSize} offset={offset} />)}
+        <MicrodroneSwarm swarmRef={swarmRef} unitsRef={unitsRef} visibleIdsRef={visibleUnitIdsRef} playerTeam={playerTeam} tileSize={tileSize} offset={offset} />
         {railBeams.filter(b => b.team === playerTeam || visibleUnitIds.has(b.attackerId) || visibleUnitIds.has(b.targetId)).map(b => <RailBeam key={b.id} beam={b} tileSize={tileSize} offset={offset} />)}
         
         {/* Cloud Effects */}
@@ -4873,7 +4893,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                             <meshBasicMaterial color="#3f6bff" transparent opacity={0.35} side={THREE.DoubleSide} />
                         </mesh>
                     </group>
-                ) : (targetingAbility === 'SWARM' || (interactionMode === 'target' && targetingDoctrine?.type.includes('NETRUNNER'))) ? (
+                ) : (interactionMode === 'target' && targetingDoctrine?.type.includes('NETRUNNER')) ? (
                     (interactionMode === 'target' && targetingDoctrine?.type === 'NETRUNNER_TIER2') ? (
                         // Nano Cloud Reticle (Green, 5 radius) - Crosshair + Ring
                         <group>
@@ -4902,11 +4922,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                             </mesh>
                         </group>
                     ) : (
-                    // Wasp Swarm Reticle (Orange, 2 radius)
+                    // Netrunner protocol reticle (orange, 2 tiles)
                     <group>
                         {/* Outer Ring */}
                         <mesh rotation={[-Math.PI/2, 0, Date.now() * 0.005]}>
-                            <ringGeometry args={[ABILITY_CONFIG.WASP_SWARM_RADIUS * tileSize, ABILITY_CONFIG.WASP_SWARM_RADIUS * tileSize + 0.5, 32]} />
+                            <ringGeometry args={[NETRUNNER_RETICLE * tileSize, NETRUNNER_RETICLE * tileSize + 0.5, 32]} />
                             <meshBasicMaterial color="#f97316" transparent opacity={0.6} side={THREE.DoubleSide} />
                         </mesh>
                         {/* Inner Spinner */}
@@ -4916,7 +4936,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                         </mesh>
                         {/* Area Highlight */}
                         <mesh rotation={[-Math.PI/2, 0, 0]}>
-                            <circleGeometry args={[ABILITY_CONFIG.WASP_SWARM_RADIUS * tileSize, 32]} />
+                            <circleGeometry args={[NETRUNNER_RETICLE * tileSize, 32]} />
                             <meshBasicMaterial color="#f97316" transparent opacity={0.1} depthWrite={false} />
                         </mesh>
                         {/* Target Marker */}

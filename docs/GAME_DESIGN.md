@@ -733,7 +733,7 @@ loop that hums for as long as its beam is locked on, starting with the zap and f
 lets go), Kage's blade, explosions in three sizes picked by the size of the blast (a grenade or rocket, a
 shell or bomb drop, a missile strike), EMP blasts crackling and shots on a force field thudding. Each plays one of its takes, a different one
 from last time and a touch faster or slower each time, so a volley doesn't sound like one clip
-repeated. Hornet rockets, Wasp swarms and the Ballista's launch have no recordings yet and are
+repeated. Hornet rockets, Wasp micro-drone launches and the Ballista's launch have no recordings yet and are
 made in code, as is any sound whose files haven't loaded (prompts for the rest:
 `docs/SOUND_PROMPTS.md`). A sound is fainter the further it is from the middle
 of the view (heard further when zoomed out, and explosions further than gunfire) and panned by
@@ -871,7 +871,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 |---|---|---|---|---|---|---|---|
 | **Infiltrator Drone** | 60 | 1 | T1 | 60 | Air | None | Scout, surveillance |
 | **"Kestrel" Attack Drone** (new) | 130 | 1 | T1 | 110 | Air | Machine gun 6 / 0.4 s / 3, hits ground and air | Cheap generalist; fast (1.5×), sees 5, remote-controlled; Flechette Burst (T2, researched), Regenerative Shield (T3, researched) |
-| **Wasp** | 240 | 2 | T2 | 160 | Air | Rifle 6 / 0.6 s / 3, hits air | Harasser, swarm volley |
+| **Wasp** | 240 | 2 | T2 | 160 | Air | Micro-drones: 16 (MG) a strike, one built / 1.5 s, hunt within 6, ground and air | Swarm launcher; see Wasp micro-drone swarm |
 | **Hornet Gunship** (new) | 320 | 3 | T2 | 320 | Air | AP 32 / 1.6 s / 4; researched T3 rocket AP 60 / 6 s | Anti-vehicle air |
 | **Bombardment Drone** | 480 | 4 | T3 | 260 | Air | None | Levels city blocks; 5 drops, rearms at base |
 
@@ -1026,6 +1026,33 @@ replaced the old manually aimed Main Cannon:
   between them and flares when it fires, held by clamp bands, ending in a steel muzzle plate and
   a round extension barrel.
 
+
+## Wasp micro-drone swarm
+
+`sim/microdrones.ts`. The Wasp is a swarm launcher, an airborne Swarm Host that never has to
+anchor. It has no gun of its own: its micro-drones are its weapon.
+
+- **Building:** it builds a micro-drone every 1.5 s, launched from its wing pods. With no
+  enemy near, it keeps 5 circling it as an escort, riding along wherever it flies (more than 5
+  fly back in and dock).
+- **Hunting:** once an enemy (ground or air, not the neutral Sentinels) comes within 6 tiles of
+  the Wasp, it builds up to 8, and every drone peels off and dives at an enemy near the Wasp,
+  spreading over the targets rather than piling onto one. A drone is spent when it strikes: 16
+  damage by the machine-gun multipliers (14 to infantry, 9 to heavy armour, 13 to aircraft),
+  with the Wasp's refits. Drones never chase more than 9 tiles from their Wasp.
+- **Regrouping:** when the fight is over, the survivors form up round the Wasp again.
+- **Holding:** a Wasp whose swarm is fighting holds its attack-move there, as a gun does.
+- **Counters:** the drones are fragile. Aegis and CIWS guns shoot them out of the air like
+  missiles (a drone comes apart in one tick of fire), and an enemy force field stops a drone
+  diving at a unit inside it. Kill the Wasp and its whole swarm drops; an EMP or stun stops it
+  building until it recovers.
+- **On screen:** small dark diamonds with a glowing core in the side's colour, circling the
+  Wasp at its altitude and diving at ground targets over their last few tiles, with a small
+  burst where each strikes (`components/MicrodroneSwarm.tsx`). Enemy drones show when their Wasp
+  is in sight or they are diving at your units.
+
+At equal cost (`sim/balance.test.ts`) Wasps beat Tanks, Hornets, Lancers and Ghosts, and lose to
+Troopers, Razorbacks and above all Aegis.
 
 ## Battery Mule Volt Core
 
@@ -1410,7 +1437,7 @@ same kind of economy.
    - **Battery Mule** (T2, with 5+ vehicles) keeps with the army at the staging point, charging the
      vehicles round it on its own as it goes.
    - **Swarm Host** (T2) anchors to release Crawlers when a fight is close.
-   - **Wasps** fire **swarm volleys** into enemy groups.
+   - **Wasps** fly with the army; their micro-drones fight on their own.
    - **Bombardment Drones** (T3) strike enemy production, never on top of its own units.
    - **Ballista** (T3) stays by the Ordnance Fab, which keeps two **warheads** coming, of
      the kind that suits your army (White Phosphorus against mostly infantry, EMP against a big air

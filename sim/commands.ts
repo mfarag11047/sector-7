@@ -74,7 +74,6 @@ export interface TransferWarheadCommand { type: 'TRANSFER_WARHEAD'; unitId: stri
 export interface ArtilleryFireCommand { type: 'ARTILLERY_FIRE'; unitIds: string[]; target?: GridPos }
 export interface SurveillanceCommand { type: 'SURVEILLANCE'; unitId: string; target: GridPos } // Infiltrator Drone
 export interface FireBallistaCommand { type: 'FIRE_BALLISTA'; unitId: string; target: GridPos } // Ballista, fires the armed warhead
-export interface FireSwarmCommand { type: 'FIRE_SWARM'; unitId: string; target: GridPos } // Wasp
 // Ordnance Fab, Tier 3: launches a stockpiled warhead straight from its silo, as far as a Ballista reaches.
 export interface FabLaunchCommand { type: 'FAB_LAUNCH'; structureId: string; warhead: Warhead; target: GridPos }
 // Bombardment Drone: strike `target` until told to stop or out of munitions; no target stops it.
@@ -124,7 +123,6 @@ export type PlayerCommand =
   | ArtilleryFireCommand
   | SurveillanceCommand
   | FireBallistaCommand
-  | FireSwarmCommand
   | FabLaunchCommand
   | BombardCommand
   | HardlineTetherCommand
@@ -223,7 +221,6 @@ const CHECKS: Record<CommandType, (c: Fields) => boolean> = {
   ARTILLERY_FIRE: c => isIdList(c.unitIds) && (c.target === undefined || isTile(c.target)),
   SURVEILLANCE: unitAt,
   FIRE_BALLISTA: unitAt,
-  FIRE_SWARM: unitAt,
   FAB_LAUNCH: c => isId(c.structureId) && oneOf(WARHEADS, c.warhead) && isTile(c.target),
   BOMBARD: c => isId(c.unitId) && (c.target === undefined || isTile(c.target)),
   HARDLINE_TETHER: unitLink,

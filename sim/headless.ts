@@ -26,6 +26,7 @@ import { bombardTick } from './bombard';
 import { baseCentreOf, spawnTile } from './baseLayout';
 import { captureTick } from './capture';
 import { applyCiwsState, ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
+import { damageDrones, emptySwarm, Swarm, swarmThreats, swarmTick } from './microdrones';
 import type { GridPos, Team } from './commands';
 import { coverMap, damageBuildings } from './cover';
 import { applyStructureCombat, bombardBuildings, bombardUnitDamage, resolveAttacks } from './combat';
@@ -92,6 +93,8 @@ export interface HeadlessMatch {
   smoke: SmokeScreen[];
   // Battery Mule Volt Cores counting down (sim/voltCore.ts).
   volt: VoltCharge[];
+  // Wasps' micro-drones (sim/microdrones.ts).
+  swarm: Swarm;
   nextId: number;
   // Seeded, so the same options always play out the same match.
   random: () => number;
@@ -133,6 +136,7 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     salvo: [],
     smoke: [],
     volt: [],
+    swarm: emptySwarm(),
     nextId: 0,
     random: seededRandom(opts.seed ^ 0x5eed),
     thinkRandom: seededRandom(opts.seed ^ 0x7a1c),
@@ -252,11 +256,17 @@ export function stepMatch(m: HeadlessMatch): void {
   for (const map of [hornets.structureDamage, salvo.structureDamage]) {
     if (map.size > 0) m.structures = applyStructureCombat(m.structures, { structureDamage: map, fired: new Map(), aiming: new Map() }, now);
   }
-  // Aegis rotary cannons: aircraft, and Thunderhead shells (the only ordnance flown here).
-  const ciws = ciwsTick(m.units, m.shells.map(s => ({ id: s.id, team: s.team, at: shellGroundPos(s, now), kind: 'shell' as const })), now, MOVE_TICK_MS, m.structures);
+  // Wasps' micro-drones hunt what is near their Wasps (sim/microdrones.ts).
+  const drones = swarmTick(m.swarm, m.units, now, MOVE_TICK_MS, () => `md-${++m.nextId}`);
+  drones.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+  drones.engaged.forEach((target, waspId) => attacks.aiming.set(waspId, target));
+  // Aegis rotary cannons: aircraft, and Thunderhead shells and micro-drones (the only ordnance flown here).
+  const ciws = ciwsTick(m.units, [...m.shells.map(s => ({ id: s.id, team: s.team, at: shellGroundPos(s, now), kind: 'shell' as const })), ...swarmThreats(drones.swarm)], now, MOVE_TICK_MS, m.structures);
+  m.swarm = damageDrones(drones.swarm, ciws.ordnanceDamage).swarm;
   m.structures = applyCiwsState(m.structures, ciws.structureUpdates);
   ciws.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
-  ciws.ordnanceDamage.forEach((n, id) => m.shellHits.set(id, (m.shellHits.get(id) || 0) + n));
+  const shellIds = new Set(m.shells.map(sh => sh.id));
+  ciws.ordnanceDamage.forEach((n, id) => { if (shellIds.has(id)) m.shellHits.set(id, (m.shellHits.get(id) || 0) + n); });
   m.shells = m.shells.filter(s => (m.shellHits.get(s.id) || 0) < ORDNANCE_INTEGRITY.shell);
   m.units = applyCiwsState(m.units, ciws.updates);
   const impact = landShells([...m.shells, ...volley.shells], now, m.units, m.structures);
@@ -283,7 +293,7 @@ export function stepMatch(m: HeadlessMatch): void {
   }
   // Who hit whom, for the pacing report's damage tally.
   recordWeaponHits(m.pacing, {
-    fired: attacks.fired, shots: [...(attacks.splashed ?? []), ...rail.shots, ...rail.pierceHits, ...hornets.shots, ...flechettes.shots, ...volt.hits], ciws: ciws.links,
+    fired: attacks.fired, shots: [...(attacks.splashed ?? []), ...rail.shots, ...rail.pierceHits, ...hornets.shots, ...flechettes.shots, ...volt.hits, ...drones.hits], ciws: ciws.links,
     blasts: [
       ...impact.landed.map(s => ({ attackerId: s.attackerId, team: s.team, at: s.at, radius: 2 })),
       ...salvo.landed.map(s => ({ attackerId: s.attackerId, team: s.team, at: s.at, radius: 2 })),

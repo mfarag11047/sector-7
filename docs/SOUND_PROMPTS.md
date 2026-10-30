@@ -62,7 +62,7 @@ In the game: every sound in **Weapons and blasts**. Still to record: everything 
 | File | Length | Takes | Prompt |
 |---|---|---|---|
 | `hornet_rocket` | 0.6 s | ×3 | Gunship firing a guided air-to-ground rocket, sharp hiss-whoosh streaking away fast. |
-| `wasp_swarm` | 1 s | ×3 | Volley of tiny homing micro-missiles fired in rapid succession from a drone pod, a dozen quick fizzing pops and whistles. |
+| `wasp_swarm` | 0.5 s | ×3 | A single micro-drone launched from a pod on an aircraft's wing, short pneumatic pop then a tiny high propeller whine zipping away. |
 | `flechette_burst` | 0.4 s | ×3 | Drone firing a shotgun-like burst of steel flechettes, sharp scattered metallic hiss. |
 | `grenade_launch` | 0.5 s | ×3 | Heavy mech launching a volley of grenades, hollow thunk-thunk-thunk of a rotary grenade launcher. |
 | `sentry_turret` | 0.8 s | ×3 | Automated base defence turret firing a railgun slug, high-voltage snap and ringing metallic crack. |

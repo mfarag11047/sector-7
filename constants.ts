@@ -128,15 +128,6 @@ export const ABILITY_CONFIG = {
   MULE_SMOG_COOLDOWN: 30000, // 30s
   MULE_SMOG_RANGE: 10,
 
-  // Wasp Abilities
-  WASP_SWARM_RANGE: 12,
-  WASP_SWARM_RADIUS: 2, 
-  WASP_SWARM_COOLDOWN: 15000, 
-  WASP_MAX_CHARGES: 2, 
-  WASP_MISSILES_PER_VOLLEY: 10, 
-  WASP_DAMAGE_PER_MISSILE: 15,
-  WASP_MISSILE_SPEED: 25, 
-  WASP_MISSILE_TURN_RATE: 5, 
   // Swarm Host Spawning
   SWARM_HOST_INITIAL_DRONES: 2,    // Fired out as soon as the host has anchored and opened up
   SWARM_HOST_SPAWN_INTERVAL: 7000, // Then one more on this cadence

@@ -27,13 +27,13 @@ import { isBatteryLinkable, muleRange } from './energy';
 export type AbilityCommand = Extract<PlayerCommand, { type:
   | 'TOGGLE_DAMPENER' | 'SET_HELIOS_MODE' | 'TOGGLE_JAMMER' | 'TOGGLE_ANCHOR' | 'TOGGLE_CLOAK_FIELD' | 'PHANTOM_DECOY'
   | 'LOAD_AMMO' | 'TAKE_WARHEAD' | 'FABRICATE' | 'RESUPPLY_MATERIAL' | 'TRANSFER_WARHEAD'
-  | 'ARTILLERY_FIRE' | 'SURVEILLANCE' | 'FIRE_BALLISTA' | 'FIRE_SWARM' | 'BOMBARD' | 'FAB_LAUNCH'
+  | 'ARTILLERY_FIRE' | 'SURVEILLANCE' | 'FIRE_BALLISTA' | 'BOMBARD' | 'FAB_LAUNCH'
   | 'HARDLINE_TETHER' | 'DISCONNECT_TETHER' | 'BATTERY_LINK' | 'DISCONNECT_BATTERY' | 'UNIT_ABILITY' }>;
 
 const ABILITY_TYPES: ReadonlySet<string> = new Set<AbilityCommand['type']>([
   'TOGGLE_DAMPENER', 'SET_HELIOS_MODE', 'TOGGLE_JAMMER', 'TOGGLE_ANCHOR', 'TOGGLE_CLOAK_FIELD', 'PHANTOM_DECOY',
   'LOAD_AMMO', 'TAKE_WARHEAD', 'FABRICATE', 'RESUPPLY_MATERIAL', 'TRANSFER_WARHEAD',
-  'ARTILLERY_FIRE', 'SURVEILLANCE', 'FIRE_BALLISTA', 'FIRE_SWARM', 'BOMBARD', 'FAB_LAUNCH',
+  'ARTILLERY_FIRE', 'SURVEILLANCE', 'FIRE_BALLISTA', 'BOMBARD', 'FAB_LAUNCH',
   'HARDLINE_TETHER', 'DISCONNECT_TETHER', 'BATTERY_LINK', 'DISCONNECT_BATTERY', 'UNIT_ABILITY',
 ]);
 export const isAbilityCommand = (c: PlayerCommand): c is AbilityCommand => ABILITY_TYPES.has(c.type);
@@ -277,36 +277,6 @@ export function abilityEffects(view: AbilityView, team: Team, command: AbilityCo
           damage: 0, radius: 1.0, maxDistance: Math.hypot(target.x - start.x, target.z - start.z), distanceTraveled: 0, targetPos: target,
           trajectory: 'ballistic', payload: warhead, startPos: start, startTime: ctx.now,
         }],
-      });
-    }
-    case 'FIRE_SWARM': {
-      const u = ownUnit(view, team, command.unitId, ['wasp']);
-      if (typeof u === 'string') return reject(u);
-      if (!u.charges?.swarm || u.charges.swarm <= 0) return reject('no swarm charges left');
-      // Change: the cooldown was set but never checked.
-      if ((u.cooldowns.swarmLaunch || 0) > 0) return reject('swarm launcher reloading');
-      const start = world(u.gridPos, 75.0, ctx); // Wasps hover at 75
-      const target = world(command.target, 0.5, ctx);
-      const baseAngle = Math.atan2(target.z - start.z, target.x - start.x);
-      const speed = ABILITY_CONFIG.WASP_MISSILE_SPEED;
-      const swarm: Projectile[] = [];
-      for (let i = 0; i < ABILITY_CONFIG.WASP_MISSILES_PER_VOLLEY; i++) {
-        // A wide cone, about +/- 80 degrees, climbing first so the darts fan out.
-        const angle = baseAngle + (ctx.random() - 0.5) * 2.8;
-        swarm.push({
-          id: ctx.newId('microdrone'), ownerId: u.id, team: u.team, position: { ...start },
-          velocity: { x: Math.cos(angle) * speed, y: ctx.random() * 3 + 2, z: Math.sin(angle) * speed },
-          damage: ABILITY_CONFIG.WASP_DAMAGE_PER_MISSILE, radius: 0.5, maxDistance: 200, distanceTraveled: 0,
-          targetPos: target, trajectory: 'swarm', startPos: start, startTime: ctx.now, phase: 'ascent',
-        });
-      }
-      return effects({
-        updates: new Map([[u.id, w => ({
-          ...w,
-          charges: { ...w.charges, swarm: (w.charges?.swarm || 1) - 1 },
-          cooldowns: { ...w.cooldowns, swarmLaunch: ABILITY_CONFIG.WASP_SWARM_COOLDOWN },
-        })]]),
-        spawnProjectiles: swarm,
       });
     }
     case 'BOMBARD': {

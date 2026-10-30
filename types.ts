@@ -200,13 +200,9 @@ export interface UnitData {
   combatTargetId?: string | null;
   // Attack-move: stop to fight anything in range, then carry on along the path.
   attackMove?: boolean;
-  charges?: {
-    swarm?: number;
-  };
   cooldowns: {
     trophySystem?: number;
     combatPrint?: number;
-    swarmLaunch?: number;
     smogShell?: number;
     mainCannon?: number;
     spawnWasp?: number; 
@@ -387,11 +383,10 @@ export interface Projectile {
     maxDistance: number;
     distanceTraveled: number;
     targetPos?: { x: number, y: number, z: number }; // For guided/ballistic
-    trajectory: 'direct' | 'ballistic' | 'swarm';
+    trajectory: 'direct' | 'ballistic';
     payload?: 'emp' | 'he' | 'wp' | 'nano_canister' | 'nano_cloud_master' | 'titan_drop' | 'cloak_drop' | 'field_drop' | null; // For warheads
     startPos?: { x: number, y: number, z: number };
     startTime?: number;
-    lockedTargetId?: string | null; // For swarm homing
     // Aim point refreshed by the sim. The mesh steers toward this every frame
     // so homing stays smooth while collision still runs on the slow tick.
     guidePos?: { x: number, y: number, z: number };

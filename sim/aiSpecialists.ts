@@ -8,7 +8,7 @@
 //     the army, the Battery Mule plants at the staging point, Swarm Hosts anchor in a fight,
 //     Ballistas stay by the Ordnance Fab, Bombardment Drones fly their own strikes.
 //   - When to use their abilities: Ghost Dampener and Phantom Decoy, Banshee jammer and
-//     tether, Helios mode, Wasp swarm volleys, drone Surveillance, Battery Mule
+//     tether, Helios mode, drone Surveillance, Battery Mule
 //     links, warheads for the Ballista, turrets for the Masons, and new Command HQs.
 
 import { ABILITY_CONFIG, UNIT_STATS } from '../constants';
@@ -256,13 +256,6 @@ export function specialistAbilities(c: AbilityContext2): Action[] {
         const mode = u.heliosMode ?? 'charge';
         if (burn && mode !== 'burn') toBurn.push(u.id);
         else if (!burn && mode === 'burn' && (battery < 0.2 || near(u.gridPos, HELIOS.radius + 1).length === 0)) toCharge.push(u.id);
-        break;
-      }
-      case 'wasp': {
-        // A swarm volley into the thickest enemy group in reach.
-        if ((u.charges?.swarm || 0) <= 0 || (u.cooldowns?.swarmLaunch || 0) > 0) break;
-        const best = densest(near(u.gridPos, 6, t => UNIT_RULES[t.type].armor !== 'air'), 2);
-        if (best && best.value >= 300) actions.push({ kind: 'ability', command: { type: 'FIRE_SWARM', unitId: u.id, target: best.at } });
         break;
       }
       case 'drone':

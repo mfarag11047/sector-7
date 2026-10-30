@@ -79,7 +79,9 @@ export const UNIT_RULES: Record<UnitType, UnitRules> = {
   // --- Airpad: aircraft. Ignore walls and terrain, beat vehicles. ---
   drone: { armor: 'air', weapon: null, pop: 1, tier: 1, producer: 'air', buildTimeMs: 10000, role: 'Radar scout. Picks up ground units and large aircraft.' },
   attack_drone: { armor: 'air', weapon: { damage: 6, cooldownMs: 400, range: 3, type: 'mg', hitsGround: true, hitsAir: true }, pop: 1, tier: 1, producer: 'air', buildTimeMs: 12000, role: 'Cheap armed drone. Machine gun that does decent damage to everything, ground and air.' },
-  wasp: { armor: 'air', weapon: rifle(6, 600, 3), pop: 2, tier: 2, producer: 'air', buildTimeMs: 22000, role: 'Harasser. Fires homing swarm volleys.' },
+  // Its micro-drone swarm is shown here for menus and balance (a drone's strike, one built every
+  // 1.5 s, reaching 6 tiles); the drones fight through sim/microdrones.ts (MICRODRONE).
+  wasp: { armor: 'air', weapon: { damage: 16, cooldownMs: 1500, range: 6, type: 'mg', hitsGround: true, hitsAir: true, indirect: true }, pop: 2, tier: 2, producer: 'air', buildTimeMs: 22000, role: 'Swarm launcher. Its micro-drones hunt enemies near it, then ride with it to the next fight.' },
   hornet: { armor: 'air', weapon: ap(32, 1600, 4), pop: 3, tier: 2, producer: 'air', buildTimeMs: 26000, role: 'Gunship. AP rounds hunt vehicles; rockets at Tier 3.' },
   bombard: { armor: 'air', weapon: null, pop: 4, tier: 3, producer: 'air', buildTimeMs: 35000, role: 'Levels a 5x5 patch of city, opening new lanes.' },
 

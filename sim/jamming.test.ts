@@ -77,15 +77,15 @@ describe('Banshee jamming', () => {
   });
 
   it('refuses abilities to jammed units', () => {
-    const units = apply([banshee(), unit('wasp', { type: 'wasp', charges: { swarm: 2 } })]);
-    const fired = abilityEffects({ units, structures: [], economy: createEconomy() }, 'red', { type: 'FIRE_SWARM', unitId: 'wasp', target: { x: 25, z: 25 } }, abilities);
+    const units = apply([banshee(), unit('drone', { type: 'drone' })]);
+    const fired = abilityEffects({ units, structures: [], economy: createEconomy() }, 'red', { type: 'SURVEILLANCE', unitId: 'drone', target: { x: 25, z: 25 } }, abilities);
     expect('reason' in fired && fired.reason).toMatch(/jammed/);
   });
 
   it('still lets a jammed unit fire on its own at what is in range', () => {
-    const units = apply([banshee({ gridPos: { x: 23, z: 20 } }), unit('wasp', { type: 'wasp' })]);
+    const units = apply([banshee({ gridPos: { x: 21, z: 20 } }), unit('kestrel', { type: 'attack_drone' })]);
     expect(units[1].isJammed).toBe(true);
-    expect(resolveAttacks(units, [], 10_000, () => false).fired.get('wasp')).toBe('jammer');
+    expect(resolveAttacks(units, [], 10_000, () => false).fired.get('kestrel')).toBe('jammer');
   });
 
   it('counts drones and other uncrewed machines as remote-controlled', () => {

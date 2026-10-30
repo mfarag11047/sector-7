@@ -16,6 +16,7 @@ import { RADAR, SEARCH_RADAR } from '../sim/radar';
 import { RAILGUN, railDamage } from '../sim/railgun';
 import { HORNET } from '../sim/hornet';
 import { BOMBARD, DROPS_TO_DESTROY } from '../sim/bombard';
+import { MICRODRONE } from '../sim/microdrones';
 import { FORCE_FIELD } from '../sim/forcefield';
 import { CLOAK_FIELD } from '../sim/cloak';
 import { BASE_SITE } from '../sim/bases';
@@ -118,8 +119,7 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
     actions: [{ name: 'Surveillance', text: `Flies to a spot and circles it for ${ABILITY_CONFIG.SURVEILLANCE_DURATION / 60000} minutes, its radar reaching ${SEARCH_RADAR.surveillanceRange} tiles from the centre.` }],
   },
   wasp: {
-    use: 'Harasser aircraft with homing missile swarms.',
-    actions: [{ name: 'Fire Swarm', text: `Launches ${ABILITY_CONFIG.WASP_MISSILES_PER_VOLLEY} homing missiles at a spot up to ${ABILITY_CONFIG.WASP_SWARM_RANGE} tiles away. ${ABILITY_CONFIG.WASP_MAX_CHARGES} charges.` }],
+    use: `Swarm launcher aircraft. Builds a micro-drone every ${MICRODRONE.buildMs / 1000}s and keeps ${MICRODRONE.escort} circling it as it flies. When enemies come within ${MICRODRONE.seekRadius} tiles it builds up to ${MICRODRONE.max}, and they dive at them on their own, spreading over the targets: each drone hits once (ground or air) and is spent. After the fight they form up round the Wasp again. Lose the Wasp and you lose its swarm; Aegis and CIWS guns shoot the drones down.`,
   },
   hornet: { use: `Gunship. Hunts vehicles with armour-piercing rounds; at Tier 3 it also fires an anti-vehicle rocket every ${HORNET.rocket.cooldownMs / 1000}s at its target (${HORNET.rocket.damage} AP) and gains the Hellfire Salvo, a rocket barrage over an area. Avoid Aegis and massed Troopers.` },
   bombard: {

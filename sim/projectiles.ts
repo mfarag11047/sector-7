@@ -1,4 +1,4 @@
-// Projectile flight: Titan shells, Ballista missiles, Wasp swarms, orbital drops and
+// Projectile flight: Titan shells, Ballista missiles, orbital drops and
 // nano canisters.
 //
 // This code used to run once per animation frame, so shells flew slower whenever the
@@ -67,7 +67,7 @@ export const cloneProjectile = (p: Projectile): Projectile => ({
     targetPos: p.targetPos ? { ...p.targetPos } : undefined,
 });
 
-// Trophy systems stop heavy ordnance only. Small-arms fire and swarm darts are not shots it can catch.
+// Trophy systems stop heavy ordnance only. Small-arms fire is not a shot it can catch.
 export const isHeavyOrdnance = (p: Projectile) => {
     if (p.trajectory === 'ballistic' && (p.payload === 'emp' || p.payload === 'he' || p.payload === 'wp')) return true;
     if (p.trajectory === 'direct' && !p.payload && p.damage >= ABILITY_CONFIG.TITAN_CANNON_DAMAGE) return true;
@@ -134,107 +134,6 @@ export const advanceFlight = (
         }
         if (p.payload === 'nano_cloud_master') events.push({ kind: 'cloud', cloudType: 'nano', position: p.targetPos, team: p.team });
         return events;
-    }
-
-    if (p.trajectory === 'swarm' && p.targetPos && p.startPos) {
-        let targetLocation = p.targetPos;
-        let hasUnitTarget = false;
-
-        if (p.lockedTargetId) {
-            const lockedUnit = units.find(u => u.id === p.lockedTargetId && u.health > 0 && !isHidden(u));
-            const lockedDecoy = decoys.find(d => d.id === p.lockedTargetId);
-            if (lockedUnit) {
-                targetLocation = {
-                    x: (lockedUnit.gridPos.x * CITY_CONFIG.tileSize) - offset,
-                    y: flightUnitY(lockedUnit),
-                    z: (lockedUnit.gridPos.z * CITY_CONFIG.tileSize) - offset,
-                };
-                hasUnitTarget = true;
-            } else if (lockedDecoy) {
-                targetLocation = decoyWorld(lockedDecoy, offset, tileSize);
-                hasUnitTarget = true;
-            } else {
-                p.lockedTargetId = null;
-            }
-        }
-
-        if (!hasUnitTarget) {
-            let closestDist = 6 * CITY_CONFIG.tileSize;
-            let bestCandidateId: string | null = null;
-            for (const u of units) {
-                if (u.team === p.team || u.team === 'neutral' || u.health <= 0 || isHidden(u)) continue;
-                const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
-                const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
-                const dist = Math.hypot(p.position.x - uX, p.position.z - uZ);
-                if (dist < closestDist) {
-                    closestDist = dist;
-                    bestCandidateId = u.id;
-                }
-            }
-            for (const d of decoys) {
-                if (d.team === p.team) continue;
-                const pos = decoyWorld(d, offset, tileSize);
-                const dist = Math.hypot(p.position.x - pos.x, p.position.z - pos.z);
-                if (dist < closestDist) {
-                    closestDist = dist;
-                    bestCandidateId = d.id;
-                }
-            }
-            if (bestCandidateId) {
-                p.lockedTargetId = bestCandidateId;
-                hasUnitTarget = true;
-            }
-        }
-
-        const timeAlive = now - (p.startTime || 0);
-        if (timeAlive > 500) {
-            const dx = targetLocation.x - p.position.x;
-            const dy = targetLocation.y - p.position.y;
-            const dz = targetLocation.z - p.position.z;
-            const distToTarget = Math.hypot(dx, dy, dz) || 1;
-            const speed = ABILITY_CONFIG.WASP_MISSILE_SPEED;
-            const turnRate = hasUnitTarget ? 8.0 : 2.0;
-            p.velocity.x += ((dx / distToTarget) * speed - p.velocity.x) * turnRate * dt;
-            p.velocity.y += ((dy / distToTarget) * speed - p.velocity.y) * turnRate * dt;
-            p.velocity.z += ((dz / distToTarget) * speed - p.velocity.z) * turnRate * dt;
-        } else {
-            p.velocity.y -= 5 * dt;
-        }
-
-        p.position.x += p.velocity.x * dt;
-        p.position.y += p.velocity.y * dt;
-        p.position.z += p.velocity.z * dt;
-
-        let hit = Math.hypot(p.position.x - targetLocation.x, p.position.y - targetLocation.y, p.position.z - targetLocation.z) < 2.0;
-        if (p.position.y <= 0.5) hit = true;
-        if (!hit) {
-            for (const u of units) {
-                if (u.team === p.team || u.health <= 0 || u.decoyActive) continue;
-                const uX = (u.gridPos.x * CITY_CONFIG.tileSize) - offset;
-                const uZ = (u.gridPos.z * CITY_CONFIG.tileSize) - offset;
-                const dist = Math.hypot(p.position.x - uX, p.position.y - flightUnitY(u), p.position.z - uZ);
-                if (dist < 1.5) { hit = true; break; }
-            }
-        }
-        if (!hit) {
-            for (const d of decoys) {
-                if (d.team === p.team) continue;
-                const pos = decoyWorld(d, offset, tileSize);
-                if (Math.hypot(p.position.x - pos.x, p.position.y - pos.y, p.position.z - pos.z) < 1.5) { hit = true; break; }
-            }
-        }
-        if (Math.hypot(p.position.x - p.startPos.x, p.position.z - p.startPos.z) > 100) hit = true;
-        if (!hit) return null;
-        const struckDecoy = decoys.find(d => {
-            if (d.team === p.team) return false;
-            const pos = decoyWorld(d, offset, tileSize);
-            return Math.hypot(p.position.x - pos.x, p.position.z - pos.z) < CITY_CONFIG.tileSize * 0.8;
-        });
-        return [
-            { kind: 'explosion', position: { ...p.position }, radius: 1.5, duration: 300 },
-            { kind: 'damage', position: { ...p.position }, damage: p.damage, radius: 1.5, team: p.team, ownerId: p.ownerId },
-            ...(struckDecoy ? [{ kind: 'decoy' as const, id: struckDecoy.id }] : []),
-        ];
     }
 
     const speed = Math.hypot(p.velocity.x, p.velocity.y, p.velocity.z);

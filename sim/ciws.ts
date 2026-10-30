@@ -35,8 +35,9 @@ export const CIWS = {
 };
 
 // How much fire each kind of ordnance takes to knock down.
-// A missile takes 2 s of fire; one magazine (3.5 s) brings down anything.
-export const ORDNANCE_INTEGRITY = { missile: 120, shell: 30, pod: 180 } as const;
+// A missile takes 2 s of fire; one magazine (3.5 s) brings down anything. A Wasp's micro-drone
+// (sim/microdrones.ts MICRODRONE.integrity) comes apart in a tick.
+export const ORDNANCE_INTEGRITY = { missile: 120, shell: 30, pod: 180, microdrone: 6 } as const;
 export type OrdnanceKind = keyof typeof ORDNANCE_INTEGRITY;
 
 // Something in the air the gun can shoot at: in fractional tiles.

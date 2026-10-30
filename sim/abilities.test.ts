@@ -102,16 +102,6 @@ describe('Ballista and Field Fabricator', () => {
   });
 });
 
-describe('Wasp swarm', () => {
-  it('launches a volley, spends a charge and must reload', () => {
-    const wasp = unit('w', { type: 'wasp', unitClass: 'air', charges: { swarm: 2 } });
-    const r = run(view([wasp]), { type: 'FIRE_SWARM', unitId: 'w', target: { x: 10, z: 10 } });
-    expect(r.fx!.spawnProjectiles).toHaveLength(ABILITY_CONFIG.WASP_MISSILES_PER_VOLLEY);
-    expect(new Set(r.fx!.spawnProjectiles.map(p => p.id)).size).toBe(ABILITY_CONFIG.WASP_MISSILES_PER_VOLLEY);
-    expect(run(view([after(r, 'w')]), { type: 'FIRE_SWARM', unitId: 'w', target: { x: 10, z: 10 } }).refused).toMatch(/reloading/);
-  });
-});
-
 describe('links', () => {
   const banshee = (id: string, patch: Partial<UnitData> = {}) => unit(id, { type: 'banshee', unitClass: 'support', ...patch });
   const drone = unit('d', { type: 'drone', unitClass: 'air', gridPos: { x: 7, z: 5 } });
