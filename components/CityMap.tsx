@@ -529,6 +529,8 @@ const RailBeam: React.FC<{ beam: RailBeamData; tileSize: number; offset: number 
     );
 };
 
+// The fireball of a Volt Core's physical blast: about two tiles across, with the large explosion sound.
+const VOLT_FIREBALL = 12;
 // A Battery Mule's Volt Core gone critical (sim/voltCore.ts): its core sparks where it fell, a red
 // ring marks the blast radius, and a flashing red warning sign counts down the seconds to the blast.
 const VoltWarning: React.FC<{ charge: VoltCharge; tileSize: number; offset: number }> = ({ charge, tileSize, offset }) => {
@@ -3779,19 +3781,24 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               miniRocketsRef.current = [...miniRocketsRef.current, ...lobbed.grenades];
               setMiniRockets(miniRocketsRef.current);
           }
-          // Volt Cores whose countdown is over detonate: a big blue discharge (sim/voltCore.ts).
+          // Volt Cores whose countdown is over detonate: a big blue discharge and a fireball, the
+          // blast hitting enemy structures too (sim/voltCore.ts).
           const voltDue = dueCharges([...voltRef.current.values()], now);
           if (voltDue.length > 0) {
-              const volt = voltBlasts(currentUnitsRef, voltDue);
+              const volt = voltBlasts(currentUnitsRef, voltDue, structuresRef.current);
               volt.damage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+              volt.structureDamage.forEach((n, id) => attacks.structureDamage.set(id, (attacks.structureDamage.get(id) || 0) + n));
               if (pacing) recordWeaponHits(pacing, { shots: volt.hits }, currentUnitsRef, structuresRef.current);
               for (const c of voltDue) voltRef.current.delete(c.muleId);
               voltCharges.current = [...voltRef.current.values()];
               setVoltWarnings(voltCharges.current);
-              setExplosions(prev => [...prev, ...voltDue.map(c => ({
-                  id: `volt-${c.muleId}`, style: 'emp' as const, radius: VOLT.radius * tileSize, duration: 900, createdAt: now,
-                  position: { x: c.at.x * tileSize - offset, y: 1.5, z: c.at.z * tileSize - offset },
-              }))]);
+              setExplosions(prev => [...prev, ...voltDue.flatMap(c => {
+                  const position = { x: c.at.x * tileSize - offset, y: 1.5, z: c.at.z * tileSize - offset };
+                  return [
+                      { id: `volt-${c.muleId}`, style: 'emp' as const, radius: VOLT.radius * tileSize, duration: 900, createdAt: now, position },
+                      { id: `volt-blast-${c.muleId}`, radius: VOLT_FIREBALL, duration: 900, createdAt: now, position },
+                  ];
+              })]);
           }
           if (flechettes.shots.length > 0) {
               setTracers(prev => [...prev, ...flechettes.shots.flatMap((s, i) => [-0.35, 0, 0.35].map((spread, j): TracerData => ({

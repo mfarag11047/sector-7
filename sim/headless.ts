@@ -240,10 +240,11 @@ export function stepMatch(m: HeadlessMatch): void {
   }
   // Volt Cores whose countdown is over detonate (sim/voltCore.ts).
   const due = dueCharges(m.volt, now);
-  const volt = voltBlasts(m.units, due);
+  const volt = voltBlasts(m.units, due, m.structures);
   if (due.length > 0) {
     m.volt = m.volt.filter(c => !due.includes(c));
     volt.damage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+    if (volt.structureDamage.size > 0) m.structures = applyStructureCombat(m.structures, { structureDamage: volt.structureDamage, fired: new Map(), aiming: new Map() }, now);
   }
   const salvo = landSalvo(m.salvo, now, m.units, m.structures);
   m.salvo = salvo.flying;

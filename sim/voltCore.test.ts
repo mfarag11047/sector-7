@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import type { UnitData } from '../types';
+import type { StructureData, UnitData } from '../types';
 import { createHeadlessMatch, stepMatch } from './headless';
 import { createUnit } from './production';
-import { armMules, countdownOf, dueCharges, VOLT, voltBlasts, voltDamage } from './voltCore';
+import { DAMAGE_MULTIPLIER } from './units';
+import { armMules, countdownOf, dueCharges, VOLT, voltBlastDamage, voltBlasts, voltDamage } from './voltCore';
 
 const NOW = 100_000;
 const unit = (id: string, type: UnitData['type'], team: UnitData['team'], x: number, z = 0, patch: Partial<UnitData> = {}) =>
@@ -27,11 +28,36 @@ describe('Battery Mule Volt Core', () => {
     const [charge] = armMules([unit('m', 'sun_plate', 'blue', 0, 0, { health: 0 })], armed, NOW);
     const units = [unit('near', 'tank', 'red', 1), unit('edge', 'tank', 'red', 4), unit('far', 'tank', 'red', 6), unit('wasp', 'wasp', 'red', 2), unit('own', 'tank', 'blue', 1, 1)];
     const { damage } = voltBlasts(units, [charge]);
-    expect(damage.get('near')).toBeCloseTo(voltDamage(1));
+    expect(damage.get('near')).toBeCloseTo(voltDamage(1) + voltBlastDamage(1) * DAMAGE_MULTIPLIER.explosive.heavy);
     expect(damage.get('near')!).toBeGreaterThan(damage.get('edge')!);
     expect(damage.has('far')).toBe(false);
     expect(damage.get('wasp')).toBeGreaterThan(0);
     expect(damage.has('own')).toBe(false);
+  });
+
+  it('blasts as well as discharges: hardest on infantry, least on heavy armour, aircraft only shocked', () => {
+    expect(voltBlastDamage(0)).toBe(VOLT.blast.damage);
+    expect(voltBlastDamage(VOLT.blast.radius)).toBeCloseTo(VOLT.blast.damage * VOLT.blast.edge);
+    expect(voltBlastDamage(VOLT.blast.radius + 0.5)).toBe(0);
+    const [charge] = armMules([unit('m', 'sun_plate', 'blue', 0, 0, { health: 0 })], armed, NOW);
+    const { damage } = voltBlasts([unit('inf', 'trooper', 'red', 1), unit('tank', 'tank', 'red', 1, 0.0001), unit('air', 'hornet', 'red', 0, 1)], [charge]);
+    expect(damage.get('inf')).toBeCloseTo(voltDamage(1) + voltBlastDamage(1) * DAMAGE_MULTIPLIER.explosive.infantry);
+    expect(damage.get('inf')!).toBeGreaterThan(damage.get('tank')!);
+    expect(damage.get('air')).toBeCloseTo(voltDamage(1));
+    // At the centre the two together are well past what the discharge alone does.
+    expect(voltDamage(0) + voltBlastDamage(0)).toBeGreaterThan(VOLT.damage * 2);
+  });
+
+  it('wrecks enemy structures in the blast, sparing its own side', () => {
+    const structure = (id: string, team: 'blue' | 'red', x: number): StructureData => ({
+      id, type: 'defense', team, gridPos: { x, z: 0 }, isBlueprint: false, constructionProgress: 100, maxProgress: 100, health: 900, maxHealth: 900,
+    });
+    const [charge] = armMules([unit('m', 'sun_plate', 'blue', 0, 0, { health: 0 })], armed, NOW);
+    const { structureDamage, hits } = voltBlasts([], [charge], [structure('near', 'red', 1), structure('far', 'red', 5), structure('own', 'blue', 1)]);
+    expect(structureDamage.get('near')).toBeCloseTo(voltBlastDamage(1) * DAMAGE_MULTIPLIER.explosive.structure);
+    expect(structureDamage.has('far')).toBe(false);
+    expect(structureDamage.has('own')).toBe(false);
+    expect(hits).toEqual([{ attackerId: 'm', targetId: 'near' }]);
   });
 
   it('counts down and then goes off in a match, and a mule it kills goes critical in turn', () => {

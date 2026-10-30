@@ -1033,9 +1033,15 @@ replaced the old manually aimed Main Cannon:
 Battery Mule the side has. When a mule is destroyed its core goes critical where it fell: a
 sparking core, a red ring marking the blast radius, and a flashing red warning sign counting down
 3, 2, 1, flashing faster as it nears zero. Both sides see it, so there's a moment to get clear.
-Then it detonates in a blue electrical discharge: 220 damage at the centre to every enemy unit
-within 4 tiles, ground or air, falling off evenly to 25% (55) at the rim. Friendly units and
-structures are spared. A mule killed by the blast goes critical in turn, with its own countdown,
+Then it detonates two ways at once, in a blue electrical discharge and a fireball:
+- the discharge: 220 damage at the centre to every enemy unit within 4 tiles, ground or air,
+  falling off evenly to 25% (55) at the rim;
+- the physical blast: 260 explosive damage at the centre within 3 tiles, falling off to 30% at the
+  rim, to enemy ground units (by the explosive multipliers: 325 to infantry, 195 to heavy armour)
+  and enemy structures (390). Aircraft are above it and take only the discharge.
+
+So a tank right beside it takes over 400 of its 600 health, and infantry, light vehicles and a
+turret close by don't survive it. Friendly units and structures are spared. A mule killed by the blast goes critical in turn, with its own countdown,
 so a cluster of mules goes off in a rolling chain. The mule's menu shows "Volt Core: armed"
 once researched. A mule behind the army turns from a liability into a trap: dive it and pay.
 
