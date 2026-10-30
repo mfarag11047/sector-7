@@ -1,10 +1,15 @@
 # Cuts a raw sound pack down for the game: trims each clip to its first transient (the railgun to
 # its shot, after the charge-up), cuts it to length with a fade, mixes it to mono, levels the takes
-# of each sound to match, and writes public/sfx/manifest.json. Needs ffmpeg.
-# Usage: python3 tools/process_sfx.py <unzipped pack sfx dir> <earlier rifle takes dir> public/sfx
+# of each sound to match, and adds the pack's sounds to public/sfx/manifest.json (keeping the other
+# packs' entries). Needs ffmpeg.
+# Usage: python3 tools/process_sfx.py weapons <unzipped pack sfx dir> <earlier rifle takes dir> public/sfx
+#        python3 tools/process_sfx.py impacts <unzipped pack sfx dir> public/sfx
 import json, math, os, struct, subprocess, sys
 
-src, earlier, out = sys.argv[1:4]
+mode = sys.argv[1]
+if mode == 'weapons': src, earlier, out = sys.argv[2:5]
+elif mode == 'impacts': src, out = sys.argv[2:4]
+else: sys.exit(f'unknown pack {mode}: weapons or impacts')
 SR = 44100
 
 def pcm(path, start=0.0, length=None):
@@ -31,9 +36,10 @@ def last_onset(path):
     hits = [i for i in range(10, len(f)) if max(db(v) for v in f[i - 10:i]) < -60 and db(f[i]) > -60]
     return max(0, hits[-1] * 0.01 - 0.005)
 
-# kind: [(file, start, length, fade_from, fade_in)], target loudest-50ms RMS in dBFS
+# kind: [(file, start, length, fade_from, fade_in)], target loudest-50ms RMS in dBFS. A take starts
+# at its onset, at the railgun's last onset ('last'), or at a set time in seconds.
 O = 'onset'
-SPECS = {
+WEAPONS = {
     'rifle': ([(f'rifle_{i}.mp3', O, 0.45, 0.22, 0) for i in range(1, 5)], -12),
     'mg': ([(f'mg_{i}.mp3', O, 0.32, 0.15, 0) for i in range(1, 5)], -12),
     'flak': ([(f'flak_{i}.mp3', O, 0.6, 0.3, 0) for i in range(1, 5)], -12),
@@ -48,7 +54,21 @@ SPECS = {
     'emp': ([(f'emp_{i}.mp3', O, 1.6, 0.8, 0) for i in range(1, 3)], -12),
     'shield': ([(f'shield_{i}.mp3', O, 0.5, 0.25, 0) for i in range(1, 3)], -14),
 }
-DESCRIPTIONS = json.load(open(os.path.join(src, 'manifest.json')))
+IMPACTS = {
+    'hit_metal': ([(f'hit_metal_{i}.mp3', O, 0.7, 0.35, 0) for i in (1, 2)], -12),
+    'hit_concrete': ([(f'hit_concrete_{i}.mp3', O, 0.6, 0.3, 0) for i in (1, 2)], -12),
+    'hit_heavy_building': ([('hit_heavy_building_1.mp3', O, 2.4, 1.6, 0), ('hit_heavy_building_2.mp3', O, 2.0, 1.2, 0)], -12),
+    'building_collapse': ([(f'building_collapse_{i}.mp3', O, 4.5, 2.5, 0) for i in (1, 2)], -12),
+    'wall_breach': ([(f'wall_breach_{i}.mp3', O, 3.0, 1.6, 0) for i in (1, 2)], -12),
+    # The doors hiss and grind for seconds before their thud; each take starts late in the hiss so
+    # the thud lands about 0.6 s in, as the door (0.9 s to move) is nearly there.
+    'gate_cycle': ([('gate_cycle_1.mp3', 1.9, 1.5, 1.0, 0.05), ('gate_cycle_2.mp3', 2.8, 1.5, 1.0, 0.05)], -12),
+    'unit_destroyed_infantry': ([(f'unit_destroyed_infantry_{i}.mp3', O, 1.2, 0.6, 0) for i in (1, 2)], -12),
+    # The first take is the pop and sputter; the second, quieter, has its crash 3.5 s in.
+    'unit_destroyed_drone': ([('unit_destroyed_drone_1.mp3', O, 1.8, 1.0, 0), ('unit_destroyed_drone_2.mp3', 3.3, 1.6, 0.9, 0.03)], -12),
+}
+SPECS = WEAPONS if mode == 'weapons' else IMPACTS
+DESCRIPTIONS = json.load(open(os.path.join(src, 'manifest.json' if mode == 'weapons' else 'manifest_impacts.json')))
 
 manifest, report = {}, []
 for kind, (takes, target) in SPECS.items():
@@ -72,7 +92,7 @@ for kind, (takes, target) in SPECS.items():
     manifest[kind] = {'description': DESCRIPTIONS[kind]['description'], 'files': files}
 
 # Earlier rifle takes, already trimmed: levelled like the rest and kept as more variety.
-for n, name in enumerate(sorted(os.listdir(earlier)), 5):
+for n, name in enumerate(sorted(os.listdir(earlier)) if mode == 'weapons' else [], 5):
     dest = f'rifle_{n}.mp3'
     wav = os.path.join(out, '_cut.wav')
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', os.path.join(earlier, name), '-ac', '1', '-ar', str(SR), wav], check=True)
@@ -124,12 +144,17 @@ def make_loop(key, description, sources, attack, body_s, xfade, target):
         report.append(f'{dest:24} from {name} at {o / SR:5.2f}s: {attack}s opening, {body_s}s loop, gain {20 * math.log10(gain):+5.1f} dB')
     manifest[key] = {'description': description, 'files': files, 'loop': [attack, attack + body_s]}
 
-# The Sentinel's beam: the opening zap, then the steady hum.
-make_loop('laser_beam', 'Sentinel drone energy beam, looped while it fires', ['laser_1.mp3', 'laser_2.mp3'], 0.9, 2.4, 0.25, -20)
-# The CIWS guns' roar, for as long as a burst lasts. The first take drops away after 0.85 s, too
-# short to loop; the others hold steady for over two seconds.
-make_loop('ciws_fire', 'Rotary close-in weapon system, looped while it fires', ['ciws_2.mp3', 'ciws_3.mp3', 'ciws_4.mp3'], 0.1, 1.9, 0.12, -16)
+if mode == 'weapons':
+    # The Sentinel's beam: the opening zap, then the steady hum.
+    make_loop('laser_beam', 'Sentinel drone energy beam, looped while it fires', ['laser_1.mp3', 'laser_2.mp3'], 0.9, 2.4, 0.25, -20)
+    # The CIWS guns' roar, for as long as a burst lasts. The first take drops away after 0.85 s, too
+    # short to loop; the others hold steady for over two seconds.
+    make_loop('ciws_fire', 'Rotary close-in weapon system, looped while it fires', ['ciws_2.mp3', 'ciws_3.mp3', 'ciws_4.mp3'], 0.1, 1.9, 0.12, -16)
 
-json.dump(manifest, open(os.path.join(out, 'manifest.json'), 'w'), indent=2)
+# Into the manifest the game reads, beside the other packs' sounds.
+path = os.path.join(out, 'manifest.json')
+merged = json.load(open(path)) if os.path.exists(path) else {}
+merged.update(manifest)
+json.dump(merged, open(path, 'w'), indent=2)
 open(os.path.join(out, 'manifest.json'), 'a').write('\n')
 print('\n'.join(report))

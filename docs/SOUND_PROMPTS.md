@@ -28,14 +28,16 @@ game already plays are those in **Weapons and blasts** (explosions by size: `exp
 `explosion`, `explosion_large`) plus `hornet_rocket`, `wasp_swarm` and `ballista_launch`, which
 play a made-in-code sound until they have recordings. The others need hooking up where they happen.
 
-`tools/process_sfx.py` is how the weapon pack was cut down: it trims each raw clip to its first
+`tools/process_sfx.py` is how the packs were cut down (`weapons` and `impacts` modes, each merged
+into the manifest): it trims each raw clip to its first
 transient (the railgun to its shot, after the charge-up), cuts it to length with a fade, mixes it
 to mono, levels the takes of each sound to match and writes the manifest. The Sentinel's laser and the
 CIWS are made into loops (`laser_beam`, `ciws_fire`): the opening plays once, then a crossfaded
 stretch of the steady sound repeats for as long as the beam is on or the burst lasts; their
 manifest entries give the loop points.
 
-In the game: every sound in **Weapons and blasts**. Still to record: everything below it.
+In the game: every sound in **Weapons and blasts** and **Impacts and destruction**. Still to
+record: the rest.
 
 ## Weapons and blasts (replace the current sounds)
 

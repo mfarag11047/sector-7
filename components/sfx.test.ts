@@ -51,6 +51,13 @@ describe('recorded sounds', () => {
     for (const kind of Object.keys(manifest).filter(k => k !== 'laser_beam' && k !== 'ciws_fire')) expect(SOUNDS[kind.startsWith('explosion') ? 'explosion' : kind as keyof typeof SOUNDS]).toBeTypeOf('function');
   });
 
+  it('has recordings for every impact and destruction sound', () => {
+    for (const kind of ['hit_metal', 'hit_concrete', 'hit_heavy_building', 'building_collapse', 'wall_breach', 'gate_cycle', 'unit_destroyed_infantry', 'unit_destroyed_drone']) {
+      expect(manifest[kind as keyof SampleManifest]?.files.length, kind).toBe(2);
+      expect(SOUNDS[kind as keyof typeof SOUNDS], kind).toBeTypeOf('function');
+    }
+  });
+
   it('plays a small, medium or large explosion by the size of the blast', () => {
     expect(sampleKey('explosion', 1.8 / 4)).toBe('explosion_small');
     expect(sampleKey('explosion', 3.5 / 4)).toBe('explosion');

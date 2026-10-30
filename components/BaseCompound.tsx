@@ -18,6 +18,7 @@ import { TEAM_COLORS } from '../constants';
 import { PALETTE } from './kit/materials';
 import { currentTilePosition } from '../sim/movement';
 import { isAirType } from '../sim/units';
+import { playSound } from './sfx';
 import type { UnitData } from '../types';
 import type { BaseWall } from '../sim/mapgen';
 import type { GridPos } from '../sim/commands';
@@ -257,6 +258,8 @@ const DOOR_SECONDS = 0.9;
 const BlastDoors: React.FC<{ doors: GateDoor[]; tileSize: number; offset: number; unitsOf: () => readonly UnitData[]; m: Record<'door' | 'ribs' | 'caps' | 'slot', THREE.Material> }> = ({ doors, tileSize, offset, unitsOf, m }) => {
   const refs = useRef<(THREE.Group | null)[]>([]);
   const open = useRef<number[]>([]);
+  // Whether each door was last wanted open, so it is heard as it starts to move (components/sfx.ts).
+  const wantedBefore = useRef<(boolean | undefined)[]>([]);
   const ribs = useMemo(() => Array.from({ length: RIBS }, (_, i) => 0.45 + (i / (RIBS - 1)) * (DOOR_H - 1.1)), []);
   useFrame((_, delta) => {
     const units = unitsOf();
@@ -270,6 +273,8 @@ const BlastDoors: React.FC<{ doors: GateDoor[]; tileSize: number; offset: number
         const at = currentTilePosition(u);
         return Math.hypot(at.x - gx, at.z - gz) <= OPEN_REACH;
       });
+      if (wantedBefore.current[i] !== undefined && wantedBefore.current[i] !== wanted) playSound('gate_cycle', d.x, d.z);
+      wantedBefore.current[i] = wanted;
       const o = open.current[i] ?? 0;
       const next = Math.min(1, Math.max(0, o + (wanted ? 1 : -1) * Math.min(delta, 0.25) / DOOR_SECONDS));
       open.current[i] = next;

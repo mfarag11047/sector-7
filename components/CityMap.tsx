@@ -692,6 +692,27 @@ const shotSound = (type: DamageType, shooter: UnitType | undefined, sentry: bool
     : shooter === 'hero_heavy_metal' ? 'cannon'
     : type === 'rifle' ? 'rifle' : type === 'mg' ? 'mg' : type === 'flak' ? 'flak'
     : type === 'ap' && shooter === 'lancer' ? 'missile' : 'cannon';
+// What a shot sounds like where it lands: small-arms rounds ringing off armour, or chipping a
+// building or wall that stopped them (sim/cover.ts); tank shells, rail slugs and rockets crunching
+// into one. Nothing for rounds into flesh or the sky, or a blade.
+const BIG_ROUNDS: ReadonlySet<DamageType> = new Set(['explosive', 'ap']);
+const impactSound = (type: DamageType, onto: 'armour' | 'building' | null, sentry: boolean): SoundKind | null => {
+    if (!onto || type === 'blade') return null;
+    if (onto === 'building') return BIG_ROUNDS.has(type) || sentry ? 'hit_heavy_building' : 'hit_concrete';
+    return BIG_ROUNDS.has(type) ? null : 'hit_metal';
+};
+// What a unit's death sounds like: a soldier going down, a small drone falling, or (for anything
+// else, vehicles and larger aircraft) the fireball it goes up in, which brings its own explosion.
+const SMALL_DRONES: ReadonlySet<UnitType> = new Set<UnitType>(['drone', 'attack_drone', 'wasp', 'helios', 'defense_drone']);
+type DeathFx = { sound: SoundKind } | { fireball: number } | null;
+const deathFx = (type: UnitType): DeathFx =>
+    type === 'crawler_drone' ? null // it goes off in its own blast
+    : UNIT_RULES[type].armor === 'infantry' ? { sound: 'unit_destroyed_infantry' }
+    : SMALL_DRONES.has(type) ? { sound: 'unit_destroyed_drone' }
+    : HAS_DEATH_ANIMATION.has(type) ? { sound: 'explosion' }
+    : { fireball: type === 'bombard' || type === 'hornet' || type === 'tank' || type === 'titan_dropped' ? 5 : 4 };
+// Walls and gates, whose fall is a breach.
+const WALL_TYPES: ReadonlySet<StructureType> = new Set<StructureType>(['base_wall', 'base_gate', 'wall_tier1', 'wall_tier2']);
 // What an explosion sounds like: a blast, an EMP's crackle, a shot stopped on a force field.
 const explosionSound = (e: Explosion): SoundKind | null =>
     e.style === 'emp' || e.style === 'blackwall' ? 'emp' : e.style === 'shield' ? 'shield' : 'explosion';
@@ -1631,6 +1652,45 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           for (const id of heard) if (!live.has(id)) heard.delete(id);
       }
   }, [explosions, projectiles]);
+  // Units that died, waiting to be heard (and those already heard, so each is heard once).
+  const deathsRef = useRef<{ type: UnitType; at: { x: number; z: number } }[]>([]);
+  const diedRef = useRef(new Set<string>());
+  useEffect(() => {
+      const deaths = deathsRef.current;
+      if (deaths.length === 0) return;
+      deathsRef.current = [];
+      const now = Date.now();
+      const fireballs: Explosion[] = [];
+      deaths.forEach((d, i) => {
+          const fx = deathFx(d.type);
+          if (!fx) return;
+          const x = d.at.x * CITY_CONFIG.tileSize - offset, z = d.at.z * CITY_CONFIG.tileSize - offset;
+          if ('sound' in fx) playSound(fx.sound, x, z);
+          else fireballs.push({ id: `death-${now}-${i}`, radius: fx.fireball, duration: 800, createdAt: now, position: { x, y: UNIT_RULES[d.type].armor === 'air' ? 74 : 1.5, z } });
+      });
+      if (fireballs.length > 0) setExplosions(prev => [...prev, ...fireballs]);
+      if (diedRef.current.size > 500) diedRef.current.clear();
+  }, [units, offset]);
+  // City buildings brought down, and walls and gates breached, as they happen.
+  const downRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+      const down = new Set(buildings.filter(b => b.destroyed).map(b => b.id));
+      const before = downRef.current;
+      downRef.current = down;
+      if (!before) return;
+      for (const b of buildings) if (b.destroyed && !before.has(b.id)) playSound('building_collapse', b.position[0], b.position[2]);
+  }, [buildings]);
+  const wallsRef = useRef<Map<string, StructureData> | null>(null);
+  useEffect(() => {
+      const walls = new Map(structuresState.filter(st => WALL_TYPES.has(st.type)).map(st => [st.id, st]));
+      const before = wallsRef.current;
+      wallsRef.current = walls;
+      if (!before) return;
+      for (const [id, w] of before) {
+          if (walls.has(id) || w.dismantle || w.isBlueprint) continue;
+          playSound('wall_breach', w.gridPos.x * CITY_CONFIG.tileSize - offset, w.gridPos.z * CITY_CONFIG.tileSize - offset);
+      }
+  }, [structuresState, offset]);
   // Brief weapon tracers from sim/combat.ts shots, cleared after TRACER_MS.
   const [tracers, setTracers] = useState<TracerData[]>([]);
   // Tank rail gun shots in the air for a moment, and when each gun last fired (ahead of state).
@@ -3721,7 +3781,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           rail.structureDamage.forEach((n, id) => attacks.structureDamage.set(id, (attacks.structureDamage.get(id) || 0) + n));
           // A tank's main gun fires the railgun slug the Sentry Turret does (ShotFx 'rail'), from its
           // muzzle; a Piercing Rail Round (sim/titan.ts) keeps its magenta beam down the lane.
-          rail.shots.forEach(s => playSound('rail', s.from.x * tileSize - offset, s.from.z * tileSize - offset));
+          rail.shots.forEach(s => {
+              playSound('rail', s.from.x * tileSize - offset, s.from.z * tileSize - offset);
+              if (s.covered || s.structure) playSound('hit_heavy_building', s.to.x * tileSize - offset, s.to.z * tileSize - offset);
+          });
           const pierced = rail.shots.filter(s => s.pierced);
           if (pierced.length > 0) setRailBeams(prev => [...prev, ...pierced.map((s, i) => ({ ...s, id: `rail-${now}-${i}`, createdAt: now }))]);
           const slugs: TracerData[] = rail.shots.filter(s => !s.pierced).map((s, i) => {
@@ -4030,6 +4093,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   const sentryShot = !shooter && structuresRef.current.some(st => st.id === shot.attackerId && st.type === 'defense');
                   const sound = shotSound(shot.type, shooter?.type, sentryShot);
                   if (sound) playSound(sound, shot.from.x * tileSize - offset, shot.from.z * tileSize - offset);
+                  const struck = shot.toAir ? undefined : currentUnitsRef.find(u => u.id === shot.targetId);
+                  const onto = shot.covered || (!struck && !shot.toAir) ? 'building' : struck && UNIT_RULES[struck.type].armor !== 'infantry' && UNIT_RULES[struck.type].armor !== 'air' ? 'armour' : null;
+                  const hit = impactSound(shot.type, onto, sentryShot);
+                  if (hit) playSound(hit, shot.to.x * tileSize - offset, shot.to.z * tileSize - offset);
                   if (shooter?.type === 'defense_drone') return;
                   const structure = !shooter;
                   const infantry = shooter ? UNIT_RULES[shooter.type].armor === 'infantry' : false;
@@ -4344,6 +4411,13 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   // Keyed by mule, so a second run of this updater changes nothing.
                   for (const c of armMules(nextUnits, team => hasUpgrade(economyRef.current[team], 'volt_core'), now)) {
                       if (!voltRef.current.has(c.muleId)) voltRef.current.set(c.muleId, c);
+                  }
+                  // Deaths, for their sounds and fireballs once this update is in (below). Keyed by
+                  // unit, so a second run of this updater changes nothing.
+                  for (const u of nextUnits) {
+                      if (u.health > 0 || diedRef.current.has(u.id)) continue;
+                      diedRef.current.add(u.id);
+                      deathsRef.current.push({ type: u.type, at: { ...u.gridPos } });
                   }
                   // Units with a death animation fall where they were drawn, if the player could see
                   // them. Keyed by unit, so a second run of this updater changes nothing.

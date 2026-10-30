@@ -25,6 +25,10 @@
 //   - explosion: a roar of noise that darkens as it fades over a deep falling boom, longer and
 //     lower the bigger the blast. emp: an electric crackle over a dropping tone. shield: a soft
 //     electric thud where a shot meets a force field.
+//   - Impacts and destruction: hit_metal (a ringing ping), hit_concrete (a dull chip),
+//     hit_heavy_building (a crunch), building_collapse and wall_breach (long rumbles), gate_cycle
+//     (a hiss then a thud), unit_destroyed_infantry (a clatter) and unit_destroyed_drone (a zap
+//     and a pop).
 //
 // Where a sound is matters: it is fainter the further it is from the middle of the view (heard
 // further when zoomed out, explosions further than gunfire) and panned left or right by where it is
@@ -36,7 +40,9 @@
 // audio starts on the first one. The player can mute it (the speaker button on the HUD); that is
 // remembered between visits.
 
-export type SoundKind = 'rifle' | 'mg' | 'flak' | 'cannon' | 'rail' | 'missile' | 'rocket' | 'hornet_rocket' | 'wasp_swarm' | 'ballista_launch' | 'blade' | 'explosion' | 'emp' | 'shield';
+export type SoundKind = 'rifle' | 'mg' | 'flak' | 'cannon' | 'rail' | 'missile' | 'rocket' | 'hornet_rocket' | 'wasp_swarm' | 'ballista_launch' | 'blade' | 'explosion' | 'emp' | 'shield'
+  | 'hit_metal' | 'hit_concrete' | 'hit_heavy_building' | 'building_collapse' | 'wall_breach' | 'gate_cycle'
+  | 'unit_destroyed_infantry' | 'unit_destroyed_drone';
 
 // What the recordings are filed under in the manifest: a sound's own name, or for an explosion,
 // which size of blast it is.
@@ -75,6 +81,16 @@ const KINDS: Record<SoundKind, { gain: number; voices: number; gapMs: number; re
   explosion: { gain: 0.85, voices: 8, gapMs: 25, reach: 1.8 },
   emp: { gain: 0.6, voices: 3, gapMs: 80, reach: 1.6 },
   shield: { gain: 0.4, voices: 4, gapMs: 70, reach: 1 },
+  // Bullets landing play under the guns that fire them, and only a few at once.
+  hit_metal: { gain: 0.3, voices: 4, gapMs: 70, reach: 0.8 },
+  hit_concrete: { gain: 0.3, voices: 4, gapMs: 70, reach: 0.8 },
+  hit_heavy_building: { gain: 0.55, voices: 3, gapMs: 120, reach: 1.3 },
+  // A Bombardment Drone brings down a block at once: a couple of collapses tell it.
+  building_collapse: { gain: 0.65, voices: 2, gapMs: 350, reach: 1.8 },
+  wall_breach: { gain: 0.7, voices: 2, gapMs: 250, reach: 1.8 },
+  gate_cycle: { gain: 0.4, voices: 3, gapMs: 200, reach: 1 },
+  unit_destroyed_infantry: { gain: 0.45, voices: 4, gapMs: 100, reach: 1 },
+  unit_destroyed_drone: { gain: 0.5, voices: 3, gapMs: 150, reach: 1.2 },
 };
 const MAX_VOICES = 28;
 const MASTER_GAIN = 0.55;
@@ -338,6 +354,45 @@ export const SOUNDS: Record<SoundKind, (c: BaseAudioContext, out: AudioNode, t: 
     for (let i = 0; i < 8; i++) noiseBurst(c, out, t + rand(0, 0.5), { type: 'bandpass', f0: rand(2500, 5000), q: 2, peak: rand(0.3, 0.6), decay: 0.03 });
     tone(c, out, t, { type: 'sine', f0: 60, f1: 28, peak: 0.8, attack: 0.005, decay: 0.5 });
     return 0.8;
+  },
+  hit_metal: (c, out, t) => {
+    tone(c, out, t, { type: 'sine', f0: rand(2600, 3400), f1: 2400, peak: 0.5, attack: 0.002, decay: 0.25 });
+    noiseBurst(c, out, t, { type: 'highpass', f0: 3000, peak: 0.6, decay: 0.03 });
+    return 0.3;
+  },
+  hit_concrete: (c, out, t) => {
+    noiseBurst(c, out, t, { type: 'bandpass', f0: rand(900, 1400), q: 0.7, peak: 0.9, decay: 0.08 });
+    noiseBurst(c, out, t + 0.05, { type: 'lowpass', f0: 1200, peak: 0.25, decay: 0.2 });
+    return 0.3;
+  },
+  hit_heavy_building: (c, out, t) => {
+    tone(c, out, t, { type: 'sine', f0: 90, f1: 35, peak: 0.9, attack: 0.004, decay: 0.4 });
+    noiseBurst(c, out, t, { type: 'lowpass', f0: 2500, f1: 400, peak: 0.9, decay: 0.5 });
+    for (let i = 0; i < 4; i++) noiseBurst(c, out, t + rand(0.1, 0.6), { type: 'highpass', f0: 3500, peak: rand(0.1, 0.25), decay: 0.05 });
+    return 0.8;
+  },
+  building_collapse: (c, out, t) => {
+    noiseBurst(c, out, t, { type: 'lowpass', f0: 600, f1: 120, peak: 1, attack: 0.15, decay: 2.2 });
+    tone(c, out, t, { type: 'sine', f0: 50, f1: 28, peak: 0.7, attack: 0.1, decay: 2 });
+    for (let i = 0; i < 8; i++) noiseBurst(c, out, t + rand(0.2, 1.8), { type: 'bandpass', f0: rand(1500, 4000), q: 1, peak: rand(0.1, 0.3), decay: 0.06 });
+    return 2.5;
+  },
+  wall_breach: (c, out, t, size) => SOUNDS.explosion(c, out, t, Math.max(2, size)),
+  gate_cycle: (c, out, t) => {
+    noiseBurst(c, out, t, { type: 'bandpass', f0: 3000, f1: 1500, q: 0.8, peak: 0.4, attack: 0.05, decay: 0.55 });
+    tone(c, out, t + 0.6, { type: 'sine', f0: 70, f1: 40, peak: 0.8, attack: 0.004, decay: 0.3 });
+    return 1;
+  },
+  unit_destroyed_infantry: (c, out, t) => {
+    tone(c, out, t, { type: 'sine', f0: 140, f1: 60, peak: 0.5, decay: 0.12 });
+    for (let i = 0; i < 4; i++) noiseBurst(c, out, t + rand(0.05, 0.5), { type: 'bandpass', f0: rand(1800, 3500), q: 2, peak: rand(0.2, 0.4), decay: 0.04 });
+    return 0.6;
+  },
+  unit_destroyed_drone: (c, out, t) => {
+    tone(c, out, t, { type: 'sawtooth', f0: 1400, f1: 200, peak: 0.4, decay: 0.4 });
+    noiseBurst(c, out, t, { type: 'bandpass', f0: 2500, peak: 0.6, decay: 0.08 });
+    noiseBurst(c, out, t + 0.45, { type: 'lowpass', f0: 1500, peak: 0.5, decay: 0.2 });
+    return 0.7;
   },
   shield: (c, out, t) => {
     tone(c, out, t, { type: 'triangle', f0: 620, f1: 260, peak: 0.7, attack: 0.003, decay: 0.18 });

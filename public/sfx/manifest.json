@@ -125,5 +125,61 @@
       0.1,
       2.0
     ]
+  },
+  "hit_metal": {
+    "description": "Bullet hitting armoured vehicle plating: metallic ping and ricochet",
+    "files": [
+      "sfx/hit_metal_1.mp3",
+      "sfx/hit_metal_2.mp3"
+    ]
+  },
+  "hit_concrete": {
+    "description": "Bullet striking a concrete wall: dusty chip and crumble",
+    "files": [
+      "sfx/hit_concrete_1.mp3",
+      "sfx/hit_concrete_2.mp3"
+    ]
+  },
+  "hit_heavy_building": {
+    "description": "Tank shell slamming into an office tower: concrete crunch and shattering glass",
+    "files": [
+      "sfx/hit_heavy_building_1.mp3",
+      "sfx/hit_heavy_building_2.mp3"
+    ]
+  },
+  "building_collapse": {
+    "description": "City building collapsing: groaning steel, cascading concrete and glass, rumble",
+    "files": [
+      "sfx/building_collapse_1.mp3",
+      "sfx/building_collapse_2.mp3"
+    ]
+  },
+  "wall_breach": {
+    "description": "Fortified base wall blown apart: concrete blast, rebar groan, rubble",
+    "files": [
+      "sfx/wall_breach_1.mp3",
+      "sfx/wall_breach_2.mp3"
+    ]
+  },
+  "gate_cycle": {
+    "description": "Armoured blast gate sliding into the ground: hydraulic hiss, grinding steel, thud",
+    "files": [
+      "sfx/gate_cycle_1.mp3",
+      "sfx/gate_cycle_2.mp3"
+    ]
+  },
+  "unit_destroyed_infantry": {
+    "description": "Armoured soldier taken down: armour clatter and gear hitting pavement",
+    "files": [
+      "sfx/unit_destroyed_infantry_1.mp3",
+      "sfx/unit_destroyed_infantry_2.mp3"
+    ]
+  },
+  "unit_destroyed_drone": {
+    "description": "Small drone shot down: electrical pop, sputtering rotors, crash",
+    "files": [
+      "sfx/unit_destroyed_drone_1.mp3",
+      "sfx/unit_destroyed_drone_2.mp3"
+    ]
   }
 }

@@ -733,7 +733,11 @@ loop that hums for as long as its beam is locked on, starting with the zap and f
 lets go), Kage's blade, explosions in three sizes picked by the size of the blast (a grenade or rocket, a
 shell or bomb drop, a missile strike), EMP blasts crackling and shots on a force field thudding. Each plays one of its takes, a different one
 from last time and a touch faster or slower each time, so a volley doesn't sound like one clip
-repeated. Hornet rockets, Wasp micro-drone launches and the Ballista's launch have no recordings yet and are
+repeated. Hits and destruction have recordings too: small-arms rounds ringing off armour, rounds
+stopped by a building or wall chipping it (or, from a tank, rail gun or rocket, crunching into it),
+a city building collapsing, a wall or gate breached, a blast gate hissing open or shut with its
+thud, a soldier going down and a small drone falling; vehicles and larger aircraft now go up in a
+fireball, with its explosion. Hornet rockets, Wasp micro-drone launches and the Ballista's launch have no recordings yet and are
 made in code, as is any sound whose files haven't loaded (prompts for the rest:
 `docs/SOUND_PROMPTS.md`). A sound is fainter the further it is from the middle
 of the view (heard further when zoomed out, and explosions further than gunfire) and panned by
