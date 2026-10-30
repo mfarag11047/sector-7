@@ -1618,8 +1618,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // Explosions and launched missiles are made in many places; each is heard once, the first time
   // it appears here (components/sfx.ts).
   const heardRef = useRef(new Set<string>());
-  // No Sentinel beam hums on once the map is gone.
-  useEffect(() => () => setLoops('laser_beam', []), []);
+  // No Sentinel beam or CIWS roar carries on once the map is gone.
+  useEffect(() => () => { setLoops('laser_beam', [], { now: true }); setLoops('ciws_fire', [], { now: true }); }, []);
   useEffect(() => {
       const heard = heardRef.current;
       for (const e of explosions) {
@@ -3838,10 +3838,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               setStructuresState(prev => applyCiwsState(prev, ciws.structureUpdates));
           }
           ciwsLinksRef.current = ciws.links;
-          for (const link of ciws.links) {
+          // Each gun's roar lasts as long as its burst (components/sfx.ts).
+          setLoops('ciws_fire', [...new Map(ciws.links.map(link => [link.gunId, link])).values()].flatMap(link => {
               const gun = link.fromStructure ? structuresRef.current.find(st => st.id === link.gunId) : currentUnitsRef.find(u => u.id === link.gunId);
-              if (gun) playSound('ciws', gun.gridPos.x * tileSize - offset, gun.gridPos.z * tileSize - offset);
-          }
+              return gun ? [{ id: gun.id, x: gun.gridPos.x * tileSize - offset, z: gun.gridPos.z * tileSize - offset }] : [];
+          }));
           if (pacing) {
               recordWeaponHits(pacing, {
                   fired: attacks.fired, shots: [...(attacks.splashed ?? []), ...rail.shots, ...hornetVolley.shots], ciws: ciws.links,

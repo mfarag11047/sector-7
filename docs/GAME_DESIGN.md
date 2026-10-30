@@ -726,8 +726,8 @@ holder's colour once taken.
 
 Weapons and explosions have sound effects, played with the Web Audio API (`components/sfx.ts`)
 from recordings in `public/sfx/`, listed by sound in `public/sfx/manifest.json`. Every weapon and
-blast has its own: rifle cracks (six takes), machine guns, flak, the CIWS guns' buzz-saw (short
-slices that run together while the gun fires), cannon booms, the railgun for the tank's main gun and
+blast has its own: rifle cracks (six takes), machine guns, flak, the CIWS guns' buzz-saw (a loop
+that roars for as long as each burst lasts, riding over the gun switching targets), cannon booms, the railgun for the tank's main gun and
 the Sentry Turret, the Lancer's missile and the Thunderhead's rocket launches, the Sentinel's laser (a
 loop that hums for as long as its beam is locked on, starting with the zap and fading when it
 lets go), Kage's blade, explosions in three sizes picked by the size of the blast (a grenade or rocket, a

@@ -36,7 +36,7 @@ describe('where a sound is heard from', () => {
 
 describe('recorded sounds', () => {
   it('has every take the manifest lists, under a name the game plays', () => {
-    const playable = new Set<string>([...Object.keys(SOUNDS), 'explosion_small', 'explosion_large', 'laser_beam']);
+    const playable = new Set<string>([...Object.keys(SOUNDS), 'explosion_small', 'explosion_large', 'laser_beam', 'ciws_fire']);
     for (const [key, entry] of Object.entries(manifest)) {
       expect(playable.has(key), key).toBe(true);
       expect(entry!.files.length, key).toBeGreaterThan(0);
@@ -45,10 +45,10 @@ describe('recorded sounds', () => {
   });
 
   it('has recordings for every weapon and blast, and made-in-code sounds to fall back on', () => {
-    for (const kind of ['rifle', 'mg', 'flak', 'ciws', 'cannon', 'rail', 'missile', 'rocket', 'laser_beam', 'blade', 'explosion', 'explosion_small', 'explosion_large', 'emp', 'shield']) {
+    for (const kind of ['rifle', 'mg', 'flak', 'ciws_fire', 'cannon', 'rail', 'missile', 'rocket', 'laser_beam', 'blade', 'explosion', 'explosion_small', 'explosion_large', 'emp', 'shield']) {
       expect(manifest[kind as keyof SampleManifest]?.files.length, kind).toBeGreaterThan(0);
     }
-    for (const kind of Object.keys(manifest).filter(k => k !== 'laser_beam')) expect(SOUNDS[kind.startsWith('explosion') ? 'explosion' : kind as keyof typeof SOUNDS]).toBeTypeOf('function');
+    for (const kind of Object.keys(manifest).filter(k => k !== 'laser_beam' && k !== 'ciws_fire')) expect(SOUNDS[kind.startsWith('explosion') ? 'explosion' : kind as keyof typeof SOUNDS]).toBeTypeOf('function');
   });
 
   it('plays a small, medium or large explosion by the size of the blast', () => {
@@ -75,13 +75,13 @@ describe('recorded sounds', () => {
   });
 });
 
-describe('the Sentinel beam loop', () => {
-  it('loops between points inside every take, after an opening that plays once', () => {
-    const beam = manifest.laser_beam!;
-    const [start, end] = beam.loop!;
+describe('loops: the Sentinel beam and the CIWS roar', () => {
+  it.each(['laser_beam', 'ciws_fire'] as const)('%s loops between points inside every take, after an opening that plays once', key => {
+    const loop = manifest[key]!;
+    const [start, end] = loop.loop!;
     expect(start).toBeGreaterThan(0);
     expect(end - start).toBeGreaterThan(1);
-    for (const file of beam.files) {
+    for (const file of loop.files) {
       // The take runs past the loop's end, so a decoder's small offset can't land it on silence.
       const bytes = readFileSync(resolve(PUBLIC, file)).length;
       expect(bytes / (112_000 / 8), file).toBeGreaterThan(end);
@@ -91,7 +91,7 @@ describe('the Sentinel beam loop', () => {
   it('starts nothing before the audio is running, and stops on an empty list', () => {
     setLoops('laser_beam', [{ id: 'sentinel', x: 0, z: 0 }]);
     expect(liveLoops()).toBe(0);
-    setLoops('laser_beam', []);
+    setLoops('laser_beam', [], { now: true });
     expect(liveLoops()).toBe(0);
   });
 });

@@ -28,15 +28,6 @@
       "sfx/flak_4.mp3"
     ]
   },
-  "ciws": {
-    "description": "Rotary close-in weapon system, short burst",
-    "files": [
-      "sfx/ciws_1.mp3",
-      "sfx/ciws_2.mp3",
-      "sfx/ciws_3.mp3",
-      "sfx/ciws_4.mp3"
-    ]
-  },
   "cannon": {
     "description": "Main battle tank cannon",
     "files": [
@@ -121,6 +112,18 @@
     "loop": [
       0.9,
       3.3
+    ]
+  },
+  "ciws_fire": {
+    "description": "Rotary close-in weapon system, looped while it fires",
+    "files": [
+      "sfx/ciws_fire_1.mp3",
+      "sfx/ciws_fire_2.mp3",
+      "sfx/ciws_fire_3.mp3"
+    ],
+    "loop": [
+      0.1,
+      2.0
     ]
   }
 }

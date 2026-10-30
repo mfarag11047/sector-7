@@ -37,7 +37,6 @@ SPECS = {
     'rifle': ([(f'rifle_{i}.mp3', O, 0.45, 0.22, 0) for i in range(1, 5)], -12),
     'mg': ([(f'mg_{i}.mp3', O, 0.32, 0.15, 0) for i in range(1, 5)], -12),
     'flak': ([(f'flak_{i}.mp3', O, 0.6, 0.3, 0) for i in range(1, 5)], -12),
-    'ciws': ([('ciws_1.mp3', 0.0, 0.36, 0.24, 0.01), ('ciws_2.mp3', 0.5, 0.36, 0.24, 0.01), ('ciws_3.mp3', 0.1, 0.36, 0.24, 0.01), ('ciws_4.mp3', 0.5, 0.36, 0.24, 0.01)], -14),
     'cannon': ([('cannon_1.mp3', O, 1.2, 0.6, 0), ('cannon_2.mp3', O, 1.2, 0.6, 0), ('cannon_3.mp3', O, 0.62, 0.4, 0), ('cannon_4.mp3', O, 1.2, 0.6, 0)], -12),
     'rail': ([(f'rail_{i}.mp3', 'last', 0.9, 0.5, 0) for i in range(1, 4)], -12),
     'missile': ([(f'missile_{i}.mp3', O, 1.6, 1.0, 0) for i in range(1, 4)], -12),
@@ -84,13 +83,13 @@ for n, name in enumerate(sorted(os.listdir(earlier)), 5):
     manifest['rifle']['files'].append(f'sfx/{dest}')
     report.append(f'{dest:24} earlier take {name}')
 
-# The Sentinel's beam, as a loop: the opening zap plays once, then the steady hum repeats for as
-# long as the beam is on (components/sfx.ts setLoops). Each take is cut from its onset: ATTACK
-# seconds of zap, then BODY seconds of hum whose last XFADE seconds are crossfaded (equal power)
-# into the audio just before the body starts, so the end runs back into the start without a click.
-# A little of the body's start follows its end in the file, in case a decoder shifts the loop points.
-ATTACK, BODY, XFADE, TAIL = 0.9, 2.4, 0.25, 0.15
-BEAM_TARGET = -20  # the hum's RMS, dBFS; peaks still kept under -3
+# Loops: sounds held for as long as something lasts (components/sfx.ts setLoops). Each take is cut
+# from its onset: `attack` seconds that play once, then `body` seconds that repeat, whose last
+# `xfade` seconds are crossfaded (equal power) into the audio just before the body starts, so the
+# end runs back into the start without a click. A little of the body's start follows its end in the
+# file, in case a decoder shifts the loop points. Takes are levelled on the body's RMS (`target`
+# dBFS), peaks still kept under -3.
+TAIL = 0.15
 
 def write_wav(path, samples):
     import wave
@@ -98,31 +97,38 @@ def write_wav(path, samples):
         w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR)
         w.writeframes(struct.pack('<%dh' % len(samples), *[max(-32768, min(32767, round(v))) for v in samples]))
 
-beam = []
-for n in (1, 2):
-    path = os.path.join(src, f'laser_{n}.mp3')
-    x = pcm(path)
-    o = round(onset(path) * SR)
-    l0, l1, f, m = o + round(ATTACK * SR), o + round((ATTACK + BODY) * SR), round(XFADE * SR), round(TAIL * SR)
-    body = list(x[l0:l1])
-    for i in range(f):
-        a = (i + 0.5) / f
-        body[len(body) - f + i] = x[l1 - f + i] * math.cos(a * math.pi / 2) + x[l0 - f + i] * math.sin(a * math.pi / 2)
-    y = list(x[o:l0]) + body + body[:m]
-    hum = db(math.sqrt(sum(v * v for v in body) / len(body)))
-    peak = db(max(abs(v) for v in y))
-    gain = 10 ** (min(BEAM_TARGET - hum, -3 - peak) / 20)
-    y = [v * gain for v in y]
-    for i in range(round(0.005 * SR)):
-        y[i] *= i / (0.005 * SR)
-    wav = os.path.join(out, '_cut.wav')
-    write_wav(wav, y)
-    dest = f'laser_beam_{n}.mp3'
-    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', wav, '-b:a', '112k', os.path.join(out, dest)], check=True)
-    os.remove(wav)
-    beam.append(f'sfx/{dest}')
-    report.append(f'{dest:24} from laser_{n}.mp3 at {o / SR:5.2f}s: {ATTACK}s zap, {BODY}s loop, gain {20 * math.log10(gain):+5.1f} dB')
-manifest['laser_beam'] = {'description': 'Sentinel drone energy beam, looped while it fires', 'files': beam, 'loop': [ATTACK, ATTACK + BODY]}
+def make_loop(key, description, sources, attack, body_s, xfade, target):
+    files = []
+    for n, name in enumerate(sources, 1):
+        path = os.path.join(src, name)
+        x = pcm(path)
+        o = round(onset(path) * SR)
+        l0, l1, f, m = o + round(attack * SR), o + round((attack + body_s) * SR), round(xfade * SR), round(TAIL * SR)
+        body = list(x[l0:l1])
+        for i in range(f):
+            a = (i + 0.5) / f
+            body[len(body) - f + i] = x[l1 - f + i] * math.cos(a * math.pi / 2) + x[l0 - f + i] * math.sin(a * math.pi / 2)
+        y = list(x[o:l0]) + body + body[:m]
+        level = db(math.sqrt(sum(v * v for v in body) / len(body)))
+        peak = db(max(abs(v) for v in y))
+        gain = 10 ** (min(target - level, -3 - peak) / 20)
+        y = [v * gain for v in y]
+        for i in range(round(0.005 * SR)):
+            y[i] *= i / (0.005 * SR)
+        wav = os.path.join(out, '_cut.wav')
+        write_wav(wav, y)
+        dest = f'{key}_{n}.mp3'
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', wav, '-b:a', '112k', os.path.join(out, dest)], check=True)
+        os.remove(wav)
+        files.append(f'sfx/{dest}')
+        report.append(f'{dest:24} from {name} at {o / SR:5.2f}s: {attack}s opening, {body_s}s loop, gain {20 * math.log10(gain):+5.1f} dB')
+    manifest[key] = {'description': description, 'files': files, 'loop': [attack, attack + body_s]}
+
+# The Sentinel's beam: the opening zap, then the steady hum.
+make_loop('laser_beam', 'Sentinel drone energy beam, looped while it fires', ['laser_1.mp3', 'laser_2.mp3'], 0.9, 2.4, 0.25, -20)
+# The CIWS guns' roar, for as long as a burst lasts. The first take drops away after 0.85 s, too
+# short to loop; the others hold steady for over two seconds.
+make_loop('ciws_fire', 'Rotary close-in weapon system, looped while it fires', ['ciws_2.mp3', 'ciws_3.mp3', 'ciws_4.mp3'], 0.1, 1.9, 0.12, -16)
 
 json.dump(manifest, open(os.path.join(out, 'manifest.json'), 'w'), indent=2)
 open(os.path.join(out, 'manifest.json'), 'a').write('\n')

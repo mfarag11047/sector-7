@@ -11,7 +11,9 @@
 // A sound made in code is built from a few oscillators and bursts of filtered noise, shaped by
 // quick volume envelopes, with a little randomness:
 //   - rifle, mg: a sharp crack of noise with a short low thump; machine guns a touch lower.
-//   - flak: a duller, heavier pop. ciws: a short buzz-saw burst, for a gun firing thousands a minute.
+//   - flak: a duller, heavier pop.
+//   - ciws_fire: the CIWS guns' buzz-saw roar, a loop held for as long as a burst lasts (setLoops):
+//     a fast-pulsing burst of filtered noise over a low growl, for a gun firing thousands a minute.
 //   - cannon: a deep boom falling in pitch under a burst of noise.
 //   - rail: the railgun. A hard crack, an electric zap sweeping down, a metallic ring that hangs
 //     in the air, and a sub-bass punch.
@@ -34,18 +36,21 @@
 // audio starts on the first one. The player can mute it (the speaker button on the HUD); that is
 // remembered between visits.
 
-export type SoundKind = 'rifle' | 'mg' | 'flak' | 'ciws' | 'cannon' | 'rail' | 'missile' | 'rocket' | 'hornet_rocket' | 'wasp_swarm' | 'ballista_launch' | 'blade' | 'explosion' | 'emp' | 'shield';
+export type SoundKind = 'rifle' | 'mg' | 'flak' | 'cannon' | 'rail' | 'missile' | 'rocket' | 'hornet_rocket' | 'wasp_swarm' | 'ballista_launch' | 'blade' | 'explosion' | 'emp' | 'shield';
 
 // What the recordings are filed under in the manifest: a sound's own name, or for an explosion,
 // which size of blast it is.
 export type SampleKey = SoundKind | LoopKind | 'explosion_small' | 'explosion_large';
 
-// Sounds held for as long as something lasts, rather than played once: the Sentinel's beam.
-export type LoopKind = 'laser_beam';
-// For each: how loud, how far it carries compared with gunfire, and how many play at once (the
-// nearest ones, when there are more).
-const LOOPS: Record<LoopKind, { gain: number; reach: number; max: number }> = {
-  laser_beam: { gain: 0.45, reach: 1, max: 4 },
+// Sounds held for as long as something lasts, rather than played once: the Sentinel's beam and
+// the CIWS guns' bursts.
+export type LoopKind = 'laser_beam' | 'ciws_fire';
+// For each: how loud, how far it carries compared with gunfire, how many play at once (the
+// nearest ones, when there are more), and how long it carries on after its source drops out, so a
+// gap of a tick or two (a gun switching targets) doesn't break it up.
+const LOOPS: Record<LoopKind, { gain: number; reach: number; max: number; holdMs: number }> = {
+  laser_beam: { gain: 0.45, reach: 1, max: 4, holdMs: 200 },
+  ciws_fire: { gain: 0.5, reach: 1.1, max: 4, holdMs: 250 },
 };
 export const SAMPLE_MANIFEST = 'sfx/manifest.json';
 // An explosion's size (its radius / 4) up to which it counts as small, then medium; past that, large.
@@ -59,7 +64,6 @@ const KINDS: Record<SoundKind, { gain: number; voices: number; gapMs: number; re
   rifle: { gain: 0.55, voices: 8, gapMs: 35, reach: 1 },
   mg: { gain: 0.5, voices: 6, gapMs: 45, reach: 1 },
   flak: { gain: 0.55, voices: 5, gapMs: 60, reach: 1.1 },
-  ciws: { gain: 0.4, voices: 3, gapMs: 90, reach: 1.1 },
   cannon: { gain: 0.6, voices: 5, gapMs: 60, reach: 1.3 },
   rail: { gain: 0.65, voices: 4, gapMs: 50, reach: 1.4 },
   missile: { gain: 0.65, voices: 4, gapMs: 80, reach: 1.2 },
@@ -289,12 +293,6 @@ export const SOUNDS: Record<SoundKind, (c: BaseAudioContext, out: AudioNode, t: 
     tone(c, out, t, { type: 'sine', f0: 150, f1: 55, peak: 0.6, decay: 0.09 });
     return 0.15;
   },
-  ciws: (c, out, t) => {
-    // A rapid string of cracks run together.
-    for (let i = 0; i < 6; i++) noiseBurst(c, out, t + i * 0.018, { type: 'bandpass', f0: rand(1800, 2400), q: 1.2, peak: 0.9, decay: 0.022 });
-    tone(c, out, t, { type: 'square', f0: 55, f1: 50, peak: 0.25, decay: 0.11 });
-    return 0.14;
-  },
   cannon: (c, out, t) => {
     tone(c, out, t, { type: 'sine', f0: rand(100, 120), f1: 36, peak: 1, attack: 0.004, decay: 0.38 });
     noiseBurst(c, out, t, { type: 'lowpass', f0: 1600, f1: 300, peak: 0.8, attack: 0.002, decay: 0.3 });
@@ -378,7 +376,7 @@ export function playSound(kind: SoundKind, x: number, z: number, size = 1): void
 
 // --- Loops ---
 
-interface LiveLoop { kind: LoopKind; x: number; z: number; out: GainNode; panner: StereoPannerNode; stop: (at: number) => void }
+interface LiveLoop { kind: LoopKind; x: number; z: number; seen: number; out: GainNode; panner: StereoPannerNode; stop: (at: number) => void }
 const live = new Map<string, LiveLoop>();
 const LOOP_FADE = 0.08;
 // Loops stop on their own if the game stops updating them for this long (the match ended, the
@@ -386,8 +384,8 @@ const LOOP_FADE = 0.08;
 const LOOP_WATCHDOG_MS = 700;
 const watchdogs: Partial<Record<LoopKind, ReturnType<typeof setTimeout>>> = {};
 
-// The beam made in code, for when its recording hasn't loaded: a buzzing sawtooth through a
-// resonant filter, its pitch wavering slowly. Returns how to stop it.
+// The loops made in code, for when their recordings haven't loaded. Each returns how to stop it.
+// The beam: a buzzing sawtooth through a resonant filter, its pitch wavering slowly.
 function synthBeam(c: BaseAudioContext, out: AudioNode, t: number): (at: number) => void {
   const filter = c.createBiquadFilter();
   filter.type = 'bandpass';
@@ -408,13 +406,40 @@ function synthBeam(c: BaseAudioContext, out: AudioNode, t: number): (at: number)
   wobble.start(t);
   return at => { saw.stop(at); wobble.stop(at); };
 }
+// The CIWS: looping noise through a band-pass, chopped 60 times a second, over a low square growl.
+function synthChainGun(c: BaseAudioContext, out: AudioNode, t: number): (at: number) => void {
+  const noise = c.createBufferSource();
+  noise.buffer = noiseFor(c);
+  noise.loop = true;
+  const band = c.createBiquadFilter();
+  band.type = 'bandpass';
+  band.frequency.value = 2000;
+  band.Q.value = 1;
+  const chop = c.createGain();
+  chop.gain.value = 0.5;
+  const rate = c.createOscillator();
+  rate.type = 'square';
+  rate.frequency.value = 60;
+  const depth = c.createGain();
+  depth.gain.value = 0.5;
+  rate.connect(depth).connect(chop.gain);
+  const growl = c.createOscillator();
+  growl.type = 'square';
+  growl.frequency.value = 55;
+  const growlLevel = c.createGain();
+  growlLevel.gain.value = 0.15;
+  noise.connect(band).connect(chop).connect(out);
+  growl.connect(growlLevel).connect(out);
+  for (const n of [noise, rate, growl]) n.start(t);
+  return at => { for (const n of [noise, rate, growl]) n.stop(at); };
+}
 
 // Starts a loop of `kind` into `out` at `t`: one of its recorded takes, looping between its loop
 // points after the opening plays once, or the made-in-code version. Returns how to stop it.
 function startLoop(c: BaseAudioContext, kind: LoopKind, out: AudioNode, t: number): (at: number) => void {
   const takes = buffers[kind];
   const points = loopPoints[kind];
-  if (!takes?.length || !points) return synthBeam(c, out, t);
+  if (!takes?.length || !points) return (kind === 'ciws_fire' ? synthChainGun : synthBeam)(c, out, t);
   const take = pickTake(takes.length, lastTake[kind]);
   lastTake[kind] = take;
   const src = c.createBufferSource();
@@ -439,12 +464,14 @@ function placeLoops(): void {
 }
 
 // Which loops of `kind` should be playing now: one for each source, by id, at world point (x, z).
-// New ones start (fading in), gone ones fade out, and the rest follow their source. Only the
-// nearest few play when there are more. Call it with an empty list to stop them all.
-export function setLoops(kind: LoopKind, sources: readonly { id: string; x: number; z: number }[]): void {
+// New ones start (fading in), and the rest follow their source; one whose source has been gone for
+// longer than its kind's hold fades out. Only the nearest few play when there are more. Call it
+// with an empty list and `{ now: true }` to stop them all at once.
+export function setLoops(kind: LoopKind, sources: readonly { id: string; x: number; z: number }[], { now: stopAll = false } = {}): void {
   clearTimeout(watchdogs[kind]);
-  if (sources.length > 0) watchdogs[kind] = setTimeout(() => setLoops(kind, []), LOOP_WATCHDOG_MS);
+  if (sources.length > 0 || live.size > 0) watchdogs[kind] = setTimeout(() => setLoops(kind, [], { now: true }), LOOP_WATCHDOG_MS);
   const c = ctx;
+  const clock = performance.now();
   const running = !!c && !!master && c.state === 'running';
   const near = running
     ? sources.map(s => ({ s, g: spatial(listener, s.x, s.z, LOOPS[kind].reach).gain })).filter(e => e.g > 0)
@@ -452,7 +479,9 @@ export function setLoops(kind: LoopKind, sources: readonly { id: string; x: numb
     : [];
   const wanted = new Map(near.map(s => [s.id, s]));
   for (const [id, l] of live) {
-    if (l.kind !== kind || wanted.has(id)) continue;
+    if (l.kind !== kind) continue;
+    if (wanted.has(id)) { l.seen = clock; continue; }
+    if (!stopAll && running && clock - l.seen < LOOPS[kind].holdMs) continue;
     live.delete(id);
     if (!c) continue;
     const end = c.currentTime + LOOP_FADE * 3;
@@ -469,7 +498,7 @@ export function setLoops(kind: LoopKind, sources: readonly { id: string; x: numb
     const panner = c!.createStereoPanner();
     out.connect(panner).connect(master!);
     const stop = startLoop(c!, kind, out, c!.currentTime + 0.005);
-    live.set(s.id, { kind, x: s.x, z: s.z, out, panner, stop });
+    live.set(s.id, { kind, x: s.x, z: s.z, seen: clock, out, panner, stop });
   }
   placeLoops();
 }
