@@ -70,13 +70,6 @@
       "sfx/rocket_3.mp3"
     ]
   },
-  "laser": {
-    "description": "Security drone energy beam",
-    "files": [
-      "sfx/laser_1.mp3",
-      "sfx/laser_2.mp3"
-    ]
-  },
   "blade": {
     "description": "Monomolecular katana slash",
     "files": [
@@ -117,6 +110,17 @@
     "files": [
       "sfx/shield_1.mp3",
       "sfx/shield_2.mp3"
+    ]
+  },
+  "laser_beam": {
+    "description": "Sentinel drone energy beam, looped while it fires",
+    "files": [
+      "sfx/laser_beam_1.mp3",
+      "sfx/laser_beam_2.mp3"
+    ],
+    "loop": [
+      0.9,
+      3.3
     ]
   }
 }

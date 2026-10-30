@@ -17,7 +17,8 @@
 //     in the air, and a sub-bass punch.
 //   - missile (Lancer), rocket (Thunderhead), hornet_rocket, wasp_swarm, ballista_launch: a
 //     rushing whoosh rising in pitch as it leaves the tube.
-//   - laser: the Sentinel's beam, a buzzing tone sweeping down.
+//   - laser_beam: the Sentinel's beam, a loop held for as long as the beam is on (setLoops): a
+//     buzzing sawtooth through a resonant filter, wavering a little.
 //   - blade: a quick swish.
 //   - explosion: a roar of noise that darkens as it fades over a deep falling boom, longer and
 //     lower the bigger the blast. emp: an electric crackle over a dropping tone. shield: a soft
@@ -33,11 +34,19 @@
 // audio starts on the first one. The player can mute it (the speaker button on the HUD); that is
 // remembered between visits.
 
-export type SoundKind = 'rifle' | 'mg' | 'flak' | 'ciws' | 'cannon' | 'rail' | 'missile' | 'rocket' | 'hornet_rocket' | 'wasp_swarm' | 'ballista_launch' | 'laser' | 'blade' | 'explosion' | 'emp' | 'shield';
+export type SoundKind = 'rifle' | 'mg' | 'flak' | 'ciws' | 'cannon' | 'rail' | 'missile' | 'rocket' | 'hornet_rocket' | 'wasp_swarm' | 'ballista_launch' | 'blade' | 'explosion' | 'emp' | 'shield';
 
 // What the recordings are filed under in the manifest: a sound's own name, or for an explosion,
 // which size of blast it is.
-export type SampleKey = SoundKind | 'explosion_small' | 'explosion_large';
+export type SampleKey = SoundKind | LoopKind | 'explosion_small' | 'explosion_large';
+
+// Sounds held for as long as something lasts, rather than played once: the Sentinel's beam.
+export type LoopKind = 'laser_beam';
+// For each: how loud, how far it carries compared with gunfire, and how many play at once (the
+// nearest ones, when there are more).
+const LOOPS: Record<LoopKind, { gain: number; reach: number; max: number }> = {
+  laser_beam: { gain: 0.45, reach: 1, max: 4 },
+};
 export const SAMPLE_MANIFEST = 'sfx/manifest.json';
 // An explosion's size (its radius / 4) up to which it counts as small, then medium; past that, large.
 export const EXPLOSION_SIZES = { small: 0.7, medium: 1.9 };
@@ -58,7 +67,6 @@ const KINDS: Record<SoundKind, { gain: number; voices: number; gapMs: number; re
   hornet_rocket: { gain: 0.6, voices: 5, gapMs: 50, reach: 1.3 },
   wasp_swarm: { gain: 0.55, voices: 4, gapMs: 60, reach: 1.2 },
   ballista_launch: { gain: 0.65, voices: 3, gapMs: 80, reach: 1.4 },
-  laser: { gain: 0.4, voices: 3, gapMs: 140, reach: 1 },
   blade: { gain: 0.5, voices: 3, gapMs: 80, reach: 0.8 },
   explosion: { gain: 0.85, voices: 8, gapMs: 25, reach: 1.8 },
   emp: { gain: 0.6, voices: 3, gapMs: 80, reach: 1.6 },
@@ -75,6 +83,7 @@ export interface Listener { x: number; z: number; yaw: number; height: number }
 const listener: Listener = { x: 0, z: 0, yaw: 0, height: 80 };
 export function listen(x: number, z: number, yaw: number, height: number): void {
   listener.x = x; listener.z = z; listener.yaw = yaw; listener.height = height;
+  placeLoops();
 }
 
 // How loud (0 to 1) and how far left or right (-1 to 1) a sound at (x, z) is heard, for a kind
@@ -154,7 +163,10 @@ const lastTake: Partial<Record<SampleKey, number>> = {};
 const assetUrl = (path: string) => `${(import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/'}${path}`;
 
 // The manifest: for each recorded sound, its take files (paths under public/).
-export type SampleManifest = Partial<Record<SampleKey, { description?: string; files: string[] }>>;
+// A looped sound also gives where its loop starts and ends in each take, in seconds: what comes
+// before the start plays once, as the sound begins.
+export type SampleManifest = Partial<Record<SampleKey, { description?: string; files: string[]; loop?: [number, number] }>>;
+const loopPoints: Partial<Record<SampleKey, [number, number]>> = {};
 
 // Fetch the manifest, then fetch and decode every take. Each sound can use its takes as soon as
 // they are in; one that fails to load is left out, and a sound with none keeps its made-in-code version.
@@ -167,7 +179,10 @@ function loadSamples(c: AudioContext): void {
   fetch(assetUrl(SAMPLE_MANIFEST))
     .then(r => (r.ok ? r.json() as Promise<SampleManifest> : Promise.reject(new Error(`${r.status}`))))
     .then(manifest => {
-      for (const [key, entry] of Object.entries(manifest) as [SampleKey, { files: string[] }][]) for (const file of entry.files) void load(key, file);
+      for (const [key, entry] of Object.entries(manifest) as [SampleKey, { files: string[]; loop?: [number, number] }][]) {
+        if (entry.loop) loopPoints[key] = entry.loop;
+        for (const file of entry.files) void load(key, file);
+      }
     })
     .catch(e => console.warn("sound manifest didn't load; every sound is made in code:", e));
 }
@@ -306,16 +321,6 @@ export const SOUNDS: Record<SoundKind, (c: BaseAudioContext, out: AudioNode, t: 
   rocket: (c, out, t) => rocketWhoosh(c, out, t),
   hornet_rocket: (c, out, t) => rocketWhoosh(c, out, t),
   wasp_swarm: (c, out, t) => rocketWhoosh(c, out, t),
-  laser: (c, out, t) => {
-    const filter = c.createBiquadFilter();
-    filter.type = 'bandpass';
-    filter.frequency.value = 1500;
-    filter.Q.value = 2;
-    filter.connect(out);
-    tone(c, filter, t, { type: 'sawtooth', f0: 1300, f1: 620, peak: 0.9, attack: 0.01, decay: 0.2 });
-    tone(c, out, t, { type: 'sine', f0: 2600, f1: 1800, peak: 0.25, attack: 0.01, decay: 0.16 });
-    return 0.25;
-  },
   blade: (c, out, t) => {
     noiseBurst(c, out, t, { type: 'bandpass', f0: 3200, f1: 900, q: 1.5, peak: 1, attack: 0.02, decay: 0.12 });
     return 0.16;
@@ -370,3 +375,104 @@ export function playSound(kind: SoundKind, x: number, z: number, size = 1): void
     panner.disconnect();
   }, (dur + 0.1) * 1000);
 }
+
+// --- Loops ---
+
+interface LiveLoop { kind: LoopKind; x: number; z: number; out: GainNode; panner: StereoPannerNode; stop: (at: number) => void }
+const live = new Map<string, LiveLoop>();
+const LOOP_FADE = 0.08;
+// Loops stop on their own if the game stops updating them for this long (the match ended, the
+// tab was put away), so a beam never hums on over a frozen game.
+const LOOP_WATCHDOG_MS = 700;
+const watchdogs: Partial<Record<LoopKind, ReturnType<typeof setTimeout>>> = {};
+
+// The beam made in code, for when its recording hasn't loaded: a buzzing sawtooth through a
+// resonant filter, its pitch wavering slowly. Returns how to stop it.
+function synthBeam(c: BaseAudioContext, out: AudioNode, t: number): (at: number) => void {
+  const filter = c.createBiquadFilter();
+  filter.type = 'bandpass';
+  filter.frequency.value = 1400;
+  filter.Q.value = 2;
+  const level = c.createGain();
+  level.gain.value = 0.5;
+  const saw = c.createOscillator();
+  saw.type = 'sawtooth';
+  saw.frequency.value = 880;
+  const wobble = c.createOscillator();
+  wobble.frequency.value = 6;
+  const depth = c.createGain();
+  depth.gain.value = 18;
+  wobble.connect(depth).connect(saw.frequency);
+  saw.connect(filter).connect(level).connect(out);
+  saw.start(t);
+  wobble.start(t);
+  return at => { saw.stop(at); wobble.stop(at); };
+}
+
+// Starts a loop of `kind` into `out` at `t`: one of its recorded takes, looping between its loop
+// points after the opening plays once, or the made-in-code version. Returns how to stop it.
+function startLoop(c: BaseAudioContext, kind: LoopKind, out: AudioNode, t: number): (at: number) => void {
+  const takes = buffers[kind];
+  const points = loopPoints[kind];
+  if (!takes?.length || !points) return synthBeam(c, out, t);
+  const take = pickTake(takes.length, lastTake[kind]);
+  lastTake[kind] = take;
+  const src = c.createBufferSource();
+  src.buffer = takes[take];
+  src.loop = true;
+  [src.loopStart, src.loopEnd] = points;
+  src.playbackRate.value = rand(0.97, 1.03);
+  src.connect(out);
+  src.start(t);
+  if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV) ((window as unknown as { __SFX_TAKES?: string[] }).__SFX_TAKES ??= []).push(`${kind}_${take + 1}`);
+  return at => src.stop(at);
+}
+
+// Sets each loop's volume and pan from where it is and where the player is listening.
+function placeLoops(): void {
+  if (!ctx) return;
+  for (const l of live.values()) {
+    const { gain, pan } = spatial(listener, l.x, l.z, LOOPS[l.kind].reach);
+    l.out.gain.setTargetAtTime(LOOPS[l.kind].gain * gain, ctx.currentTime, 0.05);
+    l.panner.pan.setTargetAtTime(pan, ctx.currentTime, 0.05);
+  }
+}
+
+// Which loops of `kind` should be playing now: one for each source, by id, at world point (x, z).
+// New ones start (fading in), gone ones fade out, and the rest follow their source. Only the
+// nearest few play when there are more. Call it with an empty list to stop them all.
+export function setLoops(kind: LoopKind, sources: readonly { id: string; x: number; z: number }[]): void {
+  clearTimeout(watchdogs[kind]);
+  if (sources.length > 0) watchdogs[kind] = setTimeout(() => setLoops(kind, []), LOOP_WATCHDOG_MS);
+  const c = ctx;
+  const running = !!c && !!master && c.state === 'running';
+  const near = running
+    ? sources.map(s => ({ s, g: spatial(listener, s.x, s.z, LOOPS[kind].reach).gain })).filter(e => e.g > 0)
+      .sort((a, b) => b.g - a.g).slice(0, LOOPS[kind].max).map(e => e.s)
+    : [];
+  const wanted = new Map(near.map(s => [s.id, s]));
+  for (const [id, l] of live) {
+    if (l.kind !== kind || wanted.has(id)) continue;
+    live.delete(id);
+    if (!c) continue;
+    const end = c.currentTime + LOOP_FADE * 3;
+    l.out.gain.setTargetAtTime(0, c.currentTime, LOOP_FADE / 2);
+    l.stop(end);
+    setTimeout(() => { l.out.disconnect(); l.panner.disconnect(); }, (LOOP_FADE * 3 + 0.1) * 1000);
+  }
+  if (!running) return;
+  for (const s of near) {
+    const l = live.get(s.id);
+    if (l) { l.x = s.x; l.z = s.z; continue; }
+    const out = c!.createGain();
+    out.gain.value = 0;
+    const panner = c!.createStereoPanner();
+    out.connect(panner).connect(master!);
+    const stop = startLoop(c!, kind, out, c!.currentTime + 0.005);
+    live.set(s.id, { kind, x: s.x, z: s.z, out, panner, stop });
+  }
+  placeLoops();
+}
+
+// How many loops are playing now (for tests and the console).
+export const liveLoops = () => live.size;

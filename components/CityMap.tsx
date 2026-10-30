@@ -30,7 +30,7 @@ import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from
 import { positionKey, publishMotion, simClock, stampPosition } from './glide';
 import { ArmyControls, ArmyInfo, MAX_ARMIES, SelectionSummary } from './ArmyPanel';
 import { cameraFocus, onRightClick } from './DroneCamera';
-import { playSound, SoundKind } from './sfx';
+import { playSound, setLoops, SoundKind } from './sfx';
 import { AbilityCommand, abilityEffects, applyUnitEffects, FAB_LAUNCH, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
 import { WARHEAD_LABEL } from '../sim/warheads';
 import { Warhead } from '../sim/commands';
@@ -695,8 +695,9 @@ type TracerData = ShotFxData & { attackerId: string; targetId: string };
 
 // What a shot sounds like (components/sfx.ts): the Sentinel's laser, the Sentry Turret's railgun,
 // Kage's blade, rifles, machine guns, flak, a Lancer's missile, and cannons for the rest.
-const shotSound = (type: DamageType, shooter: UnitType | undefined, sentry: boolean): SoundKind =>
-    shooter === 'defense_drone' ? 'laser' : sentry ? 'rail' : type === 'blade' ? 'blade'
+// The Sentinel's beam is a loop held while it fires (setLoops below), so its shots make no sound of their own.
+const shotSound = (type: DamageType, shooter: UnitType | undefined, sentry: boolean): SoundKind | null =>
+    shooter === 'defense_drone' ? null : sentry ? 'rail' : type === 'blade' ? 'blade'
     : shooter === 'hero_heavy_metal' ? 'cannon'
     : type === 'rifle' ? 'rifle' : type === 'mg' ? 'mg' : type === 'flak' ? 'flak'
     : type === 'ap' && shooter === 'lancer' ? 'missile' : 'cannon';
@@ -1617,6 +1618,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // Explosions and launched missiles are made in many places; each is heard once, the first time
   // it appears here (components/sfx.ts).
   const heardRef = useRef(new Set<string>());
+  // No Sentinel beam hums on once the map is gone.
+  useEffect(() => () => setLoops('laser_beam', []), []);
   useEffect(() => {
       const heard = heardRef.current;
       for (const e of explosions) {
@@ -3850,6 +3853,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           const engage = (attackerId: string, targetId: string) => engagementsRef.current.set(attackerId, { targetId, at: now });
           attacks.shots.forEach(s => engage(s.attackerId, s.targetId));
           attacks.aiming.forEach((targetId, attackerId) => { if (targetId) engage(attackerId, targetId); });
+          // Each Sentinel's beam hums for as long as it is locked on (components/sfx.ts).
+          setLoops('laser_beam', currentUnitsRef
+              .filter(u => u.type === 'defense_drone' && u.health > 0 && attacks.aiming.get(u.id))
+              .map(u => ({ id: u.id, x: u.gridPos.x * tileSize - offset, z: u.gridPos.z * tileSize - offset })));
           rail.shots.forEach(s => engage(s.attackerId, s.targetId));
           hornetVolley.shots.forEach(s => engage(s.attackerId, s.targetId));
           ciws.links.forEach(l => { if (!l.ordnance) engage(l.gunId, l.targetId); });
@@ -3994,7 +4001,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               attacks.shots.forEach((shot, i) => {
                   const shooter = currentUnitsRef.find(u => u.id === shot.attackerId);
                   const sentryShot = !shooter && structuresRef.current.some(st => st.id === shot.attackerId && st.type === 'defense');
-                  playSound(shotSound(shot.type, shooter?.type, sentryShot), shot.from.x * tileSize - offset, shot.from.z * tileSize - offset);
+                  const sound = shotSound(shot.type, shooter?.type, sentryShot);
+                  if (sound) playSound(sound, shot.from.x * tileSize - offset, shot.from.z * tileSize - offset);
                   if (shooter?.type === 'defense_drone') return;
                   const structure = !shooter;
                   const infantry = shooter ? UNIT_RULES[shooter.type].armor === 'infantry' : false;

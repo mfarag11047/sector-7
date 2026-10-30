@@ -30,7 +30,9 @@ play a made-in-code sound until they have recordings. The others need hooking up
 
 `tools/process_sfx.py` is how the weapon pack was cut down: it trims each raw clip to its first
 transient (the railgun to its shot, after the charge-up), cuts it to length with a fade, mixes it
-to mono, levels the takes of each sound to match and writes the manifest.
+to mono, levels the takes of each sound to match and writes the manifest. The Sentinel's laser is
+made into a loop (`laser_beam`): the opening zap plays once, then a crossfaded stretch of the
+steady hum repeats for as long as the beam is on; its manifest entry gives the loop points.
 
 In the game: every sound in **Weapons and blasts**. Still to record: everything below it.
 
