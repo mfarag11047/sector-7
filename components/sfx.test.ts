@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { existsSync } from 'fs';
+import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
-import { pickTake, SAMPLES, SOUNDS, spatial } from './sfx';
+import { EXPLOSION_SIZES, pickTake, SAMPLE_MANIFEST, sampleKey, SampleManifest, SOUNDS, spatial } from './sfx';
+
+const PUBLIC = resolve(__dirname, '../public');
+const manifest = JSON.parse(readFileSync(resolve(PUBLIC, SAMPLE_MANIFEST), 'utf8')) as SampleManifest;
 
 describe('where a sound is heard from', () => {
   // Looking along -Z (heading 0), so +X is to the right of the screen.
@@ -32,14 +35,29 @@ describe('where a sound is heard from', () => {
 });
 
 describe('recorded sounds', () => {
-  it('has every listed take in public/sfx', () => {
-    for (const files of Object.values(SAMPLES)) {
-      for (const file of files!) expect(existsSync(resolve(__dirname, '../public/sfx', file)), file).toBe(true);
+  it('has every take the manifest lists, under a name the game plays', () => {
+    const playable = new Set<string>([...Object.keys(SOUNDS), 'explosion_small', 'explosion_large']);
+    for (const [key, entry] of Object.entries(manifest)) {
+      expect(playable.has(key), key).toBe(true);
+      expect(entry!.files.length, key).toBeGreaterThan(0);
+      for (const file of entry!.files) expect(existsSync(resolve(PUBLIC, file)), file).toBe(true);
     }
   });
 
-  it('has a made-in-code version of every sound, to play until (or unless) its recording loads', () => {
-    for (const kind of Object.keys(SAMPLES)) expect(SOUNDS[kind as keyof typeof SOUNDS]).toBeTypeOf('function');
+  it('has recordings for every weapon and blast, and made-in-code sounds to fall back on', () => {
+    for (const kind of ['rifle', 'mg', 'flak', 'ciws', 'cannon', 'rail', 'missile', 'rocket', 'laser', 'blade', 'explosion', 'explosion_small', 'explosion_large', 'emp', 'shield']) {
+      expect(manifest[kind as keyof SampleManifest]?.files.length, kind).toBeGreaterThan(0);
+    }
+    for (const kind of Object.keys(manifest)) expect(SOUNDS[kind.startsWith('explosion') ? 'explosion' : kind as keyof typeof SOUNDS]).toBeTypeOf('function');
+  });
+
+  it('plays a small, medium or large explosion by the size of the blast', () => {
+    expect(sampleKey('explosion', 1.8 / 4)).toBe('explosion_small');
+    expect(sampleKey('explosion', 3.5 / 4)).toBe('explosion');
+    expect(sampleKey('explosion', 5 / 4)).toBe('explosion');
+    expect(sampleKey('explosion', 25 / 4)).toBe('explosion_large');
+    expect(sampleKey('explosion', EXPLOSION_SIZES.medium + 0.01)).toBe('explosion_large');
+    expect(sampleKey('rifle', 9)).toBe('rifle');
   });
 
   it('never plays the same take twice running when there is a choice', () => {

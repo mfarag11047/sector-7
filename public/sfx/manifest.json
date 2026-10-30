@@ -1,0 +1,122 @@
+{
+  "rifle": {
+    "description": "Compact electric-assisted assault rifle, single shot",
+    "files": [
+      "sfx/rifle_1.mp3",
+      "sfx/rifle_2.mp3",
+      "sfx/rifle_3.mp3",
+      "sfx/rifle_4.mp3",
+      "sfx/rifle_5.mp3",
+      "sfx/rifle_6.mp3"
+    ]
+  },
+  "mg": {
+    "description": "Drone-mounted light machine gun, single round",
+    "files": [
+      "sfx/mg_1.mp3",
+      "sfx/mg_2.mp3",
+      "sfx/mg_3.mp3",
+      "sfx/mg_4.mp3"
+    ]
+  },
+  "flak": {
+    "description": "Anti-aircraft flak cannon, single shot",
+    "files": [
+      "sfx/flak_1.mp3",
+      "sfx/flak_2.mp3",
+      "sfx/flak_3.mp3",
+      "sfx/flak_4.mp3"
+    ]
+  },
+  "ciws": {
+    "description": "Rotary close-in weapon system, short burst",
+    "files": [
+      "sfx/ciws_1.mp3",
+      "sfx/ciws_2.mp3",
+      "sfx/ciws_3.mp3",
+      "sfx/ciws_4.mp3"
+    ]
+  },
+  "cannon": {
+    "description": "Main battle tank cannon",
+    "files": [
+      "sfx/cannon_1.mp3",
+      "sfx/cannon_2.mp3",
+      "sfx/cannon_3.mp3",
+      "sfx/cannon_4.mp3"
+    ]
+  },
+  "rail": {
+    "description": "Electromagnetic railgun shot",
+    "files": [
+      "sfx/rail_1.mp3",
+      "sfx/rail_2.mp3",
+      "sfx/rail_3.mp3"
+    ]
+  },
+  "missile": {
+    "description": "Shoulder-fired anti-tank missile launch",
+    "files": [
+      "sfx/missile_1.mp3",
+      "sfx/missile_2.mp3",
+      "sfx/missile_3.mp3"
+    ]
+  },
+  "rocket": {
+    "description": "Truck-mounted artillery rocket launch",
+    "files": [
+      "sfx/rocket_1.mp3",
+      "sfx/rocket_2.mp3",
+      "sfx/rocket_3.mp3"
+    ]
+  },
+  "laser": {
+    "description": "Security drone energy beam",
+    "files": [
+      "sfx/laser_1.mp3",
+      "sfx/laser_2.mp3"
+    ]
+  },
+  "blade": {
+    "description": "Monomolecular katana slash",
+    "files": [
+      "sfx/blade_1.mp3",
+      "sfx/blade_2.mp3"
+    ]
+  },
+  "explosion_small": {
+    "description": "Small explosion (grenade / light vehicle hit)",
+    "files": [
+      "sfx/explosion_small_1.mp3",
+      "sfx/explosion_small_2.mp3"
+    ]
+  },
+  "explosion": {
+    "description": "Medium explosion (vehicle destroyed)",
+    "files": [
+      "sfx/explosion_1.mp3",
+      "sfx/explosion_2.mp3"
+    ]
+  },
+  "explosion_large": {
+    "description": "Large explosion (building / base structure destroyed)",
+    "files": [
+      "sfx/explosion_large_1.mp3",
+      "sfx/explosion_large_2.mp3"
+    ]
+  },
+  "emp": {
+    "description": "Electromagnetic pulse detonation",
+    "files": [
+      "sfx/emp_1.mp3",
+      "sfx/emp_2.mp3"
+    ]
+  },
+  "shield": {
+    "description": "Shot absorbed by an energy force field",
+    "files": [
+      "sfx/shield_1.mp3",
+      "sfx/shield_2.mp3"
+    ]
+  }
+}

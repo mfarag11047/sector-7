@@ -724,17 +724,17 @@ holder's colour once taken.
 
 ### Sound
 
-Weapons and explosions have sound effects, played with the Web Audio API (`components/sfx.ts`).
-A sound with recordings plays one of its takes from `public/sfx/` (listed in `SAMPLES`), a
-different take from last time and a touch faster or slower each time; so far rifles (two takes), the
-Thunderhead's rocket launch (three takes) and the Lancer's missile have them. The rest are made in code until
-their recordings arrive (prompts for them: `docs/SOUND_PROMPTS.md`), as is any sound whose file
-hasn't loaded: rifle cracks, machine guns, flak, the CIWS guns' buzz-saw, cannon
-booms, the railgun (a crack, an electric zap, a metallic ring and a sub-bass punch) for the tank's
-main gun and the Sentry Turret, launch whooshes for missiles and rockets (the Lancer, Thunderhead, Hornet, Wasp and Ballista each
-have their own sound, so each can get its own recording), the Sentinel's laser, Kage's
-blade, and explosions that roar and rumble longer and lower the bigger they are, with EMP blasts
-crackling and shots on a force field thudding. A sound is fainter the further it is from the middle
+Weapons and explosions have sound effects, played with the Web Audio API (`components/sfx.ts`)
+from recordings in `public/sfx/`, listed by sound in `public/sfx/manifest.json`. Every weapon and
+blast has its own: rifle cracks (six takes), machine guns, flak, the CIWS guns' buzz-saw (short
+slices that run together while the gun fires), cannon booms, the railgun for the tank's main gun and
+the Sentry Turret, the Lancer's missile and the Thunderhead's rocket launches, the Sentinel's laser,
+Kage's blade, explosions in three sizes picked by the size of the blast (a grenade or rocket, a
+shell or bomb drop, a missile strike), EMP blasts crackling and shots on a force field thudding. Each plays one of its takes, a different one
+from last time and a touch faster or slower each time, so a volley doesn't sound like one clip
+repeated. Hornet rockets, Wasp swarms and the Ballista's launch have no recordings yet and are
+made in code, as is any sound whose files haven't loaded (prompts for the rest:
+`docs/SOUND_PROMPTS.md`). A sound is fainter the further it is from the middle
 of the view (heard further when zoomed out, and explosions further than gunfire) and panned by
 where it is across the screen. Each kind has a cap on how many play at once and how soon another
 may start, and everything runs through a compressor, so a big fight stays a din rather than a wall

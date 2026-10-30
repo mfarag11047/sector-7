@@ -1,9 +1,12 @@
 // Sound effects, played with the Web Audio API.
 //
-// A sound with recordings (SAMPLES below, files in public/sfx/, prompts in docs/SOUND_PROMPTS.md)
-// plays one of its takes, picked at random and never the same take twice running, a touch faster
-// or slower each time so a volley doesn't sound like one clip repeated. The recordings load once
-// the audio starts; until one has loaded, or if it can't be, that sound is made in code instead.
+// A sound with recordings (files in public/sfx/, listed by sound in public/sfx/manifest.json;
+// prompts in docs/SOUND_PROMPTS.md) plays one of its takes, picked at random and never the same
+// take twice running, a touch faster or slower each time so a volley doesn't sound like one clip
+// repeated. An explosion plays a small, medium or large recording by the size of the blast. The
+// recordings load once the audio starts; until one has loaded, or if it can't be, that sound is
+// made in code instead, as are the sounds with no recordings yet (Hornet rockets, Wasp swarms, the
+// Ballista's launch).
 //
 // A sound made in code is built from a few oscillators and bursts of filtered noise, shaped by
 // quick volume envelopes, with a little randomness:
@@ -32,12 +35,12 @@
 
 export type SoundKind = 'rifle' | 'mg' | 'flak' | 'ciws' | 'cannon' | 'rail' | 'missile' | 'rocket' | 'hornet_rocket' | 'wasp_swarm' | 'ballista_launch' | 'laser' | 'blade' | 'explosion' | 'emp' | 'shield';
 
-// The recorded takes for each sound, by file name in public/sfx/. A sound not listed is made in code.
-export const SAMPLES: Partial<Record<SoundKind, readonly string[]>> = {
-  rifle: ['rifle_1.mp3', 'rifle_2.mp3'],
-  rocket: ['rocket_1.mp3', 'rocket_2.mp3', 'rocket_3.mp3'],
-  missile: ['missile_1.mp3'],
-};
+// What the recordings are filed under in the manifest: a sound's own name, or for an explosion,
+// which size of blast it is.
+export type SampleKey = SoundKind | 'explosion_small' | 'explosion_large';
+export const SAMPLE_MANIFEST = 'sfx/manifest.json';
+// An explosion's size (its radius / 4) up to which it counts as small, then medium; past that, large.
+export const EXPLOSION_SIZES = { small: 0.7, medium: 1.9 };
 // How far a recording's speed (and so its pitch) varies from take to take.
 const SAMPLE_RATE_SPREAD = 0.06;
 
@@ -146,22 +149,33 @@ if (typeof window !== 'undefined') {
 
 // --- Recordings ---
 
-const buffers: Partial<Record<SoundKind, AudioBuffer[]>> = {};
-const lastTake: Partial<Record<SoundKind, number>> = {};
-const sampleUrl = (file: string) => `${(import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/'}sfx/${file}`;
+const buffers: Partial<Record<SampleKey, AudioBuffer[]>> = {};
+const lastTake: Partial<Record<SampleKey, number>> = {};
+const assetUrl = (path: string) => `${(import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/'}${path}`;
 
-// Fetch and decode every take. Each sound can use its takes as soon as they are in; one that
-// fails to load is left out, and a sound with none keeps its made-in-code version.
+// The manifest: for each recorded sound, its take files (paths under public/).
+export type SampleManifest = Partial<Record<SampleKey, { description?: string; files: string[] }>>;
+
+// Fetch the manifest, then fetch and decode every take. Each sound can use its takes as soon as
+// they are in; one that fails to load is left out, and a sound with none keeps its made-in-code version.
 function loadSamples(c: AudioContext): void {
-  for (const [kind, files] of Object.entries(SAMPLES) as [SoundKind, readonly string[]][]) {
-    for (const file of files) {
-      fetch(sampleUrl(file))
-        .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))))
-        .then(data => c.decodeAudioData(data))
-        .then(buffer => { (buffers[kind] ??= []).push(buffer); })
-        .catch(e => console.warn(`sound ${file} didn't load:`, e));
-    }
-  }
+  const load = (key: SampleKey, file: string) => fetch(assetUrl(file))
+    .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))))
+    .then(data => c.decodeAudioData(data))
+    .then(buffer => { (buffers[key] ??= []).push(buffer); })
+    .catch(e => console.warn(`sound ${file} didn't load:`, e));
+  fetch(assetUrl(SAMPLE_MANIFEST))
+    .then(r => (r.ok ? r.json() as Promise<SampleManifest> : Promise.reject(new Error(`${r.status}`))))
+    .then(manifest => {
+      for (const [key, entry] of Object.entries(manifest) as [SampleKey, { files: string[] }][]) for (const file of entry.files) void load(key, file);
+    })
+    .catch(e => console.warn("sound manifest didn't load; every sound is made in code:", e));
+}
+
+// Which recordings a sound plays: its own, or for an explosion, the ones for its size.
+export function sampleKey(kind: SoundKind, size: number): SampleKey {
+  if (kind !== 'explosion') return kind;
+  return size <= EXPLOSION_SIZES.small ? 'explosion_small' : size <= EXPLOSION_SIZES.medium ? 'explosion' : 'explosion_large';
 }
 
 // Which take to play out of `count`: any but the one played last, when there is a choice.
@@ -172,18 +186,20 @@ export function pickTake(count: number, last: number | undefined, random = Math.
 }
 
 // Plays a take of `kind`'s recording into `out` at `t`, returning how long it lasts, or null when
-// it has none loaded.
-function playSample(c: BaseAudioContext, kind: SoundKind, out: AudioNode, t: number): number | null {
-  const takes = buffers[kind];
+// it has none loaded. An explosion whose size has no recordings loaded uses the medium ones.
+function playSample(c: BaseAudioContext, kind: SoundKind, size: number, out: AudioNode, t: number): number | null {
+  let key = sampleKey(kind, size);
+  if (!buffers[key]?.length) key = kind;
+  const takes = buffers[key];
   if (!takes?.length) return null;
-  const take = pickTake(takes.length, lastTake[kind]);
-  lastTake[kind] = take;
+  const take = pickTake(takes.length, lastTake[key]);
+  lastTake[key] = take;
   const src = c.createBufferSource();
   src.buffer = takes[take];
   src.playbackRate.value = rand(1 - SAMPLE_RATE_SPREAD, 1 + SAMPLE_RATE_SPREAD);
   src.connect(out);
   src.start(t);
-  if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV) ((window as unknown as { __SFX_TAKES?: string[] }).__SFX_TAKES ??= []).push(`${kind}_${take + 1}`);
+  if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV) ((window as unknown as { __SFX_TAKES?: string[] }).__SFX_TAKES ??= []).push(`${key}_${take + 1}`);
   return takes[take].duration / src.playbackRate.value;
 }
 
@@ -342,7 +358,7 @@ export function playSound(kind: SoundKind, x: number, z: number, size = 1): void
   panner.pan.value = pan;
   out.connect(panner).connect(master);
   const t = ctx.currentTime + 0.005;
-  const dur = playSample(ctx, kind, out, t) ?? SOUNDS[kind](ctx, out, t, size);
+  const dur = playSample(ctx, kind, size, out, t) ?? SOUNDS[kind](ctx, out, t, size);
   playing[kind] = (playing[kind] ?? 0) + 1;
   voices++;
   // In development, a log of what played, for checking from the console.

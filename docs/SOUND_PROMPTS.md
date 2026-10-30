@@ -23,11 +23,16 @@ the synthesised sounds directly; the rest are sounds the game doesn't have yet.
 ## Adding a recording to the game
 
 Put the trimmed takes in `public/sfx/` as `<name>_1.mp3`, `<name>_2.mp3`, … and list them under
-that name in `SAMPLES` in `components/sfx.ts`. Names the game already plays are those in
-**Weapons and blasts** plus `hornet_rocket`, `wasp_swarm` and `ballista_launch`; each plays its
-made-in-code sound until it has a recording. The others need hooking up where they happen.
+that name in `public/sfx/manifest.json`; the game reads the manifest, so no code changes. Names the
+game already plays are those in **Weapons and blasts** (explosions by size: `explosion_small`,
+`explosion`, `explosion_large`) plus `hornet_rocket`, `wasp_swarm` and `ballista_launch`, which
+play a made-in-code sound until they have recordings. The others need hooking up where they happen.
 
-In the game so far: `rifle` (2 takes), `rocket` (3 takes), `missile` (1 take).
+`tools/process_sfx.py` is how the weapon pack was cut down: it trims each raw clip to its first
+transient (the railgun to its shot, after the charge-up), cuts it to length with a fade, mixes it
+to mono, levels the takes of each sound to match and writes the manifest.
+
+In the game: every sound in **Weapons and blasts**. Still to record: everything below it.
 
 ## Weapons and blasts (replace the current sounds)
 
