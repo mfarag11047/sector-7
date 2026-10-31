@@ -29,6 +29,8 @@
 //     hit_heavy_building (a crunch), building_collapse and wall_breach (long rumbles), gate_cycle
 //     (a hiss then a thud), unit_destroyed_infantry (a clatter) and unit_destroyed_drone (a zap
 //     and a pop).
+//   - Feedback and the interface (playUiSound, centred at full volume): chimes and beeps for
+//     progress, orders, refusals, notices and alerts, and stings for victory and defeat.
 //
 // Where a sound is matters: it is fainter the further it is from the middle of the view (heard
 // further when zoomed out, explosions further than gunfire) and panned left or right by where it is
@@ -44,7 +46,9 @@ export type SoundKind = 'rifle' | 'mg' | 'flak' | 'cannon' | 'rail' | 'missile' 
   | 'hit_metal' | 'hit_concrete' | 'hit_heavy_building' | 'building_collapse' | 'wall_breach' | 'gate_cycle'
   | 'unit_destroyed_infantry' | 'unit_destroyed_drone'
   | 'structure_complete' | 'unit_ready' | 'research_complete' | 'tier_up' | 'capture_tick' | 'building_captured'
-  | 'node_captured' | 'node_lost' | 'base_founded';
+  | 'node_captured' | 'node_lost' | 'base_founded'
+  | 'ui_click' | 'ui_order_move' | 'ui_order_attack' | 'ui_error' | 'ui_notice' | 'alert_under_attack' | 'alert_missile'
+  | 'victory' | 'defeat';
 
 // What the recordings are filed under in the manifest: a sound's own name, or for an explosion,
 // which size of blast it is.
@@ -106,6 +110,16 @@ const KINDS: Record<SoundKind, { gain: number; voices: number; gapMs: number; re
   node_captured: { gain: 0.6, voices: 1, gapMs: 1000, reach: 1 },
   node_lost: { gain: 0.6, voices: 1, gapMs: 1000, reach: 1 },
   base_founded: { gain: 0.6, voices: 1, gapMs: 1000, reach: 1 },
+  // The interface: clicks and order beeps quiet and never piling up on themselves.
+  ui_click: { gain: 0.3, voices: 2, gapMs: 50, reach: 1 },
+  ui_order_move: { gain: 0.35, voices: 1, gapMs: 120, reach: 1 },
+  ui_order_attack: { gain: 0.35, voices: 1, gapMs: 120, reach: 1 },
+  ui_error: { gain: 0.4, voices: 1, gapMs: 250, reach: 1 },
+  ui_notice: { gain: 0.35, voices: 1, gapMs: 400, reach: 1 },
+  alert_under_attack: { gain: 0.55, voices: 1, gapMs: 5000, reach: 1 },
+  alert_missile: { gain: 0.55, voices: 1, gapMs: 2000, reach: 1 },
+  victory: { gain: 0.7, voices: 1, gapMs: 5000, reach: 1 },
+  defeat: { gain: 0.7, voices: 1, gapMs: 5000, reach: 1 },
 };
 const MAX_VOICES = 28;
 const MASTER_GAIN = 0.55;
@@ -189,6 +203,11 @@ function unlock(): void {
 }
 if (typeof window !== 'undefined') {
   for (const type of ['pointerdown', 'keydown'] as const) window.addEventListener(type, unlock, { capture: true });
+  // Every menu and HUD button clicks.
+  window.addEventListener('click', e => {
+    const button = (e.target as Element | null)?.closest?.('button');
+    if (button && !button.disabled) playUiSound('ui_click');
+  }, { capture: true });
 }
 
 // --- Recordings ---
@@ -409,6 +428,44 @@ export const SOUNDS: Record<SoundKind, (c: BaseAudioContext, out: AudioNode, t: 
     noiseBurst(c, out, t + 0.45, { type: 'lowpass', f0: 1500, peak: 0.5, decay: 0.2 });
     return 0.7;
   },
+  ui_click: (c, out, t) => {
+    noiseBurst(c, out, t, { type: 'highpass', f0: 4000, peak: 0.5, decay: 0.012 });
+    return 0.05;
+  },
+  ui_order_move: (c, out, t) => {
+    [1200, 1200].forEach((f, i) => tone(c, out, t + i * 0.09, { type: 'sine', f0: f, f1: f, peak: 0.35, decay: 0.06 }));
+    return 0.25;
+  },
+  ui_order_attack: (c, out, t) => {
+    tone(c, out, t, { type: 'square', f0: 520, f1: 480, peak: 0.25, decay: 0.12 });
+    return 0.2;
+  },
+  ui_error: (c, out, t) => {
+    tone(c, out, t, { type: 'square', f0: 140, f1: 120, peak: 0.3, attack: 0.005, decay: 0.2 });
+    return 0.25;
+  },
+  ui_notice: (c, out, t) => {
+    tone(c, out, t, { type: 'sine', f0: 990, f1: 990, peak: 0.3, decay: 0.15 });
+    tone(c, out, t + 0.12, { type: 'sine', f0: 1320, f1: 1320, peak: 0.3, decay: 0.25 });
+    return 0.45;
+  },
+  alert_under_attack: (c, out, t) => {
+    for (let i = 0; i < 3; i++) tone(c, out, t + i * 0.45, { type: 'square', f0: 880, f1: 660, peak: 0.3, attack: 0.01, decay: 0.3 });
+    return 1.4;
+  },
+  alert_missile: (c, out, t) => {
+    for (let i = 0; i < 2; i++) tone(c, out, t + i * 0.5, { type: 'sawtooth', f0: 600, f1: 1800, peak: 0.25, attack: 0.02, decay: 0.4, glide: 0.4 });
+    return 1.1;
+  },
+  victory: (c, out, t) => {
+    [262, 330, 392, 523].forEach((f, i) => tone(c, out, t + i * 0.25, { type: 'triangle', f0: f, f1: f, peak: 0.35, attack: 0.02, decay: 1.4 - i * 0.1 }));
+    return 2.2;
+  },
+  defeat: (c, out, t) => {
+    [392, 330, 262].forEach((f, i) => tone(c, out, t + i * 0.35, { type: 'triangle', f0: f, f1: f * 0.97, peak: 0.35, attack: 0.02, decay: 0.9 }));
+    tone(c, out, t + 1.1, { type: 'sine', f0: 60, f1: 30, peak: 0.9, attack: 0.005, decay: 1 });
+    return 2.2;
+  },
   structure_complete: (c, out, t) => {
     tone(c, out, t, { type: 'sine', f0: 90, f1: 50, peak: 0.8, attack: 0.004, decay: 0.2 });
     tone(c, out, t + 0.3, { type: 'triangle', f0: 220, f1: 440, peak: 0.4, attack: 0.2, decay: 0.5, glide: 0.5 });
@@ -470,7 +527,23 @@ export function playSound(kind: SoundKind, x: number, z: number, size = 1): void
 // and centred, wherever the camera is.
 export function playUiSound(kind: SoundKind): void {
   if (muted || !ctx || !master || ctx.state !== 'running') return;
+  if (kind !== 'ui_click') lastFeedbackAt = performance.now();
   start(kind, 1, 0, 1);
+}
+
+// When the last piece of feedback (anything but a click) played, so a notice doesn't ping on top of
+// one: the research chime, a refusal's buzz or an alert already says it.
+let lastFeedbackAt = -Infinity;
+// (Alerts can come up to a second after the sound for the same event.)
+const NOTICE_QUIET_MS = 1200;
+// The ping for a message to the player, unless feedback just played or comes with it. It waits a
+// moment so the sound for the same event, played just after the message, can claim it first.
+export function playNoticeSound(): void {
+  const asked = performance.now();
+  setTimeout(() => {
+    if (lastFeedbackAt >= asked - NOTICE_QUIET_MS) return;
+    playUiSound('ui_notice');
+  }, 60);
 }
 
 function start(kind: SoundKind, gain: number, pan: number, size: number): void {

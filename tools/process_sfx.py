@@ -5,12 +5,13 @@
 # Usage: python3 tools/process_sfx.py weapons <unzipped pack sfx dir> <earlier rifle takes dir> public/sfx
 #        python3 tools/process_sfx.py impacts <unzipped pack sfx dir> public/sfx
 #        python3 tools/process_sfx.py base <unzipped pack sfx dir> public/sfx
+#        python3 tools/process_sfx.py interface <unzipped pack sfx dir> public/sfx
 import json, math, os, struct, subprocess, sys
 
 mode = sys.argv[1]
 if mode == 'weapons': src, earlier, out = sys.argv[2:5]
-elif mode in ('impacts', 'base'): src, out = sys.argv[2:4]
-else: sys.exit(f'unknown pack {mode}: weapons, impacts or base')
+elif mode in ('impacts', 'base', 'interface'): src, out = sys.argv[2:4]
+else: sys.exit(f'unknown pack {mode}: weapons, impacts, base or interface')
 SR = 44100
 
 def pcm(path, start=0.0, length=None):
@@ -82,8 +83,22 @@ BASE = {
     # The landing thud, the hydraulics, and the second thud.
     'base_founded': ([('base_founded_1.mp3', O, 3.5, 2.5, 0)], -12),
 }
-SPECS = WEAPONS if mode == 'weapons' else IMPACTS if mode == 'impacts' else BASE
-DESCRIPTIONS = json.load(open(os.path.join(src, {'weapons': 'manifest.json', 'impacts': 'manifest_impacts.json', 'base': 'manifest_base.json'}[mode])))
+INTERFACE = {
+    # Heard often: kept short and a little under the rest.
+    'ui_click': ([('ui_click_1.mp3', O, 0.12, 0.06, 0)], -16),
+    'ui_order_move': ([('ui_order_move_1.mp3', O, 0.4, 0.25, 0)], -16),
+    # The take beeps on for a second and a half; the order is told in its first few.
+    'ui_order_attack': ([('ui_order_attack_1.mp3', O, 0.45, 0.3, 0)], -16),
+    'ui_error': ([('ui_error_1.mp3', O, 0.4, 0.15, 0)], -14),
+    'ui_notice': ([('ui_notice_1.mp3', O, 1.2, 0.7, 0)], -14),
+    # Three of its half-second pulses, and two sweeps of the radar warning.
+    'alert_under_attack': ([('alert_under_attack_1.mp3', O, 2.8, 2.4, 0)], -12),
+    'alert_missile': ([('alert_missile_1.mp3', O, 2.0, 1.6, 0)], -12),
+    'victory': ([('victory_1.mp3', O, 5.0, 3.5, 0)], -12),
+    'defeat': ([('defeat_1.mp3', O, 4.0, 3.0, 0)], -12),
+}
+SPECS = {'weapons': WEAPONS, 'impacts': IMPACTS, 'base': BASE, 'interface': INTERFACE}[mode]
+DESCRIPTIONS = json.load(open(os.path.join(src, {'weapons': 'manifest.json', 'impacts': 'manifest_impacts.json', 'base': 'manifest_base.json', 'interface': 'manifest_interface.json'}[mode])))
 
 manifest, report = {}, []
 for kind, (takes, target) in SPECS.items():

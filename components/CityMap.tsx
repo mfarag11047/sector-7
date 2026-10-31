@@ -1645,6 +1645,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           heard.add(p.id);
           const from = p.startPos ?? p.position;
           playSound('ballista_launch', from.x, from.z);
+          // An enemy missile on its way: the radar warning, wherever it was fired from.
+          if (p.trajectory === 'ballistic' && p.team !== playerTeam && (p.payload === 'emp' || p.payload === 'he' || p.payload === 'wp')) playUiSound('alert_missile');
       }
       // Forget what has gone, so the list stays short.
       if (heard.size > 400) {
@@ -2890,7 +2892,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               dispatchAbility({ type, unitId: targetingSourceId, target: { x, z } });
           } else {
               const fired = ids.filter(id => dispatchAbility({ type, unitId: id, target: { x, z } }, playerTeam, true)).length;
-              if (fired === 0) onNotice?.(`Can't do that: ${lastAbilityRefusalRef.current}`, 'warn');
+              if (fired === 0) { playUiSound('ui_error'); onNotice?.(`Can't do that: ${lastAbilityRefusalRef.current}`, 'warn'); }
               else onNotice?.(`${fired} of ${ids.length} ${UNIT_STATS[source!.type].label} units fired together`);
           }
           clearTargeting();
@@ -2904,7 +2906,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           // Ctrl-click (or F, then click) is an attack-move: stop to fight anything met on the way.
           const attackMove = attackMoveArmedRef.current || ctrlHeldRef.current;
           if (attackMoveArmedRef.current) { attackMoveArmedRef.current = false; setAttackMoveArmed(false); }
-          dispatchOrder({ type: 'MOVE', unitIds: Array.from(selectedUnitIds), target: { x, z }, attackMove }, playerTeam, true);
+          if (dispatchOrder({ type: 'MOVE', unitIds: Array.from(selectedUnitIds), target: { x, z }, attackMove }, playerTeam, true)) {
+              playUiSound(attackMove ? 'ui_order_attack' : 'ui_order_move');
+          }
           // Say so when jammed units in the selection didn't hear it (sim/jamming.ts).
           const mine = unitsRef.current.filter(u => selectedUnitIds.has(u.id) && u.team === playerTeam && u.health > 0);
           const jammedCount = mine.filter(u => u.isJammed).length;
@@ -2987,7 +2991,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           },
       );
       if ('reason' in outcome) {
-          if (team === playerTeam && !quiet) onNotice?.(`Can't do that: ${outcome.reason}`, 'warn');
+          if (team === playerTeam && !quiet) { playUiSound('ui_error'); onNotice?.(`Can't do that: ${outcome.reason}`, 'warn'); }
           return false;
       }
       const fx = outcome.effects;
@@ -3023,7 +3027,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           },
       );
       if ('reason' in outcome) {
-          if (team === playerTeam && !quiet) onNotice?.(`Can't do that: ${outcome.reason}`, 'warn');
+          if (team === playerTeam && !quiet) { playUiSound('ui_error'); onNotice?.(`Can't do that: ${outcome.reason}`, 'warn'); }
           lastAbilityRefusalRef.current = outcome.reason;
           return false;
       }
@@ -3520,9 +3524,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
       // Alerts for the player: their base under attack, their nodes being taken, nodes changing hands.
       const me = playerTeamRef.current;
-      const say = (key: string, text: string, tone: 'info' | 'warn', everyMs: number) => {
+      const say = (key: string, text: string, tone: 'info' | 'warn', everyMs: number, alarm = false) => {
           if ((alertAtRef.current.get(key) || 0) + everyMs > now) return;
           alertAtRef.current.set(key, now);
+          if (alarm) playUiSound('alert_under_attack');
           onNoticeRef.current?.(text, tone);
       };
       const myEconomy = economyRef.current[me];
@@ -3532,7 +3537,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       }
       const myHq = me === 'blue' ? baseA_Coord : baseB_Coord;
       if (unitsRef.current.some(u => u.team !== me && u.team !== 'neutral' && u.health > 0 && Math.hypot(u.gridPos.x - myHq.x, u.gridPos.z - myHq.z) <= 10)) {
-          say('base', 'Enemy forces at your base!', 'warn', 30000);
+          say('base', 'Enemy forces at your base!', 'warn', 30000, true);
       }
       for (const b of buildingsRef.current) {
           if (b.type !== 'core_node' && b.type !== 'server_node') continue;
@@ -3544,7 +3549,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           }
           nodeOwnerRef.current.set(b.id, b.owner);
           if (b.owner === me && b.capturingTeam && b.capturingTeam !== me && b.captureProgress > 0) {
-              say(`taking-${b.id}`, `The enemy is taking your ${label}`, 'warn', 20000);
+              say(`taking-${b.id}`, `The enemy is taking your ${label}`, 'warn', 20000, true);
           }
       }
 
@@ -3554,6 +3559,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (!victory || matchOverRef.current || matchRef.current.mode === 'sandbox') return;
       matchOverRef.current = true;
       if (pacingRef.current) recordVictory(pacingRef.current, victory.winner);
+      playUiSound(victory.winner === me || matchRef.current.mode === 'spectate' ? 'victory' : 'defeat');
       const side = (team: 'blue' | 'red') => ({
           ...tallyRef.current[team],
           earned: economyRef.current[team].lifetimeIncome,

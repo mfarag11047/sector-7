@@ -66,6 +66,13 @@ describe('recorded sounds', () => {
     expect(manifest.construction?.loop).toEqual([0.3, 7.8]);
   });
 
+  it('has recordings for every interface sound', () => {
+    for (const kind of ['ui_click', 'ui_order_move', 'ui_order_attack', 'ui_error', 'ui_notice', 'alert_under_attack', 'alert_missile', 'victory', 'defeat']) {
+      expect(manifest[kind as keyof SampleManifest]?.files.length, kind).toBeGreaterThan(0);
+      expect(SOUNDS[kind as keyof typeof SOUNDS], kind).toBeTypeOf('function');
+    }
+  });
+
   it('plays a small, medium or large explosion by the size of the blast', () => {
     expect(sampleKey('explosion', 1.8 / 4)).toBe('explosion_small');
     expect(sampleKey('explosion', 3.5 / 4)).toBe('explosion');

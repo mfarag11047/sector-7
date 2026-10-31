@@ -245,5 +245,59 @@
       0.3,
       7.8
     ]
+  },
+  "ui_click": {
+    "description": "Clean futuristic interface button click",
+    "files": [
+      "sfx/ui_click_1.mp3"
+    ]
+  },
+  "ui_order_move": {
+    "description": "Short double electronic beep acknowledging a move order",
+    "files": [
+      "sfx/ui_order_move_1.mp3"
+    ]
+  },
+  "ui_order_attack": {
+    "description": "Sharper, lower, aggressive beep acknowledging an attack order",
+    "files": [
+      "sfx/ui_order_attack_1.mp3"
+    ]
+  },
+  "ui_error": {
+    "description": "Short low buzz denial tone",
+    "files": [
+      "sfx/ui_error_1.mp3"
+    ]
+  },
+  "ui_notice": {
+    "description": "Clean two-tone ping for an incoming notification",
+    "files": [
+      "sfx/ui_notice_1.mp3"
+    ]
+  },
+  "alert_under_attack": {
+    "description": "Urgent pulsing alarm, three short bursts",
+    "files": [
+      "sfx/alert_under_attack_1.mp3"
+    ]
+  },
+  "alert_missile": {
+    "description": "Rapid rising radar warning tone",
+    "files": [
+      "sfx/alert_missile_1.mp3"
+    ]
+  },
+  "victory": {
+    "description": "Triumphant synth brass rising to a bold chord",
+    "files": [
+      "sfx/victory_1.mp3"
+    ]
+  },
+  "defeat": {
+    "description": "Dark descending synth with a heavy final low hit",
+    "files": [
+      "sfx/defeat_1.mp3"
+    ]
   }
 }

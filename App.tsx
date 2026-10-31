@@ -11,6 +11,7 @@ import Atmosphere from './components/Atmosphere';
 import PostFx from './components/PostFx';
 import UIOverlay from './components/UIOverlay';
 import { useHudScale } from './components/hudScale';
+import { playNoticeSound } from './components/sfx';
 import { GameStats, UnitData, BuildingData, RoadTileData, MinimapData, StructureData, DoctrineState, DoctrineType } from './types';
 import { DOCTRINE_CONFIG, CAMERA_FOV, CAMERA_NEAR, CAMERA_FAR, CITY_CONFIG, TEAM_BASES } from './constants';
 import { lookAhead } from './components/cameraView';
@@ -122,6 +123,8 @@ function App() {
   }, []);
 
   const handleNotice = useCallback((text: string, tone: 'info' | 'warn' = 'info') => {
+      // A ping, unless the event's own sound already says it (components/sfx.ts).
+      playNoticeSound();
       const at = Date.now();
       setNotices(prev => {
           // The same message twice in a row just refreshes it.
