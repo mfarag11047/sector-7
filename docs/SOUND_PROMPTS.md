@@ -32,7 +32,8 @@ play a made-in-code sound until they have recordings. The others need hooking up
 and `ambience` modes, each merged into the manifest): it trims each raw clip to its first
 transient (the railgun to its shot, after the charge-up), cuts it to length with a fade, mixes it
 to mono, levels the takes of each sound to match and writes the manifest. The Sentinel's laser and the
-CIWS are made into loops (`laser_beam`, `ciws_fire`): the opening plays once, then a crossfaded
+CIWS are made into loops (`laser_beam`, `ciws_fire`; the CIWS is now a minigun recording, made with
+`loop ciws_fire <file> 1.27 2.0 0.12 -16`, its wind-up the opening): the opening plays once, then a crossfaded
 stretch of the steady sound repeats for as long as the beam is on or the burst lasts; their
 manifest entries give the loop points.
 

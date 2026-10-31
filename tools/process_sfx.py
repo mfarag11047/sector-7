@@ -9,6 +9,9 @@
 #        python3 tools/process_sfx.py ambience <city ambience file> public/sfx
 #        python3 tools/process_sfx.py single <sound key> <file> <length s> <fade from s> public/sfx
 #          (one recording as the only take of one sound, trimmed to its onset; replaces any before)
+#        python3 tools/process_sfx.py loop <loop key> <file> <opening s> <loop s> <crossfade s> <level dB> public/sfx
+#          (one recording as the only take of a loop: the opening, from its onset, plays once, then the
+#          loop repeats; replaces any before)
 import json, math, os, struct, subprocess, sys
 
 mode = sys.argv[1]
@@ -16,6 +19,9 @@ if mode == 'weapons': src, earlier, out = sys.argv[2:5]
 elif mode in ('impacts', 'base', 'interface', 'ambience'): src, out = sys.argv[2:4]
 elif mode == 'single':
     key, path_in, length, fade_from, out = sys.argv[2], sys.argv[3], float(sys.argv[4]), float(sys.argv[5]), sys.argv[6]
+    src = os.path.dirname(os.path.abspath(path_in))
+elif mode == 'loop':
+    key, path_in, opening, loop_s, xfade, level, out = sys.argv[2], sys.argv[3], float(sys.argv[4]), float(sys.argv[5]), float(sys.argv[6]), float(sys.argv[7]), sys.argv[8]
     src = os.path.dirname(os.path.abspath(path_in))
 else: sys.exit(f'unknown pack {mode}: weapons, impacts, base, interface, ambience or single')
 SR = 44100
@@ -104,8 +110,8 @@ INTERFACE = {
     'defeat': ([('defeat_1.mp3', O, 4.0, 3.0, 0)], -12),
 }
 SPECS = {'weapons': WEAPONS, 'impacts': IMPACTS, 'base': BASE, 'interface': INTERFACE, 'ambience': {},
-         'single': {key: ([(os.path.basename(path_in), O, length, fade_from, 0)], -12)} if mode == 'single' else {}}[mode]
-DESCRIPTIONS = {key: {'description': f'{key}, from {os.path.basename(path_in)}'}} if mode == 'single' else {} if mode == 'ambience' else json.load(open(os.path.join(src, {'weapons': 'manifest.json', 'impacts': 'manifest_impacts.json', 'base': 'manifest_base.json', 'interface': 'manifest_interface.json'}[mode])))
+         'single': {key: ([(os.path.basename(path_in), O, length, fade_from, 0)], -12)} if mode == 'single' else {}, 'loop': {}}[mode]
+DESCRIPTIONS = {key: {'description': f'{key}, from {os.path.basename(path_in)}'}} if mode == 'single' else {} if mode in ('ambience', 'loop') else json.load(open(os.path.join(src, {'weapons': 'manifest.json', 'impacts': 'manifest_impacts.json', 'base': 'manifest_base.json', 'interface': 'manifest_interface.json'}[mode])))
 
 manifest, report = {}, []
 for kind, (takes, target) in SPECS.items():
@@ -184,13 +190,15 @@ def make_loop(key, description, sources, attack, body_s, xfade, target):
 if mode == 'weapons':
     # The Sentinel's beam: the opening zap, then the steady hum.
     make_loop('laser_beam', 'Sentinel drone energy beam, looped while it fires', ['laser_1.mp3', 'laser_2.mp3'], 0.9, 2.4, 0.25, -20)
-    # The CIWS guns' roar, for as long as a burst lasts. The first take drops away after 0.85 s, too
-    # short to loop; the others hold steady for over two seconds.
-    make_loop('ciws_fire', 'Rotary close-in weapon system, looped while it fires', ['ciws_2.mp3', 'ciws_3.mp3', 'ciws_4.mp3'], 0.1, 1.9, 0.12, -16)
+    # (The CIWS guns' roar, ciws_fire, was made from this pack too; it is now a minigun recording
+    # with its wind-up, made with the loop mode: see docs/SOUND_PROMPTS.md.)
 
 if mode == 'base':
     # The building-site bed, repeating for as long as a site is at work.
     make_loop('construction', 'Robotic construction site, looped while a building goes up', ['construction_1.mp3'], 0.3, 7.5, 0.5, -20)
+
+if mode == 'loop':
+    make_loop(key, f'{key}, from {os.path.basename(path_in)}, looped', [os.path.basename(path_in)], opening, loop_s, xfade, level)
 
 if mode == 'ambience':
     # The city's background, a stereo bed looping under the whole match (components/sfx.ts

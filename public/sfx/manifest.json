@@ -115,15 +115,13 @@
     ]
   },
   "ciws_fire": {
-    "description": "Rotary close-in weapon system, looped while it fires",
+    "description": "ciws_fire, from bc638a23-freesound_community-minigun-36769.mp3, looped",
     "files": [
-      "sfx/ciws_fire_1.mp3",
-      "sfx/ciws_fire_2.mp3",
-      "sfx/ciws_fire_3.mp3"
+      "sfx/ciws_fire_1.mp3"
     ],
     "loop": [
-      0.1,
-      2.0
+      1.27,
+      3.27
     ]
   },
   "hit_metal": {
