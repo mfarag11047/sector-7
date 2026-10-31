@@ -45,7 +45,7 @@ describe('recorded sounds', () => {
   });
 
   it('has recordings for every weapon and blast, and made-in-code sounds to fall back on', () => {
-    for (const kind of ['rifle', 'mg', 'flak', 'ciws_fire', 'cannon', 'rail', 'missile', 'rocket', 'laser_beam', 'blade', 'explosion', 'explosion_small', 'explosion_large', 'emp', 'shield']) {
+    for (const kind of ['rifle', 'mg', 'flak', 'ciws_fire', 'cannon', 'rail', 'tank_rail', 'missile', 'rocket', 'laser_beam', 'blade', 'explosion', 'explosion_small', 'explosion_large', 'emp', 'shield']) {
       expect(manifest[kind as keyof SampleManifest]?.files.length, kind).toBeGreaterThan(0);
     }
     for (const kind of Object.keys(manifest).filter(k => !['laser_beam', 'ciws_fire', 'construction', 'city_ambience'].includes(k))) expect(SOUNDS[kind.startsWith('explosion') ? 'explosion' : kind as keyof typeof SOUNDS]).toBeTypeOf('function');

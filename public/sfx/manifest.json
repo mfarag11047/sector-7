@@ -309,5 +309,11 @@
       0.25,
       22.25
     ]
+  },
+  "tank_rail": {
+    "description": "tank_rail, from 747c2af1-HEAVY_tank_RAIL_GUN__1-1793482325280.mp3",
+    "files": [
+      "sfx/tank_rail_1.mp3"
+    ]
   }
 }

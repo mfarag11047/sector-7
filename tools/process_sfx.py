@@ -7,12 +7,17 @@
 #        python3 tools/process_sfx.py base <unzipped pack sfx dir> public/sfx
 #        python3 tools/process_sfx.py interface <unzipped pack sfx dir> public/sfx
 #        python3 tools/process_sfx.py ambience <city ambience file> public/sfx
+#        python3 tools/process_sfx.py single <sound key> <file> <length s> <fade from s> public/sfx
+#          (one recording as the only take of one sound, trimmed to its onset; replaces any before)
 import json, math, os, struct, subprocess, sys
 
 mode = sys.argv[1]
 if mode == 'weapons': src, earlier, out = sys.argv[2:5]
 elif mode in ('impacts', 'base', 'interface', 'ambience'): src, out = sys.argv[2:4]
-else: sys.exit(f'unknown pack {mode}: weapons, impacts, base, interface or ambience')
+elif mode == 'single':
+    key, path_in, length, fade_from, out = sys.argv[2], sys.argv[3], float(sys.argv[4]), float(sys.argv[5]), sys.argv[6]
+    src = os.path.dirname(os.path.abspath(path_in))
+else: sys.exit(f'unknown pack {mode}: weapons, impacts, base, interface, ambience or single')
 SR = 44100
 
 def pcm(path, start=0.0, length=None):
@@ -98,8 +103,9 @@ INTERFACE = {
     'victory': ([('victory_1.mp3', O, 5.0, 3.5, 0)], -12),
     'defeat': ([('defeat_1.mp3', O, 4.0, 3.0, 0)], -12),
 }
-SPECS = {'weapons': WEAPONS, 'impacts': IMPACTS, 'base': BASE, 'interface': INTERFACE, 'ambience': {}}[mode]
-DESCRIPTIONS = {} if mode == 'ambience' else json.load(open(os.path.join(src, {'weapons': 'manifest.json', 'impacts': 'manifest_impacts.json', 'base': 'manifest_base.json', 'interface': 'manifest_interface.json'}[mode])))
+SPECS = {'weapons': WEAPONS, 'impacts': IMPACTS, 'base': BASE, 'interface': INTERFACE, 'ambience': {},
+         'single': {key: ([(os.path.basename(path_in), O, length, fade_from, 0)], -12)} if mode == 'single' else {}}[mode]
+DESCRIPTIONS = {key: {'description': f'{key}, from {os.path.basename(path_in)}'}} if mode == 'single' else {} if mode == 'ambience' else json.load(open(os.path.join(src, {'weapons': 'manifest.json', 'impacts': 'manifest_impacts.json', 'base': 'manifest_base.json', 'interface': 'manifest_interface.json'}[mode])))
 
 manifest, report = {}, []
 for kind, (takes, target) in SPECS.items():

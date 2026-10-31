@@ -15,8 +15,8 @@
 //   - ciws_fire: the CIWS guns' buzz-saw roar, a loop held for as long as a burst lasts (setLoops):
 //     a fast-pulsing burst of filtered noise over a low growl, for a gun firing thousands a minute.
 //   - cannon: a deep boom falling in pitch under a burst of noise.
-//   - rail: the railgun. A hard crack, an electric zap sweeping down, a metallic ring that hangs
-//     in the air, and a sub-bass punch.
+//   - rail (the Sentry Turret's slug) and tank_rail (the tank's main gun): the railgun. A hard
+//     crack, an electric zap sweeping down, a metallic ring that hangs in the air, and a sub-bass punch.
 //   - missile (Lancer), rocket (Thunderhead), hornet_rocket, wasp_swarm, ballista_launch: a
 //     rushing whoosh rising in pitch as it leaves the tube.
 //   - laser_beam: the Sentinel's beam, a loop held for as long as the beam is on (setLoops): a
@@ -42,7 +42,7 @@
 // audio starts on the first one. The player can mute it (the speaker button on the HUD); that is
 // remembered between visits.
 
-export type SoundKind = 'rifle' | 'mg' | 'flak' | 'cannon' | 'rail' | 'missile' | 'rocket' | 'hornet_rocket' | 'wasp_swarm' | 'ballista_launch' | 'blade' | 'explosion' | 'emp' | 'shield'
+export type SoundKind = 'rifle' | 'mg' | 'flak' | 'cannon' | 'rail' | 'tank_rail' | 'missile' | 'rocket' | 'hornet_rocket' | 'wasp_swarm' | 'ballista_launch' | 'blade' | 'explosion' | 'emp' | 'shield'
   | 'hit_metal' | 'hit_concrete' | 'hit_heavy_building' | 'building_collapse' | 'wall_breach' | 'gate_cycle'
   | 'unit_destroyed_infantry' | 'unit_destroyed_drone'
   | 'structure_complete' | 'unit_ready' | 'research_complete' | 'tier_up' | 'capture_tick' | 'building_captured'
@@ -80,6 +80,8 @@ const KINDS: Record<SoundKind, { gain: number; voices: number; gapMs: number; re
   flak: { gain: 0.55, voices: 5, gapMs: 60, reach: 1.1 },
   cannon: { gain: 0.6, voices: 5, gapMs: 60, reach: 1.3 },
   rail: { gain: 0.65, voices: 4, gapMs: 50, reach: 1.4 },
+  // The tank's main gun: its own, heavier rail gun shot.
+  tank_rail: { gain: 0.65, voices: 4, gapMs: 50, reach: 1.4 },
   missile: { gain: 0.65, voices: 4, gapMs: 80, reach: 1.2 },
   rocket: { gain: 0.6, voices: 5, gapMs: 50, reach: 1.3 },
   hornet_rocket: { gain: 0.6, voices: 5, gapMs: 50, reach: 1.3 },
@@ -365,6 +367,7 @@ export const SOUNDS: Record<SoundKind, (c: BaseAudioContext, out: AudioNode, t: 
     tone(c, out, t, { type: 'sine', f0: 75, f1: 32, peak: 0.85, attack: 0.003, decay: 0.3 });
     return 0.78;
   },
+  tank_rail: (c, out, t, size) => SOUNDS.rail(c, out, t, size),
   missile: (c, out, t) => missileWhoosh(c, out, t),
   ballista_launch: (c, out, t) => missileWhoosh(c, out, t),
   rocket: (c, out, t) => rocketWhoosh(c, out, t),

@@ -3818,7 +3818,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           // A tank's main gun fires the railgun slug the Sentry Turret does (ShotFx 'rail'), from its
           // muzzle; a Piercing Rail Round (sim/titan.ts) keeps its magenta beam down the lane.
           rail.shots.forEach(s => {
-              playSound('rail', s.from.x * tileSize - offset, s.from.z * tileSize - offset);
+              playSound('tank_rail', s.from.x * tileSize - offset, s.from.z * tileSize - offset);
               if (s.covered || s.structure) playSound('hit_heavy_building', s.to.x * tileSize - offset, s.to.z * tileSize - offset);
           });
           const pierced = rail.shots.filter(s => s.pierced);
