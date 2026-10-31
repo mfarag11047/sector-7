@@ -6,12 +6,13 @@
 #        python3 tools/process_sfx.py impacts <unzipped pack sfx dir> public/sfx
 #        python3 tools/process_sfx.py base <unzipped pack sfx dir> public/sfx
 #        python3 tools/process_sfx.py interface <unzipped pack sfx dir> public/sfx
+#        python3 tools/process_sfx.py ambience <city ambience file> public/sfx
 import json, math, os, struct, subprocess, sys
 
 mode = sys.argv[1]
 if mode == 'weapons': src, earlier, out = sys.argv[2:5]
-elif mode in ('impacts', 'base', 'interface'): src, out = sys.argv[2:4]
-else: sys.exit(f'unknown pack {mode}: weapons, impacts, base or interface')
+elif mode in ('impacts', 'base', 'interface', 'ambience'): src, out = sys.argv[2:4]
+else: sys.exit(f'unknown pack {mode}: weapons, impacts, base, interface or ambience')
 SR = 44100
 
 def pcm(path, start=0.0, length=None):
@@ -97,8 +98,8 @@ INTERFACE = {
     'victory': ([('victory_1.mp3', O, 5.0, 3.5, 0)], -12),
     'defeat': ([('defeat_1.mp3', O, 4.0, 3.0, 0)], -12),
 }
-SPECS = {'weapons': WEAPONS, 'impacts': IMPACTS, 'base': BASE, 'interface': INTERFACE}[mode]
-DESCRIPTIONS = json.load(open(os.path.join(src, {'weapons': 'manifest.json', 'impacts': 'manifest_impacts.json', 'base': 'manifest_base.json', 'interface': 'manifest_interface.json'}[mode])))
+SPECS = {'weapons': WEAPONS, 'impacts': IMPACTS, 'base': BASE, 'interface': INTERFACE, 'ambience': {}}[mode]
+DESCRIPTIONS = {} if mode == 'ambience' else json.load(open(os.path.join(src, {'weapons': 'manifest.json', 'impacts': 'manifest_impacts.json', 'base': 'manifest_base.json', 'interface': 'manifest_interface.json'}[mode])))
 
 manifest, report = {}, []
 for kind, (takes, target) in SPECS.items():
@@ -184,6 +185,51 @@ if mode == 'weapons':
 if mode == 'base':
     # The building-site bed, repeating for as long as a site is at work.
     make_loop('construction', 'Robotic construction site, looped while a building goes up', ['construction_1.mp3'], 0.3, 7.5, 0.5, -20)
+
+if mode == 'ambience':
+    # The city's background, a stereo bed looping under the whole match (components/sfx.ts
+    # startAmbience). The recording rises for half a minute, swells hard at 30 s and fades out,
+    # so the loop is the steady stretch from FROM to TO: its slow drift in level evened out (each
+    # moment brought to the stretch's level, judged over two seconds either side), and its end
+    # crossfaded into the audio before its start. A quarter-second lead-in (the audio just before
+    # the loop) keeps the loop points inside the file, clear of any decoder padding at its start.
+    FROM, TO, XF, BED, LEAD = 5.0, 27.0, 3.0, -26, 0.25
+    d = subprocess.run(['ffmpeg', '-v', 'error', '-i', src, '-ac', '2', '-ar', str(SR), '-f', 's16le', '-'], capture_output=True, check=True).stdout
+    both = struct.unpack('<%dh' % (len(d) // 2), d)
+    L, R = list(both[0::2]), list(both[1::2])
+    a, b, f = round(FROM * SR), round(TO * SR), round(XF * SR)
+    # Evened out: a gain curve from the level in 0.5 s steps, smoothed over 4 s.
+    step = SR // 2
+    level = [math.sqrt(sum(L[i + k] ** 2 + R[i + k] ** 2 for k in range(0, step, 8)) / (2 * step / 8)) for i in range(a - f - 4 * step, b + 4 * step, step)]
+    smooth = [sum(level[max(0, j - 4):j + 5]) / len(level[max(0, j - 4):j + 5]) for j in range(len(level))]
+    target = sum(smooth) / len(smooth)
+    def gain_at(i):
+        j = (i - (a - f - 4 * step)) / step
+        j0 = min(len(smooth) - 2, max(0, int(j)))
+        g0, g1 = target / smooth[j0], target / smooth[j0 + 1]
+        return g0 + (g1 - g0) * (j - j0)
+    for ch in (L, R):
+        for i in range(a - f, b):
+            ch[i] *= gain_at(i)
+    loop = []
+    for ch in (L, R):
+        body = ch[a:b]
+        for i in range(f):
+            t = (i + 0.5) / f
+            body[len(body) - f + i] = ch[b - f + i] * math.cos(t * math.pi / 2) + ch[a - f + i] * math.sin(t * math.pi / 2)
+        loop.append(ch[a - round(LEAD * SR):a] + body + body[:round(0.2 * SR)])
+    rms = math.sqrt(sum(v * v for ch in loop for v in ch[round(LEAD * SR):round(LEAD * SR) + b - a]) / (2 * (b - a)))
+    peak = max(abs(v) for ch in loop for v in ch)
+    g = 10 ** (min(BED - db(rms), -3 - db(peak)) / 20)
+    import wave
+    wav = os.path.join(out, '_cut.wav')
+    with wave.open(wav, 'wb') as w:
+        w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR)
+        w.writeframes(struct.pack('<%dh' % (2 * len(loop[0])), *[max(-32768, min(32767, round(v * g))) for pair in zip(*loop) for v in pair]))
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', wav, '-b:a', '128k', os.path.join(out, 'city_ambience_1.mp3')], check=True)
+    os.remove(wav)
+    manifest['city_ambience'] = {'description': 'Night-time megacity ambience, looped under the match', 'files': ['sfx/city_ambience_1.mp3'], 'loop': [LEAD, LEAD + TO - FROM]}
+    report.append(f'city_ambience_1.mp3      from {os.path.basename(src)} {FROM}-{TO}s, evened out, {XF}s crossfade, gain {20 * math.log10(g):+5.1f} dB')
 
 # Into the manifest the game reads, beside the other packs' sounds.
 path = os.path.join(out, 'manifest.json')

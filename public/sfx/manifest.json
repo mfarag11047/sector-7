@@ -299,5 +299,15 @@
     "files": [
       "sfx/defeat_1.mp3"
     ]
+  },
+  "city_ambience": {
+    "description": "Night-time megacity ambience, looped under the match",
+    "files": [
+      "sfx/city_ambience_1.mp3"
+    ],
+    "loop": [
+      0.25,
+      22.25
+    ]
   }
 }

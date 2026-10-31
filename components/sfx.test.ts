@@ -36,7 +36,7 @@ describe('where a sound is heard from', () => {
 
 describe('recorded sounds', () => {
   it('has every take the manifest lists, under a name the game plays', () => {
-    const playable = new Set<string>([...Object.keys(SOUNDS), 'explosion_small', 'explosion_large', 'laser_beam', 'ciws_fire', 'construction']);
+    const playable = new Set<string>([...Object.keys(SOUNDS), 'explosion_small', 'explosion_large', 'laser_beam', 'ciws_fire', 'construction', 'city_ambience']);
     for (const [key, entry] of Object.entries(manifest)) {
       expect(playable.has(key), key).toBe(true);
       expect(entry!.files.length, key).toBeGreaterThan(0);
@@ -48,7 +48,7 @@ describe('recorded sounds', () => {
     for (const kind of ['rifle', 'mg', 'flak', 'ciws_fire', 'cannon', 'rail', 'missile', 'rocket', 'laser_beam', 'blade', 'explosion', 'explosion_small', 'explosion_large', 'emp', 'shield']) {
       expect(manifest[kind as keyof SampleManifest]?.files.length, kind).toBeGreaterThan(0);
     }
-    for (const kind of Object.keys(manifest).filter(k => k !== 'laser_beam' && k !== 'ciws_fire' && k !== 'construction')) expect(SOUNDS[kind.startsWith('explosion') ? 'explosion' : kind as keyof typeof SOUNDS]).toBeTypeOf('function');
+    for (const kind of Object.keys(manifest).filter(k => !['laser_beam', 'ciws_fire', 'construction', 'city_ambience'].includes(k))) expect(SOUNDS[kind.startsWith('explosion') ? 'explosion' : kind as keyof typeof SOUNDS]).toBeTypeOf('function');
   });
 
   it('has recordings for every impact and destruction sound', () => {
@@ -98,7 +98,7 @@ describe('recorded sounds', () => {
 });
 
 describe('loops: the Sentinel beam and the CIWS roar', () => {
-  it.each(['laser_beam', 'ciws_fire', 'construction'] as const)('%s loops between points inside every take, after an opening that plays once', key => {
+  it.each(['laser_beam', 'ciws_fire', 'construction', 'city_ambience'] as const)('%s loops between points inside every take, after an opening that plays once', key => {
     const loop = manifest[key]!;
     const [start, end] = loop.loop!;
     expect(start).toBeGreaterThan(0);

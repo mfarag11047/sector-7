@@ -745,7 +745,9 @@ build, or a blueprint with a Mason beside it). The interface sounds too: a click
 a beep for each move or attack-move order, a buzz when an order is refused, a ping for a message
 (unless the event's own sound already said it), an alarm when enemies reach the base or start
 taking one of the player's nodes, a radar warning when an enemy missile launches, and a sting for
-victory or defeat. Hover and selection are silent for now. Hornet rockets, Wasp micro-drone launches and the Ballista's launch have no recordings yet and are
+victory or defeat. Hover and selection are silent for now. Under it all, the city's own
+background, a night-time megacity bed looping for the whole match, the same everywhere on the map
+(`startAmbience`, from the steady stretch of its recording, its level evened out). Hornet rockets, Wasp micro-drone launches and the Ballista's launch have no recordings yet and are
 made in code, as is any sound whose files haven't loaded (prompts for the rest:
 `docs/SOUND_PROMPTS.md`). A sound is fainter the further it is from the middle
 of the view (heard further when zoomed out, and explosions further than gunfire) and panned by

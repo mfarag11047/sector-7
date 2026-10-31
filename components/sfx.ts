@@ -52,7 +52,7 @@ export type SoundKind = 'rifle' | 'mg' | 'flak' | 'cannon' | 'rail' | 'missile' 
 
 // What the recordings are filed under in the manifest: a sound's own name, or for an explosion,
 // which size of blast it is.
-export type SampleKey = SoundKind | LoopKind | 'explosion_small' | 'explosion_large';
+export type SampleKey = SoundKind | LoopKind | 'explosion_small' | 'explosion_large' | 'city_ambience';
 
 // Sounds held for as long as something lasts, rather than played once: the Sentinel's beam and
 // the CIWS guns' bursts.
@@ -199,7 +199,8 @@ function unlock(): void {
     master.connect(compressor).connect(ctx.destination);
     loadSamples(ctx);
   }
-  if (ctx.state === 'suspended') void ctx.resume();
+  if (ctx.state === 'suspended') void ctx.resume().then(tryAmbience);
+  else tryAmbience();
 }
 if (typeof window !== 'undefined') {
   for (const type of ['pointerdown', 'keydown'] as const) window.addEventListener(type, unlock, { capture: true });
@@ -228,7 +229,7 @@ function loadSamples(c: AudioContext): void {
   const load = (key: SampleKey, file: string) => fetch(assetUrl(file))
     .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))))
     .then(data => c.decodeAudioData(data))
-    .then(buffer => { (buffers[key] ??= []).push(buffer); })
+    .then(buffer => { (buffers[key] ??= []).push(buffer); if (key === 'city_ambience') tryAmbience(); })
     .catch(e => console.warn(`sound ${file} didn't load:`, e));
   fetch(assetUrl(SAMPLE_MANIFEST))
     .then(r => (r.ok ? r.json() as Promise<SampleManifest> : Promise.reject(new Error(`${r.status}`))))
@@ -721,3 +722,46 @@ export function setLoops(kind: LoopKind, sources: readonly { id: string; x: numb
 
 // How many loops are playing now (for tests and the console).
 export const liveLoops = () => live.size;
+
+// --- Ambience ---
+
+// The city's background (city_ambience): a stereo bed looping under the whole match, the same
+// everywhere on the map, fading in as the match starts. Silent until its recording has loaded.
+const AMBIENCE = { gain: 0.5, fadeInS: 3, fadeOutS: 0.8 };
+let ambienceWanted = false;
+let ambience: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
+
+export function startAmbience(): void {
+  ambienceWanted = true;
+  tryAmbience();
+}
+
+export function stopAmbience(): void {
+  ambienceWanted = false;
+  if (!ambience || !ctx) return;
+  const { src, gain } = ambience;
+  ambience = null;
+  gain.gain.setTargetAtTime(0, ctx.currentTime, AMBIENCE.fadeOutS / 3);
+  src.stop(ctx.currentTime + AMBIENCE.fadeOutS);
+  setTimeout(() => gain.disconnect(), (AMBIENCE.fadeOutS + 0.2) * 1000);
+}
+
+// Starts the bed once it is wanted, the audio is running and the recording is in.
+function tryAmbience(): void {
+  if (!ambienceWanted || ambience || !ctx || !master || ctx.state !== 'running') return;
+  const take = buffers.city_ambience?.[0];
+  const points = loopPoints.city_ambience;
+  if (!take || !points) return;
+  const src = ctx.createBufferSource();
+  src.buffer = take;
+  src.loop = true;
+  [src.loopStart, src.loopEnd] = points;
+  const gain = ctx.createGain();
+  gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+  gain.gain.linearRampToValueAtTime(AMBIENCE.gain, ctx.currentTime + AMBIENCE.fadeInS);
+  src.connect(gain).connect(master);
+  src.start(ctx.currentTime, points[0]);
+  ambience = { src, gain };
+}
+
+export const ambiencePlaying = () => ambience !== null;

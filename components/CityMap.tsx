@@ -30,7 +30,7 @@ import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from
 import { positionKey, publishMotion, simClock, stampPosition } from './glide';
 import { ArmyControls, ArmyInfo, MAX_ARMIES, SelectionSummary } from './ArmyPanel';
 import { cameraFocus, onRightClick } from './DroneCamera';
-import { playSound, playUiSound, setLoops, SoundKind } from './sfx';
+import { playSound, playUiSound, setLoops, SoundKind, startAmbience, stopAmbience } from './sfx';
 import { AbilityCommand, abilityEffects, applyUnitEffects, FAB_LAUNCH, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
 import { WARHEAD_LABEL } from '../sim/warheads';
 import { Warhead } from '../sim/commands';
@@ -1630,6 +1630,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // Explosions and launched missiles are made in many places; each is heard once, the first time
   // it appears here (components/sfx.ts).
   const heardRef = useRef(new Set<string>());
+  // The city's background runs for as long as the map is up (components/sfx.ts).
+  useEffect(() => { startAmbience(); return () => stopAmbience(); }, []);
   // No Sentinel beam or CIWS roar carries on once the map is gone.
   useEffect(() => () => { for (const kind of ['laser_beam', 'ciws_fire', 'construction'] as const) setLoops(kind, [], { now: true }); }, []);
   useEffect(() => {
