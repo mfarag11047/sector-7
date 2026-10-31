@@ -737,7 +737,11 @@ repeated. Hits and destruction have recordings too: small-arms rounds ringing of
 stopped by a building or wall chipping it (or, from a tank, rail gun or rocket, crunching into it),
 a city building collapsing, a wall or gate breached, a blast gate hissing open or shut with its
 thud, a soldier going down and a small drone falling; vehicles and larger aircraft now go up in a
-fireball, with its explosion. Hornet rockets, Wasp micro-drone launches and the Ballista's launch have no recordings yet and are
+fireball, with its explosion. The player also hears their own side's progress, at full volume
+wherever the camera is: a building finished, a unit ready, research done, a new tier, a new
+Command HQ ordered, a soft blip while their infantry capture, a chime for each building taken, and
+a node taken or lost; and their building sites clank and weld on a loop while they go up (a timed
+build, or a blueprint with a Mason beside it). Hornet rockets, Wasp micro-drone launches and the Ballista's launch have no recordings yet and are
 made in code, as is any sound whose files haven't loaded (prompts for the rest:
 `docs/SOUND_PROMPTS.md`). A sound is fainter the further it is from the middle
 of the view (heard further when zoomed out, and explosions further than gunfire) and panned by

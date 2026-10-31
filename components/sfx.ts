@@ -42,7 +42,9 @@
 
 export type SoundKind = 'rifle' | 'mg' | 'flak' | 'cannon' | 'rail' | 'missile' | 'rocket' | 'hornet_rocket' | 'wasp_swarm' | 'ballista_launch' | 'blade' | 'explosion' | 'emp' | 'shield'
   | 'hit_metal' | 'hit_concrete' | 'hit_heavy_building' | 'building_collapse' | 'wall_breach' | 'gate_cycle'
-  | 'unit_destroyed_infantry' | 'unit_destroyed_drone';
+  | 'unit_destroyed_infantry' | 'unit_destroyed_drone'
+  | 'structure_complete' | 'unit_ready' | 'research_complete' | 'tier_up' | 'capture_tick' | 'building_captured'
+  | 'node_captured' | 'node_lost' | 'base_founded';
 
 // What the recordings are filed under in the manifest: a sound's own name, or for an explosion,
 // which size of blast it is.
@@ -50,13 +52,15 @@ export type SampleKey = SoundKind | LoopKind | 'explosion_small' | 'explosion_la
 
 // Sounds held for as long as something lasts, rather than played once: the Sentinel's beam and
 // the CIWS guns' bursts.
-export type LoopKind = 'laser_beam' | 'ciws_fire';
+export type LoopKind = 'laser_beam' | 'ciws_fire' | 'construction';
 // For each: how loud, how far it carries compared with gunfire, how many play at once (the
 // nearest ones, when there are more), and how long it carries on after its source drops out, so a
 // gap of a tick or two (a gun switching targets) doesn't break it up.
 const LOOPS: Record<LoopKind, { gain: number; reach: number; max: number; holdMs: number }> = {
   laser_beam: { gain: 0.45, reach: 1, max: 4, holdMs: 200 },
   ciws_fire: { gain: 0.5, reach: 1.1, max: 4, holdMs: 250 },
+  // The player's building sites at work.
+  construction: { gain: 0.35, reach: 1.1, max: 3, holdMs: 400 },
 };
 export const SAMPLE_MANIFEST = 'sfx/manifest.json';
 // An explosion's size (its radius / 4) up to which it counts as small, then medium; past that, large.
@@ -91,6 +95,17 @@ const KINDS: Record<SoundKind, { gain: number; voices: number; gapMs: number; re
   gate_cycle: { gain: 0.4, voices: 3, gapMs: 200, reach: 1 },
   unit_destroyed_infantry: { gain: 0.45, voices: 4, gapMs: 100, reach: 1 },
   unit_destroyed_drone: { gain: 0.5, voices: 3, gapMs: 150, reach: 1.2 },
+  // Feedback for the player (playUiSound), one at a time; a squad taking a row of buildings is a
+  // few chimes, not one each, and capturing a soft blip every so often.
+  structure_complete: { gain: 0.5, voices: 1, gapMs: 600, reach: 1 },
+  unit_ready: { gain: 0.45, voices: 1, gapMs: 800, reach: 1 },
+  research_complete: { gain: 0.5, voices: 1, gapMs: 600, reach: 1 },
+  tier_up: { gain: 0.6, voices: 1, gapMs: 1000, reach: 1 },
+  capture_tick: { gain: 0.25, voices: 1, gapMs: 700, reach: 1 },
+  building_captured: { gain: 0.4, voices: 1, gapMs: 500, reach: 1 },
+  node_captured: { gain: 0.6, voices: 1, gapMs: 1000, reach: 1 },
+  node_lost: { gain: 0.6, voices: 1, gapMs: 1000, reach: 1 },
+  base_founded: { gain: 0.6, voices: 1, gapMs: 1000, reach: 1 },
 };
 const MAX_VOICES = 28;
 const MASTER_GAIN = 0.55;
@@ -394,6 +409,48 @@ export const SOUNDS: Record<SoundKind, (c: BaseAudioContext, out: AudioNode, t: 
     noiseBurst(c, out, t + 0.45, { type: 'lowpass', f0: 1500, peak: 0.5, decay: 0.2 });
     return 0.7;
   },
+  structure_complete: (c, out, t) => {
+    tone(c, out, t, { type: 'sine', f0: 90, f1: 50, peak: 0.8, attack: 0.004, decay: 0.2 });
+    tone(c, out, t + 0.3, { type: 'triangle', f0: 220, f1: 440, peak: 0.4, attack: 0.2, decay: 0.5, glide: 0.5 });
+    return 1;
+  },
+  unit_ready: (c, out, t) => {
+    noiseBurst(c, out, t, { type: 'highpass', f0: 2500, peak: 0.4, attack: 0.02, decay: 0.3 });
+    tone(c, out, t + 0.3, { type: 'sine', f0: 880, f1: 880, peak: 0.4, decay: 0.25 });
+    return 0.7;
+  },
+  research_complete: (c, out, t) => {
+    [660, 880, 1320].forEach((f, i) => tone(c, out, t + i * 0.09, { type: 'sine', f0: f, f1: f, peak: 0.45, decay: 0.35 }));
+    return 0.6;
+  },
+  tier_up: (c, out, t) => {
+    tone(c, out, t, { type: 'sawtooth', f0: 110, f1: 440, peak: 0.3, attack: 0.8, decay: 0.3, glide: 1 });
+    tone(c, out, t + 1, { type: 'sine', f0: 70, f1: 35, peak: 0.9, attack: 0.004, decay: 0.6 });
+    return 1.7;
+  },
+  capture_tick: (c, out, t) => {
+    tone(c, out, t, { type: 'sine', f0: 1500, f1: 1800, peak: 0.3, decay: 0.05 });
+    return 0.1;
+  },
+  building_captured: (c, out, t) => {
+    tone(c, out, t, { type: 'sine', f0: 660, f1: 660, peak: 0.4, decay: 0.15 });
+    tone(c, out, t + 0.14, { type: 'sine', f0: 990, f1: 990, peak: 0.4, decay: 0.3 });
+    return 0.5;
+  },
+  node_captured: (c, out, t) => {
+    tone(c, out, t, { type: 'sawtooth', f0: 80, f1: 220, peak: 0.3, attack: 0.5, decay: 0.6, glide: 1 });
+    [880, 1320].forEach((f, i) => tone(c, out, t + 0.6 + i * 0.12, { type: 'sine', f0: f, f1: f, peak: 0.4, decay: 0.4 }));
+    return 1.3;
+  },
+  node_lost: (c, out, t) => {
+    tone(c, out, t, { type: 'triangle', f0: 660, f1: 160, peak: 0.5, attack: 0.02, decay: 0.9, glide: 0.9 });
+    return 1;
+  },
+  base_founded: (c, out, t) => {
+    tone(c, out, t, { type: 'sine', f0: 70, f1: 30, peak: 1, attack: 0.004, decay: 0.6 });
+    noiseBurst(c, out, t + 0.3, { type: 'bandpass', f0: 1200, f1: 600, q: 1, peak: 0.4, attack: 0.1, decay: 0.8 });
+    return 1.3;
+  },
   shield: (c, out, t) => {
     tone(c, out, t, { type: 'triangle', f0: 620, f1: 260, peak: 0.7, attack: 0.003, decay: 0.18 });
     noiseBurst(c, out, t, { type: 'lowpass', f0: 1200, peak: 0.4, decay: 0.1 });
@@ -404,9 +461,21 @@ export const SOUNDS: Record<SoundKind, (c: BaseAudioContext, out: AudioNode, t: 
 // Play a sound of `kind` at world point (x, z). `size` scales an explosion (its radius / 4).
 export function playSound(kind: SoundKind, x: number, z: number, size = 1): void {
   if (muted || !ctx || !master || ctx.state !== 'running') return;
-  const spec = KINDS[kind];
-  const { gain, pan } = spatial(listener, x, z, spec.reach);
+  const { gain, pan } = spatial(listener, x, z, KINDS[kind].reach);
   if (gain < 0.02) return;
+  start(kind, gain, pan, size);
+}
+
+// Play feedback for the player (research done, a building taken, a unit ready): at full volume
+// and centred, wherever the camera is.
+export function playUiSound(kind: SoundKind): void {
+  if (muted || !ctx || !master || ctx.state !== 'running') return;
+  start(kind, 1, 0, 1);
+}
+
+function start(kind: SoundKind, gain: number, pan: number, size: number): void {
+  if (!ctx || !master) return;
+  const spec = KINDS[kind];
   const now = performance.now();
   if ((playing[kind] ?? 0) >= spec.voices || voices >= MAX_VOICES || now - (lastStart[kind] ?? -Infinity) < spec.gapMs) return;
   lastStart[kind] = now;
@@ -461,6 +530,25 @@ function synthBeam(c: BaseAudioContext, out: AudioNode, t: number): (at: number)
   wobble.start(t);
   return at => { saw.stop(at); wobble.stop(at); };
 }
+// A building site: looping noise through a low band-pass, swelling and fading a few times a second.
+function synthWorks(c: BaseAudioContext, out: AudioNode, t: number): (at: number) => void {
+  const noise = c.createBufferSource();
+  noise.buffer = noiseFor(c);
+  noise.loop = true;
+  const band = c.createBiquadFilter();
+  band.type = 'bandpass';
+  band.frequency.value = 700;
+  const level = c.createGain();
+  level.gain.value = 0.25;
+  const pulse = c.createOscillator();
+  pulse.frequency.value = 2.5;
+  const depth = c.createGain();
+  depth.gain.value = 0.2;
+  pulse.connect(depth).connect(level.gain);
+  noise.connect(band).connect(level).connect(out);
+  for (const n of [noise, pulse]) n.start(t);
+  return at => { for (const n of [noise, pulse]) n.stop(at); };
+}
 // The CIWS: looping noise through a band-pass, chopped 60 times a second, over a low square growl.
 function synthChainGun(c: BaseAudioContext, out: AudioNode, t: number): (at: number) => void {
   const noise = c.createBufferSource();
@@ -494,7 +582,7 @@ function synthChainGun(c: BaseAudioContext, out: AudioNode, t: number): (at: num
 function startLoop(c: BaseAudioContext, kind: LoopKind, out: AudioNode, t: number): (at: number) => void {
   const takes = buffers[kind];
   const points = loopPoints[kind];
-  if (!takes?.length || !points) return (kind === 'ciws_fire' ? synthChainGun : synthBeam)(c, out, t);
+  if (!takes?.length || !points) return (kind === 'ciws_fire' ? synthChainGun : kind === 'construction' ? synthWorks : synthBeam)(c, out, t);
   const take = pickTake(takes.length, lastTake[kind]);
   lastTake[kind] = take;
   const src = c.createBufferSource();

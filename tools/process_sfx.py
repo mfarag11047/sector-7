@@ -4,12 +4,13 @@
 # packs' entries). Needs ffmpeg.
 # Usage: python3 tools/process_sfx.py weapons <unzipped pack sfx dir> <earlier rifle takes dir> public/sfx
 #        python3 tools/process_sfx.py impacts <unzipped pack sfx dir> public/sfx
+#        python3 tools/process_sfx.py base <unzipped pack sfx dir> public/sfx
 import json, math, os, struct, subprocess, sys
 
 mode = sys.argv[1]
 if mode == 'weapons': src, earlier, out = sys.argv[2:5]
-elif mode == 'impacts': src, out = sys.argv[2:4]
-else: sys.exit(f'unknown pack {mode}: weapons or impacts')
+elif mode in ('impacts', 'base'): src, out = sys.argv[2:4]
+else: sys.exit(f'unknown pack {mode}: weapons, impacts or base')
 SR = 44100
 
 def pcm(path, start=0.0, length=None):
@@ -67,8 +68,22 @@ IMPACTS = {
     # The first take is the pop and sputter; the second, quieter, has its crash 3.5 s in.
     'unit_destroyed_drone': ([('unit_destroyed_drone_1.mp3', O, 1.8, 1.0, 0), ('unit_destroyed_drone_2.mp3', 3.3, 1.6, 0.9, 0.03)], -12),
 }
-SPECS = WEAPONS if mode == 'weapons' else IMPACTS
-DESCRIPTIONS = json.load(open(os.path.join(src, 'manifest.json' if mode == 'weapons' else 'manifest_impacts.json')))
+BASE = {
+    # The clunk, a beat, then the power-up hum.
+    'structure_complete': ([('structure_complete_1.mp3', O, 3.2, 2.6, 0)], -12),
+    'unit_ready': ([('unit_ready_1.mp3', O, 2.5, 1.6, 0)], -12),
+    'research_complete': ([('research_complete_1.mp3', O, 1.8, 1.0, 0)], -12),
+    # The riser, then the impact two seconds in.
+    'tier_up': ([('tier_up_1.mp3', 0.0, 4.5, 3.5, 0.02)], -12),
+    'capture_tick': ([('capture_tick_1.mp3', O, 0.3, 0.15, 0)], -16),
+    'building_captured': ([('building_captured_1.mp3', O, 2.0, 1.4, 0)], -12),
+    'node_captured': ([('node_captured_1.mp3', 0.0, 4.0, 3.0, 0.02)], -12),
+    'node_lost': ([('node_lost_1.mp3', O, 3.0, 2.2, 0)], -12),
+    # The landing thud, the hydraulics, and the second thud.
+    'base_founded': ([('base_founded_1.mp3', O, 3.5, 2.5, 0)], -12),
+}
+SPECS = WEAPONS if mode == 'weapons' else IMPACTS if mode == 'impacts' else BASE
+DESCRIPTIONS = json.load(open(os.path.join(src, {'weapons': 'manifest.json', 'impacts': 'manifest_impacts.json', 'base': 'manifest_base.json'}[mode])))
 
 manifest, report = {}, []
 for kind, (takes, target) in SPECS.items():
@@ -150,6 +165,10 @@ if mode == 'weapons':
     # The CIWS guns' roar, for as long as a burst lasts. The first take drops away after 0.85 s, too
     # short to loop; the others hold steady for over two seconds.
     make_loop('ciws_fire', 'Rotary close-in weapon system, looped while it fires', ['ciws_2.mp3', 'ciws_3.mp3', 'ciws_4.mp3'], 0.1, 1.9, 0.12, -16)
+
+if mode == 'base':
+    # The building-site bed, repeating for as long as a site is at work.
+    make_loop('construction', 'Robotic construction site, looped while a building goes up', ['construction_1.mp3'], 0.3, 7.5, 0.5, -20)
 
 # Into the manifest the game reads, beside the other packs' sounds.
 path = os.path.join(out, 'manifest.json')

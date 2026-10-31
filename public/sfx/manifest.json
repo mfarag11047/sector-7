@@ -181,5 +181,69 @@
       "sfx/unit_destroyed_drone_1.mp3",
       "sfx/unit_destroyed_drone_2.mp3"
     ]
+  },
+  "structure_complete": {
+    "description": "Base building finished: heavy mechanical lock-in clunk and rising power-up hum",
+    "files": [
+      "sfx/structure_complete_1.mp3"
+    ]
+  },
+  "unit_ready": {
+    "description": "Factory bay door opening, vehicle rolling out, pneumatic hiss and chime",
+    "files": [
+      "sfx/unit_ready_1.mp3"
+    ]
+  },
+  "research_complete": {
+    "description": "Research upgrade completed: bright ascending digital chime",
+    "files": [
+      "sfx/research_complete_1.mp3"
+    ]
+  },
+  "tier_up": {
+    "description": "Tech tier unlocked: rising synth swell ending in a low impact",
+    "files": [
+      "sfx/tier_up_1.mp3"
+    ]
+  },
+  "capture_tick": {
+    "description": "Subtle digital data-upload blip",
+    "files": [
+      "sfx/capture_tick_1.mp3"
+    ]
+  },
+  "building_captured": {
+    "description": "Building claimed: two-note confirmation tone with power-up hum",
+    "files": [
+      "sfx/building_captured_1.mp3"
+    ]
+  },
+  "node_captured": {
+    "description": "Major objective captured: core reactor humming to life, bright chime",
+    "files": [
+      "sfx/node_captured_1.mp3"
+    ]
+  },
+  "node_lost": {
+    "description": "Objective lost: falling synth tone with power-down hum",
+    "files": [
+      "sfx/node_lost_1.mp3"
+    ]
+  },
+  "base_founded": {
+    "description": "New command HQ deploying: landing thud, hydraulics, systems booting",
+    "files": [
+      "sfx/base_founded_1.mp3"
+    ]
+  },
+  "construction": {
+    "description": "Robotic construction site, looped while a building goes up",
+    "files": [
+      "sfx/construction_1.mp3"
+    ],
+    "loop": [
+      0.3,
+      7.8
+    ]
   }
 }

@@ -30,7 +30,7 @@ import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from
 import { positionKey, publishMotion, simClock, stampPosition } from './glide';
 import { ArmyControls, ArmyInfo, MAX_ARMIES, SelectionSummary } from './ArmyPanel';
 import { cameraFocus, onRightClick } from './DroneCamera';
-import { playSound, setLoops, SoundKind } from './sfx';
+import { playSound, playUiSound, setLoops, SoundKind } from './sfx';
 import { AbilityCommand, abilityEffects, applyUnitEffects, FAB_LAUNCH, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
 import { WARHEAD_LABEL } from '../sim/warheads';
 import { Warhead } from '../sim/commands';
@@ -1631,7 +1631,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // it appears here (components/sfx.ts).
   const heardRef = useRef(new Set<string>());
   // No Sentinel beam or CIWS roar carries on once the map is gone.
-  useEffect(() => () => { setLoops('laser_beam', [], { now: true }); setLoops('ciws_fire', [], { now: true }); }, []);
+  useEffect(() => () => { for (const kind of ['laser_beam', 'ciws_fire', 'construction'] as const) setLoops(kind, [], { now: true }); }, []);
   useEffect(() => {
       const heard = heardRef.current;
       for (const e of explosions) {
@@ -1672,15 +1672,42 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (diedRef.current.size > 500) diedRef.current.clear();
   }, [units, offset]);
   // City buildings brought down, and walls and gates breached, as they happen.
+  // And, for the player, captures: a blip while their infantry are taking something, a chime for a
+  // building taken, and a node taken or lost.
   const downRef = useRef<Set<string> | null>(null);
+  const ownersRef = useRef<Map<string, { owner: BuildingData['owner']; progress: number }> | null>(null);
   useEffect(() => {
       const down = new Set(buildings.filter(b => b.destroyed).map(b => b.id));
       const before = downRef.current;
       downRef.current = down;
-      if (!before) return;
+      const owners = new Map(buildings.map(b => [b.id, { owner: b.owner, progress: b.capturingTeam === playerTeam ? b.captureProgress : 0 }]));
+      const held = ownersRef.current;
+      ownersRef.current = owners;
+      if (!before || !held) return;
       for (const b of buildings) if (b.destroyed && !before.has(b.id)) playSound('building_collapse', b.position[0], b.position[2]);
-  }, [buildings]);
+      let taken = false, nodeTaken = false, nodeLost = false, capturing = false;
+      for (const b of buildings) {
+          const was = held.get(b.id);
+          if (!was) continue;
+          const node = b.type === 'core_node' || b.type === 'server_node';
+          if (b.owner === playerTeam && was.owner !== playerTeam) { if (node) nodeTaken = true; else taken = true; }
+          if (node && was.owner === playerTeam && b.owner !== playerTeam) nodeLost = true;
+          if (b.capturingTeam === playerTeam && b.captureProgress > was.progress) capturing = true;
+      }
+      if (nodeLost) playUiSound('node_lost');
+      if (nodeTaken) playUiSound('node_captured');
+      else if (taken) playUiSound('building_captured');
+      else if (capturing) playUiSound('capture_tick');
+  }, [buildings, playerTeam]);
   const wallsRef = useRef<Map<string, StructureData> | null>(null);
+  // The player's structures still going up, to hear each one finish.
+  const unfinishedRef = useRef<Set<string> | null>(null);
+  useEffect(() => {
+      const unfinished = new Set(structuresState.filter(st => st.team === playerTeam && (st.isBlueprint || (st.buildRemainingMs || 0) > 0)).map(st => st.id));
+      const before = unfinishedRef.current;
+      unfinishedRef.current = unfinished;
+      if (before && [...before].some(id => !unfinished.has(id) && structuresState.some(st => st.id === id))) playUiSound('structure_complete');
+  }, [structuresState, playerTeam]);
   useEffect(() => {
       const walls = new Map(structuresState.filter(st => WALL_TYPES.has(st.type)).map(st => [st.id, st]));
       const before = wallsRef.current;
@@ -2973,6 +3000,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           setEconomy(prev => charge(prev) ?? prev);
       }
       if (command.type === 'RESEARCH_TIER') {
+          if (team === playerTeam) playUiSound('tier_up');
           onNotice?.(team === playerTeam ? `Tier ${command.tier} researched: new units and doctrine powers unlocked; research their upgrades at Advanced Research` : `The enemy has reached Tier ${command.tier}`, team === playerTeam ? 'info' : 'warn');
       }
       if (fx.unitUpdates.size > 0) setUnits(prev => applyOrderToUnits(prev, fx));
@@ -3933,6 +3961,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           const engage = (attackerId: string, targetId: string) => engagementsRef.current.set(attackerId, { targetId, at: now });
           attacks.shots.forEach(s => engage(s.attackerId, s.targetId));
           attacks.aiming.forEach((targetId, attackerId) => { if (targetId) engage(attackerId, targetId); });
+          // The player's building sites at work: a timed build going up, or a blueprint with a Mason
+          // beside it (components/sfx.ts).
+          setLoops('construction', structuresRef.current
+              .filter(st => st.team === playerTeam && ((st.buildRemainingMs || 0) > 0 || (st.isBlueprint && currentUnitsRef.some(u =>
+                  u.type === 'mason' && u.health > 0 && u.constructionTargetId === st.id && Math.hypot(u.gridPos.x - st.gridPos.x, u.gridPos.z - st.gridPos.z) <= 1.6))))
+              .map(st => ({ id: st.id, x: st.gridPos.x * tileSize - offset, z: st.gridPos.z * tileSize - offset })));
           // Each Sentinel's beam hums for as long as it is locked on (components/sfx.ts).
           setLoops('laser_beam', currentUnitsRef
               .filter(u => u.type === 'defense_drone' && u.health > 0 && attacks.aiming.get(u.id))
@@ -4160,7 +4194,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           if (labTick.finished.length > 0) {
               setEconomy(prev => addUpgrades(prev, labTick.finished));
               for (const done of labTick.finished) {
-                  if (done.team === playerTeam) { const def = upgradeDef(done.upgrade); onNotice?.(`Research complete: ${def ? upgradeTitle(def) : done.upgrade}`); }
+                  if (done.team === playerTeam) {
+                      const def = upgradeDef(done.upgrade);
+                      onNotice?.(`Research complete: ${def ? upgradeTitle(def) : done.upgrade}`);
+                      playUiSound('research_complete');
+                  }
               }
           }
 
@@ -4214,6 +4252,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   return unit;
               });
               born.forEach(u => { if (u.team === 'blue' || u.team === 'red') tallyRef.current[u.team].trained++; });
+              if (born.some(u => u.team === playerTeam)) playUiSound('unit_ready');
               unitsRef.current = [...unitsRef.current, ...born];
               setUnits(prev => [...prev, ...born]);
           }
@@ -4635,6 +4674,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 onBuild={() => {
                     if (dispatchOrder({ type: 'BUILD_BASE', at: site.at })) {
                         setSiteMenuId(null);
+                        playUiSound('base_founded');
                         onNotice?.(`Command base under construction: ready in ${BASE_SITE.buildMs / 1000}s`);
                     }
                 }}

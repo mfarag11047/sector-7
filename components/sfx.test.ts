@@ -36,7 +36,7 @@ describe('where a sound is heard from', () => {
 
 describe('recorded sounds', () => {
   it('has every take the manifest lists, under a name the game plays', () => {
-    const playable = new Set<string>([...Object.keys(SOUNDS), 'explosion_small', 'explosion_large', 'laser_beam', 'ciws_fire']);
+    const playable = new Set<string>([...Object.keys(SOUNDS), 'explosion_small', 'explosion_large', 'laser_beam', 'ciws_fire', 'construction']);
     for (const [key, entry] of Object.entries(manifest)) {
       expect(playable.has(key), key).toBe(true);
       expect(entry!.files.length, key).toBeGreaterThan(0);
@@ -48,7 +48,7 @@ describe('recorded sounds', () => {
     for (const kind of ['rifle', 'mg', 'flak', 'ciws_fire', 'cannon', 'rail', 'missile', 'rocket', 'laser_beam', 'blade', 'explosion', 'explosion_small', 'explosion_large', 'emp', 'shield']) {
       expect(manifest[kind as keyof SampleManifest]?.files.length, kind).toBeGreaterThan(0);
     }
-    for (const kind of Object.keys(manifest).filter(k => k !== 'laser_beam' && k !== 'ciws_fire')) expect(SOUNDS[kind.startsWith('explosion') ? 'explosion' : kind as keyof typeof SOUNDS]).toBeTypeOf('function');
+    for (const kind of Object.keys(manifest).filter(k => k !== 'laser_beam' && k !== 'ciws_fire' && k !== 'construction')) expect(SOUNDS[kind.startsWith('explosion') ? 'explosion' : kind as keyof typeof SOUNDS]).toBeTypeOf('function');
   });
 
   it('has recordings for every impact and destruction sound', () => {
@@ -56,6 +56,14 @@ describe('recorded sounds', () => {
       expect(manifest[kind as keyof SampleManifest]?.files.length, kind).toBe(2);
       expect(SOUNDS[kind as keyof typeof SOUNDS], kind).toBeTypeOf('function');
     }
+  });
+
+  it('has recordings for every base, economy and capture sound, and the building-site loop', () => {
+    for (const kind of ['structure_complete', 'unit_ready', 'research_complete', 'tier_up', 'capture_tick', 'building_captured', 'node_captured', 'node_lost', 'base_founded']) {
+      expect(manifest[kind as keyof SampleManifest]?.files.length, kind).toBeGreaterThan(0);
+      expect(SOUNDS[kind as keyof typeof SOUNDS], kind).toBeTypeOf('function');
+    }
+    expect(manifest.construction?.loop).toEqual([0.3, 7.8]);
   });
 
   it('plays a small, medium or large explosion by the size of the blast', () => {
@@ -83,7 +91,7 @@ describe('recorded sounds', () => {
 });
 
 describe('loops: the Sentinel beam and the CIWS roar', () => {
-  it.each(['laser_beam', 'ciws_fire'] as const)('%s loops between points inside every take, after an opening that plays once', key => {
+  it.each(['laser_beam', 'ciws_fire', 'construction'] as const)('%s loops between points inside every take, after an opening that plays once', key => {
     const loop = manifest[key]!;
     const [start, end] = loop.loop!;
     expect(start).toBeGreaterThan(0);
