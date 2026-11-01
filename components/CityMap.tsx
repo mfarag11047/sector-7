@@ -95,6 +95,8 @@ import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
 import { dampenedUnits } from '../sim/ghost';
 import { heliosBeams, microwaveDamage } from '../sim/helios';
 import { freshPacing, pacingTick, PacingRecord, recordArea, recordStrategies, recordVictory, recordWeaponHits } from '../sim/pacing';
+import type { NoticeTone } from '../App';
+import { teamName } from './factions';
 
 
 // Helper to check if a grid position is inside any cloud of a specific type (optional)
@@ -1561,7 +1563,7 @@ interface CityMapProps {
   doctrines?: { blue: DoctrineState, red: DoctrineState };
   targetingDoctrine?: { type: string, team: 'blue'|'red', cost: number } | null;
   // Short messages for the player: refused orders, finished buildings, trained units.
-  onNotice?: (text: string, tone?: 'info' | 'warn') => void;
+  onNotice?: (text: string, tone?: NoticeTone) => void;
   // Called once when a side wins.
   onMatchEnd?: (victory: Victory, summary: MatchSummary) => void;
   // Called every second with the match clock and objective state, for the HUD.
@@ -1654,7 +1656,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           const from = p.startPos ?? p.position;
           playSound('ballista_launch', from.x, from.z);
           // An enemy missile on its way: the radar warning, wherever it was fired from.
-          if (p.trajectory === 'ballistic' && p.team !== playerTeam && (p.payload === 'emp' || p.payload === 'he' || p.payload === 'wp')) playUiSound('alert_missile');
+          if (p.trajectory === 'ballistic' && p.team !== playerTeam && (p.payload === 'emp' || p.payload === 'he' || p.payload === 'wp')) {
+              playUiSound('alert_missile');
+              onNoticeRef.current?.('Enemy missile launched!', 'alarm');
+          }
       }
       // Forget what has gone, so the list stays short.
       if (heard.size > 400) {
@@ -3542,12 +3547,16 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       const me = playerTeamRef.current;
       // The alarm is for a player defending their own side: a spectator, watching from one side's
       // view, gets the message but not the siren (the computer sides contest nodes all match long).
+      const spectating = matchRef.current.mode === 'spectate';
       const say = (key: string, text: string, tone: 'info' | 'warn', everyMs: number, alarm = false) => {
           if ((alertAtRef.current.get(key) || 0) + everyMs > now) return;
           alertAtRef.current.set(key, now);
-          if (alarm && matchRef.current.mode !== 'spectate') playUiSound('alert_under_attack');
-          onNoticeRef.current?.(text, tone);
+          if (alarm && !spectating) playUiSound('alert_under_attack');
+          // What the siren is for, in red in the System Message box.
+          onNoticeRef.current?.(text, alarm ? 'alarm' : tone);
       };
+      // Whose base or node: yours, or (spectating) the side you are viewing as.
+      const whose = spectating ? `${teamName(me)}'s` : 'Your';
       const myEconomy = economyRef.current[me];
       if (myEconomy.tier < 3) {
           const next = (myEconomy.tier + 1) as 2 | 3;
@@ -3555,7 +3564,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       }
       const myHq = me === 'blue' ? baseA_Coord : baseB_Coord;
       if (unitsRef.current.some(u => u.team !== me && u.team !== 'neutral' && u.health > 0 && Math.hypot(u.gridPos.x - myHq.x, u.gridPos.z - myHq.z) <= 10)) {
-          say('base', 'Enemy forces at your base!', 'warn', 30000, true);
+          say('base', `${whose} base is under attack!`, 'warn', 30000, true);
       }
       for (const b of buildingsRef.current) {
           if (b.type !== 'core_node' && b.type !== 'server_node') continue;
@@ -3567,7 +3576,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           }
           nodeOwnerRef.current.set(b.id, b.owner);
           if (b.owner === me && b.capturingTeam && b.capturingTeam !== me && b.captureProgress > 0) {
-              say(`taking-${b.id}`, `The enemy is taking your ${label}`, 'warn', 20000, true);
+              say(`taking-${b.id}`, `${whose} ${label} is under attack!`, 'warn', 20000, true);
           }
       }
 

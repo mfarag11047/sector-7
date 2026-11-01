@@ -827,7 +827,9 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
               {notices.length > 0 && (
                 <div className="relative mt-2 flex flex-col gap-0.5">
                   {notices.map(n => (
-                    <p key={n.id} className={`text-xs font-mono leading-snug ${n.tone === 'warn' ? 'text-amber-300' : 'text-emerald-300'}`}>&gt; {n.text}</p>
+                    n.tone === 'alarm'
+                      ? <p key={n.id} className="text-xs font-mono font-bold leading-snug text-red-400 uppercase tracking-wide animate-pulse">⚠ {n.text}</p>
+                      : <p key={n.id} className={`text-xs font-mono leading-snug ${n.tone === 'warn' ? 'text-amber-300' : 'text-emerald-300'}`}>&gt; {n.text}</p>
                   ))}
                 </div>
               )}

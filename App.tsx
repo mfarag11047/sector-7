@@ -63,7 +63,14 @@ const PARAMS = typeof window !== 'undefined' ? new URLSearchParams(window.locati
 const AUTOSTART = !!PARAMS?.has('autostart');
 const AUTOSTART_DOCTRINE = (['heavy_metal', 'shadow_ops', 'netrunner'] as DoctrineType[]).find(d => d === PARAMS?.get('doctrine')) ?? 'heavy_metal';
 
-export interface Notice { id: number; text: string; tone: 'info' | 'warn'; at: number }
+// A message in the HUD's System Message box. An 'alarm' is the one the siren sounds for (the base or a
+// node under attack, an enemy missile launch): shown in red, and kept up longer.
+export type NoticeTone = 'info' | 'warn' | 'alarm';
+export interface Notice { id: number; text: string; tone: NoticeTone; at: number }
+// How long a message stays up, and an alarm.
+const NOTICE_MS = 6000;
+const ALARM_MS = 12000;
+const noticeLife = (n: Notice) => (n.tone === 'alarm' ? ALARM_MS : NOTICE_MS);
 
 const NO_DOCTRINE: DoctrineState = { selected: null, unlockedTiers: 0, cooldowns: { tier2: 0, tier3: 0 } };
 
@@ -122,19 +129,19 @@ function App() {
       setRound(r => r + 1);
   }, []);
 
-  const handleNotice = useCallback((text: string, tone: 'info' | 'warn' = 'info') => {
+  const handleNotice = useCallback((text: string, tone: NoticeTone = 'info') => {
       // A ping, unless the event's own sound already says it (components/sfx.ts).
       playNoticeSound();
       const at = Date.now();
       setNotices(prev => {
           // The same message twice in a row just refreshes it.
-          const rest = prev.filter(n => n.text !== text && at - n.at < 6000);
+          const rest = prev.filter(n => n.text !== text && at - n.at < noticeLife(n));
           return [...rest.slice(-4), { id: ++noticeIdRef.current, text, tone, at }];
       });
   }, []);
   useEffect(() => {
       if (notices.length === 0) return;
-      const timer = setTimeout(() => setNotices(prev => prev.filter(n => Date.now() - n.at < 6000)), 1000);
+      const timer = setTimeout(() => setNotices(prev => prev.filter(n => Date.now() - n.at < noticeLife(n))), 1000);
       return () => clearTimeout(timer);
   }, [notices]);
 

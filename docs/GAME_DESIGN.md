@@ -753,7 +753,11 @@ a beep for each move or attack-move order, a buzz when an order is refused, a pi
 (unless the event's own sound already said it), an alarm when enemies reach the base or start
 taking one of the player's nodes (only when playing: a spectator gets the message and its ping,
 not the siren, since the computer sides contest nodes all match long), a radar warning when an
-enemy missile launches (a Ballista or an Ordnance Fab silo launch, and nothing else), and a sting for
+enemy missile launches (a Ballista or an Ordnance Fab silo launch, and nothing else). Each siren
+comes with a line saying what it is for in the HUD's System Message box (bottom left), in red with a
+warning sign and up for 12 s rather than the usual 6: "Your base is under attack!", "Your server
+node is under attack!" (or core node), "Enemy missile launched!" (spectating, named for the side
+being viewed: "Blue's base is under attack!", by its faction name). And a sting for
 victory or defeat. Hover and selection are silent for now. Under it all, the city's own
 background, a night-time megacity bed looping for the whole match, the same everywhere on the map
 (`startAmbience`, from the steady stretch of its recording, its level evened out). Hornet rockets, Wasp micro-drone launches and the Ballista's launch have no recordings yet and are
