@@ -737,11 +737,13 @@ repeated. Hits and destruction have recordings too: small-arms rounds ringing of
 stopped by a building or wall chipping it (or, from a tank, rail gun or rocket, crunching into it),
 a city building collapsing, a wall or gate breached, a blast gate hissing open or shut with its
 thud, a soldier going down and a small drone falling; vehicles and larger aircraft now go up in a
-fireball, with its explosion. The player also hears their own side's progress, at full volume
-wherever the camera is: a building finished, a unit ready, research done, a new tier, a new
-Command HQ ordered, a soft blip while their infantry capture, a chime for each building taken, and
-a node taken or lost; and their building sites clank and weld on a loop while they go up (a timed
-build, or a blueprint with a Mason beside it). The interface sounds too: a click for every button,
+fireball, with its explosion. The player also hears their own side's progress where it happens,
+and only from close by: a building finished, a unit ready, research done, a new Command HQ
+ordered, a soft blip while their infantry capture, a chime for each building taken; their building
+sites clank and weld on a loop while they go up (a timed build, or a blueprint with a Mason beside
+it), and their blast gates hiss as they open and close. Only what matters wherever the player is
+looking plays at full volume everywhere: a core or server node taken or lost, a new tier, and the
+interface below. The interface sounds too: a click for every button,
 a beep for each move or attack-move order, a buzz when an order is refused, a ping for a message
 (unless the event's own sound already said it), an alarm when enemies reach the base or start
 taking one of the player's nodes, a radar warning when an enemy missile launches, and a sting for

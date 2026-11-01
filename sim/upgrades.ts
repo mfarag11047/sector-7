@@ -11,7 +11,7 @@
 
 import { ABILITY_CONFIG, UNIT_STATS } from '../constants';
 import type { DoctrineType, StructureData, UnitClass, UnitType } from '../types';
-import type { Team } from './commands';
+import type { GridPos, Team } from './commands';
 import type { Economy, TeamEconomy } from './economy';
 import { Tier, UNIT_RULES } from './units';
 import { type UnitAbilityDef, UPGRADE_BONUS } from './unitAbilities';
@@ -223,7 +223,8 @@ export function researchBlocker(
 
 export interface ResearchTick {
   updates: Map<string, StructureData['research']>;
-  finished: { team: Team; upgrade: UpgradeId }[];
+  // Each upgrade finished this tick, and where (the lab), for its sound.
+  finished: { team: Team; upgrade: UpgradeId; at: GridPos }[];
 }
 
 // Advances research at every Advanced Research building by `stepMs`.
@@ -236,7 +237,7 @@ export function advanceResearch(structures: readonly StructureData[], stepMs: (t
     const remainingMs = r.remainingMs - stepMs(s.team);
     if (remainingMs <= 0) {
       updates.set(s.id, undefined);
-      if (s.team === 'blue' || s.team === 'red') finished.push({ team: s.team, upgrade: r.upgrade });
+      if (s.team === 'blue' || s.team === 'red') finished.push({ team: s.team, upgrade: r.upgrade, at: { ...s.gridPos } });
     } else {
       updates.set(s.id, { ...r, remainingMs });
     }

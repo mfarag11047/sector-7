@@ -64,7 +64,7 @@ const LOOPS: Record<LoopKind, { gain: number; reach: number; max: number; holdMs
   laser_beam: { gain: 0.45, reach: 1, max: 4, holdMs: 200 },
   ciws_fire: { gain: 0.5, reach: 1.1, max: 4, holdMs: 250 },
   // The player's building sites at work.
-  construction: { gain: 0.35, reach: 1.1, max: 3, holdMs: 400 },
+  construction: { gain: 0.3, reach: 0.5, max: 2, holdMs: 400 },
 };
 export const SAMPLE_MANIFEST = 'sfx/manifest.json';
 // An explosion's size (its radius / 4) up to which it counts as small, then medium; past that, large.
@@ -98,20 +98,21 @@ const KINDS: Record<SoundKind, { gain: number; voices: number; gapMs: number; re
   // A Bombardment Drone brings down a block at once: a couple of collapses tell it.
   building_collapse: { gain: 0.65, voices: 2, gapMs: 350, reach: 1.8 },
   wall_breach: { gain: 0.7, voices: 2, gapMs: 250, reach: 1.8 },
-  gate_cycle: { gain: 0.4, voices: 3, gapMs: 200, reach: 1 },
+  gate_cycle: { gain: 0.3, voices: 2, gapMs: 400, reach: 0.5 },
   unit_destroyed_infantry: { gain: 0.45, voices: 4, gapMs: 100, reach: 1 },
   unit_destroyed_drone: { gain: 0.5, voices: 3, gapMs: 150, reach: 1.2 },
-  // Feedback for the player (playUiSound), one at a time; a squad taking a row of buildings is a
-  // few chimes, not one each, and capturing a soft blip every so often.
-  structure_complete: { gain: 0.5, voices: 1, gapMs: 600, reach: 1 },
-  unit_ready: { gain: 0.45, voices: 1, gapMs: 800, reach: 1 },
-  research_complete: { gain: 0.5, voices: 1, gapMs: 600, reach: 1 },
+  // The player's base and captures, heard where they happen and only from close by (a short
+  // reach), one at a time: a squad taking a row of buildings is a few chimes, not one each.
+  structure_complete: { gain: 0.5, voices: 1, gapMs: 600, reach: 0.6 },
+  unit_ready: { gain: 0.4, voices: 1, gapMs: 800, reach: 0.5 },
+  research_complete: { gain: 0.5, voices: 1, gapMs: 600, reach: 0.6 },
+  capture_tick: { gain: 0.25, voices: 1, gapMs: 700, reach: 0.4 },
+  building_captured: { gain: 0.4, voices: 1, gapMs: 500, reach: 0.5 },
+  // Feedback heard wherever the camera is (playUiSound): a new tier, nodes taken or lost.
   tier_up: { gain: 0.6, voices: 1, gapMs: 1000, reach: 1 },
-  capture_tick: { gain: 0.25, voices: 1, gapMs: 700, reach: 1 },
-  building_captured: { gain: 0.4, voices: 1, gapMs: 500, reach: 1 },
   node_captured: { gain: 0.6, voices: 1, gapMs: 1000, reach: 1 },
   node_lost: { gain: 0.6, voices: 1, gapMs: 1000, reach: 1 },
-  base_founded: { gain: 0.6, voices: 1, gapMs: 1000, reach: 1 },
+  base_founded: { gain: 0.6, voices: 1, gapMs: 1000, reach: 0.8 },
   // The interface: clicks and order beeps quiet and never piling up on themselves.
   ui_click: { gain: 0.3, voices: 2, gapMs: 50, reach: 1 },
   ui_order_move: { gain: 0.35, voices: 1, gapMs: 120, reach: 1 },
@@ -527,8 +528,9 @@ export function playSound(kind: SoundKind, x: number, z: number, size = 1): void
   start(kind, gain, pan, size);
 }
 
-// Play feedback for the player (research done, a building taken, a unit ready): at full volume
-// and centred, wherever the camera is.
+// Play feedback for the player that matters wherever they are looking (a node taken or lost, a new
+// tier) and the interface (clicks, order beeps, refusals, notices, alarms, victory): at full volume
+// and centred. Everything else that happens somewhere is heard there (playSound).
 export function playUiSound(kind: SoundKind): void {
   if (muted || !ctx || !master || ctx.state !== 'running') return;
   if (kind !== 'ui_click') lastFeedbackAt = performance.now();

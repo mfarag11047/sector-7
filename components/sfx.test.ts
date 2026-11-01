@@ -27,6 +27,14 @@ describe('where a sound is heard from', () => {
     expect(spatial({ ...l, yaw: Math.PI }, 50, 0).pan).toBeLessThan(0);
   });
 
+  it('keeps the base sounds (reach 0.5) to about the screen, even zoomed right out', () => {
+    const high = { x: 0, z: 0, yaw: 0, height: 190 };
+    // Right out the view is about 310 units across: just past its edge is still heard...
+    expect(spatial(high, 0, -170, 0.5).gain).toBeGreaterThan(0);
+    // ...the other side of the base, 16 tiles off, is not.
+    expect(spatial(high, 0, -16 * 14, 0.5).gain).toBe(0);
+  });
+
   it('carries further for kinds that reach further, and is quieter from high up', () => {
     expect(spatial(l, 0, -280, 1).gain).toBe(0);
     expect(spatial(l, 0, -280, 1.8).gain).toBeGreaterThan(0);

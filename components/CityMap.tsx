@@ -1689,19 +1689,21 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       ownersRef.current = owners;
       if (!before || !held) return;
       for (const b of buildings) if (b.destroyed && !before.has(b.id)) playSound('building_collapse', b.position[0], b.position[2]);
-      let taken = false, nodeTaken = false, nodeLost = false, capturing = false;
+      // Nodes matter wherever the player is looking; a building taken, or one being taken, is
+      // heard where it is.
+      let taken: BuildingData | null = null, capturing: BuildingData | null = null, nodeTaken = false, nodeLost = false;
       for (const b of buildings) {
           const was = held.get(b.id);
           if (!was) continue;
           const node = b.type === 'core_node' || b.type === 'server_node';
-          if (b.owner === playerTeam && was.owner !== playerTeam) { if (node) nodeTaken = true; else taken = true; }
+          if (b.owner === playerTeam && was.owner !== playerTeam) { if (node) nodeTaken = true; else taken ??= b; }
           if (node && was.owner === playerTeam && b.owner !== playerTeam) nodeLost = true;
-          if (b.capturingTeam === playerTeam && b.captureProgress > was.progress) capturing = true;
+          if (b.capturingTeam === playerTeam && b.captureProgress > was.progress) capturing ??= b;
       }
       if (nodeLost) playUiSound('node_lost');
       if (nodeTaken) playUiSound('node_captured');
-      else if (taken) playUiSound('building_captured');
-      else if (capturing) playUiSound('capture_tick');
+      if (taken) playSound('building_captured', taken.position[0], taken.position[2]);
+      else if (capturing) playSound('capture_tick', capturing.position[0], capturing.position[2]);
   }, [buildings, playerTeam]);
   const wallsRef = useRef<Map<string, StructureData> | null>(null);
   // The player's structures still going up, to hear each one finish.
@@ -1710,8 +1712,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       const unfinished = new Set(structuresState.filter(st => st.team === playerTeam && (st.isBlueprint || (st.buildRemainingMs || 0) > 0)).map(st => st.id));
       const before = unfinishedRef.current;
       unfinishedRef.current = unfinished;
-      if (before && [...before].some(id => !unfinished.has(id) && structuresState.some(st => st.id === id))) playUiSound('structure_complete');
-  }, [structuresState, playerTeam]);
+      const done = before ? structuresState.find(st => before.has(st.id) && !unfinished.has(st.id)) : undefined;
+      if (done) playSound('structure_complete', done.gridPos.x * CITY_CONFIG.tileSize - offset, done.gridPos.z * CITY_CONFIG.tileSize - offset);
+  }, [structuresState, playerTeam, offset]);
   useEffect(() => {
       const walls = new Map(structuresState.filter(st => WALL_TYPES.has(st.type)).map(st => [st.id, st]));
       const before = wallsRef.current;
@@ -4205,7 +4208,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   if (done.team === playerTeam) {
                       const def = upgradeDef(done.upgrade);
                       onNotice?.(`Research complete: ${def ? upgradeTitle(def) : done.upgrade}`);
-                      playUiSound('research_complete');
+                      playSound('research_complete', done.at.x * tileSize - offset, done.at.z * tileSize - offset);
                   }
               }
           }
@@ -4260,7 +4263,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   return unit;
               });
               born.forEach(u => { if (u.team === 'blue' || u.team === 'red') tallyRef.current[u.team].trained++; });
-              if (born.some(u => u.team === playerTeam)) playUiSound('unit_ready');
+              const mine = born.find(u => u.team === playerTeam);
+              if (mine) playSound('unit_ready', mine.gridPos.x * tileSize - offset, mine.gridPos.z * tileSize - offset);
               unitsRef.current = [...unitsRef.current, ...born];
               setUnits(prev => [...prev, ...born]);
           }
@@ -4682,7 +4686,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 onBuild={() => {
                     if (dispatchOrder({ type: 'BUILD_BASE', at: site.at })) {
                         setSiteMenuId(null);
-                        playUiSound('base_founded');
+                        playSound('base_founded', site.at.x * tileSize - offset, site.at.z * tileSize - offset);
                         onNotice?.(`Command base under construction: ready in ${BASE_SITE.buildMs / 1000}s`);
                     }
                 }}

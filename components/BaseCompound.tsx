@@ -273,9 +273,11 @@ const BlastDoors: React.FC<{ doors: GateDoor[]; tileSize: number; offset: number
         const at = currentTilePosition(u);
         return Math.hypot(at.x - gx, at.z - gz) <= OPEN_REACH;
       });
-      if (wantedBefore.current[i] !== undefined && wantedBefore.current[i] !== wanted) playSound('gate_cycle', d.x, d.z);
-      wantedBefore.current[i] = wanted;
       const o = open.current[i] ?? 0;
+      // Heard as a shut door starts to open or an open one starts to close, so a unit hovering at
+      // the edge of its reach doesn't set it off again and again mid-move.
+      if (wantedBefore.current[i] !== undefined && wantedBefore.current[i] !== wanted && (wanted ? o === 0 : o === 1)) playSound('gate_cycle', d.x, d.z);
+      wantedBefore.current[i] = wanted;
       const next = Math.min(1, Math.max(0, o + (wanted ? 1 : -1) * Math.min(delta, 0.25) / DOOR_SECONDS));
       open.current[i] = next;
       g.position.y = -next * (DOOR_H + 0.3);
