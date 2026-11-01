@@ -751,7 +751,9 @@ looking plays at full volume everywhere: a core or server node taken or lost, a 
 interface below. The interface sounds too: a click for every button,
 a beep for each move or attack-move order, a buzz when an order is refused, a ping for a message
 (unless the event's own sound already said it), an alarm when enemies reach the base or start
-taking one of the player's nodes, a radar warning when an enemy missile launches, and a sting for
+taking one of the player's nodes (only when playing: a spectator gets the message and its ping,
+not the siren, since the computer sides contest nodes all match long), a radar warning when an
+enemy missile launches (a Ballista or an Ordnance Fab silo launch, and nothing else), and a sting for
 victory or defeat. Hover and selection are silent for now. Under it all, the city's own
 background, a night-time megacity bed looping for the whole match, the same everywhere on the map
 (`startAmbience`, from the steady stretch of its recording, its level evened out). Hornet rockets, Wasp micro-drone launches and the Ballista's launch have no recordings yet and are

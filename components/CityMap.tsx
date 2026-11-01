@@ -3540,10 +3540,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
       // Alerts for the player: their base under attack, their nodes being taken, nodes changing hands.
       const me = playerTeamRef.current;
+      // The alarm is for a player defending their own side: a spectator, watching from one side's
+      // view, gets the message but not the siren (the computer sides contest nodes all match long).
       const say = (key: string, text: string, tone: 'info' | 'warn', everyMs: number, alarm = false) => {
           if ((alertAtRef.current.get(key) || 0) + everyMs > now) return;
           alertAtRef.current.set(key, now);
-          if (alarm) playUiSound('alert_under_attack');
+          if (alarm && matchRef.current.mode !== 'spectate') playUiSound('alert_under_attack');
           onNoticeRef.current?.(text, tone);
       };
       const myEconomy = economyRef.current[me];
