@@ -1696,20 +1696,23 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (!before || !held) return;
       for (const b of buildings) if (b.destroyed && !before.has(b.id)) playSound('building_collapse', b.position[0], b.position[2]);
       // Nodes matter wherever the player is looking; a building taken, or one being taken, is
-      // heard where it is.
-      let taken: BuildingData | null = null, capturing: BuildingData | null = null, nodeTaken = false, nodeLost = false;
+      // heard only if it is on screen or just off it (components/sfx.ts), so the captures going on
+      // all over the map early in a match aren't a constant chiming.
+      const taken: BuildingData[] = [], capturing: BuildingData[] = [];
+      let nodeTaken = false, nodeLost = false;
       for (const b of buildings) {
           const was = held.get(b.id);
           if (!was) continue;
           const node = b.type === 'core_node' || b.type === 'server_node';
-          if (b.owner === playerTeam && was.owner !== playerTeam) { if (node) nodeTaken = true; else taken ??= b; }
+          if (b.owner === playerTeam && was.owner !== playerTeam) { if (node) nodeTaken = true; else taken.push(b); }
           if (node && was.owner === playerTeam && b.owner !== playerTeam) nodeLost = true;
-          if (b.capturingTeam === playerTeam && b.captureProgress > was.progress) capturing ??= b;
+          if (b.capturingTeam === playerTeam && b.captureProgress > was.progress) capturing.push(b);
       }
       if (nodeLost) playUiSound('node_lost');
       if (nodeTaken) playUiSound('node_captured');
-      if (taken) playSound('building_captured', taken.position[0], taken.position[2]);
-      else if (capturing) playSound('capture_tick', capturing.position[0], capturing.position[2]);
+      // Each in view gets its chance (the sound's own limits keep it to one at a time).
+      for (const b of taken) playSound('building_captured', b.position[0], b.position[2]);
+      if (taken.length === 0) for (const b of capturing) playSound('capture_tick', b.position[0], b.position[2]);
   }, [buildings, playerTeam]);
   const wallsRef = useRef<Map<string, StructureData> | null>(null);
   // The player's structures still going up, to hear each one finish.

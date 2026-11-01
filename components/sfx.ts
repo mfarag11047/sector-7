@@ -35,13 +35,17 @@
 //
 // Where a sound is matters: it is fainter the further it is from the middle of the view (heard
 // further when zoomed out, explosions further than gunfire) and panned left or right by where it is
-// on screen, from the listener the camera keeps up to date (`listen`). Each kind of sound has a
+// on screen, from the listener the camera keeps up to date (`listen`). The base's sounds (a unit
+// ready, a building finished or captured, a gate) are heard only where the player is looking: on
+// screen, or just off its edge. Each kind of sound has a
 // cap on how many play at once and how soon another may start, so a big firefight stays a din and
 // not a wall of noise; everything goes through a compressor so loud moments don't clip.
 //
 // Browsers won't play sound before the player has clicked or pressed a key on the page, so the
 // audio starts on the first one. The player can mute it (the speaker button on the HUD); that is
 // remembered between visits.
+
+import { lookAhead, viewFootprint } from './cameraView';
 
 export type SoundKind = 'rifle' | 'mg' | 'flak' | 'cannon' | 'rail' | 'tank_rail' | 'missile' | 'rocket' | 'hornet_rocket' | 'wasp_swarm' | 'ballista_launch' | 'blade' | 'explosion' | 'emp' | 'shield'
   | 'hit_metal' | 'hit_concrete' | 'hit_heavy_building' | 'building_collapse' | 'wall_breach' | 'gate_cycle'
@@ -75,8 +79,8 @@ export const EXPLOSION_SIZES = { small: 0.7, medium: 1.9 };
 const SAMPLE_RATE_SPREAD = 0.06;
 
 // For each kind: how loud, how many at once, the least time between two starting, and how far it
-// carries compared with gunfire.
-const KINDS: Record<SoundKind, { gain: number; voices: number; gapMs: number; reach: number }> = {
+// carries compared with gunfire, or 'view': heard only on screen or just off it (see spatial).
+const KINDS: Record<SoundKind, { gain: number; voices: number; gapMs: number; reach: Reach }> = {
   rifle: { gain: 0.55, voices: 8, gapMs: 35, reach: 1 },
   mg: { gain: 0.5, voices: 6, gapMs: 45, reach: 1 },
   flak: { gain: 0.55, voices: 5, gapMs: 60, reach: 1.1 },
@@ -100,21 +104,21 @@ const KINDS: Record<SoundKind, { gain: number; voices: number; gapMs: number; re
   // A Bombardment Drone brings down a block at once: a couple of collapses tell it.
   building_collapse: { gain: 0.65, voices: 2, gapMs: 350, reach: 1.8 },
   wall_breach: { gain: 0.7, voices: 2, gapMs: 250, reach: 1.8 },
-  gate_cycle: { gain: 0.3, voices: 2, gapMs: 400, reach: 0.5 },
+  gate_cycle: { gain: 0.3, voices: 2, gapMs: 400, reach: 'view' },
   unit_destroyed_infantry: { gain: 0.45, voices: 4, gapMs: 100, reach: 1 },
   unit_destroyed_drone: { gain: 0.5, voices: 3, gapMs: 150, reach: 1.2 },
-  // The player's base and captures, heard where they happen and only from close by (a short
-  // reach), one at a time: a squad taking a row of buildings is a few chimes, not one each.
-  structure_complete: { gain: 0.5, voices: 1, gapMs: 600, reach: 0.6 },
-  unit_ready: { gain: 0.4, voices: 1, gapMs: 800, reach: 0.5 },
-  research_complete: { gain: 0.5, voices: 1, gapMs: 600, reach: 0.6 },
-  capture_tick: { gain: 0.25, voices: 1, gapMs: 700, reach: 0.4 },
-  building_captured: { gain: 0.4, voices: 1, gapMs: 500, reach: 0.5 },
+  // The player's base and captures, heard only when they happen on screen or just off it, one at
+  // a time: a squad taking a row of buildings is a few chimes, not one each.
+  structure_complete: { gain: 0.5, voices: 1, gapMs: 600, reach: 'view' },
+  unit_ready: { gain: 0.4, voices: 1, gapMs: 800, reach: 'view' },
+  research_complete: { gain: 0.5, voices: 1, gapMs: 600, reach: 'view' },
+  capture_tick: { gain: 0.25, voices: 1, gapMs: 700, reach: 'view' },
+  building_captured: { gain: 0.4, voices: 1, gapMs: 500, reach: 'view' },
   // Feedback heard wherever the camera is (playUiSound): a new tier, nodes taken or lost.
   tier_up: { gain: 0.6, voices: 1, gapMs: 1000, reach: 1 },
   node_captured: { gain: 0.6, voices: 1, gapMs: 1000, reach: 1 },
   node_lost: { gain: 0.6, voices: 1, gapMs: 1000, reach: 1 },
-  base_founded: { gain: 0.6, voices: 1, gapMs: 1000, reach: 0.8 },
+  base_founded: { gain: 0.6, voices: 1, gapMs: 1000, reach: 'view' },
   // The interface: clicks and order beeps quiet and never piling up on themselves.
   ui_click: { gain: 0.3, voices: 2, gapMs: 50, reach: 1 },
   ui_order_move: { gain: 0.35, voices: 1, gapMs: 120, reach: 1 },
@@ -140,9 +144,18 @@ export function listen(x: number, z: number, yaw: number, height: number): void 
   placeLoops();
 }
 
+// How far a kind of sound carries: a multiple of gunfire's range, or 'view' for one heard only
+// where the player is looking.
+export type Reach = number | 'view';
+// A 'view' sound fades out over this far past the edge of the screen (world units, 3 tiles).
+export const VIEW_MARGIN = 42;
+
 // How loud (0 to 1) and how far left or right (-1 to 1) a sound at (x, z) is heard, for a kind
-// that carries `reach` times as far as gunfire. Pure, for testing.
-export function spatial(l: Listener, x: number, z: number, reach = 1): { gain: number; pan: number } {
+// that carries `reach` times as far as gunfire. A 'view' sound is heard at full volume anywhere on
+// screen (the ground the camera takes in, on a screen `aspect` wide to its height), fading to
+// nothing VIEW_MARGIN past its edge. Pure, for testing.
+export function spatial(l: Listener, x: number, z: number, reach: Reach = 1, aspect = screenAspect()): { gain: number; pan: number } {
+  if (reach === 'view') return onScreen(l, x, z, aspect);
   const range = (140 + l.height * 1.6) * reach;
   const dx = x - l.x, dz = z - l.z;
   const d = Math.hypot(dx, dz);
@@ -154,6 +167,22 @@ export function spatial(l: Listener, x: number, z: number, reach = 1): { gain: n
   const across = dx * Math.cos(l.yaw) - dz * Math.sin(l.yaw);
   return { gain, pan: Math.max(-1, Math.min(1, across / (range * 0.45))) };
 }
+
+function onScreen(l: Listener, x: number, z: number, aspect: number): { gain: number; pan: number } {
+  const dx = x - l.x, dz = z - l.z;
+  // Across the screen (to the right) and along the heading from the point under the camera (the
+  // listener is the middle of the view, lookAhead in front of it).
+  const across = dx * Math.cos(l.yaw) - dz * Math.sin(l.yaw);
+  const along = -dx * Math.sin(l.yaw) - dz * Math.cos(l.yaw) + lookAhead(l.height);
+  const view = viewFootprint(l.height, aspect);
+  const k = Math.max(0, Math.min(1, (along - view.near) / (view.far - view.near)));
+  const half = view.nearHalf + (view.farHalf - view.nearHalf) * k;
+  const off = Math.hypot(Math.max(0, view.near - along, along - view.far), Math.max(0, Math.abs(across) - half));
+  if (off >= VIEW_MARGIN) return { gain: 0, pan: 0 };
+  const nearness = 1 - 0.4 * Math.min(1, Math.max(0, (l.height - 20) / 170));
+  return { gain: (1 - off / VIEW_MARGIN) * nearness, pan: Math.max(-1, Math.min(1, across / (half + VIEW_MARGIN))) };
+}
+const screenAspect = () => (typeof window !== 'undefined' && window.innerHeight > 0 ? window.innerWidth / window.innerHeight : 16 / 9);
 
 // --- The audio graph ---
 

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
-import { EXPLOSION_SIZES, liveLoops, pickTake, SAMPLE_MANIFEST, sampleKey, SampleManifest, setLoops, SOUNDS, spatial } from './sfx';
+import { EXPLOSION_SIZES, liveLoops, pickTake, SAMPLE_MANIFEST, sampleKey, SampleManifest, setLoops, SOUNDS, spatial, VIEW_MARGIN } from './sfx';
+import { lookAhead, viewFootprint } from './cameraView';
 
 const PUBLIC = resolve(__dirname, '../public');
 const manifest = JSON.parse(readFileSync(resolve(PUBLIC, SAMPLE_MANIFEST), 'utf8')) as SampleManifest;
@@ -27,12 +28,33 @@ describe('where a sound is heard from', () => {
     expect(spatial({ ...l, yaw: Math.PI }, 50, 0).pan).toBeLessThan(0);
   });
 
-  it('keeps the base sounds (reach 0.5) to about the screen, even zoomed right out', () => {
+  it("hears the base's sounds ('view') only on screen or just off its edge, at any zoom", () => {
+    for (const height of [20, 80, 190]) {
+      const at = { x: 0, z: 0, yaw: 0, height };
+      const view = viewFootprint(height, 16 / 9);
+      const ahead = lookAhead(height);
+      // Full volume in the middle and in the screen's corners.
+      expect(spatial(at, 0, 0, 'view', 16 / 9).gain).toBeGreaterThan(0.5);
+      expect(spatial(at, view.farHalf * 0.95, ahead - view.far * 0.97, 'view', 16 / 9).gain).toBeCloseTo(spatial(at, 0, 0, 'view', 16 / 9).gain);
+      // Fading just past the edge, and gone a little further out.
+      const edge = view.width / 2;
+      expect(spatial(at, edge + VIEW_MARGIN / 2, 0, 'view', 16 / 9).gain).toBeGreaterThan(0);
+      expect(spatial(at, edge + VIEW_MARGIN / 2, 0, 'view', 16 / 9).gain).toBeLessThan(spatial(at, 0, 0, 'view', 16 / 9).gain);
+      expect(spatial(at, edge + VIEW_MARGIN * 1.01, 0, 'view', 16 / 9).gain).toBe(0);
+      expect(spatial(at, 0, ahead - view.near + VIEW_MARGIN * 1.01, 'view', 16 / 9).gain).toBe(0);
+      expect(spatial(at, 0, ahead - view.far - VIEW_MARGIN * 1.01, 'view', 16 / 9).gain).toBe(0);
+    }
+    // Zoomed right out (about 22 tiles across), a capture 15 tiles to the side isn't heard,
+    // though gunfire there is.
     const high = { x: 0, z: 0, yaw: 0, height: 190 };
-    // Right out the view is about 310 units across: just past its edge is still heard...
-    expect(spatial(high, 0, -170, 0.5).gain).toBeGreaterThan(0);
-    // ...the other side of the base, 16 tiles off, is not.
-    expect(spatial(high, 0, -16 * 14, 0.5).gain).toBe(0);
+    expect(spatial(high, 15 * 14, 0, 'view', 16 / 9).gain).toBe(0);
+    expect(spatial(high, 15 * 14, 0, 1, 16 / 9).gain).toBeGreaterThan(0);
+    // The view is wider than it is deep, and turns with the camera: 180 units ahead is off the top
+    // of the screen, 180 to the side is just off its edge, still heard.
+    expect(spatial(high, 0, -180, 'view', 16 / 9).gain).toBe(0);
+    expect(spatial(high, -180, 0, 'view', 16 / 9).gain).toBeGreaterThan(0);
+    expect(spatial({ ...high, yaw: Math.PI / 2 }, -180, 0, 'view', 16 / 9).gain).toBe(0);
+    expect(spatial({ ...high, yaw: Math.PI / 2 }, 0, -180, 'view', 16 / 9).gain).toBeGreaterThan(0);
   });
 
   it('carries further for kinds that reach further, and is quieter from high up', () => {

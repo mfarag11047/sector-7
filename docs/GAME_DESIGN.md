@@ -741,7 +741,9 @@ stopped by a building or wall chipping it (or, from a tank, rail gun or rocket, 
 a city building collapsing, a wall or gate breached, a blast gate hissing open or shut with its
 thud, a soldier going down and a small drone falling; vehicles and larger aircraft now go up in a
 fireball, with its explosion. The player also hears their own side's progress where it happens,
-and only from close by: a building finished, a unit ready, research done, a new Command HQ
+and only when it is on screen or within about 3 tiles of its edge (at any zoom; `reach: 'view'` in
+`components/sfx.ts`), so the captures going on all over the map early in a match aren't a constant
+chiming: a building finished, a unit ready, research done, a new Command HQ
 ordered, a soft blip while their infantry capture, a chime for each building taken; their building
 sites clank and weld on a loop while they go up (a timed build, or a blueprint with a Mason beside
 it), and their blast gates hiss as they open and close. Only what matters wherever the player is
