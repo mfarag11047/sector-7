@@ -153,6 +153,9 @@ export interface UnitData {
   ciwsReloadUntil?: number;
   ciwsLastFiredAt?: number;
   ciwsTargetId?: string | null;
+  // When its barrels began winding up (null when still), and when it last had a target in its sights.
+  ciwsSpinStart?: number | null;
+  ciwsAimAt?: number | null;
   artilleryTarget?: { x: number; z: number } | null;
   artilleryAim?: { x: number; z: number } | null;
   batteryTetherIds?: string[]; // Vehicles the anchored Battery Mule is feeding
@@ -268,6 +271,9 @@ export interface StructureData {
   ciwsReloadUntil?: number;
   ciwsLastFiredAt?: number;
   ciwsTargetId?: string | null;
+  // When its barrels began winding up (null when still), and when it last had a target in its sights.
+  ciwsSpinStart?: number | null;
+  ciwsAimAt?: number | null;
 }
 
 export type RoadType = 'main' | 'street' | 'open';

@@ -92,7 +92,7 @@ describe('Wasp micro-drones', () => {
   it('is shot down by Aegis guns like any ordnance', () => {
     const wasp = unit('w', 'wasp', 'red', 5, 0);
     const swarm = run([wasp], 5000).tick.swarm;
-    const aegis = unit('a', 'aegis', 'blue', 0, 0);
+    const aegis = unit('a', 'aegis', 'blue', 0, 0, { ciwsSpinStart: 0, ciwsAimAt: 4900 });
     const ciws = ciwsTick([aegis, wasp], swarmThreats(swarm), 5000, TICK);
     expect(ciws.links[0].ordnance).toBe(true);
     const hit = damageDrones(swarm, ciws.ordnanceDamage);

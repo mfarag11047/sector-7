@@ -404,8 +404,9 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   generator housing carrying a big search radar, a wide two-faced panel array turning on a tall
   mast behind the gun. The mount turns, and the gun and its pod
   elevate together: a six-barrel rotary cannon under an angular six-sided armoured pod with a dark
-  sensor band, a lens and a team-colour band. Firing, it turns and lifts onto its target (CityMap's
-  CIWS stream passes each Aegis its target, `ciwsAims`) and the barrels spin; idle, it sweeps.
+  sensor band, a lens and a team-colour band. On a target, it turns and lifts onto it (CityMap's
+  CIWS stream passes each Aegis its target, `ciwsAims`, from the moment it starts winding up) and
+  the barrels wind up to speed over the gun's spin-up, then run down after; idle, it sweeps.
 - **The Banshee** (`components/models/BansheeModel.tsx`): a six-wheeled EW truck. Right behind
   its angular armoured cab, a rack of three tether spools, cable drums whose outlets light when
   their hardline is connected; the tether cables run from those outlets. Over the back three
@@ -606,9 +607,10 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   Aegis' gun on a fixed mount, in the base greys. An octagonal armoured plinth with sloped sides
   over a dark skirt, team stripes on four faces, amber lights on the corners and an ammunition
   hatch at the back; on its deck a turret ring carrying the same yoke, six-barrel rotary cannon and
-  six-sided pod as the Aegis, a little larger. Firing, it turns and lifts the gun onto its target
-  (the aim CityMap's tracer stream shares with the Aegis) and the barrels spin, and the stream
-  leaves from the barrels' tips; idle, it turns slowly round, scanning the sky.
+  six-sided pod as the Aegis, a little larger. On a target, it turns and lifts the gun onto it
+  (the aim CityMap's tracer stream shares with the Aegis) and the barrels wind up like the Aegis',
+  and once it fires the stream leaves from the barrels' tips; idle, it turns slowly round,
+  scanning the sky.
 - **The Sentry Turret** (`components/models/SentryTurretModel.tsx`, structure type `defense`): a
   railgun on a heavy cradle, in the base greys, up on a gun tower so it fires down over the base
   wall instead of through it. The tower is a tapered octagonal concrete shaft (panel seams, team
@@ -726,8 +728,9 @@ holder's colour once taken.
 
 Weapons and explosions have sound effects, played with the Web Audio API (`components/sfx.ts`)
 from recordings in `public/sfx/`, listed by sound in `public/sfx/manifest.json`. Every weapon and
-blast has its own: rifle cracks (six takes), machine guns, flak, the CIWS guns' minigun (it winds up,
-then roars on a loop for as long as each burst lasts, riding over the gun switching targets), cannon booms, the tank's heavy rail gun shot, the Sentry
+blast has its own: rifle cracks (six takes), machine guns, flak, the CIWS guns' minigun (Aegis and
+CIWS Turret alike: its wind-up plays while the gun spins up, so the roar starts with the first
+rounds, then loops for as long as each burst lasts, riding over the gun switching targets), cannon booms, the tank's heavy rail gun shot, the Sentry
 Turret's railgun slug, the Lancer's missile and the Thunderhead's rocket launches, the Sentinel's laser (a
 loop that hums for as long as its beam is locked on, starting with the zap and fading when it
 lets go), Kage's blade, explosions in three sizes picked by the size of the blast (a grenade or rocket, a
@@ -929,7 +932,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
     a finished Depot and a Mason. Walls come from the Depot menu and can go anywhere in your grid.
   - **CIWS Turret** (450, three Mason hauls): the Aegis rotary cannon on a fixed mount with its own
     tracking radar (`sim/ciws.ts`). Shoots aircraft and incoming ordnance within 10 tiles exactly as
-    the Aegis does (32/s to aircraft, 60/s to ordnance, 3.5 s bursts, 6 s reload); with the sky
+    the Aegis does (1.2 s wind-up, 32/s to aircraft, 60/s to ordnance, 3.5 s bursts, 6 s reload); with the sky
     clear it fires on ground units within 6 tiles at half its flak damage (about 6/s to infantry
     and light vehicles, 3/s to heavy armour). 800 HP.
 - **Ordnance Fab:** the **Ballista** (380, T3, 3 pop, 160 HP, light: EMP, HE and White Phosphorus
@@ -971,7 +974,12 @@ The Aegis' gun is an automatic rotary cannon (`sim/ciws.ts`). While its radar wo
 its own at any enemy aircraft, or missile, Thunderhead shell or drop pod in flight, within 10
 tiles, incoming ordnance first. It does 32 damage a second to aircraft but 60 to ordnance: it is
 built to stop missiles and only fairly good against aircraft (Flak Barrage doubles its rate; Sky-Net
-Radar Sweep adds 2 tiles). A magazine holds 3.5 s of fire; empty, the gun stops for a 6 s reload,
+Radar Sweep adds 2 tiles). It can't fire the moment it sees something: the six barrels first wind
+up for 1.2 s (`CIWS.spinUpMs`, the length of the wind-up in its recording), turning onto the
+target meanwhile but firing nothing and using no ammunition. Once spun up it stays spun up as
+long as it keeps finding targets, switching between them at once; with nothing to shoot for more
+than 0.3 s (`CIWS.spinGraceMs`), after a reload, or knocked out by an EMP, it has to wind up
+again. Its menu shows "Winding up" meanwhile. A magazine holds 3.5 s of fire; empty, the gun stops for a 6 s reload,
 and after 4 s without firing a part-used magazine is topped up. Ordnance has integrity rather than
 health: missiles take 120 (2 s of fire), drop pods 180, shells 30. A downed missile
 bursts in the air and does nothing. The fire is drawn as a dense stream of glowing rounds; an

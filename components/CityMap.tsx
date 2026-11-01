@@ -907,6 +907,8 @@ const CIWS_POOL = 900;
 const CIWS_ROUND_SPEED = 320; // World units a second: slow enough that the stream reads as a hose of fire
 const CiwsTracers: React.FC<{
     linksRef: React.MutableRefObject<CiwsLink[]>;
+    // Guns still winding up: aimed at their targets, but firing nothing yet.
+    spinningRef: React.MutableRefObject<CiwsLink[]>;
     unitsRef: React.MutableRefObject<UnitData[]>;
     flightRef: React.MutableRefObject<Map<string, LiveFlight>>;
     shellsRef: React.MutableRefObject<ArtilleryShell[]>;
@@ -917,7 +919,7 @@ const CiwsTracers: React.FC<{
     canSee: (aegis: UnitData) => boolean;
     tileSize: number;
     offset: number;
-}> = ({ linksRef, unitsRef, flightRef, shellsRef, structuresRef, aimsRef, canSee, tileSize, offset }) => {
+}> = ({ linksRef, spinningRef, unitsRef, flightRef, shellsRef, structuresRef, aimsRef, canSee, tileSize, offset }) => {
     // Where a gun's muzzle is: on an Aegis' turret, or at the tip of an AA Turret's barrels aimed
     // at its target (always in plain view).
     const muzzleOf = (link: CiwsLink, target?: { x: number; y: number; z: number }) => {
@@ -941,6 +943,10 @@ const CiwsTracers: React.FC<{
         // New rounds for every gun firing this tick; each gun (Aegis or AA Turret) told where to point.
         const aims = aimsRef.current;
         aims.clear();
+        for (const link of spinningRef.current) {
+            const target = airThreatWorld(link.targetId, unitsRef.current, flightRef.current, shellsRef.current, tileSize, offset, now);
+            if (target) aims.set(link.gunId, new THREE.Vector3(target.x, target.y, target.z));
+        }
         for (const link of linksRef.current) {
             const target = airThreatWorld(link.targetId, unitsRef.current, flightRef.current, shellsRef.current, tileSize, offset, now);
             const muzzle = muzzleOf(link, target ?? undefined);
@@ -1780,6 +1786,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const rocketsRef = useRef<EmpRocket[]>([]);
   // Aegis cannon fire this tick (for the tracer stream), and fire each piece of ordnance has taken.
   const ciwsLinksRef = useRef<CiwsLink[]>([]);
+  // Guns winding up on a target this tick: they turn onto it before they open fire.
+  const ciwsSpinningRef = useRef<CiwsLink[]>([]);
   const ordnanceHitsRef = useRef(new Map<string, number>());
   
   // Refactored Selection State
@@ -3956,8 +3964,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               setStructuresState(prev => applyCiwsState(prev, ciws.structureUpdates));
           }
           ciwsLinksRef.current = ciws.links;
-          // Each gun's roar lasts as long as its burst (components/sfx.ts).
-          setLoops('ciws_fire', [...new Map(ciws.links.map(link => [link.gunId, link])).values()].flatMap(link => {
+          ciwsSpinningRef.current = ciws.spinning;
+          // Each gun's roar starts with its barrels winding up and lasts as long as its burst: the
+          // recording's wind-up plays while the gun spins up, then its firing loops (components/sfx.ts).
+          setLoops('ciws_fire', [...new Map([...ciws.spinning, ...ciws.links].map(link => [link.gunId, link])).values()].flatMap(link => {
               const gun = link.fromStructure ? structuresRef.current.find(st => st.id === link.gunId) : currentUnitsRef.find(u => u.id === link.gunId);
               return gun ? [{ id: gun.id, x: gun.gridPos.x * tileSize - offset, z: gun.gridPos.z * tileSize - offset }] : [];
           }));
@@ -4801,7 +4811,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         {projectiles.map(p => <ProjectileMesh key={p.id} projectile={p} flightRef={flightRef} />)}
         
         {/* Aegis rotary cannon fire */}
-        <CiwsTracers linksRef={ciwsLinksRef} unitsRef={unitsRef} flightRef={flightRef} shellsRef={shellsRef} structuresRef={structuresRef} aimsRef={ciwsAimsRef} canSee={canSeeGun} tileSize={tileSize} offset={offset} />
+        <CiwsTracers linksRef={ciwsLinksRef} spinningRef={ciwsSpinningRef} unitsRef={unitsRef} flightRef={flightRef} shellsRef={shellsRef} structuresRef={structuresRef} aimsRef={ciwsAimsRef} canSee={canSeeGun} tileSize={tileSize} offset={offset} />
 
         {/* Aegis radar contacts: dots for enemy aircraft and ordnance nothing can see */}
         {(playerTeam === 'blue' || playerTeam === 'red') && (

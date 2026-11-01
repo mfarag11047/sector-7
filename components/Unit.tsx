@@ -132,8 +132,8 @@ const RadarSweep: React.FC<{ radius: number; y: number; strong: boolean }> = ({ 
   );
 };
 
-// The Aegis cannon's magazine in its menu: firing, ready, or reloading with a countdown.
-const CiwsStatus: React.FC<{ usedMs: number; reloadUntil: number; firing: boolean }> = ({ usedMs, reloadUntil, firing }) => {
+// The Aegis cannon's magazine in its menu: winding up, firing, ready, or reloading with a countdown.
+const CiwsStatus: React.FC<{ usedMs: number; reloadUntil: number; firing: boolean; spinStart: number | null }> = ({ usedMs, reloadUntil, firing, spinStart }) => {
   const [now, setNow] = useState(Date.now());
   useEffect(() => { const t = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(t); }, []);
   const reloading = reloadUntil > now;
@@ -144,7 +144,7 @@ const CiwsStatus: React.FC<{ usedMs: number; reloadUntil: number; firing: boolea
       <div className="flex justify-between text-[9px] font-mono uppercase">
         <span className="text-slate-400">CIWS</span>
         <span className={reloading ? 'text-amber-300' : firing ? 'text-orange-300 animate-pulse' : 'text-emerald-300'}>
-          {reloading ? `Reloading ${Math.ceil((reloadUntil - now) / 1000)}s` : firing ? 'Firing' : 'Ready'}
+          {reloading ? `Reloading ${Math.ceil((reloadUntil - now) / 1000)}s` : firing ? (spinStart != null && now - spinStart < CIWS.spinUpMs ? 'Winding up' : 'Firing') : 'Ready'}
         </span>
       </div>
       <div className="h-1 bg-slate-800 rounded-sm overflow-hidden">
@@ -282,6 +282,7 @@ interface UnitProps {
   ciwsUsedMs?: number;
   ciwsReloadUntil?: number;
   ciwsTargetId?: string | null;
+  ciwsSpinStart?: number | null;
   // Where each Aegis is shooting this frame, by gun id (filled by CityMap's CIWS stream).
   ciwsAims?: React.MutableRefObject<Map<string, THREE.Vector3>>;
   // Thunderhead (sim/artillery.ts)
@@ -298,7 +299,7 @@ interface UnitProps {
 }
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, grenadeAt, faceAt, turretAt, railgunFiredAt, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, ciwsAims, anchoredAt, artilleryTarget, artilleryAim,
+  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, grenadeAt, faceAt, turretAt, railgunFiredAt, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, ciwsSpinStart, ciwsAims, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -1106,7 +1107,7 @@ const Unit: React.FC<UnitProps> = ({
                         <span>Grenade Launcher</span><span className="font-mono">every {GOLIATH.grenades.cooldownMs / 1000}s</span>
                       </div>
                   )}
-                  {isAegis && <CiwsStatus usedMs={ciwsUsedMs ?? 0} reloadUntil={ciwsReloadUntil ?? 0} firing={!!ciwsTargetId} />}
+                  {isAegis && <CiwsStatus usedMs={ciwsUsedMs ?? 0} reloadUntil={ciwsReloadUntil ?? 0} firing={!!ciwsTargetId} spinStart={ciwsSpinStart ?? null} />}
 
                   {/* New-unit abilities: the tier (teamCompute carries it), and research at Advanced Research for the second. */}
                   {abilitiesFor(type).flatMap(a => {

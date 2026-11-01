@@ -13,7 +13,8 @@
 //   - rifle, mg: a sharp crack of noise with a short low thump; machine guns a touch lower.
 //   - flak: a duller, heavier pop.
 //   - ciws_fire: the CIWS guns' buzz-saw roar, a loop held for as long as a burst lasts (setLoops):
-//     a fast-pulsing burst of filtered noise over a low growl, for a gun firing thousands a minute.
+//     a fast-pulsing burst of filtered noise over a low growl, for a gun firing thousands a minute,
+//     winding up from a slow chatter over the gun's spin-up (sim/ciws.ts CIWS.spinUpMs).
 //   - cannon: a deep boom falling in pitch under a burst of noise.
 //   - rail (the Sentry Turret's slug) and tank_rail (the tank's main gun): the railgun. A hard
 //     crack, an electric zap sweeping down, a metallic ring that hangs in the air, and a sub-bass punch.
@@ -62,7 +63,8 @@ export type LoopKind = 'laser_beam' | 'ciws_fire' | 'construction';
 // gap of a tick or two (a gun switching targets) doesn't break it up.
 const LOOPS: Record<LoopKind, { gain: number; reach: number; max: number; holdMs: number }> = {
   laser_beam: { gain: 0.45, reach: 1, max: 4, holdMs: 200 },
-  ciws_fire: { gain: 0.5, reach: 1.1, max: 4, holdMs: 250 },
+  // Held a little past the gun's spin grace (sim/ciws.ts), so switching targets doesn't restart the wind-up.
+  ciws_fire: { gain: 0.5, reach: 1.1, max: 4, holdMs: 350 },
   // The player's building sites at work.
   construction: { gain: 0.3, reach: 0.5, max: 2, holdMs: 400 },
 };
@@ -628,7 +630,9 @@ function synthWorks(c: BaseAudioContext, out: AudioNode, t: number): (at: number
   for (const n of [noise, pulse]) n.start(t);
   return at => { for (const n of [noise, pulse]) n.stop(at); };
 }
-// The CIWS: looping noise through a band-pass, chopped 60 times a second, over a low square growl.
+// The CIWS: looping noise through a band-pass, chopped 60 times a second, over a low square growl,
+// both winding up from a slow chatter over the barrels' spin-up.
+const CIWS_SPIN_UP_S = 1.2;
 function synthChainGun(c: BaseAudioContext, out: AudioNode, t: number): (at: number) => void {
   const noise = c.createBufferSource();
   noise.buffer = noiseFor(c);
@@ -641,13 +645,15 @@ function synthChainGun(c: BaseAudioContext, out: AudioNode, t: number): (at: num
   chop.gain.value = 0.5;
   const rate = c.createOscillator();
   rate.type = 'square';
-  rate.frequency.value = 60;
+  rate.frequency.setValueAtTime(8, t);
+  rate.frequency.exponentialRampToValueAtTime(60, t + CIWS_SPIN_UP_S);
   const depth = c.createGain();
   depth.gain.value = 0.5;
   rate.connect(depth).connect(chop.gain);
   const growl = c.createOscillator();
   growl.type = 'square';
-  growl.frequency.value = 55;
+  growl.frequency.setValueAtTime(20, t);
+  growl.frequency.exponentialRampToValueAtTime(55, t + CIWS_SPIN_UP_S);
   const growlLevel = c.createGain();
   growlLevel.gain.value = 0.15;
   noise.connect(band).connect(chop).connect(out);

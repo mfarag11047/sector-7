@@ -16,7 +16,11 @@ import React, { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { glow, kitMaterial, PALETTE, teamPaint } from '../kit/materials';
+import { CIWS } from '../../sim/ciws';
 import { ContactShadow, Plate, Prism, Strip, Turned, Wheel } from '../kit/shapes';
+
+// The barrels' top speed, in radians a second.
+const BARREL_SPEED = 40;
 
 const SCALE = 2.5;
 
@@ -35,8 +39,9 @@ const MAX_PITCH = 1.2;
 export const AegisModel: React.FC<{
   teamColor: string;
   moving?: boolean;
+  // Tracking a target: winding up or firing (sim/ciws.ts).
   firing?: boolean;
-  // Where the gun is shooting, in world space, while it fires.
+  // Where the gun is shooting, in world space, while it tracks a target (winding up or firing).
   aimOf?: () => THREE.Vector3 | undefined;
 }> = ({ teamColor, moving, firing, aimOf }) => {
   const armour = kitMaterial('armour'), dark = kitMaterial('armourDark'), steel = kitMaterial('steel'), black = kitMaterial('black');
@@ -46,6 +51,7 @@ export const AegisModel: React.FC<{
   const yaw = useRef<THREE.Group>(null);
   const pitch = useRef<THREE.Group>(null);
   const barrels = useRef<THREE.Group>(null);
+  const spin = useRef(0);
   const radar = useRef<THREE.Group>(null);
   const scratch = useMemo(() => ({ v: new THREE.Vector3(), o: new THREE.Vector3() }), []);
 
@@ -53,7 +59,9 @@ export const AegisModel: React.FC<{
     const k = 1 - Math.exp(-Math.min(delta, 0.05) * (firing ? 10 : 2));
     if (moving) wheels.current?.children.forEach(w => { w.rotation.x += delta * 6; });
     if (radar.current) radar.current.rotation.y += delta * 1.2;
-    if (barrels.current) barrels.current.rotation.z += delta * (firing ? 40 : 0);
+    // The barrels wind up over the gun's spin-up (sim/ciws.ts) before it opens fire, and run down after.
+    spin.current = firing ? Math.min(BARREL_SPEED, spin.current + delta * BARREL_SPEED / (CIWS.spinUpMs / 1000)) : Math.max(0, spin.current - delta * BARREL_SPEED / 0.8);
+    if (barrels.current) barrels.current.rotation.z += delta * spin.current;
     const y = yaw.current, p = pitch.current;
     if (!y || !p || !y.parent) return;
     // Onto the target while firing; otherwise a slow sweep of the sky ahead.
