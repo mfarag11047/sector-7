@@ -1,18 +1,19 @@
 // The city's colours, kept apart from the colours that carry meaning in play.
 //
 // Some colours are reserved so they always mean one thing:
-//   - The sides: Vanta's near-white and Tokugen's green (TEAM_COLORS in constants.ts), on every
+//   - The sides: Vanta's deep red and Tokugen's green (TEAM_COLORS in constants.ts), on every
 //     unit, on the indicator lights of the streetlights its grid powers, and on the objectives it
 //     holds.
 //     Neutral purple marks unowned units.
 //   - The objectives: cyan for server nodes (neutral) and amber for core nodes.
-// So the scenery never uses them: neon in green or white would read as a side's,
+// So the scenery never uses them: neon in green or red would read as a side's,
 // cyan or amber trim next to a node would blur the objective, and units would melt into walls in
-// their own colours. The scenery keeps to magenta and pink, reds, orange, and blue and indigo
-// (SCENE), with neutral dark bodies between them as rest for the eye.
+// their own colours. The scenery keeps to magenta and pink, orange, and blue and indigo (SCENE),
+// with neutral dark bodies between them as rest for the eye. (Its reds went to pink-magenta and
+// orange when Vanta's colour became red.)
 //
 // Exceptions, on purpose: the two sides' own megatowers in the core wear their corporation's
-// colours (Vanta white, Tokugen green), as the sides take theirs from them, and the gold-scale
+// colours (Vanta red, Tokugen green), as the sides take theirs from them, and the gold-scale
 // towers keep their gold panels (none stands near a core node). Paint on the ground (road lines,
 // crossings) is plain road paint, not light.
 //
@@ -22,12 +23,12 @@ export const SCENE = {
   magenta: '#e879f9',
   hotPink: '#ff4fd8',
   pink: '#f472b6',
-  rose: '#ff5577',
-  red: '#ff2d55',
-  crimson: '#ef4444',
+  rose: '#ff5c9a',
+  red: '#ff2a7a', // a hot pink-red, well clear of Vanta's
+  crimson: '#e8458f',
   orange: '#ff6a1a',
   amberless: '#ff8a3d', // a warm orange, well clear of the core nodes' amber
-  coral: '#ff7a5a',
+  coral: '#ff8a5a',
   blue: '#4f7bff',
   indigo: '#6d6bff',
 } as const;
@@ -47,10 +48,11 @@ export function hsl(hex: string): { h: number; s: number; l: number } {
 }
 
 // Which reserved colour `hex` would be mistaken for, or null if it is fine for scenery.
-export function reservedFor(hex: string): 'Vanta white' | 'Tokugen green' | 'neutral purple' | 'server cyan' | 'core amber' | null {
+export function reservedFor(hex: string): 'Vanta red' | 'Tokugen green' | 'neutral purple' | 'server cyan' | 'core amber' | null {
   const { h, s, l } = hsl(hex);
-  if (l > 0.82 || (s < 0.25 && l > 0.6)) return 'Vanta white';
   if (s < 0.2) return null; // dark greys and other near-greys are just body colour
+  // Any true red, from dark to bright: pinks start at 345 and orange at 12.
+  if ((h >= 345 || h < 12) && s >= 0.3 && l >= 0.18 && l <= 0.8) return 'Vanta red';
   if (h >= 70 && h < 170) return 'Tokugen green';
   if (h >= 170 && h < 205) return 'server cyan';
   if (h >= 35 && h < 70) return 'core amber';

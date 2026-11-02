@@ -318,7 +318,7 @@ const BaseCompound: React.FC<{ walls: BaseWall[]; gates: GridPos[]; tileSize: nu
       slats: new THREE.MeshStandardMaterial({ color: '#3a3e44', roughness: 0.5, metalness: 0.45 }),
       pillars: new THREE.MeshStandardMaterial({ color: PALETTE.structGrey, roughness: 0.75, metalness: 0.15 }),
       caps: new THREE.MeshStandardMaterial({ color: PALETTE.structDark, roughness: 0.7, metalness: 0.3 }),
-      // Sodium orange, not white: white is Vanta's colour.
+      // Sodium orange: not a side's colour.
       lamps: new THREE.MeshBasicMaterial({ color: '#ffb07a', toneMapped: false }),
       washes: new THREE.MeshBasicMaterial({ map: washTexture(), color: '#ffb07a', transparent: true, opacity: 0.28, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }),
       strips: new THREE.MeshBasicMaterial({ toneMapped: false }),

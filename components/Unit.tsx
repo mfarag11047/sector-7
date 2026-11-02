@@ -920,7 +920,7 @@ const Unit: React.FC<UnitProps> = ({
                   <meshBasicMaterial color={teamColor} transparent opacity={0.3} blending={THREE.AdditiveBlending} depthWrite={false}/>
               </mesh>
               {/* Ground Ring - Explicit 2-Block Perimeter Visual. Faint: the sides' colours are light
-                  (Vanta's white, Tokugen's green) and would glare over the streets. */}
+                  (Vanta's red, Tokugen's green) and would glare over the streets. */}
               <group position={[0, -hoverHeight + 0.2, 0]}>
                   <mesh rotation={[-Math.PI/2, 0, 0]} raycast={() => null}>
                       <ringGeometry args={[visualVisionRadius - 0.5, visualVisionRadius, 16]} />

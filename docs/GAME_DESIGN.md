@@ -9,7 +9,7 @@ so tuning keeps the shape.
 ## The factions
 
 The two sides are rival corporations, each in the colours of its tower in the city
-(`components/Landmarks.tsx`): **Vanta** in cool white, from the north-west base, and **Tokugen** in
+(`components/Landmarks.tsx`): **Vanta** in deep red (`#c8102e`), from the north-west base, and **Tokugen** in
 green, from the south-east. Their colours (`TEAM_COLORS`) mark units, bases, badges, force fields,
 the minimap and the HUD, and their names (`TEAM_NAMES`) are used wherever a side is named: the team
 panels, the setup and end screens, base labels and the pacing report. Both colours are light, so
@@ -1607,7 +1607,7 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   two tall holo-advert strips, vent slits, and the emblem again in neon at its foot.
   Vanta is modelled after Arasaka Tower: a dark slate monolith on a
   flared, buttressed foot, flanked by tall side wings under a notched stepped crown, cold seams
-  up its panels and its own white emblem (a broken ring round a V and a diamond) near its top, with a tall holo-advert column off one corner
+  up its panels in deep red and its own emblem (a broken ring round a V and a diamond) glowing red near its top, a red line round its podium, with a tall holo-advert column off one corner
   and its orange holographic koi still circling it. They are landmarks, not targets: each fills its whole block, cannot be
   driven through, captured or destroyed, and never becomes a base site. Their lots mirror like
   everything else; only the towers' looks differ.
@@ -1856,12 +1856,21 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
     out in streaks, 80% of the blast's radius (2.5 to 18). Small hits (bullets, drone strikes, a
     single Hornet rocket), blasts in the air and energy effects (EMP, the Black Wall, a shot
     stopped by a force field) leave none. The newest 320 are kept, drawn as one instanced decal.
+- **Vanta's colour** was a cool near-white until it proved hard to pick out on the night city;
+  it is now a deep signal red (`#c8102e`) everywhere it shows: units and their badges (whose
+  pictograms are drawn in light ink on the red, dark on Tokugen's green, `inkOn` in
+  `components/factions.ts`), the HUD, bases, force fields, the streetlight indicators and the
+  Vanta tower's emblem, seams and podium line. Red is reserved for it now, so the scenery's reds
+  moved: its red and crimson neon to hot pink-red and pink, the rose to a pinker rose, coral and
+  the noodle ads to orange, hazard chevrons, smokestack bands and storage tanks to orange and rust,
+  and the megablock's and the cladding's crimson panels to plum. The palette test checks every
+  facade, sign and advert stays clear of any true red.
 - **Colour readability** (`components/scenePalette.ts`, checked by its test). Some colours are
-  reserved so they always mean one thing: the sides' Vanta near-white and Tokugen green (every
+  reserved so they always mean one thing: the sides' Vanta deep red and Tokugen green (every
   unit, the indicator lights on the streetlights of the grid each holds, and the objectives they
   hold), neutral purple, and the objectives'
   cyan (server nodes) and amber (core nodes). The scenery never uses them: its neon keeps to
-  magenta and pink, reds, orange, and blue and indigo, with dark bodies between them as rest for
+  magenta and hot pink, orange, and blue and indigo, with dark bodies between them as rest for
   the eye, so a building's own trim never reads as captured, nothing near a node competes with it
   and units don't melt into walls of their own colour. On purpose, the two sides' megatowers
   keep their corporations' colours, the gold-scale towers their gold (none stands near a core

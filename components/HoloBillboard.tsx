@@ -14,10 +14,10 @@ import * as THREE from 'three';
 // palette (scenePalette.ts), never the sides' white or green or the nodes' cyan or amber.
 export const ADS: { title: string; glyphs: string; color: string; glow: string }[] = [
   { title: 'TOKUGEN', glyphs: '徳源', color: '#f472b6', glow: '#db2777' },
-  { title: 'NEXUM', glyphs: 'ネクサム', color: '#ff7a5a', glow: '#c2410c' },
+  { title: 'NEXUM', glyphs: 'ネクサム', color: '#ff8a5a', glow: '#c2410c' },
   { title: 'AXIOM', glyphs: '公理', color: '#4f7bff', glow: '#1d4ed8' },
   { title: 'VANTA', glyphs: '漆黒', color: '#ff4fd8', glow: '#be185d' },
-  { title: 'NOODLES', glyphs: 'ラーメン', color: '#f87171', glow: '#dc2626' },
+  { title: 'NOODLES', glyphs: 'ラーメン', color: '#fb923c', glow: '#c2410c' },
   { title: 'SYNTH SAKE', glyphs: '合成酒', color: '#e879f9', glow: '#a21caf' },
 ];
 export const AD_COUNT = ADS.length;

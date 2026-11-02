@@ -7,7 +7,10 @@ import { ADS } from './HoloBillboard';
 
 describe('the reserved colours', () => {
   it('are recognised: the sides, neutral, and the nodes', () => {
-    expect(reservedFor(TEAM_COLORS.blue)).toBe('Vanta white');
+    expect(reservedFor(TEAM_COLORS.blue)).toBe('Vanta red');
+    // Dark reds and bright reds alike.
+    expect(reservedFor('#7d2630')).toBe('Vanta red');
+    expect(reservedFor('#ef4444')).toBe('Vanta red');
     expect(reservedFor(TEAM_COLORS.red)).toBe('Tokugen green');
     expect(reservedFor(TEAM_COLORS.neutral)).toBe('neutral purple');
     expect(reservedFor('#22d3ee')).toBe('server cyan');

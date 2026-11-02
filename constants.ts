@@ -291,10 +291,10 @@ export const BUILDING_COLORS = {
 };
 
 // The two sides are rival corporations, each in its colours from its tower in the city
-// (components/Landmarks.tsx): Vanta in cool white, Tokugen in green. In the code they keep their
+// (components/Landmarks.tsx): Vanta in deep red, Tokugen in green. In the code they keep their
 // side ids, 'blue' (Vanta, the north-west base) and 'red' (Tokugen, the south-east).
 export const TEAM_COLORS = {
-  blue: '#e6eeff',
+  blue: '#c8102e',
   red: '#8dff7a',
   neutral: '#a855f7',
 };

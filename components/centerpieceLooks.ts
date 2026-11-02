@@ -5,7 +5,7 @@
 // the way down to its front door, so it's as plain a landmark from the street as from the sky.
 //   megablock  housing over midtown: narrow at its foot and swelling out over the street a
 //              third of the way up, chamfered corners, clad from the pavement to the roof in big
-//              crimson and slate panels, holo billboards on its faces, its number lit huge near
+//              plum and slate panels, holo billboards on its faces, its number lit huge near
 //              the top of every face and again over the entrance in the middle of each
 //   liftblock  industry's: a block lifted on concrete pylons over a narrow core, pale concrete
 //              with blue panels and blue stripes painted round it every few storeys, its code
@@ -55,7 +55,7 @@ export const CENTERPIECE_LOOKS: Record<CenterpieceKind, CenterpieceLook> = {
   megablock: {
     windows: 'apartment', body: '#1c1d24', accent: SCENE.red, crown: 'antennas',
     steps: [[0, 2], [0.3, -2.5]], corner: 'chamfer',
-    cladding: ['#7d2630', '#2d3a63'], number: '07', billboards: true, roofKit: ['coolers', 'sentry'],
+    cladding: ['#5e2148', '#2d3a63'], number: '07', billboards: true, roofKit: ['coolers', 'sentry'],
   },
   liftblock: {
     windows: 'plant', body: '#8d8a83', accent: SCENE.blue, crown: 'antennas',

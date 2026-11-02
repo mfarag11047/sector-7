@@ -12,7 +12,7 @@ import React from 'react';
 import { UNIT_STATS } from '../constants';
 import type { UnitType } from '../types';
 import { ROLE_GLYPH, roleGlyphFilled, teamBadgeColor, UNIT_ROLE } from './unitIcons';
-import { FACTION_INK } from './factions';
+import { inkOn } from './factions';
 
 export interface SelectionSummary {
   // One entry per type in the selection, largest group first.
@@ -40,7 +40,7 @@ const Badge: React.FC<{ type: UnitType; color: string }> = ({ type, color }) => 
     <svg width={18} height={18} viewBox="0 0 24 24" className="shrink-0">
       <rect x={1} y={1} width={22} height={22} rx={5} fill={color} stroke="#020617" strokeWidth={1.5} />
       <g transform="translate(3 3) scale(0.75)">
-        <path d={ROLE_GLYPH[role]} fill={filled ? FACTION_INK : 'none'} stroke={filled ? 'none' : FACTION_INK} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
+        <path d={ROLE_GLYPH[role]} fill={filled ? inkOn(color) : 'none'} stroke={filled ? 'none' : inkOn(color)} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" />
       </g>
     </svg>
   );

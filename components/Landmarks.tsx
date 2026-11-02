@@ -8,7 +8,7 @@
 //   - Axiom: twin spires joined by a sky bridge, a beam of blue light from the roof and a
 //     giant holographic koi circling between them.
 //   - Vanta: an ominous dark slate monolith after Arasaka Tower, its foot flared into
-//     buttresses, a white emblem near its top and its orange holographic koi circling it.
+//     buttresses, its emblem in the side's deep red near its top and its orange holographic koi circling it.
 // Around them aerodynes cruise in loops above the streets.
 //
 // Everything is plain geometry with canvas-drawn textures (windows, signs, adverts), so nothing
@@ -487,7 +487,7 @@ function louvreTexture() {
 }
 
 const Nexum: React.FC<{ kit: Kit }> = ({ kit }) => {
-  const neon = '#ff7a5a';
+  const neon = '#ff8a5a';
   const [plain, slitted, louvre] = useDisposable(() => [concreteTexture(false), concreteTexture(true), louvreTexture()], []);
   const mats = useMemo(() => {
     const tiled = (t: THREE.Texture, rx: number, ry: number) => { const c = t.clone(); c.needsUpdate = true; c.repeat.set(rx, ry); return c; };
@@ -604,15 +604,16 @@ function slateTexture() {
   return t;
 }
 
-// Vanta's own emblem in white light: a ring broken at the bottom, a bold V of two blades rising
+// Vanta's own emblem in its deep red light: a ring broken at the bottom, a bold V of two blades rising
 // out of the gap, and a small diamond floating in the V.
 function vantaEmblemTexture() {
   const c = document.createElement('canvas');
   c.width = c.height = 256;
   const g = c.getContext('2d')!;
-  g.strokeStyle = '#ffffff';
-  g.fillStyle = '#ffffff';
-  g.shadowColor = '#cfe6ff';
+  // A hot core in the strokes, the team's deep red glowing round them.
+  g.strokeStyle = '#ff5a6a';
+  g.fillStyle = '#ff5a6a';
+  g.shadowColor = '#c8102e';
   g.lineCap = 'round';
   g.lineJoin = 'miter';
   for (const blur of [24, 8, 2]) {
@@ -631,7 +632,7 @@ function vantaEmblemTexture() {
   return t;
 }
 
-const SEAM = new THREE.MeshBasicMaterial({ color: '#b9d6f2', transparent: true, opacity: 0.8, toneMapped: false });
+const SEAM = new THREE.MeshBasicMaterial({ color: '#c8102e', transparent: true, opacity: 0.8, toneMapped: false });
 
 const Vanta: React.FC<{ kit: Kit }> = ({ kit }) => {
   const [slate, emblem] = useDisposable(() => [slateTexture(), vantaEmblemTexture()], []);
@@ -648,7 +649,7 @@ const Vanta: React.FC<{ kit: Kit }> = ({ kit }) => {
     <group>
       {/* Podium. */}
       <Block size={[66, 8, 66]} position={[0, 4, 0]} dark />
-      <NeonFrame w={66} d={66} y={8.2} color="#cfe6ff" thickness={0.35} />
+      <NeonFrame w={66} d={66} y={8.2} color="#c8102e" thickness={0.35} />
       {/* The flared foot: a square frustum sloping in from the podium to the shaft. */}
       <mesh position={[0, 8 + 45, 0]} rotation={[0, Math.PI / 4, 0]} material={slateMat} castShadow receiveShadow>
         <cylinderGeometry args={[24 * Math.SQRT2, 31 * Math.SQRT2, 90, 4, 1]} />
@@ -676,14 +677,14 @@ const Vanta: React.FC<{ kit: Kit }> = ({ kit }) => {
       {/* The emblem near the top of front and back. */}
       {[1, -1].map(side => (
         <group key={`e${side}`} position={[0, 188, side * 19.2]} rotation={[0, side > 0 ? 0 : Math.PI, 0]}>
-          <mesh position={[0, 0, 0.2]}><planeGeometry args={[30, 30]} /><meshBasicMaterial map={kit.glow} color="#cfe6ff" transparent opacity={0.25} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} /></mesh>
+          <mesh position={[0, 0, 0.2]}><planeGeometry args={[30, 30]} /><meshBasicMaterial map={kit.glow} color="#c8102e" transparent opacity={0.3} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} /></mesh>
           <mesh position={[0, 0, 0.4]}><planeGeometry args={[18, 18]} /><meshBasicMaterial map={emblem} transparent blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} /></mesh>
         </group>
       ))}
       {/* A tall holo-advert column off one front corner, and the name low on the podium. */}
       <Billboard tex={kit.adverts[1]} size={[12, 120]} position={[38, 110, 30]} rotationY={-Math.PI / 4} speed={0.02} />
       <mesh position={[38, 50, 30]} material={darkMat}><boxGeometry args={[1.5, 100, 1.5]} /></mesh>
-      <Sign tex={kit.signs.vanta} glow={kit.glow} color="#cfe6ff" size={[24, 6]} position={[0, 14, 30]} />
+      <Sign tex={kit.signs.vanta} glow={kit.glow} color="#c8102e" size={[24, 6]} position={[0, 14, 30]} />
       <Beacon position={[-12, 227, 0]} glow={kit.glow} phase={0.7} />
       <Beacon position={[12, 227, 0]} glow={kit.glow} phase={2.1} />
       {/* Its orange holographic koi, circling the tower as it always has. */}
@@ -754,7 +755,7 @@ const Aerodynes: React.FC<{ glow: THREE.Texture }> = ({ glow }) => {
 // units and usually sits around 80: at this scale the tallest roofs are a little over 110.
 const TOWER_SCALE = 0.5;
 const TOWER_TOP = 230 * TOWER_SCALE;
-const LOT_COLORS: Record<LandmarkKind, string> = { tokugen: '#8dff7a', nexum: '#ff7a5a', axiom: AXIOM_BLUE, vanta: '#cfe6ff' };
+const LOT_COLORS: Record<LandmarkKind, string> = { tokugen: '#8dff7a', nexum: '#ff8a5a', axiom: AXIOM_BLUE, vanta: '#c8102e' };
 
 // A tower's whole city block: a dark plaza edged in its corp colour, with the tower on it. While
 // the camera is down among the floors of a tower, the tower is hidden so it never fills the view.
@@ -788,9 +789,9 @@ export const Landmarks: React.FC<{ landmarks: Landmark[]; tileSize: number; offs
     windowTexture(41, ['#ffd27a', '#fff1cf', '#ffe6b0'], 0.5),
     windowTexture(53, ['#d9ffd2', '#9dff8a', '#f2fff0'], 0.16),
     signTexture('TOKUGEN', '#8dff7a'),
-    signTexture('NEXUM', '#ff7a5a', { emblem: true }),
+    signTexture('NEXUM', '#ff8a5a', { emblem: true }),
     signTexture('AXIOM', AXIOM_BLUE),
-    signTexture('VANTA', '#cfe6ff'),
+    signTexture('VANTA', '#ff4a5c'),
     signTexture('AXIOM', AXIOM_BLUE, { vertical: true }),
     signTexture('VANTA', '#ff6a2a', { vertical: true }),
     signTexture('TOKUGEN', '#8dff7a', { vertical: true }),

@@ -4,7 +4,7 @@
 // components/centerpieceLooks.ts).
 //
 //   megablock  midtown: a 62-high block of housing on a 3x3 footprint, narrow at its foot and
-//              swelling out over the street above, clad from the pavement to the roof in crimson
+//              swelling out over the street above, clad from the pavement to the roof in plum
 //              and slate panels, its district number lit huge near the top and again over its
 //              entrances
 //   liftblock  industrial: a 40-high block on a 5x3 footprint lifted on concrete pylons over a

@@ -8,7 +8,7 @@
 import * as THREE from 'three';
 import { TEAM_COLORS } from '../constants';
 import type { UnitType } from '../types';
-import { FACTION_INK } from './factions';
+import { inkOn } from './factions';
 
 export type UnitRole =
   | 'infantry' | 'anti_armor' | 'raider' | 'armor' | 'anti_air' | 'gunship' | 'scout'
@@ -92,9 +92,9 @@ export function roleBadgeTexture(role: UnitRole, team: string): THREE.CanvasText
   ctx.translate(8, 8);
   ctx.scale((size - 16) / 24, (size - 16) / 24);
   const path = new Path2D(ROLE_GLYPH[role]);
-  // Dark ink: both sides' colours are light (components/factions.ts).
-  ctx.strokeStyle = FACTION_INK;
-  ctx.fillStyle = FACTION_INK;
+  // Ink that reads on the side's colour: light on Vanta's red, dark on Tokugen's green.
+  ctx.strokeStyle = inkOn(teamBadgeColor(team));
+  ctx.fillStyle = inkOn(teamBadgeColor(team));
   ctx.lineWidth = 2.6;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';

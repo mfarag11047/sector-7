@@ -56,9 +56,9 @@ export interface EraStack {
 }
 
 // The panel cladding's colour schemes: [panel, accent panel]. Dark and matte, in the scenery
-// palette's hues (crimson on charcoal, slate blue on grey, burnt orange on charcoal), never the
+// palette's hues (plum on charcoal, slate blue on grey, burnt orange on charcoal), never the
 // sides' or the nodes' colours.
-export const CLADDING: [string, string][] = [['#2c2d33', '#8c2a31'], ['#7a7974', '#34497a'], ['#2a2b30', '#9a5026']];
+export const CLADDING: [string, string][] = [['#2c2d33', '#7a2a5a'], ['#7a7974', '#34497a'], ['#2a2b30', '#9a5026']];
 
 type Odds<T> = [T, number][];
 interface DistrictEras { bones: Odds<Era>; roof: Odds<Era | null>; frontage: Odds<Era>; reclad: number }

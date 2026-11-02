@@ -92,8 +92,8 @@ function windowTexture(kind: Kind): THREE.CanvasTexture {
       g.fillRect(col * 16 + 3, 70, 10, 10);
     }
     for (let i = -2; i < 16; i++) {
-      // Red hazard chevrons, not yellow: amber is the core nodes' (scenePalette.ts).
-      g.fillStyle = 'rgba(214,56,44,0.8)';
+      // Orange hazard chevrons: not yellow (the core nodes' amber) nor red (Vanta's).
+      g.fillStyle = 'rgba(255,106,26,0.8)';
       g.beginPath();
       g.moveTo(i * 16, 128); g.lineTo(i * 16 + 8, 128); g.lineTo(i * 16 + 16, 112); g.lineTo(i * 16 + 8, 112);
       g.fill();
@@ -384,7 +384,7 @@ const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: b
     {crown === 'smokestack' && (
       <group position={[span * 0.2, 0, -span * 0.15]}>
         <mesh position={[0, 9, 0]} material={stackMaterial} castShadow><cylinderGeometry args={[1.1, 1.6, 18, 12]} /></mesh>
-        {[5, 16].map(y => <mesh key={y} position={[0, y, 0]} material={neonMaterial('#dc2626')}><cylinderGeometry args={[1.25 + (18 - y) * 0.02, 1.25 + (18 - y) * 0.02, 1.2, 12]} /></mesh>)}
+        {[5, 16].map(y => <mesh key={y} position={[0, y, 0]} material={neonMaterial(SCENE.orange)}><cylinderGeometry args={[1.25 + (18 - y) * 0.02, 1.25 + (18 - y) * 0.02, 1.2, 12]} /></mesh>)}
         <mesh position={[0, 18.2, 0]} material={redLight()}><sphereGeometry args={[0.35, 6, 4]} /></mesh>
         {!dead && <Smoke y={18} />}
       </group>
@@ -443,7 +443,8 @@ const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: b
 
 // Industry: smokestacks, red tanks, the dark band round a plant's foot, and drifting smoke.
 const stackMaterial = new THREE.MeshStandardMaterial({ color: '#b8b6ae', metalness: 0.2, roughness: 0.8 });
-const redTankMaterial = new THREE.MeshStandardMaterial({ color: '#b91c1c', metalness: 0.4, roughness: 0.5, emissive: '#3f0606' });
+// Rust-orange tanks: red would read as Vanta's.
+const redTankMaterial = new THREE.MeshStandardMaterial({ color: '#b4531c', metalness: 0.4, roughness: 0.5, emissive: '#3a1606' });
 const skirtMaterials = new Map<string, THREE.MeshStandardMaterial>();
 const skirtMaterial = (color: string) => {
   let m = skirtMaterials.get(color);

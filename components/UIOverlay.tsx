@@ -14,7 +14,7 @@ import type { MatchConfig } from '../sim/match';
 import type { MatchInfo } from './CityMap';
 import type { Notice } from '../App';
 import { dampenedUnits } from '../sim/ghost';
-import { FACTION_GLOW, FACTION_INK, FACTION_TEXT, teamName } from './factions';
+import { FACTION_GLOW, FACTION_TEXT, inkOn, teamName } from './factions';
 
 const EditableStat: React.FC<{
   value: number;
@@ -965,7 +965,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                   return (
                       <g key={u.id} transform={`translate(${u.gridPos.x - 0.3} ${u.gridPos.z - 0.3}) scale(${1.6 / 24})`}>
                           <rect x={0} y={0} width={24} height={24} rx={5} fill={teamBadgeColor(u.team)} stroke="#020617" strokeWidth={2} />
-                          <path d={ROLE_GLYPH[role]} fill={filled ? FACTION_INK : 'none'} stroke={filled ? 'none' : FACTION_INK} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+                          <path d={ROLE_GLYPH[role]} fill={filled ? inkOn(teamBadgeColor(u.team)) : 'none'} stroke={filled ? 'none' : inkOn(teamBadgeColor(u.team))} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
                       </g>
                   );
               })}
