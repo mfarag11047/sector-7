@@ -192,12 +192,16 @@ export function buildRetrofit(kind: RoofPiece, span: number, faceZ: 1 | -1, seed
   return k.build();
 }
 
-export const RetrofitPiece: React.FC<{ kind: RoofPiece; span: number; faceZ: 1 | -1; seed: number; position: [number, number, number] }> = ({ kind, span, faceZ, seed, position }) => {
+// On a dead building (decay.ts) nothing on the roof is lit or running, but for the windows of a
+// shanty, where people live.
+const unlit = std('#25272b', 0.5, 0.6);
+export const RetrofitPiece: React.FC<{ kind: RoofPiece; span: number; faceZ: 1 | -1; seed: number; position: [number, number, number]; dead?: boolean }> = ({ kind, span, faceZ, seed, position, dead }) => {
   const parts = useMemo(() => buildRetrofit(kind, span, faceZ, seed), [kind, span, faceZ, seed]);
   useLayoutEffect(() => () => parts.forEach(p => p.geometry.dispose()), [parts]);
+  const shown = (m: THREE.Material) => (dead && m instanceof THREE.MeshBasicMaterial && m !== M.window ? unlit : dead && (m === M.dome || m === M.glass || m === M.sign) ? unlit : m);
   return (
     <group position={position}>
-      {parts.map((p, i) => <mesh key={i} geometry={p.geometry} material={p.mat} castShadow raycast={() => null} />)}
+      {parts.map((p, i) => <mesh key={i} geometry={p.geometry} material={shown(p.mat)} castShadow raycast={() => null} />)}
     </group>
   );
 };

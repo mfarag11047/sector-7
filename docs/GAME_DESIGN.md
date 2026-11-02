@@ -1787,6 +1787,12 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
     into homes on the roofs (rust, faded blue, dull orange, grey; a lit window, a tarp to a pole,
     a ladder up) in place of the usual rooftop piece, and lean-to shacks of sheet metal against
     the ground floors with tarps stretched out over the pavement.
+  A decayed building in any of the three states is **dead**: none of its neon lit (the ledge
+  lines, strips and bands, the rounded corners' bands and the chamfers' strips, the neon on its
+  rooftop piece and retrofit are all there but dark), its windows almost all dark (squatted
+  buildings keep a few lit, and the shanties' windows on their roofs), its shopfronts shuttered
+  whatever era they were done up in, its lamps out, no red lights on its masts or cranes and no
+  smoke from its stack, so it reads as not working from across the map.
   The fringe always decays (mostly redevelopment and deterioration), the outskirts often, the
   industrial zones as often (the taller sheds left half built), midtown rarely; the core, downtown, the
   bases and the corporate towers never. **Devastation**, the fourth state, isn't laid out: it's

@@ -28,8 +28,9 @@ const REPEAT = { shutters: 8, shops: 8, lobby: 6, marble: 10, cladding: 14 };
 
 // --- Textures, drawn once ---
 
-let shutterMat: THREE.MeshBasicMaterial | null = null;
-const shutterMaterial = () => shutterMat ??= new THREE.MeshBasicMaterial({
+// `shut`: every shutter down, no light behind any (a dead building's, decay.ts).
+const shutterMats = new Map<boolean, THREE.MeshBasicMaterial>();
+const shutterMaterial = (shut = false) => shutterMats.get(shut) ?? (shutterMats.set(shut, new THREE.MeshBasicMaterial({
   map: canvas(128, (g, rnd) => {
     // Concrete, a lintel band along the top.
     g.fillStyle = '#2b2a28'; g.fillRect(0, 0, 128, 128);
@@ -37,7 +38,7 @@ const shutterMaterial = () => shutterMat ??= new THREE.MeshBasicMaterial({
     for (let bay = 0; bay < 2; bay++) {
       const x = bay * 64 + 6, w = 52;
       // How far the shutter is up: most down, some part up with the light inside showing.
-      const up = rnd() < 0.35 ? 18 + rnd() * 30 : 0;
+      const up = !shut && rnd() < 0.35 ? 18 + rnd() * 30 : 0;
       const light = g.createLinearGradient(0, 128 - up, 0, 128);
       light.addColorStop(0, 'rgba(255,170,90,0.9)');
       light.addColorStop(1, 'rgba(160,80,40,0.8)');
@@ -61,7 +62,7 @@ const shutterMaterial = () => shutterMat ??= new THREE.MeshBasicMaterial({
     }
     g.globalAlpha = 1;
   }, 4242),
-});
+})), shutterMats.get(shut)!);
 
 let shopMat: THREE.MeshBasicMaterial | null = null;
 // The boom's shopfronts: glass bays lit warm or pink, each with a curved top.
@@ -201,18 +202,19 @@ function plane(width: number, height: number, u0: number, repeat: number, vRepea
 // z = 0 with +z out to the street, from the ground up. `start` is where the face starts along
 // the wall in world units (for lining up the textures); `hash` in [0, 1) varies its details, and
 // `tone` in [0, 1) picks the building's awning colour, the same on all its faces.
-export const FrontageFace: React.FC<{ era: Era; width: number; start: number; hash: number; tone: number }> = ({ era, width, start, hash, tone }) => {
+// `dead`: a dead building's (decay.ts): its shutters all down and its lamp out.
+export const FrontageFace: React.FC<{ era: Era; width: number; start: number; hash: number; tone: number; dead?: boolean }> = ({ era, width, start, hash, tone, dead }) => {
   const H = FRONTAGE_HEIGHT[era];
   const geometry = useMemo(() => {
     const repeat = era === 1 ? REPEAT.shutters : era === 2 ? REPEAT.shops : era === 3 ? REPEAT.lobby : REPEAT.marble;
     return plane(width, H, start / repeat, repeat, era === 4 ? REPEAT.marble : H);
   }, [era, width, start, H]);
   useLayoutEffect(() => () => geometry.dispose(), [geometry]);
-  const face = <mesh geometry={geometry} position={[0, H / 2 + 0.05, 0.07]} material={era === 1 ? shutterMaterial() : era === 2 ? kitschShopMaterial() : era === 3 ? lobbyMaterial() : marbleMaterial()} />;
+  const face = <mesh geometry={geometry} position={[0, H / 2 + 0.05, 0.07]} material={era === 1 ? shutterMaterial(!!dead) : era === 2 ? kitschShopMaterial() : era === 3 ? lobbyMaterial() : marbleMaterial()} />;
   if (era === 1) return (
     <group>
       {face}
-      {hash < 0.6 && <mesh position={[(hash - 0.3) * width, H - 0.5, 0.3]} material={M.lamp}><boxGeometry args={[0.35, 0.35, 0.35]} /></mesh>}
+      {!dead && hash < 0.6 && <mesh position={[(hash - 0.3) * width, H - 0.5, 0.3]} material={M.lamp}><boxGeometry args={[0.35, 0.35, 0.35]} /></mesh>}
     </group>
   );
   if (era === 2) {

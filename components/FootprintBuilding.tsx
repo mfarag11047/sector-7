@@ -124,6 +124,17 @@ const neonMaterial = (color: string) => {
   return m;
 };
 
+// A dead building's neon (decay.ts): the tubes still there, dark, nothing lit.
+const deadNeon = new THREE.MeshStandardMaterial({ color: '#25272b', metalness: 0.5, roughness: 0.6 });
+// Its windows: the same panes, almost all dark (squatters keep a few lit).
+const dimMaterials = new Map<string, THREE.MeshBasicMaterial>();
+const dimmed = (m: THREE.MeshBasicMaterial, opacity: number) => {
+  const key = `${m.uuid}:${opacity}`;
+  let d = dimMaterials.get(key);
+  if (!d) { d = m.clone(); d.opacity = opacity; dimMaterials.set(key, d); }
+  return d;
+};
+
 const podiumMaterial = new THREE.MeshStandardMaterial({ color: '#111827', metalness: 0.7, roughness: 0.45 });
 const plantMaterial = new THREE.MeshStandardMaterial({ color: '#334155', metalness: 0.5, roughness: 0.6 });
 const sawtoothMaterial = new THREE.MeshStandardMaterial({ color: '#64748b', metalness: 0.6, roughness: 0.4 });
@@ -167,7 +178,7 @@ const rustMaterial = new THREE.MeshStandardMaterial({ color: '#9a3412', metalnes
 const craneMaterial = new THREE.MeshStandardMaterial({ color: '#c8572a', metalness: 0.4, roughness: 0.5, emissive: '#3a1206', emissiveIntensity: 0.4 });
 
 // A tower crane standing on a shed roof, its jib swung out over the yard.
-const Crane: React.FC<{ jibAngle: number; mast: number }> = ({ jibAngle, mast }) => (
+const Crane: React.FC<{ jibAngle: number; mast: number; dark?: boolean }> = ({ jibAngle, mast, dark }) => (
   <group>
     {/* Lattice mast: four legs and cross braces. */}
     {[[-0.6, -0.6], [0.6, -0.6], [-0.6, 0.6], [0.6, 0.6]].map(([x, z], i) => (
@@ -185,7 +196,7 @@ const Crane: React.FC<{ jibAngle: number; mast: number }> = ({ jibAngle, mast })
       <mesh position={[0.9, 0.6, 0]} material={plantMaterial}>
         <boxGeometry args={[1.4, 1.2, 1.4]} />
       </mesh>
-      <mesh position={[0.9, 0.7, 0.71]} material={neonMaterial(SCENE.blue)}>
+      <mesh position={[0.9, 0.7, 0.71]} material={dark ? deadNeon : neonMaterial(SCENE.blue)}>
         <boxGeometry args={[1.1, 0.6, 0.02]} />
       </mesh>
       <mesh position={[10, 1.4, 0]} material={craneMaterial}>
@@ -217,7 +228,7 @@ const Crane: React.FC<{ jibAngle: number; mast: number }> = ({ jibAngle, mast })
       <mesh position={[14, -8.3, 0]} material={rustMaterial}>
         <boxGeometry args={[0.8, 0.7, 0.8]} />
       </mesh>
-      <mesh position={[20, 1.9, 0]} material={neonMaterial('#ff003c')}>
+      <mesh position={[20, 1.9, 0]} material={dark ? deadNeon : neonMaterial('#ff003c')}>
         <sphereGeometry args={[0.35, 8, 6]} />
       </mesh>
     </group>
@@ -227,6 +238,7 @@ const Crane: React.FC<{ jibAngle: number; mast: number }> = ({ jibAngle, mast })
 // What stands on a corporate tower's roof (corpoFacades.ts Crown). `span` is the roof's narrow
 // side, `long` its broad one.
 const redLight = () => neonMaterial('#ff003c');
+const neonOf = (color: string) => neonMaterial(color);
 // --- The beacon crown: a holo-projector throwing a column of light into the sky, ringed by bands
 // of holographic ad glyphs scrolling round it. Shaders shared per colour, driven by one clock. ---
 const beaconTime = { value: 0 };
@@ -282,7 +294,11 @@ const adRingMaterial = (color: string) => {
 };
 const BeaconClock: React.FC = () => { useFrame(({ clock }) => { beaconTime.value = clock.elapsedTime; }); return null; };
 
-const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: boolean; h: number; accent: string; position: [number, number, number] }> = ({ crown, span, long, alongX, h, accent, position }) => (
+const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: boolean; h: number; accent: string; position: [number, number, number]; dead?: boolean }> = ({ crown, span, long, alongX, h, accent, position, dead }) => {
+  // A dead building's crown: nothing lit, no smoke from its stack.
+  const neonMaterial = (color: string) => (dead ? deadNeon : neonOf(color));
+  const redLight = () => (dead ? deadNeon : neonOf('#ff003c'));
+  return (
   <group position={position}>
     {crown === 'spire' && (
       <>
@@ -368,7 +384,7 @@ const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: b
         <mesh position={[0, 9, 0]} material={stackMaterial} castShadow><cylinderGeometry args={[1.1, 1.6, 18, 12]} /></mesh>
         {[5, 16].map(y => <mesh key={y} position={[0, y, 0]} material={neonMaterial('#dc2626')}><cylinderGeometry args={[1.25 + (18 - y) * 0.02, 1.25 + (18 - y) * 0.02, 1.2, 12]} /></mesh>)}
         <mesh position={[0, 18.2, 0]} material={redLight()}><sphereGeometry args={[0.35, 6, 4]} /></mesh>
-        <Smoke y={18} />
+        {!dead && <Smoke y={18} />}
       </group>
     )}
     {crown === 'redtanks' && [[-0.2, -0.18, 1.8], [0.2, -0.18, 1.5], [0, 0.22, 1.7]].map(([x, z, r], i) => (
@@ -385,7 +401,7 @@ const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: b
     ))}
     {crown === 'crane' && (
       <group position={[-span * 0.25, 0, -span * 0.25]}>
-        <Crane mast={14 + (long % 7) * 1.4} jibAngle={(long * 1.7) % (Math.PI * 2)} />
+        <Crane mast={14 + (long % 7) * 1.4} jibAngle={(long * 1.7) % (Math.PI * 2)} dark={dead} />
       </group>
     )}
     {crown === 'shack' && (
@@ -421,6 +437,7 @@ const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: b
     )}
   </group>
 );
+};
 
 // Industry: smokestacks, red tanks, the dark band round a plant's foot, and drifting smoke.
 const stackMaterial = new THREE.MeshStandardMaterial({ color: '#b8b6ae', metalness: 0.2, roughness: 0.8 });
@@ -534,6 +551,11 @@ const FootprintSegmentView: React.FC<{
   const h = unfinished ? finishedHeight(H) : H;
   const squatted = !cp && !unfinished && decayed('redevelopment');
   const grimy = decayed('deterioration');
+  // Stopped mid-build, squatted or neglected, a building is dead: none of its neon lit, its
+  // windows almost all dark (a few lit where squatters live), its shops shuttered, nothing on its
+  // roof running.
+  const dead = unfinished || squatted || grimy;
+  const glow = (color: string) => (dead ? deadNeon : neonMaterial(color));
   const lx = data.gridX - f.x;
   const lz = data.gridZ - f.z;
   const isTower = !!f.tower && f.tower.x === data.gridX && f.tower.z === data.gridZ;
@@ -551,6 +573,12 @@ const FootprintSegmentView: React.FC<{
   // Its eras (eras.ts): none for the corporate towers.
   const stack = useMemo(() => eraStackOf({ type: data.type, footprint: f, sawtooth: facade?.sawtooth }), [data.type, f, facade]);
   const retrofitAt = useMemo(() => retrofitTile(f), [f]);
+  // A dead building's shops are shuttered whatever era they were done up in.
+  const shownFrontage = stack ? (dead ? 1 : stack.frontage) : null;
+  const windowsMat = (() => {
+    const m = facade ? facadeWindowMaterial(facade.name) : windowMaterial(kind);
+    return dead ? dimmed(m, squatted ? 0.35 : 0.12) : m;
+  })();
   // Panel cladding: an era's (eras.ts) or a centerpiece's own, ground to roof.
   const cladScheme = stack?.cladding != null ? CLADDING[stack.cladding] : cpLook?.cladding ?? null;
   // What a tower stands on: a corporate tower's podium, or the centerpiece block it rises out of.
@@ -574,7 +602,7 @@ const FootprintSegmentView: React.FC<{
     // Shops take the ground storey; the floors above start over them.
     // A building with eras has its era's ground storey (Frontage.tsx) instead.
     // A centerpiece is clad right down to the pavement; its tower's windows start over its roof.
-    const bottom = tower ? (cp ? cp.height + 0.5 : PODIUM_HEIGHT) : cpLook ? 0.4 : stack ? FRONTAGE_HEIGHT[stack.frontage] + 0.8 : facade?.shops ? SHOP_HEIGHT + 0.8 : style.groundFloor;
+    const bottom = tower ? (cp ? cp.height + 0.5 : PODIUM_HEIGHT) : cpLook ? 0.4 : stack ? FRONTAGE_HEIGHT[shownFrontage!] + 0.8 : facade?.shops ? SHOP_HEIGHT + 0.8 : style.groundFloor;
 
     // Tiers, from the ground up: at each step of the building's massing its outside walls stand
     // in (or out, overhanging) by that many steps. Steps too near the roof are dropped, and the
@@ -682,7 +710,7 @@ const FootprintSegmentView: React.FC<{
       ...w, geometry: faceGeometry(w.width, w.ledge - w.bottom, w.start / GRIME_REPEAT, 0, GRIME_REPEAT, w.ledge - w.bottom),
     })) : [];
     return { box, body: top, tower, windows, faces, cap, billboard, scales, bodyGeometry, shops, cornerFaces, capGeometry, cladding, grime, outside };
-  }, [T, lx, lz, f, isTower, data.gridX, data.gridZ, h, H, style, kind, facade, texW, texH, stack, grimy, cp, cpLook, cladScheme]);
+  }, [T, lx, lz, f, isTower, data.gridX, data.gridZ, h, H, style, kind, facade, texW, texH, stack, grimy, cp, cpLook, cladScheme, shownFrontage]);
 
   useEffect(() => () => {
     parts.windows.forEach(w => w.geometry.dispose()); parts.scales.forEach(w => w.geometry.dispose()); parts.shops.forEach(w => w.geometry.dispose()); parts.bodyGeometry.dispose();
@@ -690,7 +718,7 @@ const FootprintSegmentView: React.FC<{
   }, [parts]);
   const { box, body, tower, windows, cap, billboard, scales, bodyGeometry, shops, cornerFaces, capGeometry, cladding, grime, outside } = parts;
   // The ground storey's era; an industrial plant's dark skirt stands in for a bare era-1 one.
-  const frontage = stack && !tower && !(stack.frontage === 1 && facade?.skirt) ? stack.frontage : null;
+  const frontage = stack && !tower && !(shownFrontage === 1 && facade?.skirt) ? shownFrontage : null;
   // The roof retrofit, on the tile that carries it, in place of the usual rooftop piece there.
   // A squatted building's roof is a shanty of containers instead; an unfinished one has none.
   const roofPiece = unfinished ? null : squatted && stack ? 'shanty' as const : stack?.retrofit ?? null;
@@ -723,9 +751,9 @@ const FootprintSegmentView: React.FC<{
 
       {windows.map(w => (
         <group key={w.key}>
-          <mesh geometry={w.geometry} position={w.position} rotation={[0, w.rot, 0]} material={facade ? facadeWindowMaterial(facade.name) : windowMaterial(kind)} />
+          <mesh geometry={w.geometry} position={w.position} rotation={[0, w.rot, 0]} material={windowsMat} />
           {/* A neon line along the top of each outside face, and of each setback. */}
-          <mesh position={[w.position[0], w.ledge - 0.3, w.position[2]]} rotation={[0, w.rot, 0]} material={neonMaterial(accent)}>
+          <mesh position={[w.position[0], w.ledge - 0.3, w.position[2]]} rotation={[0, w.rot, 0]} material={glow(accent)}>
             <boxGeometry args={[w.width, 0.35, 0.25]} />
           </mesh>
         </group>
@@ -733,22 +761,22 @@ const FootprintSegmentView: React.FC<{
 
       {cornerFaces.map(w => (
         <group key={`corner-${w.key}`}>
-          <mesh geometry={w.geometry} position={w.position} rotation={[0, w.round ? 0 : w.rot, 0]} material={facade ? facadeWindowMaterial(facade.name) : windowMaterial(kind)} />
+          <mesh geometry={w.geometry} position={w.position} rotation={[0, w.round ? 0 : w.rot, 0]} material={windowsMat} />
           {w.round ? (
             <>
-              <mesh position={[w.centre[0], w.ledge - 0.3, w.centre[1]]} material={neonMaterial(accent)}>
+              <mesh position={[w.centre[0], w.ledge - 0.3, w.centre[1]]} material={glow(accent)}>
                 <cylinderGeometry args={[w.c + 0.13, w.c + 0.13, 0.35, ARC_STEPS, 1, true, w.rot, Math.PI / 2]} />
               </mesh>
               {Array.from({ length: Math.max(0, Math.floor((w.height - 2) / 5)) }, (_, i) => (
-                <mesh key={i} position={[w.centre[0], w.bottom + 3 + i * 5, w.centre[1]]} material={neonMaterial(ERA2_BAND)}>
+                <mesh key={i} position={[w.centre[0], w.bottom + 3 + i * 5, w.centre[1]]} material={glow(ERA2_BAND)}>
                   <cylinderGeometry args={[w.c + 0.1, w.c + 0.1, 0.16, ARC_STEPS, 1, true, w.rot, Math.PI / 2]} />
                 </mesh>
               ))}
             </>
           ) : (
             <group position={[w.position[0], 0, w.position[2]]} rotation={[0, w.rot, 0]}>
-              <mesh position={[0, w.ledge - 0.3, 0]} material={neonMaterial(accent)}><boxGeometry args={[w.width, 0.35, 0.25]} /></mesh>
-              <mesh position={[0, w.bottom + w.height / 2, 0.1]} material={neonMaterial(ERA3_STRIP)}><boxGeometry args={[0.2, w.height, 0.1]} /></mesh>
+              <mesh position={[0, w.ledge - 0.3, 0]} material={glow(accent)}><boxGeometry args={[w.width, 0.35, 0.25]} /></mesh>
+              <mesh position={[0, w.bottom + w.height / 2, 0.1]} material={glow(ERA3_STRIP)}><boxGeometry args={[0.2, w.height, 0.1]} /></mesh>
             </group>
           )}
         </group>
@@ -776,14 +804,14 @@ const FootprintSegmentView: React.FC<{
       {facade?.strips && windows.map(w => (
         <group key={`strips-${w.key}`} position={w.position} rotation={[0, w.rot, 0]}>
           {Array.from({ length: facade.strips!.count }, (_, i) => (
-            <mesh key={i} position={[((i + 1) / (facade.strips!.count + 1) - 0.5) * w.width, 0, 0.12]} material={neonMaterial(facade.strips!.color)}>
+            <mesh key={i} position={[((i + 1) / (facade.strips!.count + 1) - 0.5) * w.width, 0, 0.12]} material={glow(facade.strips!.color)}>
               <boxGeometry args={[0.22, w.height, 0.12]} />
             </mesh>
           ))}
         </group>
       ))}
       {facade?.band && windows.filter(w => w.bottom <= h * facade.band!.at && h * facade.band!.at <= w.top).map(w => (
-        <mesh key={`band-${w.key}`} position={[w.position[0], h * facade.band!.at, w.position[2]]} rotation={[0, w.rot, 0]} material={neonMaterial(facade.band!.color)}>
+        <mesh key={`band-${w.key}`} position={[w.position[0], h * facade.band!.at, w.position[2]]} rotation={[0, w.rot, 0]} material={glow(facade.band!.color)}>
           <boxGeometry args={[w.width + 0.3, 0.3, 0.3]} />
         </mesh>
       ))}
@@ -796,7 +824,7 @@ const FootprintSegmentView: React.FC<{
       {shops.map(w => (
         <group key={`shop-${w.key}`} position={[w.position[0], 0, w.position[2]]} rotation={[0, w.rot, 0]}>
           <mesh geometry={w.geometry} position={[0, 0.2 + SHOP_HEIGHT / 2, 0.02]} material={shopfrontMaterial()} />
-          <mesh position={[0, SHOP_HEIGHT + 0.35, 0.5]} material={neonMaterial(accent)}>
+          <mesh position={[0, SHOP_HEIGHT + 0.35, 0.5]} material={glow(accent)}>
             <boxGeometry args={[w.width, 0.16, 1]} />
           </mesh>
         </group>
@@ -805,7 +833,7 @@ const FootprintSegmentView: React.FC<{
       {/* Each outside face's ground storey, in its era. */}
       {frontage && windows.filter(w => w.key.endsWith('-0')).map((w, i) => (
         <group key={`front-${w.key}`} position={[w.position[0], 0, w.position[2]]} rotation={[0, w.rot, 0]}>
-          <FrontageFace era={frontage} width={w.width} start={w.start} hash={tileHash(data.gridX, data.gridZ, 70 + i)} tone={tileHash(f.x + f.x * f.w, f.z, 71)} />
+          <FrontageFace era={frontage} dead={dead} width={w.width} start={w.start} hash={tileHash(data.gridX, data.gridZ, 70 + i)} tone={tileHash(f.x + f.x * f.w, f.z, 71)} />
         </group>
       ))}
       {grime.map(w => (
@@ -823,7 +851,7 @@ const FootprintSegmentView: React.FC<{
       {unfinished && <Frame r={body} y0={h} y1={H} outside={outside} seed={tileHash(data.gridX, data.gridZ, 120)} />}
       {unfinished && anchor && (
         <group position={[bx - Math.min(bw, bd) * 0.2, h, bz - Math.min(bw, bd) * 0.2]}>
-          <Crane mast={H - h + 12 + (f.x % 3) * 2} jibAngle={(f.x * 1.7 + f.z) % (Math.PI * 2)} />
+          <Crane mast={H - h + 12 + (f.x % 3) * 2} jibAngle={(f.x * 1.7 + f.z) % (Math.PI * 2)} dark />
         </group>
       )}
       {/* The district centerpieces' own pieces (Centerpieces.tsx). */}
@@ -909,17 +937,17 @@ const FootprintSegmentView: React.FC<{
           <mesh position={[0, 1.1, 0]} rotation={[-0.45, 0, 0]} material={sawtoothMaterial}>
             <boxGeometry args={[longAlongX ? bw : bd, 0.25, T * 0.5]} />
           </mesh>
-          <mesh position={[0, 1.15, T * 0.24]} material={neonMaterial(SCENE.orange)}>
+          <mesh position={[0, 1.15, T * 0.24]} material={glow(SCENE.orange)}>
             <boxGeometry args={[(longAlongX ? bw : bd) * 0.98, 2, 0.1]} />
           </mesh>
         </group>
       ))}
 
       {retrofit && (
-        <RetrofitPiece kind={retrofit} span={Math.min(cap.x1 - cap.x0, cap.z1 - cap.z0)} faceZ={blueSide ? -1 : 1} seed={tileHash(data.gridX, data.gridZ, 61)}
+        <RetrofitPiece kind={retrofit} dead={dead} span={Math.min(cap.x1 - cap.x0, cap.z1 - cap.z0)} faceZ={blueSide ? -1 : 1} seed={tileHash(data.gridX, data.gridZ, 61)}
           position={[(cap.x0 + cap.x1) / 2, h + 0.25, (cap.z0 + cap.z1) / 2]} />
       )}
-      {anchor && facade && !crownGone && <TowerCrown crown={facade.crown ?? 'spire'} span={Math.min(bw, bd)} long={Math.max(bw, bd)} alongX={bw >= bd} h={h} accent={accent} position={[bx, h, bz]} />}
+      {anchor && facade && !crownGone && <TowerCrown crown={facade.crown ?? 'spire'} span={Math.min(bw, bd)} long={Math.max(bw, bd)} alongX={bw >= bd} h={h} accent={accent} position={[bx, h, bz]} dead={dead} />}
 
     </group>
   );
