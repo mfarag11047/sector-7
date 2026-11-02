@@ -1713,6 +1713,27 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
     and streets light up as a side takes them.
   Both redraw only when the grid changes (a building changing hands, a base, an EMP), not every
   tick.
+- **The city's eras** (`components/eras.ts`, drawn by `components/FootprintBuilding.tsx` and
+  `components/Retrofits.tsx`). The city grew in four eras, and its buildings show more than one,
+  layered from the street up, the newer always on top of the older: **1 utilitarian** (concrete
+  boxes, square corners, tanks and ducts), **2 mass-market** (rounded corners, pastel neon, big
+  signs), **3 corporate** (chamfered 135-degree corners, dark matte, stark light strips, cooling
+  rigs and cameras bolted onto whatever was there) and **4 ultra-elite** (glass and champagne
+  pavilions among dark trees). Each building gets an era stack: its **bones** (how it was built,
+  which sets its outside corners: square, rounded or chamfered, with windows, the ledge's neon
+  and, on a rounded corner, pastel bands or, on a chamfer, a light strip carried round the cut),
+  its **frontage** and **body** (the ground storey and middle floors, drawn in a later pass;
+  now and then a sleek new frontage over old bones never rebuilt), and its **roof retrofit**: a
+  water tank or air handlers with a duct down the wall (1), a rounded neon sign or a bubble
+  skylight (2), a server cooling rig or a camera mast (3), a sky pavilion (4). On a building of
+  one or two tiles the retrofit takes the place of its usual rooftop piece; on a bigger one it
+  stands on a corner tile clear of it. The district sets the odds, so the city reads as its
+  history going inward: the fringe and outskirts mostly era 1 under era 1 and 2 additions,
+  midtown the boom's rounded blocks with corporate kit on top, the industrial sheds era 1 under
+  era 3 cooling rigs (the plants bought up for compute). Every layer is at least as new as the
+  bones. The corporate towers of downtown and the core, and the two sides' megatowers, get no
+  stack: pristine monoliths, as new as the day they went up. Picked from where a building
+  stands, so its twin across the map is the same.
 - **Ruins and craters** (`components/ruins.ts`, drawn by `components/Ruins.tsx`). A match leaves
   its mark on the city:
   - **Ruins**: a destroyed building tile is a ruin rather than a bare patch: the broken

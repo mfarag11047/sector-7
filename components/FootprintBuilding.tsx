@@ -14,6 +14,10 @@
 //                                smokestack and storage tank, and on many a tower crane
 //   residential (outskirts):     cheap housing: tenement windows, AC units, fire escapes and
 //                                rooftop shacks, dishes and laundry (residentialLooks.ts)
+//
+// Every building but the corporate towers also shows the eras it was built and added to
+// (eras.ts): its outside corners square (era 1), rounded (era 2) or chamfered (era 3), and a
+// retrofit bolted onto its roof (Retrofits.tsx).
 
 import React, { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
@@ -27,6 +31,8 @@ import { midtownLookOf } from './midtownLooks';
 import { residentialLookOf } from './residentialLooks';
 import { industrialLookOf } from './industrialLooks';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { ARC_STEPS, CORNER_CUT, CORNER_OUT, type Corner, type CornerKey, eraStackOf, outline, type Rect, retrofitTile } from './eras';
+import { RetrofitPiece } from './Retrofits';
 
 type Kind = 'commercial' | 'hightech' | 'industrial' | 'residential';
 
@@ -124,6 +130,18 @@ function faceGeometry(width: number, height: number, u0: number, v0: number, tex
   for (let i = 0; i < uv.count; i++) uv.setXY(i, u0 + uv.getX(i) * width / texW, v0 + uv.getY(i) * height / texH);
   return geo;
 }
+
+// A solid standing on an outline seen from above, from y0 to y1.
+function prism(points: [number, number][], y0: number, y1: number) {
+  const shape = new THREE.Shape(points.map(([x, z]) => new THREE.Vector2(x, -z)));
+  const g = new THREE.ExtrudeGeometry(shape, { depth: y1 - y0, bevelEnabled: false, curveSegments: 1 });
+  g.rotateX(-Math.PI / 2);
+  g.translate(0, y0, 0);
+  return g;
+}
+
+// Which corners each face runs between: [its west or north end, its east or south end].
+const FACE_ENDS: Record<'west' | 'east' | 'north' | 'south', [CornerKey, CornerKey]> = { north: ['nw', 'ne'], south: ['sw', 'se'], west: ['nw', 'sw'], east: ['ne', 'se'] };
 
 // A steady pseudo-random number in [0, 1) for a tile, so dressing is the same every visit.
 const tileHash = (x: number, z: number, salt = 0) => {
@@ -464,6 +482,10 @@ const FireEscape: React.FC<{ x: number; y0: number; y1: number; width: number }>
   );
 };
 
+// Era 2's pastel bands round a rounded corner; era 3's light strip down a chamfer.
+const ERA2_BAND = SCENE.pink;
+const ERA3_STRIP = SCENE.indigo;
+
 // How tall a ground storey of shops is.
 const SHOP_HEIGHT = 3.4;
 const tankMaterial = new THREE.MeshStandardMaterial({ color: '#57534e', metalness: 0.3, roughness: 0.8 });
@@ -500,6 +522,9 @@ const FootprintSegmentView: React.FC<{
   const escapeSide: Side = f.w >= f.d ? (blueSide ? 'north' : 'south') : (blueSide ? 'west' : 'east');
   const texW = facade?.texW ?? style.texW;
   const texH = facade?.texH ?? style.texH;
+  // Its eras (eras.ts): none for the corporate towers.
+  const stack = useMemo(() => eraStackOf({ type: data.type, footprint: f, sawtooth: facade?.sawtooth }), [data.type, f, facade]);
+  const retrofitAt = useMemo(() => retrofitTile(f), [f]);
 
   const parts = useMemo(() => {
     const half = T / 2;
@@ -533,27 +558,56 @@ const FootprintSegmentView: React.FC<{
       return { y0, y1: breaks[k]?.[0] ?? h, x0: base.x0 + shrink('west'), x1: base.x1 - shrink('east'), z0: base.z0 + shrink('north'), z1: base.z1 - shrink('south') };
     });
     const top = tiers[tiers.length - 1];
+    // The outside corners of the whole building on this tile, cut back by its bones' era.
+    const corner: Corner = stack && !tower ? stack.corner : 'square';
+    const atCorner: Record<CornerKey, boolean> = { nw: outside.west && outside.north, ne: outside.east && outside.north, se: outside.east && outside.south, sw: outside.west && outside.south };
+    const cutsOf = (t: Rect, less = 0): Partial<Record<CornerKey, number>> => {
+      if (corner === 'square') return {};
+      const c = Math.max(0, Math.min(T * CORNER_CUT[corner], Math.min(t.x1 - t.x0, t.z1 - t.z0) / 2 - 0.3) - less);
+      return Object.fromEntries((Object.keys(atCorner) as CornerKey[]).filter(k => atCorner[k]).map(k => [k, c]));
+    };
     // The body, every tier in one mesh centred on half the height, so the capture fill climbs
     // the whole building.
-    const bodyGeometry = mergeGeometries(tiers.map(t => {
-      const g = new THREE.BoxGeometry(t.x1 - t.x0, t.y1 - t.y0, t.z1 - t.z0);
-      g.translate((t.x0 + t.x1) / 2, (t.y0 + t.y1) / 2 - h / 2, (t.z0 + t.z1) / 2);
-      return g;
-    }))!;
+    const bodyGeometry = mergeGeometries(tiers.map(t => prism(outline(t, cutsOf(t), corner), t.y0 - h / 2, t.y1 - h / 2)))!;
 
     // Windows on each tier's outside faces, lined up in world space.
     const windows = tiers.flatMap((t, k) => faces.map(side => {
       const alongX = side === 'north' || side === 'south';
-      const width = alongX ? t.x1 - t.x0 : t.z1 - t.z0;
-      const start = alongX ? worldX + t.x0 : worldZ + t.z0;
+      // Stopping short of a cut corner at either end.
+      const cuts = cutsOf(t), [e0, e1] = FACE_ENDS[side];
+      const a0 = (alongX ? t.x0 : t.z0) + (cuts[e0] ?? 0), a1 = (alongX ? t.x1 : t.z1) - (cuts[e1] ?? 0);
+      const width = a1 - a0;
+      const start = (alongX ? worldX : worldZ) + a0;
       const wb = Math.max(bottom, t.y0 + 0.4);
       const wt = t.y1 - (k === tiers.length - 1 ? 0.8 : 0.5);
       const height = Math.max(0.5, wt - wb);
       const geometry = faceGeometry(width, height, start / texW, wb / texH, texW, texH);
-      const cx = alongX ? (t.x0 + t.x1) / 2 : side === 'west' ? t.x0 - 0.04 : t.x1 + 0.04;
-      const cz = alongX ? (side === 'north' ? t.z0 - 0.04 : t.z1 + 0.04) : (t.z0 + t.z1) / 2;
+      const cx = alongX ? (a0 + a1) / 2 : side === 'west' ? t.x0 - 0.04 : t.x1 + 0.04;
+      const cz = alongX ? (side === 'north' ? t.z0 - 0.04 : t.z1 + 0.04) : (a0 + a1) / 2;
       const rot = side === 'north' ? Math.PI : side === 'south' ? 0 : side === 'west' ? -Math.PI / 2 : Math.PI / 2;
       return { key: `${side}-${k}`, side, geometry, position: [cx, wb + height / 2, cz] as [number, number, number], rot, width, alongX, height, bottom: wb, top: wt, ledge: t.y1, start };
+    }));
+    // The cut corners' own faces, on every tier: windows round them, the ledge's neon line
+    // carried round, and on a chamfer a slim light strip down its middle (era 3's stark
+    // directional light); on a rounded corner, pastel bands round it (era 2's rhythm).
+    const cornerFaces = corner === 'square' ? [] : tiers.flatMap((t, k) => Object.entries(cutsOf(t)).map(([key, c]) => {
+      const kk = key as CornerKey, [ox, oz] = CORNER_OUT[kk];
+      const wb = Math.max(bottom, t.y0 + 0.4), wt = t.y1 - (k === tiers.length - 1 ? 0.8 : 0.5);
+      const height = Math.max(0.5, wt - wb);
+      const x = ox < 0 ? t.x0 : t.x1, z = oz < 0 ? t.z0 : t.z1;
+      // The centre of curvature, and the corner face's middle.
+      const cx = x - ox * c!, cz = z - oz * c!;
+      const rot = Math.atan2(ox, oz);
+      if (corner === 'chamfer') {
+        const width = c! * Math.SQRT2, mx = x - (ox * c!) / 2, mz = z - (oz * c!) / 2, out = 0.04 / Math.SQRT2;
+        return { key: `${kk}-${k}`, round: false, geometry: faceGeometry(width, height, (worldX + worldZ) / texW, wb / texH, texW, texH), position: [mx + ox * out, wb + height / 2, mz + oz * out] as [number, number, number], rot, width, centre: [cx, cz] as [number, number], c: c!, height, bottom: wb, ledge: t.y1 };
+      }
+      // Rounded: a quarter of an open cylinder, its windows lined up up the curve.
+      const start = { nw: Math.PI, ne: Math.PI / 2, se: 0, sw: Math.PI * 1.5 }[kk];
+      const geometry = new THREE.CylinderGeometry(c! + 0.04, c! + 0.04, height, ARC_STEPS, 1, true, start, Math.PI / 2);
+      const uv = geometry.attributes.uv as THREE.BufferAttribute, arc = (Math.PI / 2) * c!;
+      for (let i = 0; i < uv.count; i++) uv.setXY(i, uv.getX(i) * arc / texW, wb / texH + uv.getY(i) * height / texH);
+      return { key: `${kk}-${k}`, round: true, geometry, position: [cx, wb + height / 2, cz] as [number, number, number], rot: start, width: arc, centre: [cx, cz] as [number, number], c: c!, height, bottom: wb, ledge: t.y1 };
     }));
     // The gold scale panels on the building's two broad faces: most of the face's height, the
     // scales lined up in world space across the building's tiles.
@@ -565,6 +619,7 @@ const FootprintSegmentView: React.FC<{
     // The roof slab runs on unbroken across tiles and stops short of the outside edges.
     const rim = (side: Side) => (tower || outside[side] ? ROOF_RIM : 0);
     const cap = { x0: top.x0 + rim('west'), x1: top.x1 - rim('east'), z0: top.z0 + rim('north'), z1: top.z1 - rim('south') };
+    const capGeometry = prism(outline(cap, cutsOf(top, ROOF_RIM * 0.6), corner), h, h + 0.25);
     // Holo billboards on commercial towers tall enough to carry one: at most one a tile, on one
     // of its outside faces, within one tier.
     let billboard: { kind: 'panel' | 'blade'; ad: number; width: number; height: number; position: [number, number, number]; rot: number } | null = null;
@@ -583,13 +638,17 @@ const FootprintSegmentView: React.FC<{
     const shops = facade?.shops && !tower ? windows.filter(w => w.key.endsWith('-0')).map(w => ({
       ...w, geometry: faceGeometry(w.width, SHOP_HEIGHT, w.start / 8, 0, 8, SHOP_HEIGHT),
     })) : [];
-    return { box, body: top, tower, windows, faces, cap, billboard, scales, bodyGeometry, shops };
-  }, [T, lx, lz, f, isTower, data.gridX, data.gridZ, h, style, kind, facade, texW, texH]);
+    return { box, body: top, tower, windows, faces, cap, billboard, scales, bodyGeometry, shops, cornerFaces, capGeometry };
+  }, [T, lx, lz, f, isTower, data.gridX, data.gridZ, h, style, kind, facade, texW, texH, stack]);
 
   useEffect(() => () => {
     parts.windows.forEach(w => w.geometry.dispose()); parts.scales.forEach(w => w.geometry.dispose()); parts.shops.forEach(w => w.geometry.dispose()); parts.bodyGeometry.dispose();
+    parts.cornerFaces.forEach(w => w.geometry.dispose()); parts.capGeometry.dispose();
   }, [parts]);
-  const { box, body, tower, windows, cap, billboard, scales, bodyGeometry, shops } = parts;
+  const { box, body, tower, windows, cap, billboard, scales, bodyGeometry, shops, cornerFaces, capGeometry } = parts;
+  // The roof retrofit, on the tile that carries it, in place of the usual rooftop piece there.
+  const retrofit = stack?.retrofit && lx === retrofitAt.lx && lz === retrofitAt.lz ? stack.retrofit : null;
+  const crownGone = !!stack?.retrofit && retrofitAt.replacesCrown;
   const bw = body.x1 - body.x0;
   const bd = body.z1 - body.z0;
   const bx = (body.x0 + body.x1) / 2;
@@ -610,9 +669,7 @@ const FootprintSegmentView: React.FC<{
         {hovered && <Edges color="#ffffff" threshold={40} />}
       </mesh>
 
-      <mesh position={[(cap.x0 + cap.x1) / 2, h + 0.12, (cap.z0 + cap.z1) / 2]} material={roofCap}>
-        <boxGeometry args={[cap.x1 - cap.x0, 0.25, cap.z1 - cap.z0]} />
-      </mesh>
+      <mesh geometry={capGeometry} material={roofCap} />
 
       {windows.map(w => (
         <group key={w.key}>
@@ -621,6 +678,29 @@ const FootprintSegmentView: React.FC<{
           <mesh position={[w.position[0], w.ledge - 0.3, w.position[2]]} rotation={[0, w.rot, 0]} material={neonMaterial(accent)}>
             <boxGeometry args={[w.width, 0.35, 0.25]} />
           </mesh>
+        </group>
+      ))}
+
+      {cornerFaces.map(w => (
+        <group key={`corner-${w.key}`}>
+          <mesh geometry={w.geometry} position={w.position} rotation={[0, w.round ? 0 : w.rot, 0]} material={facade ? facadeWindowMaterial(facade.name) : windowMaterial(kind)} />
+          {w.round ? (
+            <>
+              <mesh position={[w.centre[0], w.ledge - 0.3, w.centre[1]]} material={neonMaterial(accent)}>
+                <cylinderGeometry args={[w.c + 0.13, w.c + 0.13, 0.35, ARC_STEPS, 1, true, w.rot, Math.PI / 2]} />
+              </mesh>
+              {Array.from({ length: Math.max(0, Math.floor((w.height - 2) / 5)) }, (_, i) => (
+                <mesh key={i} position={[w.centre[0], w.bottom + 3 + i * 5, w.centre[1]]} material={neonMaterial(ERA2_BAND)}>
+                  <cylinderGeometry args={[w.c + 0.1, w.c + 0.1, 0.16, ARC_STEPS, 1, true, w.rot, Math.PI / 2]} />
+                </mesh>
+              ))}
+            </>
+          ) : (
+            <group position={[w.position[0], 0, w.position[2]]} rotation={[0, w.rot, 0]}>
+              <mesh position={[0, w.ledge - 0.3, 0]} material={neonMaterial(accent)}><boxGeometry args={[w.width, 0.35, 0.25]} /></mesh>
+              <mesh position={[0, w.bottom + w.height / 2, 0.1]} material={neonMaterial(ERA3_STRIP)}><boxGeometry args={[0.2, w.height, 0.1]} /></mesh>
+            </group>
+          )}
         </group>
       ))}
 
@@ -717,7 +797,11 @@ const FootprintSegmentView: React.FC<{
         </group>
       ))}
 
-      {anchor && facade && <TowerCrown crown={facade.crown ?? 'spire'} span={Math.min(bw, bd)} long={Math.max(bw, bd)} alongX={bw >= bd} h={h} accent={accent} position={[bx, h, bz]} />}
+      {retrofit && (
+        <RetrofitPiece kind={retrofit} span={Math.min(cap.x1 - cap.x0, cap.z1 - cap.z0)} faceZ={blueSide ? -1 : 1} seed={tileHash(data.gridX, data.gridZ, 61)}
+          position={[(cap.x0 + cap.x1) / 2, h + 0.25, (cap.z0 + cap.z1) / 2]} />
+      )}
+      {anchor && facade && !crownGone && <TowerCrown crown={facade.crown ?? 'spire'} span={Math.min(bw, bd)} long={Math.max(bw, bd)} alongX={bw >= bd} h={h} accent={accent} position={[bx, h, bz]} />}
 
     </group>
   );
