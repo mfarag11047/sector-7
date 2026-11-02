@@ -10,7 +10,8 @@
 // up first (CIWS.spinUpMs, the length of the wind-up in its sound, public/sfx/ciws_fire_1.mp3).
 // While it spins up it already tracks the target, but does no damage. Once spun up it stays
 // spun up while it keeps finding targets, switching between them at once; after a reload, an EMP,
-// or a lull longer than CIWS.spinGraceMs it has to wind up again.
+// or a lull longer than CIWS.spinGraceMs it has to wind up again. Both are counted in game time,
+// tick by tick (ciwsSpunMs, ciwsIdleMs), not from the clock, so a late tick never throws them off.
 //
 // Pure: it reads the state it is given and reports damage and gun state. The caller keeps the
 // ordnance in flight and its remaining integrity (how much more fire it takes to knock down).
@@ -60,7 +61,7 @@ export interface AirThreat {
 
 export interface CiwsLink { gunId: string; targetId: string; ordnance: boolean; fromStructure: boolean }
 
-type GunState = Pick<UnitData, 'ciwsUsedMs' | 'ciwsReloadUntil' | 'ciwsLastFiredAt' | 'ciwsTargetId' | 'ciwsSpinStart' | 'ciwsAimAt'>;
+export type GunState = Pick<UnitData, 'ciwsUsedMs' | 'ciwsReloadUntil' | 'ciwsLastFiredAt' | 'ciwsTargetId' | 'ciwsSpunMs' | 'ciwsIdleMs'>;
 
 export interface CiwsResult {
   // New gun state for each Aegis, and each CIWS turret, whose state changed.
@@ -78,9 +79,8 @@ const tiles = (a: { x: number; z: number }, b: { x: number; z: number }) => Math
 export const ciwsReloading = (u: GunState, now: number) => (u.ciwsReloadUntil ?? 0) > now;
 // Share of the magazine left, 0 to 1 (0 while reloading).
 export const ciwsMagazine = (u: GunState, now: number) => (ciwsReloading(u, now) ? 0 : 1 - Math.min(1, (u.ciwsUsedMs ?? 0) / CIWS.burstMs));
-// Whether a gun is still winding up on its target (0 to 1 through the wind-up, 1 once spun up).
-export const ciwsSpin = (u: GunState, now: number) =>
-  u.ciwsSpinStart == null || !u.ciwsTargetId ? 0 : Math.min(1, (now - u.ciwsSpinStart) / CIWS.spinUpMs);
+// How far a gun's barrels are wound up: 0 still, 1 up to speed and firing.
+export const ciwsSpin = (u: GunState) => Math.min(1, (u.ciwsSpunMs ?? 0) / CIWS.spinUpMs);
 
 // A finished CIWS turret that can fire.
 export const isCiwsTurretReady = (s: StructureData) =>
@@ -112,7 +112,7 @@ export function ciwsTick(
 ): CiwsResult {
   const result: CiwsResult = { updates: new Map(), structureUpdates: new Map(), unitDamage: new Map(), ordnanceDamage: new Map(), links: [], spinning: [] };
   const add = (m: Map<string, number>, id: string, n: number) => m.set(id, (m.get(id) || 0) + n);
-  const stateOf = (g: GunState): GunState => ({ ciwsUsedMs: g.ciwsUsedMs ?? 0, ciwsReloadUntil: g.ciwsReloadUntil ?? 0, ciwsLastFiredAt: g.ciwsLastFiredAt ?? 0, ciwsTargetId: g.ciwsTargetId ?? null, ciwsSpinStart: g.ciwsSpinStart ?? null, ciwsAimAt: g.ciwsAimAt ?? null });
+  const stateOf = (g: GunState): GunState => ({ ciwsUsedMs: g.ciwsUsedMs ?? 0, ciwsReloadUntil: g.ciwsReloadUntil ?? 0, ciwsLastFiredAt: g.ciwsLastFiredAt ?? 0, ciwsTargetId: g.ciwsTargetId ?? null, ciwsSpunMs: g.ciwsSpunMs ?? 0, ciwsIdleMs: g.ciwsIdleMs ?? 0 });
 
   const guns: (Gun & { active: boolean })[] = [];
   for (const u of units) {
@@ -130,7 +130,7 @@ export function ciwsTick(
     const done = () => { if (JSON.stringify(state) !== before) (gun.structure ? result.structureUpdates : result.updates).set(gun.id, state); };
 
     // Knocked out or reloading: the barrels run down, and will have to wind up again.
-    if (!gun.active || (state.ciwsReloadUntil ?? 0) > now) { state.ciwsTargetId = null; state.ciwsSpinStart = null; done(); continue; }
+    if (!gun.active || (state.ciwsReloadUntil ?? 0) > now) { state.ciwsTargetId = null; state.ciwsSpunMs = 0; state.ciwsIdleMs = 0; done(); continue; }
     if ((state.ciwsUsedMs ?? 0) > 0 && now - (state.ciwsLastFiredAt ?? 0) >= CIWS.topUpMs) state.ciwsUsedMs = 0;
 
     // Incoming ordnance first (it is about to land on something), then the nearest aircraft,
@@ -155,16 +155,28 @@ export function ciwsTick(
     };
     if (!target) pickUnit(true, gun.range);
     if (!target && gun.structure) pickUnit(false, CIWS.groundRange);
-    if (!target) { state.ciwsTargetId = null; done(); continue; }
+    if (!target) {
+      // Nothing to shoot: the barrels keep turning for a moment, then run down.
+      state.ciwsTargetId = null;
+      if ((state.ciwsSpunMs ?? 0) > 0) {
+        state.ciwsIdleMs = (state.ciwsIdleMs ?? 0) + dtMs;
+        if (state.ciwsIdleMs > CIWS.spinGraceMs) { state.ciwsSpunMs = 0; state.ciwsIdleMs = 0; }
+      }
+      done();
+      continue;
+    }
     const hit: { id: string; ordnance: boolean; ground: boolean } = target;
     const link: CiwsLink = { gunId: gun.id, targetId: hit.id, ordnance: hit.ordnance, fromStructure: gun.structure };
 
-    // Wind up: from a standstill, or after too long with nothing to shoot. It tracks the target
-    // meanwhile, but fires nothing until the barrels are up to speed.
-    if (state.ciwsSpinStart == null || now - (state.ciwsAimAt ?? -Infinity) > CIWS.spinGraceMs) state.ciwsSpinStart = now;
-    state.ciwsAimAt = now;
+    // Wind up: it tracks the target meanwhile, but fires nothing until the barrels are up to speed.
+    state.ciwsIdleMs = 0;
     state.ciwsTargetId = hit.id;
-    if (now - state.ciwsSpinStart < CIWS.spinUpMs) { result.spinning.push(link); done(); continue; }
+    if ((state.ciwsSpunMs ?? 0) < CIWS.spinUpMs) {
+      state.ciwsSpunMs = Math.min(CIWS.spinUpMs, (state.ciwsSpunMs ?? 0) + dtMs);
+      result.spinning.push(link);
+      done();
+      continue;
+    }
 
     const rate = gun.fireRate * (dtMs / 1000);
     if (hit.ordnance) add(result.ordnanceDamage, hit.id, CIWS.ordnanceDps * rate);
@@ -182,7 +194,7 @@ export function ciwsTick(
       state.ciwsUsedMs = 0;
       state.ciwsReloadUntil = now + CIWS.reloadMs;
       state.ciwsTargetId = null;
-      state.ciwsSpinStart = null;
+      state.ciwsSpunMs = 0;
     }
     done();
   }

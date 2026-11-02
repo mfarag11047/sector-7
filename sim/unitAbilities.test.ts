@@ -206,7 +206,7 @@ describe('effects in combat and movement', () => {
   });
 
   it('Radar extends weapon range; speed buffs speed units up', () => {
-    const aegis = { ...at(createUnit('aegis', 'blue', 'a', { x: 0, z: 0 }), 0), ciwsSpinStart: 0, ciwsAimAt: 9900 };
+    const aegis = { ...at(createUnit('aegis', 'blue', 'a', { x: 0, z: 0 }), 0), ciwsSpunMs: CIWS.spinUpMs };
     const wasp = enemy('wasp', CIWS.range + 1.5, 'w');
     const cannon = (units: UnitData[]) => ciwsTick(units, [], 10_000, 100).links.some(l => l.gunId === 'a');
     expect(cannon([aegis, wasp])).toBe(false);

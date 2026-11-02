@@ -5,7 +5,7 @@ import { createUnit } from './production';
 
 const at = (u: UnitData, x: number, z = 0): UnitData => ({ ...u, gridPos: { x, z } });
 // A gun already wound up and on a target at `now` (most tests look at a single tick of fire).
-const SPUN = { ciwsSpinStart: 1000 - CIWS.spinUpMs, ciwsAimAt: 900 };
+const SPUN = { ciwsSpunMs: CIWS.spinUpMs, ciwsIdleMs: 0 };
 const aegis = (patch: Partial<UnitData> = {}) => ({ ...at(createUnit('aegis', 'blue', 'a', { x: 0, z: 0 }), 0), ...SPUN, ...patch });
 // Steps the guns tick by tick from `from` up to (not including) `to`; returns the units, the
 // structures and each tick's result.
@@ -38,7 +38,7 @@ describe('Aegis CIWS', () => {
 
   it('fires a sustained burst, then has to stop and reload, and wind up again after', () => {
     const start = CIWS.spinUpMs;
-    let { units } = run([aegis({ ciwsSpinStart: 0, ciwsAimAt: start - 100 }), red('hornet', 'h', 5)], [], start, start + CIWS.burstMs);
+    let { units } = run([aegis(), red('hornet', 'h', 5)], [], start, start + CIWS.burstMs);
     const end = start + CIWS.burstMs;
     const a = units.find(u => u.id === 'a')!;
     expect(a.ciwsReloadUntil).toBeGreaterThan(end);
@@ -61,7 +61,7 @@ describe('Aegis CIWS', () => {
 
 describe('CIWS spin-up', () => {
   it('winds up for CIWS.spinUpMs on a new target, tracking it but doing no damage, then opens fire', () => {
-    const { ticks } = run([aegis({ ciwsSpinStart: null, ciwsAimAt: null }), red('hornet', 'h', 5)], [], 1000, 1000 + CIWS.spinUpMs + 500);
+    const { ticks } = run([aegis({ ciwsSpunMs: 0 }), red('hornet', 'h', 5)], [], 1000, 1000 + CIWS.spinUpMs + 500);
     const winding = ticks.filter(t => t.now < 1000 + CIWS.spinUpMs);
     for (const { r } of winding) {
       expect(r.links).toHaveLength(0);
@@ -80,26 +80,39 @@ describe('CIWS spin-up', () => {
   });
 
   it("doesn't use up the magazine or count as firing while it winds up", () => {
-    const { units } = run([aegis({ ciwsSpinStart: null, ciwsAimAt: null }), red('hornet', 'h', 5)], [], 1000, 1000 + CIWS.spinUpMs);
+    const { units } = run([aegis({ ciwsSpunMs: 0 }), red('hornet', 'h', 5)], [], 1000, 1000 + CIWS.spinUpMs);
     const a = units.find(u => u.id === 'a')!;
     expect(a.ciwsUsedMs ?? 0).toBe(0);
     expect(a.ciwsLastFiredAt ?? 0).toBe(0);
   });
 
   it('stays spun up switching between targets, but winds up again after a lull', () => {
-    // Its target gone, a new one turns up a tick later: it fires on at once.
-    const spun = aegis();
-    const gap = run([{ ...spun, ciwsTargetId: 'gone' }, red('hornet', 'h2', 4)], [], 1000 + CIWS.spinGraceMs - 100, 1000 + CIWS.spinGraceMs);
-    expect(gap.ticks[0].r.links).toHaveLength(1);
+    // Nothing in range for a couple of ticks, then a new target: it fires on at once.
+    const short = run([aegis()], [], 1000, 1000 + CIWS.spinGraceMs);
+    expect(ciwsTick([...short.units, red('hornet', 'h2', 4)], [], 1000 + CIWS.spinGraceMs, 100).links).toHaveLength(1);
     // Nothing to shoot for longer than the grace: the barrels have run down.
-    const lull = ciwsTick([spun, red('hornet', 'h2', 4)], [], 900 + CIWS.spinGraceMs + 100, 100);
+    const long = run([aegis()], [], 1000, 1000 + CIWS.spinGraceMs + 200);
+    const lull = ciwsTick([...long.units, red('hornet', 'h2', 4)], [], 1000 + CIWS.spinGraceMs + 200, 100);
     expect(lull.links).toHaveLength(0);
     expect(lull.spinning).toHaveLength(1);
   });
 
+  it('counts the wind-up in game time, so late or uneven ticks never restart it', () => {
+    // Ticks arriving two seconds apart by the clock, as on a struggling machine: each still counts
+    // as one 100 ms step, so the gun fires after twelve of them.
+    let units = [aegis({ ciwsSpunMs: 0 }), red('hornet', 'h', 5)];
+    let fired = -1;
+    for (let i = 0; i < 20 && fired < 0; i++) {
+      const r = ciwsTick(units, [], 1000 + i * 2000, 100);
+      if (r.links.length > 0) fired = i;
+      units = applyCiwsState(units, r.updates);
+    }
+    expect(fired).toBe(CIWS.spinUpMs / 100);
+  });
+
   it('winds down when knocked out by an EMP', () => {
     const r = ciwsTick([aegis({ buffs: [{ kind: 'emp', until: 1e12 }], ciwsTargetId: 'h' }), red('hornet', 'h', 3)], [], 1000, 100);
-    expect(r.updates.get('a')).toMatchObject({ ciwsTargetId: null, ciwsSpinStart: null });
+    expect(r.updates.get('a')).toMatchObject({ ciwsTargetId: null, ciwsSpunMs: 0 });
   });
 });
 
@@ -110,7 +123,7 @@ describe('CIWS turret', () => {
   });
 
   it('winds up like the Aegis before it opens fire', () => {
-    const { ticks } = run([red('hornet', 'h', 4)], [turret({ ciwsSpinStart: null, ciwsAimAt: null })], 1000, 1000 + CIWS.spinUpMs + 100);
+    const { ticks } = run([red('hornet', 'h', 4)], [turret({ ciwsSpunMs: 0 })], 1000, 1000 + CIWS.spinUpMs + 100);
     expect(ticks[0].r.links).toHaveLength(0);
     expect(ticks[0].r.spinning).toEqual([{ gunId: 'tur', targetId: 'h', ordnance: false, fromStructure: true }]);
     expect(ticks[0].r.structureUpdates.get('tur')?.ciwsTargetId).toBe('h');
