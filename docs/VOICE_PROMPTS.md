@@ -146,7 +146,6 @@ Short and level. These play often, so keep them under a second.
 |---|---|---|---|
 | `vo_not_enough_cores` | An order needs more cores than you have | R | Insufficient cores. |
 | `vo_cannot_build_there` | A building can't go where you placed it | R | Cannot build there. |
-| `vo_unable` | Any other refused order | R | Unable to comply. |
 
 ## 3. How the game uses them
 

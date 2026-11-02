@@ -717,8 +717,9 @@ const deathFx = (type: UnitType): DeathFx =>
 // Walls and gates, whose fall is a breach.
 const WALL_TYPES: ReadonlySet<StructureType> = new Set<StructureType>(['base_wall', 'base_gate', 'wall_tier1', 'wall_tier2']);
 // What an explosion sounds like: a blast, an EMP's crackle, a shot stopped on a force field.
-// The announcer's line for a refused order (components/announcer.ts).
-const refusalLine = (reason: string): VoKey => (/cores/i.test(reason) ? 'vo_not_enough_cores' : 'vo_unable');
+// A refused order: the announcer says so only when it is short of cores (components/announcer.ts);
+// anything else gets just the refusal buzz.
+const announceRefusal = (reason: string, delayMs = 0) => { if (/cores/i.test(reason)) announce('vo_not_enough_cores', { delayMs }); };
 // Her line for each doctrine power the player calls (Black Wall Infect has none).
 const DOCTRINE_LINES: Partial<Record<string, VoKey>> = {
     HEAVY_METAL_TIER2: 'vo_orbital_drop', HEAVY_METAL_TIER3: 'vo_bulwark_field',
@@ -2614,7 +2615,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           const refuse = (reason: string) => {
               if (team === playerTeam) {
                   onNoticeRef.current?.(`Can't do that: ${reason}`, 'warn');
-                  announce(refusalLine(reason));
+                  playUiSound('ui_error');
+                  announceRefusal(reason);
               }
               return false;
           };
@@ -2968,7 +2970,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               dispatchAbility({ type, unitId: targetingSourceId, target: { x, z } });
           } else {
               const fired = ids.filter(id => dispatchAbility({ type, unitId: id, target: { x, z } }, playerTeam, true)).length;
-              if (fired === 0) { playUiSound('ui_error'); onNotice?.(`Can't do that: ${lastAbilityRefusalRef.current}`, 'warn'); announce(refusalLine(lastAbilityRefusalRef.current), { delayMs: 250 }); }
+              if (fired === 0) { playUiSound('ui_error'); onNotice?.(`Can't do that: ${lastAbilityRefusalRef.current}`, 'warn'); announceRefusal(lastAbilityRefusalRef.current, 250); }
               else onNotice?.(`${fired} of ${ids.length} ${UNIT_STATS[source!.type].label} units fired together`);
           }
           clearTargeting();
@@ -3068,7 +3070,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           },
       );
       if ('reason' in outcome) {
-          if (team === playerTeam && !quiet) { playUiSound('ui_error'); onNotice?.(`Can't do that: ${outcome.reason}`, 'warn'); announce(refusalLine(outcome.reason), { delayMs: 250 }); }
+          if (team === playerTeam && !quiet) { playUiSound('ui_error'); onNotice?.(`Can't do that: ${outcome.reason}`, 'warn'); announceRefusal(outcome.reason, 250); }
           return false;
       }
       const fx = outcome.effects;
@@ -3107,7 +3109,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           },
       );
       if ('reason' in outcome) {
-          if (team === playerTeam && !quiet) { playUiSound('ui_error'); onNotice?.(`Can't do that: ${outcome.reason}`, 'warn'); announce(refusalLine(outcome.reason), { delayMs: 250 }); }
+          if (team === playerTeam && !quiet) { playUiSound('ui_error'); onNotice?.(`Can't do that: ${outcome.reason}`, 'warn'); announceRefusal(outcome.reason, 250); }
           lastAbilityRefusalRef.current = outcome.reason;
           return false;
       }

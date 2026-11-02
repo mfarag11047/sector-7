@@ -418,14 +418,5 @@
     "lines": [
       "Cannot build there."
     ]
-  },
-  "vo_unable": {
-    "register": "report",
-    "files": [
-      "vo/vo_unable.mp3"
-    ],
-    "lines": [
-      "Unable to comply."
-    ]
   }
 }

@@ -26,7 +26,7 @@ export type VoKey =
   | 'vo_research_complete' | 'vo_tier_ready' | 'vo_tier_2' | 'vo_tier_3'
   | 'vo_missile_away' | 'vo_missile_shot_down' | 'vo_orbital_drop' | 'vo_bulwark_field' | 'vo_decoys'
   | 'vo_cloaking_field' | 'vo_nano_cloud'
-  | 'vo_not_enough_cores' | 'vo_cannot_build_there' | 'vo_unable';
+  | 'vo_not_enough_cores' | 'vo_cannot_build_there';
 
 // How urgent a line is: the higher wins.
 export const PRIORITY = { refusal: 0, report: 1, objective: 2, threat: 3, match: 4 } as const;
@@ -81,7 +81,6 @@ export const LINES: Record<VoKey, { priority: Priority; cooldownMs: number }> = 
   vo_nano_cloud: { priority: O, cooldownMs: 5_000 },
   vo_not_enough_cores: { priority: X, cooldownMs: 3_000 },
   vo_cannot_build_there: { priority: X, cooldownMs: 3_000 },
-  vo_unable: { priority: X, cooldownMs: 3_000 },
 };
 
 // How long a line that had to wait is still worth saying.

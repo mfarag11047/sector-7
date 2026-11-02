@@ -767,7 +767,8 @@ what matters to the player: the match starting and its result; the base, a node 
 perimeter under attack, an enemy missile launch, an enemy Orbital Drop near your forces, a
 structure lost, the force field going down, orders jammed; nodes taken and lost; each base
 building coming online, a new HQ, research, tiers and refinery upgrades (not units ready: they
-come out too often); your own missiles and doctrine powers; and refused orders. She speaks one line at a time,
+come out too often); your own missiles and doctrine powers; and an order refused for want of cores, or a building
+that can't go where it was placed (other refusals get just the buzz). She speaks one line at a time,
 centred, on her own channel past the effects' compressor, and the effects dip while she speaks.
 Each line has a priority (match result, then threats, objectives, base reports, refusals): a
 threat cuts off anything less urgent, anything else waits for the line in progress (only the most
