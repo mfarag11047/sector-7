@@ -172,9 +172,16 @@ def make_loop(key, description, sources, attack, body_s, xfade, target):
             body[len(body) - f + i] = x[l1 - f + i] * math.cos(a * math.pi / 2) + x[l0 - f + i] * math.sin(a * math.pi / 2)
         y = list(x[o:l0]) + body + body[:m]
         level = db(math.sqrt(sum(v * v for v in body) / len(body)))
-        peak = db(max(abs(v) for v in y))
-        gain = 10 ** (min(target - level, -3 - peak) / 20)
-        y = [v * gain for v in y]
+        # The steady part goes to the target level; an opening (a zap, a wind-up) that would then
+        # peak over -3 dB is softly limited, rather than the whole take turned down to fit it,
+        # which left one take of a pair quieter than the other.
+        gain = 10 ** ((target - level) / 20)
+        ceiling, knee = 10 ** (-3 / 20), 10 ** (-9 / 20)
+        def limit(v):
+            if abs(v) <= knee:
+                return v
+            return math.copysign(knee + (ceiling - knee) * math.tanh((abs(v) - knee) / (ceiling - knee)), v)
+        y = [limit(v * gain) for v in y]
         for i in range(round(0.005 * SR)):
             y[i] *= i / (0.005 * SR)
         wav = os.path.join(out, '_cut.wav')

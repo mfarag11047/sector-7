@@ -66,7 +66,8 @@ export type LoopKind = 'laser_beam' | 'ciws_fire' | 'construction';
 // nearest ones, when there are more), and how long it carries on after its source drops out, so a
 // gap of a tick or two (a gun switching targets) doesn't break it up.
 const LOOPS: Record<LoopKind, { gain: number; reach: number; max: number; holdMs: number }> = {
-  laser_beam: { gain: 0.45, reach: 1, max: 4, holdMs: 200 },
+  // The beam is a steady hum, which reads as quieter than gunfire at the same level: it plays louder.
+  laser_beam: { gain: 0.9, reach: 1, max: 4, holdMs: 200 },
   // Held a little past the gun's spin grace (sim/ciws.ts), so switching targets doesn't restart the wind-up.
   ciws_fire: { gain: 0.5, reach: 1.1, max: 4, holdMs: 350 },
   // The player's building sites at work.
