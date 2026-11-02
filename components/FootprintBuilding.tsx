@@ -30,7 +30,7 @@ import { SCENE } from './scenePalette';
 import { useFrame } from '@react-three/fiber';
 import type { BuildingData } from '../types';
 import { AD_COUNT, HoloBillboard } from './HoloBillboard';
-import { type Crown, FACADES, facadeOf, stencilMaterial, facadeWindowMaterial, featureSides, goldScaleMaterial, MASSING_STEPS, shopfrontMaterial } from './corpoFacades';
+import { CORPO_CORNER, type Crown, FACADES, facadeOf, stencilMaterial, facadeWindowMaterial, featureSides, goldScaleMaterial, MASSING_STEPS, shopfrontMaterial } from './corpoFacades';
 import { midtownLookOf } from './midtownLooks';
 import { residentialLookOf } from './residentialLooks';
 import { industrialLookOf } from './industrialLooks';
@@ -124,6 +124,8 @@ const neonMaterial = (color: string) => {
   return m;
 };
 
+// The brushed-steel trim along a corporate tower's setbacks.
+const steelTrim = new THREE.MeshStandardMaterial({ color: '#4a5260', metalness: 0.9, roughness: 0.3 });
 // A dead building's neon (decay.ts): the tubes still there, dark, nothing lit.
 const deadNeon = new THREE.MeshStandardMaterial({ color: '#25272b', metalness: 0.5, roughness: 0.6 });
 // Its windows: the same panes, almost all dark (squatters keep a few lit).
@@ -556,6 +558,10 @@ const FootprintSegmentView: React.FC<{
   // roof running.
   const dead = unfinished || squatted || grimy;
   const glow = (color: string) => (dead ? deadNeon : neonMaterial(color));
+  // The line along a ledge: the building's neon; a corporate tower keeps its one light for its
+  // roofline, its setbacks trimmed in brushed steel (low-frequency detail, grouped).
+  // A podium's roof is a setback too: the light goes on the tower above it.
+  const ledge = (y: number) => (kind === 'commercial' && (y < h - 0.01 || (!!f.tower && !isTower)) ? steelTrim : glow(accent));
   const lx = data.gridX - f.x;
   const lz = data.gridZ - f.z;
   const isTower = !!f.tower && f.tower.x === data.gridX && f.tower.z === data.gridZ;
@@ -574,7 +580,10 @@ const FootprintSegmentView: React.FC<{
   const stack = useMemo(() => eraStackOf({ type: data.type, footprint: f, sawtooth: facade?.sawtooth }), [data.type, f, facade]);
   const retrofitAt = useMemo(() => retrofitTile(f), [f]);
   // A dead building's shops are shuttered whatever era they were done up in.
-  const shownFrontage = stack ? (dead ? 1 : stack.frontage) : null;
+  // A corporate tower's ground storey: a tall tinted-glass lobby (a gold-scaled tower's marble),
+  // round its podium or its foot. Its tower rising off a podium has none of its own.
+  const corpoFrontage = kind === 'commercial' && !cp && !isTower && facade ? (facade.name === 'goldscale' ? 4 : 3) : null;
+  const shownFrontage = stack ? (dead ? 1 : stack.frontage) : corpoFrontage;
   const windowsMat = (() => {
     const m = facade ? facadeWindowMaterial(facade.name) : windowMaterial(kind);
     return dead ? dimmed(m, squatted ? 0.35 : 0.12) : m;
@@ -602,7 +611,7 @@ const FootprintSegmentView: React.FC<{
     // Shops take the ground storey; the floors above start over them.
     // A building with eras has its era's ground storey (Frontage.tsx) instead.
     // A centerpiece is clad right down to the pavement; its tower's windows start over its roof.
-    const bottom = tower ? (cp ? cp.height + 0.5 : PODIUM_HEIGHT) : cpLook ? 0.4 : stack ? FRONTAGE_HEIGHT[shownFrontage!] + 0.8 : facade?.shops ? SHOP_HEIGHT + 0.8 : style.groundFloor;
+    const bottom = tower ? (cp ? cp.height + 0.5 : PODIUM_HEIGHT) : cpLook ? 0.4 : shownFrontage ? FRONTAGE_HEIGHT[shownFrontage] + 0.8 : facade?.shops ? SHOP_HEIGHT + 0.8 : style.groundFloor;
 
     // Tiers, from the ground up: at each step of the building's massing its outside walls stand
     // in (or out, overhanging) by that many steps. Steps too near the roof are dropped, and the
@@ -619,7 +628,7 @@ const FootprintSegmentView: React.FC<{
     });
     const top = tiers[tiers.length - 1];
     // The outside corners of the whole building on this tile, cut back by its bones' era.
-    const corner: Corner = cpLook ? cpLook.corner : stack && !tower ? stack.corner : 'square';
+    const corner: Corner = cpLook ? cpLook.corner : stack && !tower ? stack.corner : kind === 'commercial' && facade ? CORPO_CORNER[facade.name] ?? 'square' : 'square';
     const atCorner: Record<CornerKey, boolean> = tower ? { nw: true, ne: true, se: true, sw: true }
       : { nw: outside.west && outside.north, ne: outside.east && outside.north, se: outside.east && outside.south, sw: outside.west && outside.south };
     const cutsOf = (t: Rect, less = 0): Partial<Record<CornerKey, number>> => {
@@ -718,7 +727,7 @@ const FootprintSegmentView: React.FC<{
   }, [parts]);
   const { box, body, tower, windows, cap, billboard, scales, bodyGeometry, shops, cornerFaces, capGeometry, cladding, grime, outside } = parts;
   // The ground storey's era; an industrial plant's dark skirt stands in for a bare era-1 one.
-  const frontage = stack && !tower && !(shownFrontage === 1 && facade?.skirt) ? shownFrontage : null;
+  const frontage = shownFrontage && !tower && !(shownFrontage === 1 && facade?.skirt) ? shownFrontage : null;
   // The roof retrofit, on the tile that carries it, in place of the usual rooftop piece there.
   // A squatted building's roof is a shanty of containers instead; an unfinished one has none.
   const roofPiece = unfinished ? null : squatted && stack ? 'shanty' as const : stack?.retrofit ?? null;
@@ -753,7 +762,7 @@ const FootprintSegmentView: React.FC<{
         <group key={w.key}>
           <mesh geometry={w.geometry} position={w.position} rotation={[0, w.rot, 0]} material={windowsMat} />
           {/* A neon line along the top of each outside face, and of each setback. */}
-          <mesh position={[w.position[0], w.ledge - 0.3, w.position[2]]} rotation={[0, w.rot, 0]} material={glow(accent)}>
+          <mesh position={[w.position[0], w.ledge - 0.3, w.position[2]]} rotation={[0, w.rot, 0]} material={ledge(w.ledge)}>
             <boxGeometry args={[w.width, 0.35, 0.25]} />
           </mesh>
         </group>
@@ -764,7 +773,7 @@ const FootprintSegmentView: React.FC<{
           <mesh geometry={w.geometry} position={w.position} rotation={[0, w.round ? 0 : w.rot, 0]} material={windowsMat} />
           {w.round ? (
             <>
-              <mesh position={[w.centre[0], w.ledge - 0.3, w.centre[1]]} material={glow(accent)}>
+              <mesh position={[w.centre[0], w.ledge - 0.3, w.centre[1]]} material={ledge(w.ledge)}>
                 <cylinderGeometry args={[w.c + 0.13, w.c + 0.13, 0.35, ARC_STEPS, 1, true, w.rot, Math.PI / 2]} />
               </mesh>
               {/* Era 2's pastel bands; an era-4 curve is left seamless. */}
@@ -776,7 +785,7 @@ const FootprintSegmentView: React.FC<{
             </>
           ) : (
             <group position={[w.position[0], 0, w.position[2]]} rotation={[0, w.rot, 0]}>
-              <mesh position={[0, w.ledge - 0.3, 0]} material={glow(accent)}><boxGeometry args={[w.width, 0.35, 0.25]} /></mesh>
+              <mesh position={[0, w.ledge - 0.3, 0]} material={ledge(w.ledge)}><boxGeometry args={[w.width, 0.35, 0.25]} /></mesh>
               <mesh position={[0, w.bottom + w.height / 2, 0.1]} material={glow(ERA3_STRIP)}><boxGeometry args={[0.2, w.height, 0.1]} /></mesh>
             </group>
           )}

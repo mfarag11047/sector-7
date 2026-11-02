@@ -89,6 +89,13 @@ export const FACADES: Record<FacadeName, Facade> = {
   villa: { name: 'villa', body: '#b8ae9c', bodies: ['#b8ae9c', '#2c2925', '#8f877a'], accent: '#d98ba0', texW: 8, texH: 3.5 },
 };
 
+// The corner each corporate style cuts (eras.ts): corporate-era chamfers at 135 degrees, the
+// gold-scaled towers of the core seamless and rounded like the ultra-elite's, the brutalist slabs
+// sheer and square.
+export const CORPO_CORNER: Partial<Record<FacadeName, 'chamfer' | 'round' | 'square'>> = {
+  monolith: 'chamfer', office: 'chamfer', ticker: 'chamfer', goldscale: 'round', brutalist: 'square',
+};
+
 // How a tower is massed, from the ground up: at each share of its height, how many steps its
 // outside walls stand in from the footprint (negative: out past it, overhanging the street).
 //   straight    one sheer box

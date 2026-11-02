@@ -1691,8 +1691,8 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   flickers with patches of glitching scanlines on its walls, static on its roof and a glow round
   its base, gone once the building is destroyed. Downtown and the corporate core are a corporate
   plaza (`components/DowntownDressing.tsx`): polished dark granite along the streets with a
-  magenta neon line inlaid at the kerb, plaza stone laid in a two-tone diamond lattice inside
-  each block, and long planters with clipped hedges along the foot of every tower.
+  thin, dim indigo line inlaid at the kerb, plaza stone laid in a two-tone diamond lattice inside
+  each block, and long planters with dark clipped hedges along the foot of every tower.
 - **The energy grid made visible** (`components/powerGrid.ts`, drawn by `components/PowerGrid.tsx`).
   Each side's grid shows in the city itself, so who holds what reads without the minimap:
   - **Grid lines on the streets**: every street a side's captured buildings power outside its
@@ -1747,6 +1747,22 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   bones. The corporate towers of downtown and the core, and the two sides' megatowers, get no
   stack: pristine monoliths, as new as the day they went up. Picked from where a building
   stands, so its twin across the map is the same.
+- **The corporate center, refined** (`components/FootprintBuilding.tsx`, `corpoFacades.ts`
+  `CORPO_CORNER`, `components/DowntownDressing.tsx`). The towers of the core and downtown are the
+  corporate era at its most pristine: monoliths, never layered, decayed or retrofitted.
+  - **Massing**: chamfered 135-degree corners on the monolith, office and ticker towers (and on
+    every tower rising off a podium, all four of its corners), the gold-scaled towers of the core
+    seamless and rounded like the ultra-elite's, the brutalist slabs left sheer and square.
+  - **Restrained light**: each tower keeps its accent for one line round its roof; its setbacks
+    and its podium's roof are trimmed in brushed steel, not neon, and a chamfer carries one slim
+    indigo strip. Low-frequency detail, tightly grouped.
+  - **Lobbies**: every tower meets the street in a tall lobby of dark tinted glass under a slanted
+    canopy with a stark light strip along its edge, its podium the same; the gold-scaled towers'
+    lobbies are marble with a champagne line and planters.
+  - **Visual rest**: no coloured glow round the towers' feet, a thin dim indigo line inlaid along
+    the kerbs instead of bright neon, and the planters' hedges dark, so the dark granite between
+    the towers lets the eye rest and the towers' own lights, the billboards and the objectives
+    stand out.
 - **The estates** (`sim/districts.ts`; looks in `components/residentialLooks.ts`, `components/eras.ts`,
   grounds in `components/estateGrounds.ts` drawn by `components/EstateGrounds.tsx`). Round each of
   the two outer core nodes, in the corners away from the bases, the ultra-rich live behind

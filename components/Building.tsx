@@ -659,8 +659,9 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
 
   return (
     <group ref={rootRef} position={data.position}>
-      {/* Foundation/Base Glow. Core nodes draw their own one-block pad. */}
-      {data.type !== 'core_node' && (
+      {/* Foundation/Base Glow. Core nodes draw their own one-block pad; the corporate towers stand
+          straight out of their dark granite, nothing glowing round their feet. */}
+      {data.type !== 'core_node' && (data.type !== 'commercial' || !!shownOwner(data)) && (
       <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={isFootprintSegment(data) ? [CITY_CONFIG.tileSize, CITY_CONFIG.tileSize] : [data.scale[0] * 1.2, data.scale[2] * 1.2]} />
         <meshBasicMaterial 

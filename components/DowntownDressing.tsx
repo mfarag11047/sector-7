@@ -1,7 +1,10 @@
 // Street furniture for the corporate core and downtown, over their granite and plaza stone
 // (components/districtTheme.ts):
-//   - a glowing neon line inlaid along the kerb, wherever a block's granite meets the street;
-//   - long low planters with clipped hedges against the foot of every tower, on its open sides.
+//   - a thin, dim indigo line inlaid along the kerb, wherever a block's granite meets the street;
+//   - long low planters with dark clipped hedges against the foot of every tower, on its open
+//     sides.
+// Kept quiet on purpose: dark matte ground between the towers gives the eye somewhere to rest
+// (the design bible's anti-noise rules), so the towers' own lights and the objectives stand out.
 // Laid out from the map's tiles, so both sides of the map get the same. Scenery only.
 
 import React, { useLayoutEffect, useMemo, useRef } from 'react';
@@ -40,7 +43,9 @@ export function downtownLayout(tiles: readonly RoadTileData[], buildings: readon
 }
 
 const ROAD_TOP = 0.2;
-const NEON = '#e879f9';
+// A thin, dim indigo line inlaid along the kerb: a guide, not a sign (visual rest between the
+// towers' lights, scenePalette.ts).
+const NEON = '#2e2d78';
 const noRaycast = () => null;
 
 // Places one instance per tile edge: `inset` (in tiles) in from that edge, `y` up, its length
@@ -76,7 +81,7 @@ const DowntownDressing: React.FC<{ tiles: RoadTileData[]; buildings: BuildingDat
     <group>
       {layout.neon.length > 0 && (
         <instancedMesh key={`neon-${layout.neon.length}`} ref={neon} args={[undefined, undefined, layout.neon.length]} raycast={noRaycast}>
-          <boxGeometry args={[tileSize, 0.12, tileSize * 0.05]} />
+          <boxGeometry args={[tileSize, 0.08, tileSize * 0.025]} />
           <meshBasicMaterial color={NEON} toneMapped={false} />
         </instancedMesh>
       )}
@@ -88,7 +93,7 @@ const DowntownDressing: React.FC<{ tiles: RoadTileData[]; buildings: BuildingDat
           </instancedMesh>
           <instancedMesh key={`hedges-${layout.planters.length}`} ref={hedges} args={[undefined, undefined, layout.planters.length]} raycast={noRaycast} castShadow>
             <boxGeometry args={[tileSize * 0.72, 0.7, tileSize * 0.12]} />
-            <meshStandardMaterial color="#2c5a3c" roughness={0.95} emissive="#0d2a18" />
+            <meshStandardMaterial color="#2a3125" roughness={0.95} />
           </instancedMesh>
         </>
       )}
