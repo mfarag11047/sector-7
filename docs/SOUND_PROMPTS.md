@@ -121,7 +121,6 @@ units and `battle_distant`.
 | `unit_ready` | 0.8 s | ×1 | Factory bay door opening and a vehicle rolling out, pneumatic hiss and short electronic chime. |
 | `research_complete` | 1.2 s | ×1 | Futuristic research upgrade completed, bright ascending digital chime with a soft synth shimmer. |
 | `tier_up` | 2 s | ×1 | Military tech tier unlocked, powerful rising synth swell ending in a confident low impact. |
-| `capture_tick` | 0.15 s | ×1 | Subtle digital data-upload blip, soft and short. |
 | `building_captured` | 0.8 s | ×1 | Building claimed for your faction, satisfying two-note digital confirmation tone with a power-up hum. |
 | `node_captured` | 1.5 s | ×1 | Major objective captured, a core reactor humming to life with a rising energy swell and bright chime. |
 | `node_lost` | 1.5 s | ×1 | Objective lost to the enemy, falling synth tone with a power-down hum. |

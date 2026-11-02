@@ -50,7 +50,7 @@ import { lookAhead, viewFootprint } from './cameraView';
 export type SoundKind = 'rifle' | 'mg' | 'flak' | 'cannon' | 'rail' | 'tank_rail' | 'missile' | 'rocket' | 'hornet_rocket' | 'wasp_swarm' | 'ballista_launch' | 'blade' | 'explosion' | 'emp' | 'shield'
   | 'hit_metal' | 'hit_concrete' | 'hit_heavy_building' | 'building_collapse' | 'wall_breach' | 'gate_cycle'
   | 'unit_destroyed_infantry' | 'unit_destroyed_drone'
-  | 'structure_complete' | 'unit_ready' | 'research_complete' | 'tier_up' | 'capture_tick' | 'building_captured'
+  | 'structure_complete' | 'unit_ready' | 'research_complete' | 'tier_up' | 'building_captured'
   | 'node_captured' | 'node_lost' | 'base_founded'
   | 'ui_click' | 'ui_order_move' | 'ui_order_attack' | 'ui_error' | 'ui_notice' | 'alert_under_attack' | 'alert_missile'
   | 'victory' | 'defeat';
@@ -112,7 +112,6 @@ const KINDS: Record<SoundKind, { gain: number; voices: number; gapMs: number; re
   structure_complete: { gain: 0.5, voices: 1, gapMs: 600, reach: 'view' },
   unit_ready: { gain: 0.4, voices: 1, gapMs: 800, reach: 'view' },
   research_complete: { gain: 0.5, voices: 1, gapMs: 600, reach: 'view' },
-  capture_tick: { gain: 0.25, voices: 1, gapMs: 700, reach: 'view' },
   building_captured: { gain: 0.4, voices: 1, gapMs: 500, reach: 'view' },
   // Feedback heard wherever the camera is (playUiSound): a new tier, nodes taken or lost.
   tier_up: { gain: 0.6, voices: 1, gapMs: 1000, reach: 1 },
@@ -520,10 +519,6 @@ export const SOUNDS: Record<SoundKind, (c: BaseAudioContext, out: AudioNode, t: 
     tone(c, out, t, { type: 'sawtooth', f0: 110, f1: 440, peak: 0.3, attack: 0.8, decay: 0.3, glide: 1 });
     tone(c, out, t + 1, { type: 'sine', f0: 70, f1: 35, peak: 0.9, attack: 0.004, decay: 0.6 });
     return 1.7;
-  },
-  capture_tick: (c, out, t) => {
-    tone(c, out, t, { type: 'sine', f0: 1500, f1: 1800, peak: 0.3, decay: 0.05 });
-    return 0.1;
   },
   building_captured: (c, out, t) => {
     tone(c, out, t, { type: 'sine', f0: 660, f1: 660, peak: 0.4, decay: 0.15 });

@@ -88,7 +88,6 @@ BASE = {
     'research_complete': ([('research_complete_1.mp3', O, 1.8, 1.0, 0)], -12),
     # The riser, then the impact two seconds in.
     'tier_up': ([('tier_up_1.mp3', 0.0, 4.5, 3.5, 0.02)], -12),
-    'capture_tick': ([('capture_tick_1.mp3', O, 0.3, 0.15, 0)], -16),
     'building_captured': ([('building_captured_1.mp3', O, 2.0, 1.4, 0)], -12),
     'node_captured': ([('node_captured_1.mp3', 0.0, 4.0, 3.0, 0.02)], -12),
     'node_lost': ([('node_lost_1.mp3', O, 3.0, 2.2, 0)], -12),

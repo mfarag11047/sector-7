@@ -744,7 +744,8 @@ fireball, with its explosion. The player also hears their own side's progress wh
 and only when it is on screen or within about 3 tiles of its edge (at any zoom; `reach: 'view'` in
 `components/sfx.ts`), so the captures going on all over the map early in a match aren't a constant
 chiming: a building finished, a unit ready, research done, a new Command HQ
-ordered, a soft blip while their infantry capture, a chime for each building taken; their building
+ordered, a chime for each building taken (nothing while a capture is under way: infantry take
+buildings just by walking past them, so a sound for it played whenever they moved through the city); their building
 sites clank and weld on a loop while they go up (a timed build, or a blueprint with a Mason beside
 it), and their blast gates hiss as they open and close. Only what matters wherever the player is
 looking plays at full volume everywhere: a core or server node taken or lost, a new tier, and the

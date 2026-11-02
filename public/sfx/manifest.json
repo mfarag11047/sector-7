@@ -204,12 +204,6 @@
       "sfx/tier_up_1.mp3"
     ]
   },
-  "capture_tick": {
-    "description": "Subtle digital data-upload blip",
-    "files": [
-      "sfx/capture_tick_1.mp3"
-    ]
-  },
   "building_captured": {
     "description": "Building claimed: two-note confirmation tone with power-up hum",
     "files": [

@@ -1687,15 +1687,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       if (diedRef.current.size > 500) diedRef.current.clear();
   }, [units, offset]);
   // City buildings brought down, and walls and gates breached, as they happen.
-  // And, for the player, captures: a blip while their infantry are taking something, a chime for a
-  // building taken, and a node taken or lost.
+  // And, for the player, captures: a chime for a building taken, and a node taken or lost.
   const downRef = useRef<Set<string> | null>(null);
-  const ownersRef = useRef<Map<string, { owner: BuildingData['owner']; progress: number }> | null>(null);
+  const ownersRef = useRef<Map<string, { owner: BuildingData['owner'] }> | null>(null);
   useEffect(() => {
       const down = new Set(buildings.filter(b => b.destroyed).map(b => b.id));
       const before = downRef.current;
       downRef.current = down;
-      const owners = new Map(buildings.map(b => [b.id, { owner: b.owner, progress: b.capturingTeam === playerTeam ? b.captureProgress : 0 }]));
+      const owners = new Map(buildings.map(b => [b.id, { owner: b.owner }]));
       const held = ownersRef.current;
       ownersRef.current = owners;
       if (!before || !held) return;
@@ -1703,7 +1702,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       // Nodes matter wherever the player is looking; a building taken, or one being taken, is
       // heard only if it is on screen or just off it (components/sfx.ts), so the captures going on
       // all over the map early in a match aren't a constant chiming.
-      const taken: BuildingData[] = [], capturing: BuildingData[] = [];
+      const taken: BuildingData[] = [];
       let nodeTaken = false, nodeLost = false;
       for (const b of buildings) {
           const was = held.get(b.id);
@@ -1711,13 +1710,13 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           const node = b.type === 'core_node' || b.type === 'server_node';
           if (b.owner === playerTeam && was.owner !== playerTeam) { if (node) nodeTaken = true; else taken.push(b); }
           if (node && was.owner === playerTeam && b.owner !== playerTeam) nodeLost = true;
-          if (b.capturingTeam === playerTeam && b.captureProgress > was.progress) capturing.push(b);
       }
       if (nodeLost) playUiSound('node_lost');
       if (nodeTaken) playUiSound('node_captured');
       // Each in view gets its chance (the sound's own limits keep it to one at a time).
+      // (No sound while a capture is under way: infantry take buildings just by walking past them,
+      // so it played whenever they moved through the city. Only the capture itself is heard.)
       for (const b of taken) playSound('building_captured', b.position[0], b.position[2]);
-      if (taken.length === 0) for (const b of capturing) playSound('capture_tick', b.position[0], b.position[2]);
   }, [buildings, playerTeam]);
   const wallsRef = useRef<Map<string, StructureData> | null>(null);
   // The player's structures still going up, to hear each one finish.

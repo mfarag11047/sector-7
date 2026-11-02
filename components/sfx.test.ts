@@ -89,7 +89,7 @@ describe('recorded sounds', () => {
   });
 
   it('has recordings for every base, economy and capture sound, and the building-site loop', () => {
-    for (const kind of ['structure_complete', 'unit_ready', 'research_complete', 'tier_up', 'capture_tick', 'building_captured', 'node_captured', 'node_lost', 'base_founded']) {
+    for (const kind of ['structure_complete', 'unit_ready', 'research_complete', 'tier_up', 'building_captured', 'node_captured', 'node_lost', 'base_founded']) {
       expect(manifest[kind as keyof SampleManifest]?.files.length, kind).toBeGreaterThan(0);
       expect(SOUNDS[kind as keyof typeof SOUNDS], kind).toBeTypeOf('function');
     }
