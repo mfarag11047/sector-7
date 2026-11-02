@@ -1,0 +1,442 @@
+{
+  "vo_match_start": {
+    "register": "report",
+    "files": [
+      "vo/vo_match_start.mp3",
+      "vo/vo_match_start_2.mp3"
+    ],
+    "lines": [
+      "Command link established. All systems online.",
+      "Sector Seven is live. Good hunting, Commander."
+    ]
+  },
+  "vo_victory": {
+    "register": "report",
+    "files": [
+      "vo/vo_victory.mp3"
+    ],
+    "lines": [
+      "Enemy command has fallen. Sector Seven is ours."
+    ]
+  },
+  "vo_defeat": {
+    "register": "alert",
+    "files": [
+      "vo/vo_defeat.mp3"
+    ],
+    "lines": [
+      "Command H-Q lost. All units, withdraw."
+    ]
+  },
+  "vo_base_under_attack": {
+    "register": "alert",
+    "files": [
+      "vo/vo_base_under_attack.mp3",
+      "vo/vo_base_under_attack_2.mp3"
+    ],
+    "lines": [
+      "Our base is under attack.",
+      "Hostiles inside the perimeter."
+    ]
+  },
+  "vo_server_node_under_attack": {
+    "register": "alert",
+    "files": [
+      "vo/vo_server_node_under_attack.mp3"
+    ],
+    "lines": [
+      "Our server node is under attack."
+    ]
+  },
+  "vo_core_node_under_attack": {
+    "register": "alert",
+    "files": [
+      "vo/vo_core_node_under_attack.mp3"
+    ],
+    "lines": [
+      "Our core node is under attack."
+    ]
+  },
+  "vo_missile_launch": {
+    "register": "alert",
+    "files": [
+      "vo/vo_missile_launch.mp3",
+      "vo/vo_missile_launch_2.mp3"
+    ],
+    "lines": [
+      "Warning: missile launch detected.",
+      "Incoming missile. Brace for impact."
+    ]
+  },
+  "vo_missile_intercepted": {
+    "register": "report",
+    "files": [
+      "vo/vo_missile_intercepted.mp3"
+    ],
+    "lines": [
+      "Incoming missile intercepted."
+    ]
+  },
+  "vo_wall_breached": {
+    "register": "alert",
+    "files": [
+      "vo/vo_wall_breached.mp3"
+    ],
+    "lines": [
+      "Perimeter breached."
+    ]
+  },
+  "vo_structure_lost": {
+    "register": "alert",
+    "files": [
+      "vo/vo_structure_lost.mp3"
+    ],
+    "lines": [
+      "Structure lost."
+    ]
+  },
+  "vo_force_field_down": {
+    "register": "alert",
+    "files": [
+      "vo/vo_force_field_down.mp3"
+    ],
+    "lines": [
+      "Force field down. Rebooting."
+    ]
+  },
+  "vo_force_field_up": {
+    "register": "report",
+    "files": [
+      "vo/vo_force_field_up.mp3"
+    ],
+    "lines": [
+      "Force field restored."
+    ]
+  },
+  "vo_jammed": {
+    "register": "alert",
+    "files": [
+      "vo/vo_jammed.mp3"
+    ],
+    "lines": [
+      "Signal jammed. Orders are not getting through."
+    ]
+  },
+  "vo_enemy_orbital_drop": {
+    "register": "alert",
+    "files": [
+      "vo/vo_enemy_orbital_drop.mp3"
+    ],
+    "lines": [
+      "Enemy orbital drop detected."
+    ]
+  },
+  "vo_core_node_captured": {
+    "register": "report",
+    "files": [
+      "vo/vo_core_node_captured.mp3"
+    ],
+    "lines": [
+      "Core node secured."
+    ]
+  },
+  "vo_server_node_captured": {
+    "register": "report",
+    "files": [
+      "vo/vo_server_node_captured.mp3"
+    ],
+    "lines": [
+      "Server node secured. Compute online."
+    ]
+  },
+  "vo_core_node_lost": {
+    "register": "alert",
+    "files": [
+      "vo/vo_core_node_lost.mp3"
+    ],
+    "lines": [
+      "Core node lost."
+    ]
+  },
+  "vo_server_node_lost": {
+    "register": "alert",
+    "files": [
+      "vo/vo_server_node_lost.mp3"
+    ],
+    "lines": [
+      "Server node lost."
+    ]
+  },
+  "vo_construction_complete": {
+    "register": "report",
+    "files": [
+      "vo/vo_construction_complete.mp3"
+    ],
+    "lines": [
+      "Construction complete."
+    ]
+  },
+  "vo_barracks_online": {
+    "register": "report",
+    "files": [
+      "vo/vo_barracks_online.mp3"
+    ],
+    "lines": [
+      "Barracks online."
+    ]
+  },
+  "vo_factory_online": {
+    "register": "report",
+    "files": [
+      "vo/vo_factory_online.mp3"
+    ],
+    "lines": [
+      "Factory online."
+    ]
+  },
+  "vo_airpad_online": {
+    "register": "report",
+    "files": [
+      "vo/vo_airpad_online.mp3"
+    ],
+    "lines": [
+      "Airpad online."
+    ]
+  },
+  "vo_depot_online": {
+    "register": "report",
+    "files": [
+      "vo/vo_depot_online.mp3"
+    ],
+    "lines": [
+      "Depot online."
+    ]
+  },
+  "vo_comm_link_online": {
+    "register": "report",
+    "files": [
+      "vo/vo_comm_link_online.mp3"
+    ],
+    "lines": [
+      "Comm Link online."
+    ]
+  },
+  "vo_munitions_online": {
+    "register": "report",
+    "files": [
+      "vo/vo_munitions_online.mp3"
+    ],
+    "lines": [
+      "Munitions online."
+    ]
+  },
+  "vo_ordnance_fab_online": {
+    "register": "report",
+    "files": [
+      "vo/vo_ordnance_fab_online.mp3"
+    ],
+    "lines": [
+      "Ordnance Fab online."
+    ]
+  },
+  "vo_research_online": {
+    "register": "report",
+    "files": [
+      "vo/vo_research_online.mp3"
+    ],
+    "lines": [
+      "Advanced Research online."
+    ]
+  },
+  "vo_refinery_online": {
+    "register": "report",
+    "files": [
+      "vo/vo_refinery_online.mp3"
+    ],
+    "lines": [
+      "Core Refinery online."
+    ]
+  },
+  "vo_sentry_online": {
+    "register": "report",
+    "files": [
+      "vo/vo_sentry_online.mp3"
+    ],
+    "lines": [
+      "Sentry turret online."
+    ]
+  },
+  "vo_ciws_online": {
+    "register": "report",
+    "files": [
+      "vo/vo_ciws_online.mp3"
+    ],
+    "lines": [
+      "Sea-whiz turret online."
+    ]
+  },
+  "vo_hq_deploying": {
+    "register": "report",
+    "files": [
+      "vo/vo_hq_deploying.mp3"
+    ],
+    "lines": [
+      "New command base deploying."
+    ]
+  },
+  "vo_hq_online": {
+    "register": "report",
+    "files": [
+      "vo/vo_hq_online.mp3"
+    ],
+    "lines": [
+      "Forward command online."
+    ]
+  },
+  "vo_refinery_upgraded": {
+    "register": "report",
+    "files": [
+      "vo/vo_refinery_upgraded.mp3"
+    ],
+    "lines": [
+      "Refinery upgrade complete."
+    ]
+  },
+  "vo_research_complete": {
+    "register": "report",
+    "files": [
+      "vo/vo_research_complete.mp3"
+    ],
+    "lines": [
+      "Research complete."
+    ]
+  },
+  "vo_tier_ready": {
+    "register": "report",
+    "files": [
+      "vo/vo_tier_ready.mp3"
+    ],
+    "lines": [
+      "Compute threshold reached. New tier available."
+    ]
+  },
+  "vo_tier_2": {
+    "register": "report",
+    "files": [
+      "vo/vo_tier_2.mp3"
+    ],
+    "lines": [
+      "Tier two unlocked."
+    ]
+  },
+  "vo_tier_3": {
+    "register": "report",
+    "files": [
+      "vo/vo_tier_3.mp3"
+    ],
+    "lines": [
+      "Tier three unlocked."
+    ]
+  },
+  "vo_unit_ready": {
+    "register": "report",
+    "files": [
+      "vo/vo_unit_ready.mp3",
+      "vo/vo_unit_ready_2.mp3"
+    ],
+    "lines": [
+      "Unit ready.",
+      "Reinforcements ready."
+    ]
+  },
+  "vo_missile_away": {
+    "register": "report",
+    "files": [
+      "vo/vo_missile_away.mp3"
+    ],
+    "lines": [
+      "Missile away."
+    ]
+  },
+  "vo_missile_shot_down": {
+    "register": "alert",
+    "files": [
+      "vo/vo_missile_shot_down.mp3"
+    ],
+    "lines": [
+      "Our missile was intercepted."
+    ]
+  },
+  "vo_orbital_drop": {
+    "register": "report",
+    "files": [
+      "vo/vo_orbital_drop.mp3"
+    ],
+    "lines": [
+      "Orbital drop inbound."
+    ]
+  },
+  "vo_bulwark_field": {
+    "register": "report",
+    "files": [
+      "vo/vo_bulwark_field.mp3"
+    ],
+    "lines": [
+      "Bulwark field active."
+    ]
+  },
+  "vo_decoys": {
+    "register": "report",
+    "files": [
+      "vo/vo_decoys.mp3"
+    ],
+    "lines": [
+      "Phantom decoys deployed."
+    ]
+  },
+  "vo_cloaking_field": {
+    "register": "report",
+    "files": [
+      "vo/vo_cloaking_field.mp3"
+    ],
+    "lines": [
+      "Cloaking field active."
+    ]
+  },
+  "vo_nano_cloud": {
+    "register": "report",
+    "files": [
+      "vo/vo_nano_cloud.mp3"
+    ],
+    "lines": [
+      "Nano-cloud released."
+    ]
+  },
+  "vo_not_enough_cores": {
+    "register": "report",
+    "files": [
+      "vo/vo_not_enough_cores.mp3"
+    ],
+    "lines": [
+      "Insufficient cores."
+    ]
+  },
+  "vo_cannot_build_there": {
+    "register": "report",
+    "files": [
+      "vo/vo_cannot_build_there.mp3"
+    ],
+    "lines": [
+      "Cannot build there."
+    ]
+  },
+  "vo_unable": {
+    "register": "report",
+    "files": [
+      "vo/vo_unable.mp3"
+    ],
+    "lines": [
+      "Unable to comply."
+    ]
+  }
+}

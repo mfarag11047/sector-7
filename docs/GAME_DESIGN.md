@@ -759,7 +759,23 @@ comes with a line saying what it is for in the HUD's System Message box (bottom 
 warning sign and up for 12 s rather than the usual 6: "Your base is under attack!", "Your server
 node is under attack!" (or core node), "Enemy missile launched!" (spectating, named for the side
 being viewed: "Blue's base is under attack!", by its faction name). And a sting for
-victory or defeat. Hover and selection are silent for now. Under it all, the city's own
+victory or defeat. Hover and selection are silent for now.
+
+**The announcer** (`components/announcer.ts`; lines and recording notes in
+`docs/VOICE_PROMPTS.md`, recordings in `public/vo/`): a female military support AI who calls out
+what matters to the player: the match starting and its result; the base, a node or the
+perimeter under attack, an enemy missile launch, an enemy Orbital Drop near your forces, a
+structure lost, the force field going down, orders jammed; nodes taken and lost; each base
+building coming online, a new HQ, research, tiers, refinery upgrades and (now and then) units
+ready; your own missiles and doctrine powers; and refused orders. She speaks one line at a time,
+centred, on her own channel past the effects' compressor, and the effects dip while she speaks.
+Each line has a priority (match result, then threats, objectives, base reports, refusals): a
+threat cuts off anything less urgent, anything else waits for the line in progress (only the most
+important waiting line, for up to 3.5 s), and each line has a cooldown so it isn't repeated. Lines
+for an event with its own chime or siren start just after it. The recordings are clean; her
+robotic edge is added live, the same on every line (`VOICE_FX`: a comms band-pass with a presence
+lift, a short metallic doubling, a touch of ring modulation and of bit reduction). She speaks for
+the side being viewed when spectating, and like the siren stays quiet about attacks then. Under it all, the city's own
 background, a night-time megacity bed looping for the whole match, the same everywhere on the map
 (`startAmbience`, from the steady stretch of its recording, its level evened out). Hornet rockets, Wasp micro-drone launches and the Ballista's launch have no recordings yet and are
 made in code, as is any sound whose files haven't loaded (prompts for the rest:

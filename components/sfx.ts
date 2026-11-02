@@ -213,6 +213,43 @@ export function setMuted(on: boolean): void {
   muted = on;
   try { localStorage.setItem(MUTE_KEY, on ? '1' : '0'); } catch { /* private window: not remembered */ }
   if (master && ctx) master.gain.setTargetAtTime(on ? 0 : MASTER_GAIN, ctx.currentTime, 0.02);
+  if (voiceOut && ctx) voiceOut.gain.setTargetAtTime(on ? 0 : VOICE_GAIN, ctx.currentTime, 0.02);
+}
+
+// --- The announcer's channel (components/announcer.ts) ---
+
+// The voice has its own way out, past the effects' compressor, so a firefight doesn't pump it,
+// muted with everything else. While it speaks the effects dip (duckEffects).
+const VOICE_GAIN = 0.9;
+let voiceOut: GainNode | null = null;
+let duck: GainNode | null = null;
+const readyHooks: ((c: AudioContext) => void)[] = [];
+
+// Calls `hook` with the audio context once the audio has started (at once if it has).
+export function onAudioReady(hook: (c: AudioContext) => void): void {
+  if (ctx) hook(ctx);
+  else readyHooks.push(hook);
+}
+
+// Where the announcer plays into, or null before the audio has started.
+export function voiceOutput(): { ctx: AudioContext; out: AudioNode } | null {
+  if (!ctx || ctx.state !== 'running') return null;
+  if (!voiceOut) {
+    voiceOut = ctx.createGain();
+    voiceOut.gain.value = muted ? 0 : VOICE_GAIN;
+    voiceOut.connect(ctx.destination);
+  }
+  return { ctx, out: voiceOut };
+}
+
+// Dips the effects to `level` (0 to 1) from `at` until `until` (audio-clock seconds), easing in
+// and out, so the voice sits on top of them.
+export function duckEffects(level: number, at: number, until: number): void {
+  if (!duck || !ctx) return;
+  const g = duck.gain;
+  g.cancelScheduledValues(at);
+  g.setTargetAtTime(level, at, 0.04);
+  g.setTargetAtTime(1, until, 0.15);
 }
 
 // The first click or key press starts the audio (and resumes it if the browser suspended it).
@@ -230,8 +267,11 @@ function unlock(): void {
     compressor.release.value = 0.2;
     master = ctx.createGain();
     master.gain.value = muted ? 0 : MASTER_GAIN;
-    master.connect(compressor).connect(ctx.destination);
+    duck = ctx.createGain();
+    master.connect(duck).connect(compressor).connect(ctx.destination);
     loadSamples(ctx);
+    const c = ctx;
+    readyHooks.splice(0).forEach(hook => hook(c));
   }
   if (ctx.state === 'suspended') void ctx.resume().then(tryAmbience);
   else tryAmbience();

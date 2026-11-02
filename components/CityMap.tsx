@@ -31,6 +31,7 @@ import { positionKey, publishMotion, simClock, stampPosition } from './glide';
 import { ArmyControls, ArmyInfo, MAX_ARMIES, SelectionSummary } from './ArmyPanel';
 import { cameraFocus, onRightClick } from './DroneCamera';
 import { playSound, playUiSound, setLoops, SoundKind, startAmbience, stopAmbience } from './sfx';
+import { announce, BUILDING_LINES, resetAnnouncer, VoKey } from './announcer';
 import { AbilityCommand, abilityEffects, applyUnitEffects, FAB_LAUNCH, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
 import { WARHEAD_LABEL } from '../sim/warheads';
 import { Warhead } from '../sim/commands';
@@ -716,6 +717,16 @@ const deathFx = (type: UnitType): DeathFx =>
 // Walls and gates, whose fall is a breach.
 const WALL_TYPES: ReadonlySet<StructureType> = new Set<StructureType>(['base_wall', 'base_gate', 'wall_tier1', 'wall_tier2']);
 // What an explosion sounds like: a blast, an EMP's crackle, a shot stopped on a force field.
+// The announcer's line for a refused order (components/announcer.ts).
+const refusalLine = (reason: string): VoKey => (/cores/i.test(reason) ? 'vo_not_enough_cores' : 'vo_unable');
+// Her line for each doctrine power the player calls (Black Wall Infect has none).
+const DOCTRINE_LINES: Partial<Record<string, VoKey>> = {
+    HEAVY_METAL_TIER2: 'vo_orbital_drop', HEAVY_METAL_TIER3: 'vo_bulwark_field',
+    SHADOW_OPS_TIER2: 'vo_decoys', SHADOW_OPS_TIER3: 'vo_cloaking_field', NETRUNNER_TIER2: 'vo_nano_cloud',
+};
+// How near the player's forces an enemy Orbital Drop has to land to be called out, in tiles.
+const NEAR_DROP_TILES = 10;
+
 const explosionSound = (e: Explosion): SoundKind | null =>
     e.style === 'emp' || e.style === 'blackwall' ? 'emp' : e.style === 'shield' ? 'shield' : 'explosion';
 
@@ -1639,7 +1650,13 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // it appears here (components/sfx.ts).
   const heardRef = useRef(new Set<string>());
   // The city's background runs for as long as the map is up (components/sfx.ts).
-  useEffect(() => { startAmbience(); return () => stopAmbience(); }, []);
+  useEffect(() => {
+      startAmbience();
+      // The announcer opens the match (components/announcer.ts).
+      resetAnnouncer();
+      announce('vo_match_start', { delayMs: 1500, waitMs: 10_000 });
+      return () => { stopAmbience(); resetAnnouncer(); };
+  }, []);
   // No Sentinel beam or CIWS roar carries on once the map is gone.
   useEffect(() => () => { for (const kind of ['laser_beam', 'ciws_fire', 'construction'] as const) setLoops(kind, [], { now: true }); }, []);
   useEffect(() => {
@@ -1656,10 +1673,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           const from = p.startPos ?? p.position;
           playSound('ballista_launch', from.x, from.z);
           // An enemy missile on its way: the radar warning, wherever it was fired from.
-          if (p.trajectory === 'ballistic' && p.team !== playerTeam && (p.payload === 'emp' || p.payload === 'he' || p.payload === 'wp')) {
+          const warhead = p.trajectory === 'ballistic' && (p.payload === 'emp' || p.payload === 'he' || p.payload === 'wp');
+          if (warhead && p.team !== playerTeam) {
               playUiSound('alert_missile');
               onNoticeRef.current?.('Enemy missile launched!', 'alarm');
-          }
+              announce('vo_missile_launch', { delayMs: 900 });
+          } else if (warhead) announce('vo_missile_away', { delayMs: 300 });
       }
       // Forget what has gone, so the list stays short.
       if (heard.size > 400) {
@@ -1703,16 +1722,23 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       // heard only if it is on screen or just off it (components/sfx.ts), so the captures going on
       // all over the map early in a match aren't a constant chiming.
       const taken: BuildingData[] = [];
-      let nodeTaken = false, nodeLost = false;
+      let nodeTaken: BuildingData | null = null, nodeLost: BuildingData | null = null;
       for (const b of buildings) {
           const was = held.get(b.id);
           if (!was) continue;
           const node = b.type === 'core_node' || b.type === 'server_node';
-          if (b.owner === playerTeam && was.owner !== playerTeam) { if (node) nodeTaken = true; else taken.push(b); }
-          if (node && was.owner === playerTeam && b.owner !== playerTeam) nodeLost = true;
+          if (b.owner === playerTeam && was.owner !== playerTeam) { if (node) nodeTaken = b; else taken.push(b); }
+          if (node && was.owner === playerTeam && b.owner !== playerTeam) nodeLost = b;
       }
-      if (nodeLost) playUiSound('node_lost');
-      if (nodeTaken) playUiSound('node_captured');
+      // The chime, then the announcer names it (components/announcer.ts).
+      if (nodeLost) {
+          playUiSound('node_lost');
+          announce(nodeLost.type === 'core_node' ? 'vo_core_node_lost' : 'vo_server_node_lost', { delayMs: 500 });
+      }
+      if (nodeTaken) {
+          playUiSound('node_captured');
+          announce(nodeTaken.type === 'core_node' ? 'vo_core_node_captured' : 'vo_server_node_captured', { delayMs: 500 });
+      }
       // Each in view gets its chance (the sound's own limits keep it to one at a time).
       // (No sound while a capture is under way: infantry take buildings just by walking past them,
       // so it played whenever they moved through the city. Only the capture itself is heard.)
@@ -1726,8 +1752,26 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       const before = unfinishedRef.current;
       unfinishedRef.current = unfinished;
       const done = before ? structuresState.find(st => before.has(st.id) && !unfinished.has(st.id)) : undefined;
-      if (done) playSound('structure_complete', done.gridPos.x * CITY_CONFIG.tileSize - offset, done.gridPos.z * CITY_CONFIG.tileSize - offset);
+      if (done) {
+          playSound('structure_complete', done.gridPos.x * CITY_CONFIG.tileSize - offset, done.gridPos.z * CITY_CONFIG.tileSize - offset);
+          // Walls and gates go up in runs: only buildings are announced.
+          if (!WALL_TYPES.has(done.type)) announce(BUILDING_LINES[done.type] ?? 'vo_construction_complete', { delayMs: 400 });
+      }
   }, [structuresState, playerTeam, offset]);
+  // The player's finished structures, to hear when one is destroyed (not taken down on purpose).
+  const ownBuiltRef = useRef<Map<string, StructureData> | null>(null);
+  useEffect(() => {
+      const built = new Map(structuresState.filter(st => st.team === playerTeam && !st.isBlueprint && (st.buildRemainingMs || 0) <= 0 && st.health > 0).map(st => [st.id, st]));
+      const before = ownBuiltRef.current;
+      ownBuiltRef.current = built;
+      if (!before) return;
+      for (const [id, st] of before) {
+          if (built.has(id) || st.dismantle) continue;
+          const still = structuresState.find(x => x.id === id);
+          if (still && still.team === playerTeam && still.health > 0) continue;
+          announce(WALL_TYPES.has(st.type) ? 'vo_wall_breached' : 'vo_structure_lost', { delayMs: 300 });
+      }
+  }, [structuresState, playerTeam]);
   useEffect(() => {
       const walls = new Map(structuresState.filter(st => WALL_TYPES.has(st.type)).map(st => [st.id, st]));
       const before = wallsRef.current;
@@ -2568,7 +2612,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           const doctrine = power[1].toLowerCase() as DoctrineType;
           const tier = Number(power[2]) as 2 | 3;
           const refuse = (reason: string) => {
-              if (team === playerTeam) onNoticeRef.current?.(`Can't do that: ${reason}`, 'warn');
+              if (team === playerTeam) {
+                  onNoticeRef.current?.(`Can't do that: ${reason}`, 'warn');
+                  announce(refusalLine(reason));
+              }
               return false;
           };
           if (aiHelpersRef.current.doctrines?.[team]?.selected !== doctrine) return refuse('that is not your doctrine');
@@ -2716,6 +2763,14 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               virusBombsRef.current = [...virusBombsRef.current, bomb];
               setVirusBombs(virusBombsRef.current);
           }
+          // The announcer: the player's own power, or an enemy drop coming down near their forces.
+          const line = DOCTRINE_LINES[type];
+          if (team === playerTeam && line) announce(line, { delayMs: 300 });
+          if (team !== playerTeam && type === 'HEAVY_METAL_TIER2' && (
+              unitsRef.current.some(u => u.team === playerTeam && u.health > 0 && Math.hypot(u.gridPos.x - target.x, u.gridPos.z - target.z) <= NEAR_DROP_TILES) ||
+              structuresRef.current.some(st => st.team === playerTeam && Math.hypot(st.gridPos.x - target.x, st.gridPos.z - target.z) <= NEAR_DROP_TILES))) {
+              announce('vo_enemy_orbital_drop');
+          }
           return true;
   };
   runDoctrinePowerRef.current = runDoctrinePower;
@@ -2835,6 +2890,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       const spot = findPlacementSpot(x, z);
       if (!spot) {
           onNotice?.('Cannot build there: it must be open ground inside your energy grid', 'warn');
+          announce('vo_cannot_build_there');
           return;
       }
       const wall = isBuildableWall(mode.type);
@@ -2912,7 +2968,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               dispatchAbility({ type, unitId: targetingSourceId, target: { x, z } });
           } else {
               const fired = ids.filter(id => dispatchAbility({ type, unitId: id, target: { x, z } }, playerTeam, true)).length;
-              if (fired === 0) { playUiSound('ui_error'); onNotice?.(`Can't do that: ${lastAbilityRefusalRef.current}`, 'warn'); }
+              if (fired === 0) { playUiSound('ui_error'); onNotice?.(`Can't do that: ${lastAbilityRefusalRef.current}`, 'warn'); announce(refusalLine(lastAbilityRefusalRef.current), { delayMs: 250 }); }
               else onNotice?.(`${fired} of ${ids.length} ${UNIT_STATS[source!.type].label} units fired together`);
           }
           clearTargeting();
@@ -2934,6 +2990,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           const jammedCount = mine.filter(u => u.isJammed).length;
           if (jammedCount > 0) {
               onNotice?.(jammedCount === mine.length ? 'Signal jammed: no new orders get through' : `${jammedCount} jammed unit${jammedCount > 1 ? 's' : ''} didn't receive the order`, 'warn');
+              announce('vo_jammed');
           }
       } else {
           // Clicked on ground with no selection -> Deselect all (if any) or Close Menus
@@ -3011,7 +3068,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           },
       );
       if ('reason' in outcome) {
-          if (team === playerTeam && !quiet) { playUiSound('ui_error'); onNotice?.(`Can't do that: ${outcome.reason}`, 'warn'); }
+          if (team === playerTeam && !quiet) { playUiSound('ui_error'); onNotice?.(`Can't do that: ${outcome.reason}`, 'warn'); announce(refusalLine(outcome.reason), { delayMs: 250 }); }
           return false;
       }
       const fx = outcome.effects;
@@ -3024,7 +3081,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           setEconomy(prev => charge(prev) ?? prev);
       }
       if (command.type === 'RESEARCH_TIER') {
-          if (team === playerTeam) playUiSound('tier_up');
+          if (team === playerTeam) {
+              playUiSound('tier_up');
+              announce(command.tier === 3 ? 'vo_tier_3' : 'vo_tier_2', { delayMs: 1200 });
+          }
           onNotice?.(team === playerTeam ? `Tier ${command.tier} researched: new units and doctrine powers unlocked; research their upgrades at Advanced Research` : `The enemy has reached Tier ${command.tier}`, team === playerTeam ? 'info' : 'warn');
       }
       if (fx.unitUpdates.size > 0) setUnits(prev => applyOrderToUnits(prev, fx));
@@ -3047,7 +3107,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           },
       );
       if ('reason' in outcome) {
-          if (team === playerTeam && !quiet) { playUiSound('ui_error'); onNotice?.(`Can't do that: ${outcome.reason}`, 'warn'); }
+          if (team === playerTeam && !quiet) { playUiSound('ui_error'); onNotice?.(`Can't do that: ${outcome.reason}`, 'warn'); announce(refusalLine(outcome.reason), { delayMs: 250 }); }
           lastAbilityRefusalRef.current = outcome.reason;
           return false;
       }
@@ -3547,23 +3607,24 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       // The alarm is for a player defending their own side: a spectator, watching from one side's
       // view, gets the message but not the siren (the computer sides contest nodes all match long).
       const spectating = matchRef.current.mode === 'spectate';
-      const say = (key: string, text: string, tone: 'info' | 'warn', everyMs: number, alarm = false) => {
+      const say = (key: string, text: string, tone: 'info' | 'warn', everyMs: number, alarm = false, line?: VoKey) => {
           if ((alertAtRef.current.get(key) || 0) + everyMs > now) return;
           alertAtRef.current.set(key, now);
           if (alarm && !spectating) playUiSound('alert_under_attack');
-          // What the siren is for, in red in the System Message box.
+          // What the siren is for, in red in the System Message box, and said after it.
           onNoticeRef.current?.(text, alarm ? 'alarm' : tone);
+          if (line && (!alarm || !spectating)) announce(line, { delayMs: alarm ? 1000 : 0 });
       };
       // Whose base or node: yours, or (spectating) the side you are viewing as.
       const whose = spectating ? `${teamName(me)}'s` : 'Your';
       const myEconomy = economyRef.current[me];
       if (myEconomy.tier < 3) {
           const next = (myEconomy.tier + 1) as 2 | 3;
-          if (myEconomy.compute >= researchCost(next)) say(`research-${next}`, `Enough compute for Tier ${next}: research it in your team panel or HQ menu`, 'info', 60000);
+          if (myEconomy.compute >= researchCost(next)) say(`research-${next}`, `Enough compute for Tier ${next}: research it in your team panel or HQ menu`, 'info', 60000, false, 'vo_tier_ready');
       }
       const myHq = me === 'blue' ? baseA_Coord : baseB_Coord;
       if (unitsRef.current.some(u => u.team !== me && u.team !== 'neutral' && u.health > 0 && Math.hypot(u.gridPos.x - myHq.x, u.gridPos.z - myHq.z) <= 10)) {
-          say('base', `${whose} base is under attack!`, 'warn', 30000, true);
+          say('base', `${whose} base is under attack!`, 'warn', 30000, true, 'vo_base_under_attack');
       }
       for (const b of buildingsRef.current) {
           if (b.type !== 'core_node' && b.type !== 'server_node') continue;
@@ -3575,7 +3636,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           }
           nodeOwnerRef.current.set(b.id, b.owner);
           if (b.owner === me && b.capturingTeam && b.capturingTeam !== me && b.captureProgress > 0) {
-              say(`taking-${b.id}`, `${whose} ${label} is under attack!`, 'warn', 20000, true);
+              say(`taking-${b.id}`, `${whose} ${label} is under attack!`, 'warn', 20000, true, b.type === 'core_node' ? 'vo_core_node_under_attack' : 'vo_server_node_under_attack');
           }
       }
 
@@ -3586,6 +3647,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       matchOverRef.current = true;
       if (pacingRef.current) recordVictory(pacingRef.current, victory.winner);
       playUiSound(victory.winner === me || matchRef.current.mode === 'spectate' ? 'victory' : 'defeat');
+      announce(victory.winner === me ? 'vo_victory' : 'vo_defeat', { delayMs: 1800 });
       const side = (team: 'blue' | 'red') => ({
           ...tallyRef.current[team],
           earned: economyRef.current[team].lifetimeIncome,
@@ -4050,6 +4112,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   if (missiles.length > 0) {
                       const ours = missiles.some(o => o.team === playerTeam);
                       onNoticeRef.current?.(ours ? 'Your missile was shot down by enemy air defence' : 'Aegis intercepted an incoming missile', ours ? 'warn' : undefined);
+                      announce(ours ? 'vo_missile_shot_down' : 'vo_missile_intercepted');
                   }
               }
           }
@@ -4233,6 +4296,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       const def = upgradeDef(done.upgrade);
                       onNotice?.(`Research complete: ${def ? upgradeTitle(def) : done.upgrade}`);
                       playSound('research_complete', done.at.x * tileSize - offset, done.at.z * tileSize - offset);
+                      announce('vo_research_complete', { delayMs: 400 });
                   }
               }
           }
@@ -4246,7 +4310,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   const r = now2.get(s.id);
                   return r ? { ...s, refineryLevel: r.refineryLevel, refineryUpgrade: r.refineryUpgrade } : s;
               }));
-              if (refits.finished.some(s => s.team === playerTeam)) onNotice?.(`Core Refinery upgraded to level 2: +${REFINERY.flat[2]} cores/s`);
+              if (refits.finished.some(s => s.team === playerTeam)) {
+                  onNotice?.(`Core Refinery upgraded to level 2: +${REFINERY.flat[2]} cores/s`);
+                  announce('vo_refinery_upgraded');
+              }
           }
 
           // Buildings being taken down (sim/dismantle.ts): gone when done, with their refund.
@@ -4288,7 +4355,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               });
               born.forEach(u => { if (u.team === 'blue' || u.team === 'red') tallyRef.current[u.team].trained++; });
               const mine = born.find(u => u.team === playerTeam);
-              if (mine) playSound('unit_ready', mine.gridPos.x * tileSize - offset, mine.gridPos.z * tileSize - offset);
+              if (mine) {
+                  playSound('unit_ready', mine.gridPos.x * tileSize - offset, mine.gridPos.z * tileSize - offset);
+                  announce('vo_unit_ready', { delayMs: 300 });
+              }
               unitsRef.current = [...unitsRef.current, ...born];
               setUnits(prev => [...prev, ...born]);
           }
@@ -4302,8 +4372,13 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               const before = currentUnitsRef.find(u => u.id === id);
               const after = before && update(before);
               if (!before || !after || before.team !== playerTeam) return;
-              if (after.fieldDownUntil !== undefined && before.fieldDownUntil === undefined) onNoticeRef.current?.(`Force field down: rebooting for ${FORCE_FIELD.rebootMs / 1000}s`, 'warn');
-              else if (after.fieldDownUntil === undefined && before.fieldDownUntil !== undefined) onNoticeRef.current?.('Force field back up');
+              if (after.fieldDownUntil !== undefined && before.fieldDownUntil === undefined) {
+                  onNoticeRef.current?.(`Force field down: rebooting for ${FORCE_FIELD.rebootMs / 1000}s`, 'warn');
+                  announce('vo_force_field_down');
+              } else if (after.fieldDownUntil === undefined && before.fieldDownUntil !== undefined) {
+                  onNoticeRef.current?.('Force field back up');
+                  announce('vo_force_field_up');
+              }
           });
           shieldHitsRef.current = new Map();
 
@@ -4725,6 +4800,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                     if (dispatchOrder({ type: 'BUILD_BASE', at: site.at })) {
                         setSiteMenuId(null);
                         playSound('base_founded', site.at.x * tileSize - offset, site.at.z * tileSize - offset);
+                        announce('vo_hq_deploying', { delayMs: 300 });
                         onNotice?.(`Command base under construction: ready in ${BASE_SITE.buildMs / 1000}s`);
                     }
                 }}

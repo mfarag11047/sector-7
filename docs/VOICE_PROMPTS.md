@@ -150,7 +150,10 @@ Short and level. These play often, so keep them under a second.
 | `vo_cannot_build_there` | A building can't go where you placed it | R | Cannot build there. |
 | `vo_unable` | Any other refused order | R | Unable to comply. |
 
-## 3. How the game would use them (to build)
+## 3. How the game uses them
+
+Built in `components/announcer.ts`, with the recordings in `public/vo/` (listed in
+`public/vo/manifest.json`).
 
 - Only the player's side is announced. Spectating, she speaks for the side being viewed, and
   "under attack" lines stay silent as the siren does.
