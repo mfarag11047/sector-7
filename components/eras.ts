@@ -29,6 +29,7 @@
 import { CITY_CONFIG } from '../constants';
 import type { BuildingData } from '../types';
 import { districtAt, type District } from '../sim/districts';
+import { complexOf } from './midtownLooks';
 
 export type Era = 1 | 2 | 3 | 4;
 export type Corner = 'square' | 'round' | 'chamfer';
@@ -48,7 +49,15 @@ export interface EraStack {
   retrofit: Retrofit | null;
   corner: Corner;
   mismatch: boolean;
+  // Era 3 panel cladding over the middle floors, in one of CLADDING's schemes, or null: always
+  // on a building reclad over older bones, on half the corporate-era ones.
+  cladding: number | null;
 }
+
+// The panel cladding's colour schemes: [panel, accent panel]. Dark and matte, in the scenery
+// palette's hues (crimson on charcoal, slate blue on grey, burnt orange on charcoal), never the
+// sides' or the nodes' colours.
+export const CLADDING: [string, string][] = [['#2c2d33', '#8c2a31'], ['#7a7974', '#34497a'], ['#2a2b30', '#9a5026']];
 
 type Odds<T> = [T, number][];
 interface DistrictEras { bones: Odds<Era>; roof: Odds<Era | null>; frontage: Odds<Era>; reclad: number }
@@ -76,6 +85,13 @@ function canonical(f: Footprint, gridSize: number) {
   return (salt: number) => { const v = Math.sin((x * gridSize + z) * 91.345 + salt * 47.853) * 24634.6345; return v - Math.floor(v); };
 }
 
+// A steady 0..1 by salt for an apartment complex (its block on blue's side, midtownLooks.ts).
+function complexSeed(key: string) {
+  let h = 7;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 100003;
+  return (salt: number) => { const v = Math.sin(h * 12.345 + salt * 47.853) * 24634.6345; return v - Math.floor(v); };
+}
+
 const pick = <T,>(r: number, odds: Odds<T>): T => {
   for (const [o, share] of odds) { if (r < share) return o; r -= share; }
   return odds[odds.length - 1][0];
@@ -89,7 +105,9 @@ export function eraStackOf(b: Pick<BuildingData, 'type' | 'footprint'> & { sawto
   const district = districtAt(f.x, f.z, gridSize);
   const odds = district ? DISTRICT_ERAS[district] : undefined;
   if (!odds) return null;
-  const r = canonical(f, gridSize);
+  // The buildings of an apartment complex went up together: one stack for them all.
+  const complex = b.type === 'hightech' ? complexOf(f, gridSize) : null;
+  const r = complex ? complexSeed(complex) : canonical(f, gridSize);
   const bones = pick(r(1), odds.bones);
   const atLeast = (e: Era) => (e < bones ? bones : e);
   const mismatch = bones === 1 && r(2) < MISMATCH;
@@ -101,7 +119,8 @@ export function eraStackOf(b: Pick<BuildingData, 'type' | 'footprint'> & { sawto
   const retrofit = roof === null ? null : RETROFITS[roof][Math.floor(r(6) * RETROFITS[roof].length)];
   // A sawtooth shed keeps its square corners: its roof runs out to them.
   const corner = b.sawtooth ? 'square' : CORNER[bones];
-  return { bones, frontage, body, roof, retrofit, corner, mismatch };
+  const cladding = body === 3 && (bones < 3 || r(7) < 0.5) ? Math.floor(r(8) * CLADDING.length) : null;
+  return { bones, frontage, body, roof, retrofit, corner, mismatch, cladding };
 }
 
 // Which tile of a building carries its roof retrofit, in tiles from the footprint's corner: on a

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CITY_CONFIG, TEAM_BASES } from '../constants';
 import { generateCity } from '../sim/mapgen';
 import { districtAt } from '../sim/districts';
+import { complexOf } from './midtownLooks';
 import { ARC_STEPS, CORNER, eraStackOf, outline, RETROFIT_ERA, retrofitTile, type EraStack } from './eras';
 
 const N = CITY_CONFIG.gridSize, last = N - 1;
@@ -23,6 +24,18 @@ describe('era stacks', () => {
     }
   });
 
+  it('are shared by the buildings of an apartment complex, which went up together', () => {
+    const byComplex = new Map<string, string[]>();
+    for (const b of all.filter(b => b.type === 'hightech')) {
+      const c = complexOf(b.footprint!);
+      if (!c) continue;
+      const s = eraStackOf(b)!;
+      byComplex.set(c, [...(byComplex.get(c) ?? []), JSON.stringify({ ...s, retrofit: null, roof: null })]);
+    }
+    expect(byComplex.size).toBeGreaterThan(0);
+    for (const stacks of byComplex.values()) expect(new Set(stacks).size).toBe(1);
+  });
+
   it('leave the corporate towers pristine', () => {
     for (const b of all.filter(b => b.type === 'commercial')) expect(eraStackOf(b)).toBeNull();
   });
@@ -38,11 +51,16 @@ describe('era stacks', () => {
       if (s.retrofit) expect(RETROFIT_ERA[s.retrofit]).toBe(s.roof);
       if (s.corner !== 'square') expect(s.corner).toBe(CORNER[s.bones]);
       if (s.mismatch) expect([s.bones, s.body, s.frontage]).toEqual([1, 1, 3]);
+      // Cladding only over corporate-era middle floors, always where they were reclad.
+      if (s.cladding !== null) expect(s.body).toBe(3);
+      if (s.body === 3 && s.bones < 3) expect(s.cladding).not.toBeNull();
     }
     // Every era shows up somewhere, and every corner.
     expect(new Set(stacks.map(s => s.bones))).toEqual(new Set([1, 2, 3]));
     expect(new Set(stacks.map(s => s.corner))).toEqual(new Set(['square', 'round', 'chamfer']));
     expect(stacks.some(s => s.mismatch)).toBe(true);
+    expect(new Set(stacks.map(s => s.frontage))).toEqual(new Set([1, 2, 3, 4]));
+    expect(stacks.some(s => s.cladding !== null && s.bones < 3)).toBe(true);
   });
 
   it('get older toward the edge of the map and newer toward the middle', () => {

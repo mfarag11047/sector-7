@@ -17,7 +17,8 @@
 //
 // Every building but the corporate towers also shows the eras it was built and added to
 // (eras.ts): its outside corners square (era 1), rounded (era 2) or chamfered (era 3), and a
-// retrofit bolted onto its roof (Retrofits.tsx).
+// retrofit bolted onto its roof (Retrofits.tsx); its ground storey done up in one era and,
+// over its middle floors, corporate panel cladding or bolted-on conduit (Frontage.tsx).
 
 import React, { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
@@ -33,6 +34,7 @@ import { industrialLookOf } from './industrialLooks';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { ARC_STEPS, CORNER_CUT, CORNER_OUT, type Corner, type CornerKey, eraStackOf, outline, type Rect, retrofitTile } from './eras';
 import { RetrofitPiece } from './Retrofits';
+import { claddingMaterial, CLADDING_REPEAT, Conduit, FRONTAGE_HEIGHT, FrontageFace } from './Frontage';
 
 type Kind = 'commercial' | 'hightech' | 'industrial' | 'residential';
 
@@ -542,7 +544,8 @@ const FootprintSegmentView: React.FC<{
     const worldX = data.gridX * T;
     const worldZ = data.gridZ * T;
     // Shops take the ground storey; the floors above start over them.
-    const bottom = tower ? PODIUM_HEIGHT : facade?.shops ? SHOP_HEIGHT + 0.8 : style.groundFloor;
+    // A building with eras has its era's ground storey (Frontage.tsx) instead.
+    const bottom = tower ? PODIUM_HEIGHT : stack ? FRONTAGE_HEIGHT[stack.frontage] + 0.8 : facade?.shops ? SHOP_HEIGHT + 0.8 : style.groundFloor;
 
     // Tiers, from the ground up: at each step of the building's massing its outside walls stand
     // in (or out, overhanging) by that many steps. Steps too near the roof are dropped, and the
@@ -635,17 +638,24 @@ const FootprintSegmentView: React.FC<{
       }
     }
     // Shopfronts along the ground storey of each outside face, lined up in world space.
-    const shops = facade?.shops && !tower ? windows.filter(w => w.key.endsWith('-0')).map(w => ({
+    const shops = facade?.shops && !tower && !stack ? windows.filter(w => w.key.endsWith('-0')).map(w => ({
       ...w, geometry: faceGeometry(w.width, SHOP_HEIGHT, w.start / 8, 0, 8, SHOP_HEIGHT),
     })) : [];
-    return { box, body: top, tower, windows, faces, cap, billboard, scales, bodyGeometry, shops, cornerFaces, capGeometry };
+    // Corporate panel cladding over the middle floors, lined up in world space, the windows
+    // showing through its slots.
+    const cladding = stack?.cladding != null ? windows.map(w => ({
+      ...w, geometry: faceGeometry(w.width, w.height, w.start / CLADDING_REPEAT, w.bottom / CLADDING_REPEAT, CLADDING_REPEAT, CLADDING_REPEAT),
+    })) : [];
+    return { box, body: top, tower, windows, faces, cap, billboard, scales, bodyGeometry, shops, cornerFaces, capGeometry, cladding };
   }, [T, lx, lz, f, isTower, data.gridX, data.gridZ, h, style, kind, facade, texW, texH, stack]);
 
   useEffect(() => () => {
     parts.windows.forEach(w => w.geometry.dispose()); parts.scales.forEach(w => w.geometry.dispose()); parts.shops.forEach(w => w.geometry.dispose()); parts.bodyGeometry.dispose();
-    parts.cornerFaces.forEach(w => w.geometry.dispose()); parts.capGeometry.dispose();
+    parts.cornerFaces.forEach(w => w.geometry.dispose()); parts.capGeometry.dispose(); parts.cladding.forEach(w => w.geometry.dispose());
   }, [parts]);
-  const { box, body, tower, windows, cap, billboard, scales, bodyGeometry, shops, cornerFaces, capGeometry } = parts;
+  const { box, body, tower, windows, cap, billboard, scales, bodyGeometry, shops, cornerFaces, capGeometry, cladding } = parts;
+  // The ground storey's era; an industrial plant's dark skirt stands in for a bare era-1 one.
+  const frontage = stack && !tower && !(stack.frontage === 1 && facade?.skirt) ? stack.frontage : null;
   // The roof retrofit, on the tile that carries it, in place of the usual rooftop piece there.
   const retrofit = stack?.retrofit && lx === retrofitAt.lx && lz === retrofitAt.lz ? stack.retrofit : null;
   const crownGone = !!stack?.retrofit && retrofitAt.replacesCrown;
@@ -749,6 +759,23 @@ const FootprintSegmentView: React.FC<{
           <mesh position={[0, SHOP_HEIGHT + 0.35, 0.5]} material={neonMaterial(accent)}>
             <boxGeometry args={[w.width, 0.16, 1]} />
           </mesh>
+        </group>
+      ))}
+
+      {/* Each outside face's ground storey, in its era. */}
+      {frontage && windows.filter(w => w.key.endsWith('-0')).map((w, i) => (
+        <group key={`front-${w.key}`} position={[w.position[0], 0, w.position[2]]} rotation={[0, w.rot, 0]}>
+          <FrontageFace era={frontage} width={w.width} start={w.start} hash={tileHash(data.gridX, data.gridZ, 70 + i)} tone={tileHash(f.x + f.x * f.w, f.z, 71)} />
+        </group>
+      ))}
+      {cladding.map(w => (
+        <mesh key={`clad-${w.key}`} geometry={w.geometry} position={w.position} rotation={[0, w.rot, 0]} material={claddingMaterial(stack!.cladding!)}>
+        </mesh>
+      ))}
+      {/* Conduit bolted up the walls of an old building, on some stretches. */}
+      {stack?.body === 1 && !facade?.pipes && windows.filter(w => w.key.endsWith('-0')).map((w, i) => tileHash(data.gridX, data.gridZ, 80 + i) < 0.4 && (
+        <group key={`conduit-${w.key}`} position={[w.position[0], 0, w.position[2]]} rotation={[0, w.rot, 0]}>
+          <Conduit x={(tileHash(data.gridX, data.gridZ, 90 + i) - 0.5) * w.width * 0.7} height={w.ledge - 0.4} />
         </group>
       ))}
 

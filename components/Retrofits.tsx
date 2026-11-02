@@ -46,7 +46,8 @@ type Mat = keyof typeof M;
 // Pieces are added in the roof's own coordinates (y up from the roof), then merged by material.
 class Kit {
   parts = new Map<Mat, THREE.BufferGeometry[]>();
-  add(mat: Mat, g: THREE.BufferGeometry, at: [number, number, number], rot: [number, number, number] = [0, 0, 0]) {
+  add(mat: Mat, g: THREE.BufferGeometry, at: [number, number, number], rot: [number, number, number] = [0, 0, 0], scale?: [number, number, number]) {
+    if (scale) g.scale(...scale);
     g.rotateX(rot[0]); g.rotateZ(rot[2]); g.rotateY(rot[1]);
     g.translate(...at);
     const geo = g.index ? g.toNonIndexed() : g;
@@ -101,11 +102,12 @@ export function buildRetrofit(kind: Retrofit, span: number, faceZ: 1 | -1, seed:
       const len = s * 0.45, r = s * 0.13, z = -faceZ * s * 0.1, y = 3.2;
       for (const x of [-len * 0.35, len * 0.35]) k.box('frame', [0.3, y, 0.3], [x, y / 2, z]);
       k.box('frame', [len * 0.9, 0.25, 0.4], [0, y * 0.55, z - faceZ * 0.2]);
-      k.add('lilac', new THREE.CapsuleGeometry(r + 0.25, len, 6, 14), [0, y + r, z], [0, 0, Math.PI / 2]);
-      k.add('sign', new THREE.CapsuleGeometry(r, len, 6, 14), [0, y + r, z + faceZ * 0.12], [0, 0, Math.PI / 2]);
+      // Flat panels, a sign board and the neon rim just behind it, so from above it's a thin line.
+      k.add('lilac', new THREE.CapsuleGeometry(r + 0.25, len, 6, 14), [0, y + r, z], [0, 0, Math.PI / 2], [1, 1, 0.2 / (r + 0.25)]);
+      k.add('sign', new THREE.CapsuleGeometry(r, len, 6, 14), [0, y + r, z + faceZ * 0.12], [0, 0, Math.PI / 2], [1, 1, 0.25 / r]);
       // Letters: a row of bright bars across the sign's face.
       const n = 3 + Math.floor(seed * 3);
-      for (let i = 0; i < n; i++) k.box(i % 2 ? 'coral' : 'pink', [len / (n * 1.6), r * 0.9, 0.1], [(i - (n - 1) / 2) * (len / n), y + r, z + faceZ * (r * 0.45 + 0.2)]);
+      for (let i = 0; i < n; i++) k.box(i % 2 ? 'coral' : 'pink', [len / (n * 1.6), r * 0.9, 0.1], [(i - (n - 1) / 2) * (len / n), y + r, z + faceZ * 0.45]);
       break;
     }
     case 'dome': {

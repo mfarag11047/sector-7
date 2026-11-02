@@ -1722,8 +1722,18 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   pavilions among dark trees). Each building gets an era stack: its **bones** (how it was built,
   which sets its outside corners: square, rounded or chamfered, with windows, the ledge's neon
   and, on a rounded corner, pastel bands or, on a chamfer, a light strip carried round the cut),
-  its **frontage** and **body** (the ground storey and middle floors, drawn in a later pass;
-  now and then a sleek new frontage over old bones never rebuilt), and its **roof retrofit**: a
+  its **frontage**, the ground storey in the era it was last done up (`components/Frontage.tsx`):
+  roller shutters in bare concrete, some half up with light under them, a caged lamp and tags
+  sprayed on (1); lit shopfronts with rounded tops under a rounded pastel awning, an oversized
+  sign bolted above on some stretches (2); a tall lobby of dark tinted glass under a slanted
+  canopy with a stark light strip along its edge (3); warm marble with a champagne trim line and
+  planters (4). Its **body**, the middle floors: the bones' own, or reclad in corporate **panel
+  cladding** (big shapes with 45-degree corners in two dark tones, crimson on charcoal, slate blue
+  on grey or burnt orange on charcoal, the windows showing through slots), always where newer
+  owners reclad older bones and on half the corporate-era buildings; an old era-1 body gets
+  conduit bolted up some of its walls. Now and then a sleek corporate lobby stands under old
+  floors the owner never got round to rebuilding. The buildings of an apartment complex went up
+  together and share one stack. And its **roof retrofit**: a
   water tank or air handlers with a duct down the wall (1), a rounded neon sign or a bubble
   skylight (2), a server cooling rig or a camera mast (3), a sky pavilion (4). On a building of
   one or two tiles the retrofit takes the place of its usual rooftop piece; on a bigger one it
