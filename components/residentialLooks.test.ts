@@ -17,6 +17,7 @@ describe('cheap housing', () => {
     }
     expect(looks.size).toBeGreaterThan(homes.size / 3);
     const crowns = new Set([...homes.values()].map(f => residentialLookOf(f).crown));
-    expect(crowns).toEqual(new Set(['shack', 'dishes', 'laundry', 'tanks']));
+    // Cheap housing's roofs, and the estates' villas' gardens.
+    expect(crowns).toEqual(new Set(['shack', 'dishes', 'laundry', 'tanks', 'garden']));
   });
 });

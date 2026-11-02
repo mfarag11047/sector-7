@@ -122,6 +122,8 @@ export const DISTRICT_STYLES: Record<District, DistrictStyle> = {
   outskirts: { height: [10, 22], types: ['residential'] },
   // Shacks, and scrap sheds where a building spans more than one tile.
   fringe: { height: [6, 14], types: ['residential', 'industrial'] },
+  // Villas, low and spread out in their grounds.
+  estates: { height: [7, 16], types: ['residential'] },
   base: { height: [8, 16], types: ['residential'] },
 };
 // The low base under a tower-on-podium.
@@ -245,8 +247,9 @@ export function generateCity(opts: CityOptions): City {
   const corePlacements: { ix: number; iz: number; clearSurroundings: boolean }[] = [
     { ix: blueBlock.ix + 2, iz: blueBlock.iz + 2, clearSurroundings: false },
     { ix: redBlock.ix - 2, iz: redBlock.iz - 2, clearSurroundings: false },
-    { ix: blueBlock.ix, iz: redBlock.iz, clearSurroundings: true },
-    { ix: redBlock.ix, iz: blueBlock.iz, clearSurroundings: true },
+    // The outer corner nodes stand in the estates (sim/districts.ts), among the villas.
+    { ix: blueBlock.ix, iz: redBlock.iz, clearSurroundings: false },
+    { ix: redBlock.ix, iz: blueBlock.iz, clearSurroundings: false },
     { ix: blueBlock.ix + 3, iz: redBlock.iz - 3, clearSurroundings: false },
     { ix: redBlock.ix - 3, iz: blueBlock.iz + 3, clearSurroundings: false },
   ];

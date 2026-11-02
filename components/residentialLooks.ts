@@ -5,10 +5,13 @@
 // roof (a shack built on top, satellite dishes, a laundry line or water tanks), AC units bolted
 // on its walls, a zigzag fire escape on the taller ones, and on a few a corner shop at street
 // level. Picked from where the building stands, so its twin across the map is the same.
+//
+// In the estates round the outer core nodes (sim/districts.ts), the houses are villas instead.
 
 import { CITY_CONFIG } from '../constants';
 import type { BuildingData } from '../types';
 import { type Crown, type Facade, FACADES, type FacadeName, type Massing } from './corpoFacades';
+import { districtAt } from '../sim/districts';
 
 type Footprint = NonNullable<BuildingData['footprint']>;
 
@@ -22,6 +25,16 @@ export function residentialLookOf(f: Footprint, gridSize = CITY_CONFIG.gridSize)
   const tx = last - (f.x + f.w - 1), tz = last - (f.z + f.d - 1);
   const [x, z] = f.x + f.z < tx + tz || (f.x + f.z === tx + tz && f.x <= tx) ? [f.x, f.z] : [tx, tz];
   const hash = (salt: number) => { const v = Math.sin((x * gridSize + z) * 91.345 + salt * 47.853) * 43758.5453; return v - Math.floor(v); };
+  // In the estates, a villa: glass walls under deep slabs, the upper storey often cantilevered out
+  // over the garden or stepped back to a terrace, a garden on the roof.
+  if (districtAt(f.x, f.z, gridSize) === 'estates') {
+    const style = FACADES.villa;
+    return {
+      ...style, body: style.bodies[Math.floor(hash(4) * style.bodies.length)],
+      massing: pick<Massing>(hash(2), [['cantilever', 0.4], ['setback', 0.25], ['topheavy', 0.2], ['straight', 0.15]]),
+      crown: 'garden',
+    };
+  }
   const big = f.w * f.d >= 2;
   const windows = pick<FacadeName>(hash(1), big
     ? [['projects', 0.45], ['tenement', 0.35], ['patched', 0.2]]

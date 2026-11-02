@@ -12,7 +12,11 @@
 //              stencilled big on its front, blue loading doors in the core at street level, and
 //              a tower of stacked chamfered modules rising out of its middle, the same stripes
 //              on it
-// Both carry plant on the corners of their roofs, and their panels are twice the usual size.
+//   skyclub    the estates' club: ribbon after ribbon of rounded floors in dark bronze and glass,
+//              each further out than the one below, over a narrow core; champagne bands round
+//              each floor, waterfalls pouring off the first deck into pools at its foot, a pool
+//              and a pavilion on its roof among the gardens
+// The megablock and the lifted block carry plant on the corners of their roofs, and their panels are twice the usual size.
 // Colours keep to the scenery palette (scenePalette.ts): no cyan, amber, white or green.
 
 import type { CenterpieceKind } from '../sim/centerpieces';
@@ -29,9 +33,11 @@ export interface CenterpieceLook {
   // the tower's own, if it has one.
   steps: [number, number][];
   towerSteps?: [number, number][];
-  corner: 'chamfer' | 'square';
+  corner: 'chamfer' | 'square' | 'round';
   // Panel cladding over every face, ground to roof: [panel, accent panel].
-  cladding: [string, string];
+  cladding?: [string, string];
+  // Waterfalls off the edge of its first overhang, into pools at its foot.
+  waterfall?: boolean;
   // A number lit huge near the top of each face and again over each entrance.
   number?: string;
   // A code stencilled big on its front.
@@ -55,5 +61,10 @@ export const CENTERPIECE_LOOKS: Record<CenterpieceKind, CenterpieceLook> = {
     windows: 'plant', body: '#8d8a83', accent: SCENE.blue, crown: 'antennas',
     steps: [[0, 6], [0.3, -1.5]], towerSteps: [[0.62, 0], [0.7, 1], [0.8, 0.2], [0.9, 1.3]], corner: 'chamfer',
     cladding: ['#a7a39a', '#2f4f9c'], stencil: 'S7-03', stripes: { color: '#2f55b8', every: 9 }, pylons: true, billboards: false, roofKit: ['coolers', 'hvac'],
+  },
+  skyclub: {
+    windows: 'villa', body: '#2c2925', accent: '#d98ba0', crown: 'garden',
+    steps: [[0, 5], [0.3, -0.5], [0.55, -1.5], [0.8, -2.5]], corner: 'round',
+    stripes: { color: '#a8966a', every: 3.5 }, waterfall: true, billboards: false, roofKit: ['pool', 'pavilion'],
   },
 };

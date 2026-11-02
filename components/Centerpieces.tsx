@@ -8,9 +8,12 @@
 //                   number again over it, small, so it reads at the door as it does from afar
 //   Pylons          the lifted block's concrete legs under its overhang, braced
 //   LoadingDoors    blue roller doors in the lifted block's core at street level, a lamp over each
-//   Stripes         the lifted block's blue stripes painted round it every few storeys
+//   Stripes         the lifted block's blue stripes painted round it every few storeys (and the
+//                   sky club's champagne bands round each floor)
+//   Waterfall       the sky club's water pouring off the edge of its first deck into a pool below
 
 import React from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { canvas } from './corpoFacades';
 import { SCENE } from './scenePalette';
@@ -108,3 +111,35 @@ export const Stripes: React.FC<{ width: number; bottom: number; top: number; eve
   for (let y = Math.ceil((bottom + 1) / every) * every; y < top - 1; y += every) ys.push(y);
   return <group>{ys.map(y => <mesh key={y} position={[0, y, 0.14]} material={m}><boxGeometry args={[width + 0.1, 0.7, 0.12]} /></mesh>)}</group>;
 };
+
+// Water sheeting down off an edge `top` high, `width` wide, in a face's own coordinates, into a
+// pool at its foot under the overhang. Streaks scroll down it, all the waterfalls on one clock.
+const fallTime = { value: 0 };
+const fallMaterial = new THREE.ShaderMaterial({
+  uniforms: { uTime: fallTime },
+  vertexShader: 'varying vec2 vUv; void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `
+    uniform float uTime; varying vec2 vUv;
+    float h(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+    void main() {
+      // Streaks of falling water, each column its own speed, brighter where they break.
+      float col = floor(vUv.x * 60.0);
+      float speed = 0.6 + h(vec2(col, 1.0)) * 0.6;
+      float streak = fract(vUv.y * 3.0 + uTime * speed + h(vec2(col, 2.0)));
+      float a = 0.25 + 0.45 * smoothstep(0.6, 1.0, streak);
+      // Soft at the sides, misting out at the foot.
+      a *= smoothstep(0.0, 0.08, vUv.x) * smoothstep(1.0, 0.92, vUv.x) * (0.5 + 0.5 * smoothstep(0.0, 0.25, vUv.y));
+      gl_FragColor = vec4(mix(vec3(0.55, 0.65, 0.85), vec3(0.92, 0.94, 1.0), streak), a);
+    }`,
+  transparent: true, depthWrite: false, side: THREE.DoubleSide,
+});
+const poolMaterial = new THREE.MeshStandardMaterial({ color: '#1c3a6e', emissive: '#1d3f86', emissiveIntensity: 0.35, roughness: 0.05, metalness: 0.3 });
+const FallClock: React.FC = () => { useFrame(({ clock }) => { fallTime.value = clock.elapsedTime; }); return null; };
+export const Waterfall: React.FC<{ width: number; top: number }> = ({ width, top }) => (
+  <group>
+    <FallClock />
+    <mesh position={[0, top / 2 + 0.2, 0.4]} material={fallMaterial}><planeGeometry args={[width, top]} /></mesh>
+    <mesh position={[0, 0.3, -1.8]} material={M.concrete}><boxGeometry args={[width + 1.2, 0.2, 4.8]} /></mesh>
+    <mesh position={[0, 0.42, -1.8]} rotation={[-Math.PI / 2, 0, 0]} material={poolMaterial}><planeGeometry args={[width, 3.8]} /></mesh>
+  </group>
+);

@@ -7,6 +7,8 @@
 //   industrial two patches on the flanks of each base
 //   outskirts  the ring of blocks just inside the edge
 //   fringe     the outermost ring of blocks, along the map edge
+//   estates    the 3x3 blocks round each of the two outer core nodes, in the corners away from
+//              the bases: villas in synthetic gardens where the very rich wall themselves off
 //   base       each side's starting corner
 //
 // Zoning is by city block (the 5x5 lots between roads) and mirrors like the rest of the map:
@@ -15,7 +17,7 @@
 
 const ROAD_STRIDE = 6;
 
-export type District = 'core' | 'downtown' | 'midtown' | 'industrial' | 'outskirts' | 'fringe' | 'base';
+export type District = 'core' | 'downtown' | 'midtown' | 'industrial' | 'outskirts' | 'fringe' | 'estates' | 'base';
 
 export const DISTRICT_COLORS: Record<District, string> = {
   core: '#e879f9',
@@ -24,6 +26,7 @@ export const DISTRICT_COLORS: Record<District, string> = {
   industrial: '#f59e0b',
   outskirts: '#7dd3fc',
   fringe: '#fb7185',
+  estates: '#c4b5fd',
   base: '#94a3b8',
 };
 
@@ -40,6 +43,8 @@ export function districtOfBlock(ix: number, iz: number, gridSize: number): Distr
   const ring = Math.max(Math.abs(ix - mid), Math.abs(iz - mid));
   if (ring <= 1) return 'core';
   if (ring <= 2) return 'downtown';
+  // Round the outer core nodes in the two corners away from the bases (they mirror each other).
+  if (Math.max(last - ix, iz) <= 2 || Math.max(ix, last - iz) <= 2) return 'estates';
   // Beside the base, along both edges it opens onto.
   if ((x >= 2 && x <= 4 && z >= 1 && z <= 2) || (z >= 2 && z <= 4 && x >= 1 && x <= 2)) return 'industrial';
   const edge = Math.min(ix, iz, last - ix, last - iz);

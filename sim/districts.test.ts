@@ -34,7 +34,7 @@ describe('districts', () => {
 
   it('puts every district on the map', () => {
     const kinds = new Set(districtLayout(SIZE).map(b => b.district));
-    expect([...kinds].sort()).toEqual(['base', 'core', 'downtown', 'fringe', 'industrial', 'midtown', 'outskirts']);
+    expect([...kinds].sort()).toEqual(['base', 'core', 'downtown', 'estates', 'fringe', 'industrial', 'midtown', 'outskirts']);
   });
 
   it('gives lot tiles a district and roads none', () => {
@@ -50,7 +50,7 @@ describe('district outlines', () => {
 
   it('outline every district but the bases', () => {
     const outlined = new Set(edges.map(e => e.district));
-    expect([...outlined].sort()).toEqual(['core', 'downtown', 'fringe', 'industrial', 'midtown', 'outskirts']);
+    expect([...outlined].sort()).toEqual(['core', 'downtown', 'estates', 'fringe', 'industrial', 'midtown', 'outskirts']);
   });
 
   it('are straight lines that stay in the streets, never across a block', () => {

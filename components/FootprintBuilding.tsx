@@ -43,7 +43,7 @@ import { Frame, GRIME_REPEAT, grimeMaterial, LeanTo } from './Decay';
 import { CITY_CONFIG } from '../constants';
 import { centerpieceOf } from '../sim/centerpieces';
 import { CENTERPIECE_LOOKS } from './centerpieceLooks';
-import { Entrance, LoadingDoors, numberMaterial, Pylons, Stripes } from './Centerpieces';
+import { Entrance, LoadingDoors, numberMaterial, Pylons, Stripes, Waterfall } from './Centerpieces';
 import { CLADDING } from './eras';
 
 type Kind = 'commercial' | 'hightech' | 'industrial' | 'residential';
@@ -767,7 +767,8 @@ const FootprintSegmentView: React.FC<{
               <mesh position={[w.centre[0], w.ledge - 0.3, w.centre[1]]} material={glow(accent)}>
                 <cylinderGeometry args={[w.c + 0.13, w.c + 0.13, 0.35, ARC_STEPS, 1, true, w.rot, Math.PI / 2]} />
               </mesh>
-              {Array.from({ length: Math.max(0, Math.floor((w.height - 2) / 5)) }, (_, i) => (
+              {/* Era 2's pastel bands; an era-4 curve is left seamless. */}
+              {stack?.bones === 2 && Array.from({ length: Math.max(0, Math.floor((w.height - 2) / 5)) }, (_, i) => (
                 <mesh key={i} position={[w.centre[0], w.bottom + 3 + i * 5, w.centre[1]]} material={glow(ERA2_BAND)}>
                   <cylinderGeometry args={[w.c + 0.1, w.c + 0.1, 0.16, ARC_STEPS, 1, true, w.rot, Math.PI / 2]} />
                 </mesh>
@@ -858,7 +859,7 @@ const FootprintSegmentView: React.FC<{
       {cpLook?.number && windows.filter(w => middleOf(w.side)).map(w => {
         if (w.key.endsWith('-0')) return (
           <group key={`door-${w.key}`} position={[w.position[0], 0, w.position[2]]} rotation={[0, w.rot, 0]}>
-            <Entrance number={cpLook.number!} panel={cpLook.cladding[0]} />
+            <Entrance number={cpLook.number!} panel={cpLook.cladding?.[0] ?? cpLook.body} />
           </group>
         );
         if (w.ledge !== h) return null;
@@ -871,9 +872,15 @@ const FootprintSegmentView: React.FC<{
       })}
       {/* Plant on a centerpiece's corner roofs. */}
       {cpLook && !tower && (lx === 0 || lx === f.w - 1) && (lz === 0 || lz === f.d - 1) && (
-        <RetrofitPiece kind={cpLook.roofKit[(lx + lz) % 2]} span={Math.min(cap.x1 - cap.x0, cap.z1 - cap.z0)} faceZ={blueSide ? -1 : 1} seed={tileHash(data.gridX, data.gridZ, 62)}
+        <RetrofitPiece kind={cpLook.roofKit[(lx > 0) !== (lz > 0) ? 1 : 0]} span={Math.min(cap.x1 - cap.x0, cap.z1 - cap.z0)} faceZ={blueSide ? -1 : 1} seed={tileHash(data.gridX, data.gridZ, 62)}
           position={[(cap.x0 + cap.x1) / 2, h + 0.25, (cap.z0 + cap.z1) / 2]} />
       )}
+      {/* Waterfalls off the first overhang's edge, in the middle of each face. */}
+      {cpLook?.waterfall && windows.filter(w => w.key.endsWith('-1') && middleOf(w.side)).map(w => (
+        <group key={`fall-${w.key}`} position={[w.position[0], 0, w.position[2]]} rotation={[0, w.rot, 0]}>
+          <Waterfall width={w.width * 0.7} top={w.bottom - 0.4} />
+        </group>
+      ))}
       {cpLook?.pylons && !tower && (
         <Pylons r={box} outside={outside} top={cpLook.steps[1][0] * h} core={cpLook.steps[0][1] * T * 0.07 + T * 0.08 - 0.8} />
       )}

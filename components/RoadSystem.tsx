@@ -222,7 +222,7 @@ export const InstancedRoads: React.FC<{
         return { roadsByPiece: [...roads.entries()], openByStyle: [...open.entries()] };
     }, [tiles, gridSize]);
     const groundTextures = useMemo(() => new Map<TileGround, THREE.Texture>(
-        (['granite', 'plazaStone', 'paving', 'lawn', 'walkway', 'parking', 'yard', 'slab', 'gravel'] as const).map(s => [s, createGroundTexture(s)])), []);
+        (['granite', 'plazaStone', 'paving', 'lawn', 'walkway', 'parking', 'yard', 'slab', 'gravel', 'travertine', 'terrace'] as const).map(s => [s, createGroundTexture(s)])), []);
     const roadTextures = useMemo(() => new Map<RoadPiece, THREE.Texture>(
         (['cityStraight', 'cityJunction', 'suburbStraight', 'suburbJunction', 'avenue', 'basePad', 'baseLane'] as const).map(p => [p, createRoadTexture(p)])), []);
     // Markings are drawn up the texture: turned a quarter for a road running along x.

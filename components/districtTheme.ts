@@ -17,8 +17,9 @@ import { TEAM_BASES } from '../constants';
 //   courtyard  light concrete 'paving' round a 'lawn'
 //   carpark    dark 'walkway' pavers round empty 'parking' bays
 //   corporate  polished 'granite' round patterned 'plazaStone'
-export type GroundStyle = 'corporate' | 'granite' | 'plazaStone' | 'courtyard' | 'paving' | 'lawn' | 'carpark' | 'walkway' | 'parking' | 'yard' | 'slab' | 'gravel';
-type SplitGround = 'courtyard' | 'carpark' | 'corporate';
+//   estate     warm 'travertine' paving round a manicured 'terrace' lawn, mown in stripes
+export type GroundStyle = 'corporate' | 'granite' | 'plazaStone' | 'courtyard' | 'paving' | 'lawn' | 'carpark' | 'walkway' | 'parking' | 'yard' | 'slab' | 'gravel' | 'estate' | 'travertine' | 'terrace';
+type SplitGround = 'courtyard' | 'carpark' | 'corporate' | 'estate';
 export type TileGround = Exclude<GroundStyle, SplitGround>;
 export type GroundTexture = TileGround;
 
@@ -49,6 +50,9 @@ export const DISTRICT_THEMES: Record<District, DistrictTheme> = {
   // (BlackwallCracks.tsx).
   outskirts: { ground: 'carpark', road: 'suburb', sidewalks: false, crosswalks: false },
   fringe: { ground: 'slab', road: 'suburb', sidewalks: false, crosswalks: false },
+  // The estates: travertine along the streets round manicured lawns (palms, hedges and pools by
+  // EstateGrounds.tsx), immaculate city roads with sidewalks.
+  estates: { ground: 'estate', road: 'city', sidewalks: true, crosswalks: false },
   // The bases: military gravel outside the compound walls (the compound itself is deck plating,
   // see roadPieceOf).
   base: { ground: 'gravel', road: 'suburb', sidewalks: false, crosswalks: false },
@@ -72,10 +76,11 @@ export const themeOfTile = (x: number, z: number, gridSize: number) => DISTRICT_
 // inside a paved edge in midtown, parking lots inside dark walkways in the outskirts.
 export function groundOfTile(x: number, z: number, gridSize: number): TileGround {
   const ground = themeOfTile(x, z, gridSize).ground;
-  if (ground !== 'courtyard' && ground !== 'carpark' && ground !== 'corporate') return ground;
+  if (ground !== 'courtyard' && ground !== 'carpark' && ground !== 'corporate' && ground !== 'estate') return ground;
   const onStreet = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dz]) => districtAt(x + dx, z + dz, gridSize) === null);
   if (ground === 'courtyard') return onStreet ? 'paving' : 'lawn';
   if (ground === 'corporate') return onStreet ? 'granite' : 'plazaStone';
+  if (ground === 'estate') return onStreet ? 'travertine' : 'terrace';
   return onStreet ? 'walkway' : 'parking';
 }
 
@@ -395,6 +400,44 @@ const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => nu
       ctx.fillRect(rand() * SIZE, rand() * SIZE, 2, 2);
     }
   },
+  // Warm ivory travertine in big slabs with fine joints, faintly veined: the estates' paving.
+  travertine: (ctx, rand) => {
+    ctx.fillStyle = '#6f6656';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    const n = 2, s = SIZE / n;
+    for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
+      const shade = 150 + Math.floor(rand() * 10);
+      ctx.fillStyle = `rgb(${shade}, ${shade - 8}, ${shade - 24})`;
+      ctx.fillRect(i * s + 3, j * s + 3, s - 6, s - 6);
+    }
+    grime(ctx, rand, ['#8f8676', '#a39a88', '#968c7b'], 3000, 2, 0.3);
+    ctx.strokeStyle = 'rgba(110, 100, 84, 0.35)';
+    ctx.lineWidth = 1.5;
+    for (let k = 0; k < 10; k++) {
+      ctx.beginPath();
+      let x = rand() * SIZE, y = rand() * SIZE;
+      ctx.moveTo(x, y);
+      for (let m = 0; m < 5; m++) { x += (rand() - 0.5) * 60; y += 10 + rand() * 25; ctx.lineTo(x, y); }
+      ctx.stroke();
+    }
+  },
+  // A manicured lawn mown in broad stripes, dark and even. Olive, not green (green is Tokugen's):
+  // what says money is the stripes and the edges, not the colour.
+  terrace: (ctx, rand) => {
+    ctx.fillStyle = '#3a4030';
+    ctx.fillRect(0, 0, SIZE, SIZE);
+    const stripes = 4, w = SIZE / stripes;
+    for (let i = 0; i < stripes; i++) {
+      ctx.fillStyle = i % 2 ? 'rgba(70, 78, 56, 0.55)' : 'rgba(30, 34, 26, 0.45)';
+      ctx.fillRect(i * w, 0, w, SIZE);
+    }
+    ctx.lineWidth = 1;
+    for (let k = 0; k < 6000; k++) {
+      const x = rand() * SIZE, y = rand() * SIZE, l = 2 + rand() * 3;
+      ctx.strokeStyle = rand() > 0.5 ? 'rgba(96, 104, 74, 0.4)' : 'rgba(36, 40, 30, 0.4)';
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + (rand() - 0.5), y + l); ctx.stroke();
+    }
+  },
   // Concrete with expansion joints and fine grime. The tracks, oil and hazard stripes are painted
   // over the whole yard by IndustrialYard.tsx, so they line up with the sheds.
   yard: (ctx, rand) => {
@@ -460,7 +503,7 @@ const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => nu
 };
 
 export const createGroundTexture = (style: GroundTexture) =>
-  canvasTexture(DRAW[style], { granite: 11, plazaStone: 13, paving: 23, lawn: 29, walkway: 31, parking: 41, yard: 37, slab: 53, gravel: 59 }[style]);
+  canvasTexture(DRAW[style], { granite: 11, plazaStone: 13, paving: 23, lawn: 29, walkway: 31, parking: 41, yard: 37, slab: 53, gravel: 59, travertine: 61, terrace: 67 }[style]);
 
 // --- Streetscape textures ---
 

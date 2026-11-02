@@ -1,5 +1,5 @@
-// District centerpieces: one landmark building in midtown and one in the industrial zone on each
-// side of the map, each a mass that stands out from across the city and is just as recognisable
+// District centerpieces: one landmark building in midtown, one in the industrial zone and one in
+// the estates on each side of the map, each a mass that stands out from across the city and is just as recognisable
 // at its front door (drawn by components/FootprintBuilding.tsx, styled in
 // components/centerpieceLooks.ts).
 //
@@ -10,6 +10,9 @@
 //   liftblock  industrial: a 40-high block on a 5x3 footprint lifted on concrete pylons over a
 //              narrow core, pale concrete with blue panels and stripes, a tower of stacked
 //              modules rising out of its middle to 66
+//   skyclub    the estates: a 34-high club on a 3x3 footprint, ribbon after ribbon of rounded
+//              floors each further out over the gardens than the one below, lifted over a narrow
+//              core, waterfalls pouring off its first deck into pools at its foot
 //
 // They're ordinary city buildings in the game, captured and destroyed tile by tile like any
 // other; only their heights differ (set here, so shots and missiles meet them where they're
@@ -19,7 +22,7 @@
 
 import type { BuildingData } from '../types';
 
-export type CenterpieceKind = 'megablock' | 'liftblock';
+export type CenterpieceKind = 'megablock' | 'liftblock' | 'skyclub';
 export interface Centerpiece {
   kind: CenterpieceKind;
   // The footprint on blue's side of the map.
@@ -35,6 +38,7 @@ export interface Centerpiece {
 export const CENTERPIECES: Centerpiece[] = [
   { kind: 'megablock', x: 31, z: 19, w: 3, d: 3, height: 62 },
   { kind: 'liftblock', x: 19, z: 13, w: 5, d: 3, height: 40, tower: { lx: 2, lz: 1, height: 66 } },
+  { kind: 'skyclub', x: 68, z: 8, w: 3, d: 3, height: 34 },
 ];
 
 type Footprint = Pick<NonNullable<BuildingData['footprint']>, 'x' | 'z' | 'w' | 'd'>;

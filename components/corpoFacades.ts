@@ -29,7 +29,9 @@ export type FacadeName = 'monolith' | 'goldscale' | 'office' | 'brutalist' | 'ti
   // The outskirts' cheap housing (residentialLooks.ts).
   | 'tenement' | 'projects' | 'patched'
   // Industry (industrialLooks.ts).
-  | 'plant' | 'rustshed' | 'warehouse';
+  | 'plant' | 'rustshed' | 'warehouse'
+  // The estates' villas (residentialLooks.ts).
+  | 'villa';
 
 export interface Facade {
   name: FacadeName;
@@ -82,6 +84,9 @@ export const FACADES: Record<FacadeName, Facade> = {
   plant: { name: 'plant', body: '#8d8c86', bodies: ['#8d8c86', '#9a978f', '#7f817e'], accent: SCENE.crimson, texW: 8, texH: 6, skirt: '#26272a' },
   rustshed: { name: 'rustshed', body: '#5b4335', bodies: ['#5b4335', '#2f4d4a', '#4d3b30'], accent: SCENE.orange, texW: 6, texH: 5 },
   warehouse: { name: 'warehouse', body: '#4a4e53', bodies: ['#4a4e53', '#55585c', '#3f4447'], accent: SCENE.blue, texW: 14, texH: 14 },
+  // The estates: warm ivory stone, dark bronze and taupe round walls of glass, a soft rose-white
+  // light line under each slab, nothing harsher.
+  villa: { name: 'villa', body: '#b8ae9c', bodies: ['#b8ae9c', '#2c2925', '#8f877a'], accent: '#d98ba0', texW: 8, texH: 3.5 },
 };
 
 // How a tower is massed, from the ground up: at each share of its height, how many steps its
@@ -326,6 +331,18 @@ const WINDOWS: Record<FacadeName, (g: CanvasRenderingContext2D, rnd: () => numbe
       for (let i = 0; i < 8; i++) { g.fillStyle = 'rgba(15,15,15,0.55)'; g.fillRect(x, y + i * 4, 56, 2); }
     }
     if (rnd() > 0.3) { g.fillStyle = 'rgba(253,214,150,0.75)'; g.fillRect(100, 10, 14, 10); }
+  },
+  // Floor-to-ceiling glass between slim mullions, each storey's slab a dark line across, rooms
+  // lit warm or softly rose, a few dim.
+  villa: (g, rnd) => {
+    for (let col = 0; col < 4; col++) {
+      const lit = rnd();
+      const glass = g.createLinearGradient(0, 18, 0, 128);
+      glass.addColorStop(0, lit > 0.35 ? 'rgba(255,214,170,0.75)' : lit > 0.15 ? 'rgba(242,196,206,0.55)' : 'rgba(60,64,80,0.35)');
+      glass.addColorStop(1, lit > 0.35 ? 'rgba(200,140,100,0.55)' : 'rgba(40,44,60,0.3)');
+      g.fillStyle = glass;
+      g.fillRect(col * 32 + 2, 18, 28, 110);
+    }
   },
   // Corrugated sheet: fine vertical ribs, a strip of high windows.
   warehouse: (g, rnd) => {

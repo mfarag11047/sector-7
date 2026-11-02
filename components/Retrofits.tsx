@@ -10,6 +10,8 @@
 //                   bundle running off it
 //   sentry     (3)  a mast with a chamfered camera housing, a red light and a small dish
 //   pavilion   (4)  a round glass pavilion with champagne trim, a few dark trees round it
+//   pool       (4)  a rooftop pool, lit from inside, on a travertine deck with two loungers and a
+//                   parasol
 //   shanty          not an era's: where people live in the ruins (decay.ts), shipping containers
 //                   stacked into homes, a lit window, a tarp between them and a ladder up
 //
@@ -43,6 +45,9 @@ const M = {
   boxGrey: std('#5a5d60', 0.5, 0.65),
   tarp: std('#3f5a78', 0, 0.9, { side: THREE.DoubleSide }),
   window: glow('#ffb070'),
+  deck: std('#a89e8a', 0.1, 0.6),
+  water: std('#1c3a6e', 0.3, 0.05, { emissive: '#1d3f86', emissiveIntensity: 0.35 }),
+  canvas: std('#d9cfc0', 0, 0.9, { side: THREE.DoubleSide }),
   fan: glow(SCENE.blue),
   red: glow('#ff003c'),
   pink: glow(SCENE.hotPink),
@@ -172,6 +177,19 @@ export function buildRetrofit(kind: RoofPiece, span: number, faceZ: 1 | -1, seed
       k.box('steel', [0.1, Hc + 0.4, 0.1], [W * 1.6 + 2.6, (Hc + 0.4) / 2, s * 0.1 + 1.3]);
       for (const dz of [-0.3, 0.3]) k.box('steel', [0.08, Hc * 2, 0.08], [-W * 1.1 - 0.1, Hc, -s * 0.05 + dz]);
       for (let y = 0.4; y < Hc * 2; y += 0.6) k.box('steel', [0.06, 0.06, 0.6], [-W * 1.1 - 0.1, y, -s * 0.05]);
+      break;
+    }
+    case 'pool': {
+      const w = s * 0.62, d = s * 0.4, z = -s * 0.08;
+      k.box('deck', [w + 2.4, 0.5, d + 2.4], [0, 0.25, z]);
+      k.box('water', [w, 0.1, d], [0, 0.52, z]);
+      // Loungers along the deck, and a parasol over them.
+      for (const x of [-w * 0.2, w * 0.2]) {
+        k.box('frame', [0.8, 0.25, 2], [x, 0.65, z + d / 2 + 1.3]);
+        k.box('frame', [0.8, 0.6, 0.15], [x, 0.85, z + d / 2 + 2.25], [-0.5, 0, 0]);
+      }
+      k.cyl('frame', 0.06, 0.06, 2.6, [w * 0.45, 1.8, z + d / 2 + 1.4], 5);
+      k.add('canvas', new THREE.ConeGeometry(1.5, 0.6, 8, 1, true), [w * 0.45, 3.1, z + d / 2 + 1.4]);
       break;
     }
     case 'pavilion': {

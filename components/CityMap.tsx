@@ -30,6 +30,7 @@ import { PowerGrid } from './PowerGrid';
 import { Craters } from './Ruins';
 import { DecayStreets } from './Decay';
 import StreetFurniture from './StreetFurniture';
+import EstateGrounds from './EstateGrounds';
 import { addCraters, craterOf, type Crater } from './ruins';
 import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from '../sim/movement';
 import { positionKey, publishMotion, simClock, stampPosition } from './glide';
@@ -4813,6 +4814,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         <Craters craters={craters} />
         <DecayStreets roadTiles={roadTiles} gridSize={gridSize} tileSize={tileSize} offset={offset} />
         <StreetFurniture roadTiles={roadTiles} buildings={initialBuildings} gridSize={gridSize} tileSize={tileSize} offset={offset} />
+        <EstateGrounds roadTiles={roadTiles} buildings={initialBuildings} gridSize={gridSize} tileSize={tileSize} offset={offset} />
         <PowerGrid buildings={buildings} bases={teamBases} roadTiles={roadTiles} clouds={clouds} tileSize={tileSize} offset={offset} />
         <EnergyGridField
             buildings={buildings}

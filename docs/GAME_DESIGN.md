@@ -1618,7 +1618,9 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
 - The city is zoned into districts by block (`sim/districts.ts`), in rings from the middle out:
   the **corporate core** (the 3×3 blocks around the centre), a **downtown** ring around it,
   **midtown** filling most of the map, **outskirts** just inside the edge and the **Blackwall
-  fringe** along it. Two **industrial** patches sit on the flanks of each base. The zoning mirrors
+  fringe** along it. Two **industrial** patches sit on the flanks of each base, and the 3×3 blocks
+  round each of the two outer core nodes in the corners away from the bases are the **estates**,
+  where the very rich wall themselves off (below). The zoning mirrors
   like the rest of the map, and the minimap outlines each district faintly in its own colour,
   unnamed, leaving the blocks dark so captured buildings stand out.
 - Each district is drawn in its own way in the plan, with neighbouring blocks lined up so streets
@@ -1633,6 +1635,7 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   | Industrial | ~40% | rows of long sheds lined up across the streets, and tank yards, round the core nodes by each base | 8–22 | industrial |
   | Outskirts | ~27% | terraces of houses facing the streets, a few apartment blocks | 10–22 | residential |
   | Fringe | ~19% | shacks along the inner street, scrap sheds, waste ground out to the edge | 6–14 | residential (sheds industrial) |
+  | Estates | ~15% | villas spread out in their gardens round the outer corner core nodes, and the sky club | 7–16 (the club 34) | residential |
   | Base | ~12% | barracks rows beside the starting square | 8–16 | residential |
 
   Two rules hold everywhere, and `sim/mapgen.test.ts` checks them against the plan: buildings
@@ -1744,9 +1747,27 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   bones. The corporate towers of downtown and the core, and the two sides' megatowers, get no
   stack: pristine monoliths, as new as the day they went up. Picked from where a building
   stands, so its twin across the map is the same.
+- **The estates** (`sim/districts.ts`; looks in `components/residentialLooks.ts`, `components/eras.ts`,
+  grounds in `components/estateGrounds.ts` drawn by `components/EstateGrounds.tsx`). Round each of
+  the two outer core nodes, in the corners away from the bases, the ultra-rich live behind
+  synthetic nature. Before, the blocks round each of these nodes were kept empty; now they're
+  villas in their grounds, real city buildings like any other (captured and destroyed tile by
+  tile, feeding the grid), mirrored so both corners are the same:
+  - **Villas**: all era 4. Rounded corners left seamless, walls of floor-to-ceiling glass lit warm
+    or softly rose between deep slabs in warm ivory stone, dark bronze or taupe, a muted-rose light
+    line under each slab; the upper storey often cantilevered out over the garden or stepped back to
+    a terrace; marble ground floors with a champagne trim line and planters; a garden on the roof,
+    and on most a pavilion or a rooftop pool (lit from inside, on a travertine deck with loungers
+    and a parasol). Never decayed, never corrupted by the Blackwall.
+  - **Grounds**: travertine paving along the streets round manicured lawns mown in broad stripes
+    (olive, not green: Tokugen's colour is green), immaculate city roads with sidewalks; rows of
+    palms along the streets and clumps of them in the gardens, low clipped hedges along every
+    garden's street edge, pools set in the lawns (deep blue, clear of the server nodes' cyan).
+    The ground right round each core node is kept clear so the objective stays plain to see.
+  - **The sky club** (a district centerpiece, below).
 - **District centerpieces** (`sim/centerpieces.ts`, styled in `components/centerpieceLooks.ts`,
   drawn with the city building kit plus `components/Centerpieces.tsx`). Each side has a landmark
-  in its midtown and one in its industrial zone, mirrored across the map: a mass that stands out
+  in its midtown, one in its industrial zone and one in the estates, mirrored across the map: a mass that stands out
   from across the city and is just as recognisable at its front door, its look carried all the
   way down to the pavement.
   - **The megablock** (midtown, 3x3, 62 high): housing narrow at its foot and swelling out over
@@ -1755,6 +1776,10 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
     of every face and again over the entrance in the middle of each: a tall dark portal between
     panel pylons under a heavy canopy with a light strip. Cooling rigs and camera masts on the
     corners of its roof, antennas in the middle.
+  - **The sky club** (estates, 3x3, 34 high): ribbon after ribbon of rounded floors in dark bronze
+    and glass, each further out over the gardens than the one below, over a narrow core;
+    champagne bands round every floor, waterfalls sheeting off the edge of its first deck into
+    pools at its foot, and a pool and a pavilion on its roof round a garden.
   - **The lifted block** (industrial, 5x3, 40 high): a block of pale concrete with blue panels and
     blue stripes painted round it every few storeys, lifted on braced concrete pylons over a
     narrow core with blue loading doors at street level, its code (S7-03) stencilled big on its

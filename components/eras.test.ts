@@ -56,7 +56,7 @@ describe('era stacks', () => {
       if (s.body === 3 && s.bones < 3) expect(s.cladding).not.toBeNull();
     }
     // Every era shows up somewhere, and every corner.
-    expect(new Set(stacks.map(s => s.bones))).toEqual(new Set([1, 2, 3]));
+    expect(new Set(stacks.map(s => s.bones))).toEqual(new Set([1, 2, 3, 4]));
     expect(new Set(stacks.map(s => s.corner))).toEqual(new Set(['square', 'round', 'chamfer']));
     expect(stacks.some(s => s.mismatch)).toBe(true);
     expect(new Set(stacks.map(s => s.frontage))).toEqual(new Set([1, 2, 3, 4]));

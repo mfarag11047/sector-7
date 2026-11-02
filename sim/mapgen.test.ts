@@ -204,9 +204,9 @@ describe('the hand-drawn city plan', () => {
     // Each plan building is one capture block, all its tiles together.
     for (const b of plan) expect(city.blocks.find(k => k.id === b.id)!.buildingIds).toHaveLength(b.w * b.d);
     const lotsWithBuildings = new Set(city.buildings.map(b => `${Math.floor(b.gridX / 6)},${Math.floor(b.gridZ / 6)}`));
-    // The only lots with no building: the two starting bases' paved squares, the three cleared
-    // blocks round each corner core node, and the four landmarks.
-    expect(169 - lotsWithBuildings.size).toBe(2 + 6 + 4);
+    // The only lots with no building: the two starting bases' paved squares and the four
+    // landmarks. (The blocks round the corner core nodes have villas, sim/districts.ts estates.)
+    expect(169 - lotsWithBuildings.size).toBe(2 + 4);
   });
 
   it('keeps every tile drawn off the plan the same turned round', () => {

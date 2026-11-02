@@ -38,9 +38,9 @@ export type Corner = 'square' | 'round' | 'chamfer';
 //   watertank, hvac        1  a water tank on legs; boxy air handlers with ducts running off them
 //   roofsign, dome         2  a big rounded sign frame lit in neon; a bubble skylight
 //   coolers, sentry        3  a server cooling rig (a platform of fan units); a camera and comms mast
-//   pavilion               4  a glass pavilion with gold trim among a few dark trees
-export type Retrofit = 'watertank' | 'hvac' | 'roofsign' | 'dome' | 'coolers' | 'sentry' | 'pavilion';
-export const RETROFIT_ERA: Record<Retrofit, Era> = { watertank: 1, hvac: 1, roofsign: 2, dome: 2, coolers: 3, sentry: 3, pavilion: 4 };
+//   pavilion, pool         4  a glass pavilion with gold trim among a few dark trees; a rooftop pool
+export type Retrofit = 'watertank' | 'hvac' | 'roofsign' | 'dome' | 'coolers' | 'sentry' | 'pavilion' | 'pool';
+export const RETROFIT_ERA: Record<Retrofit, Era> = { watertank: 1, hvac: 1, roofsign: 2, dome: 2, coolers: 3, sentry: 3, pavilion: 4, pool: 4 };
 
 export interface EraStack {
   bones: Era;
@@ -69,12 +69,14 @@ export const DISTRICT_ERAS: Partial<Record<District, DistrictEras>> = {
   midtown: { bones: [[1, 0.3], [2, 0.45], [3, 0.25]], roof: [[2, 0.25], [3, 0.55], [4, 0.05], [null, 0.15]], frontage: [[2, 0.65], [3, 0.3], [4, 0.05]], reclad: 0.2 },
   industrial: { bones: [[1, 0.85], [3, 0.15]], roof: [[1, 0.2], [3, 0.6], [null, 0.2]], frontage: [[1, 0.8], [3, 0.2]], reclad: 0.1 },
   base: { bones: [[1, 0.6], [2, 0.2], [3, 0.2]], roof: [[3, 0.5], [null, 0.5]], frontage: [[2, 0.5], [3, 0.5]], reclad: 0.2 },
+  // The estates: all ultra-elite, seamless and new, a pavilion or a pool on most roofs.
+  estates: { bones: [[4, 1]], roof: [[4, 0.85], [null, 0.15]], frontage: [[4, 1]], reclad: 0 },
 };
 // How often a building gets a new frontage over old bones left as they were.
 export const MISMATCH = 0.12;
 // The corner each era of bones builds.
 export const CORNER: Record<Era, Corner> = { 1: 'square', 2: 'round', 3: 'chamfer', 4: 'round' };
-const RETROFITS: Record<Era, Retrofit[]> = { 1: ['watertank', 'hvac'], 2: ['roofsign', 'dome'], 3: ['coolers', 'sentry'], 4: ['pavilion'] };
+const RETROFITS: Record<Era, Retrofit[]> = { 1: ['watertank', 'hvac'], 2: ['roofsign', 'dome'], 3: ['coolers', 'sentry'], 4: ['pavilion', 'pool'] };
 
 type Footprint = NonNullable<BuildingData['footprint']>;
 
