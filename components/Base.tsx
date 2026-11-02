@@ -8,7 +8,7 @@ import StructureStatus from './StructureStatus';
 import { UNIT_STATS } from '../constants';
 import { facingOwnerView } from './kit/facing';
 import { CommandHqModel } from './models/CommandHqModel';
-import { TIER_RESEARCH_COST, UNIT_RULES } from '../sim/units';
+import { TIER_RESEARCH_COST, TIER_RESEARCH_MS, UNIT_RULES } from '../sim/units';
 
 // Where its status bar and menu sit: above the cab, below the mast.
 const HQ_HEIGHT = 17;
@@ -32,6 +32,8 @@ interface BaseProps {
   // Research, for the owner: the tier reached, compute in hand, and the order to send.
   tier?: number;
   compute?: number;
+  // The next tier being researched, and how long it has left.
+  tierResearch?: { tier: 2 | 3; remainingMs: number } | null;
   onResearch?: (tier: 2 | 3) => void;
   // Units the HQ trains (the scout car), for the owner.
   onTrain?: (unitType: UnitType) => void;
@@ -42,7 +44,7 @@ interface BaseProps {
 }
 
 const Base: React.FC<BaseProps> = ({ 
-  position, gridPos, teamColor, label, onMoveCommand, onRightClick, onDoubleClick, menuOpen, resources = 0, hq, tier = 1, compute = 0, onResearch, onTrain, buildProgress = 1, freePads
+  position, gridPos, teamColor, label, onMoveCommand, onRightClick, onDoubleClick, menuOpen, resources = 0, hq, tier = 1, compute = 0, tierResearch = null, onResearch, onTrain, buildProgress = 1, freePads
 }) => {
   const baseGroupRef = useRef<THREE.Group>(null);
   
@@ -121,7 +123,18 @@ const Base: React.FC<BaseProps> = ({
                 </div>
              )}
              <div className="flex flex-col gap-1 p-1">
-                {onResearch && tier < 3 && (() => {
+                {onResearch && tierResearch && (
+                    <div className="px-3 py-2 rounded border border-blue-400/60 bg-blue-500/10">
+                        <div className="flex items-center justify-between">
+                            <span className="text-xs font-mono font-bold text-blue-200">Researching Tier {tierResearch.tier}</span>
+                            <span className="text-[10px] font-mono text-blue-300">{Math.ceil(tierResearch.remainingMs / 1000)}s</span>
+                        </div>
+                        <div className="mt-1 h-1 bg-slate-800 rounded-sm overflow-hidden">
+                            <div className="h-1 bg-blue-400" style={{ width: `${(1 - tierResearch.remainingMs / TIER_RESEARCH_MS[tierResearch.tier]) * 100}%` }} />
+                        </div>
+                    </div>
+                )}
+                {onResearch && !tierResearch && tier < 3 && (() => {
                     const next = (tier + 1) as 2 | 3;
                     const ready = compute >= TIER_RESEARCH_COST[next];
                     return (
@@ -132,7 +145,7 @@ const Base: React.FC<BaseProps> = ({
                         >
                             <div className="flex flex-col">
                                 <span className="text-xs font-mono font-bold">Research Tier {next}</span>
-                                <span className="text-[9px] font-mono text-slate-400">Unlocks for good · compute from server nodes</span>
+                                <span className="text-[9px] font-mono text-slate-400">Takes {TIER_RESEARCH_MS[next] / 1000}s · unlocks for good · compute from server nodes</span>
                             </div>
                             <span className="text-[10px] font-mono text-blue-300">{Math.floor(compute)}/{TIER_RESEARCH_COST[next]} ⚡</span>
                         </button>

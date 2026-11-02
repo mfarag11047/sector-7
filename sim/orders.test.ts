@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { BuildingData, StructureData, UnitData } from '../types';
-import { createEconomy, research, setCompute } from './economy';
+import { createEconomy, Economy, setCompute } from './economy';
 import { applyOrderToStructures, applyOrderToUnits, OrderCommand, orderEffects, OrdersContext, OrdersView, popUsed } from './orders';
 import { advanceProduction, applyProduction, createUnit } from './production';
 import { POP_BASE, TIER_RESEARCH_COST, UNIT_RULES } from './units';
@@ -38,6 +38,9 @@ const run = (v: OrdersView, command: OrderCommand, team: 'blue' | 'red' = 'blue'
   };
 };
 
+// A side that has finished researching Tier 2.
+const atTier2 = (e: Economy): Economy => ({ ...e, blue: { ...e.blue, tier: 2 } });
+
 describe('training', () => {
   it('charges the price and queues the unit with its build time', () => {
     const r = run(view(), { type: 'TRAIN_UNIT', structureId: 'barracks', unitType: 'trooper' });
@@ -52,7 +55,7 @@ describe('training', () => {
 
   it('needs Tier 2 researched for tier 2 units', () => {
     expect(run(view(), { type: 'TRAIN_UNIT', structureId: 'barracks', unitType: 'lancer' }).refused).toMatch(/Tier 2/);
-    const researched = view({ economy: research(setCompute(createEconomy(1000), 'blue', TIER_RESEARCH_COST[2]), 'blue', 2)! });
+    const researched = view({ economy: atTier2(createEconomy(1000)) });
     expect(run(researched, { type: 'TRAIN_UNIT', structureId: 'barracks', unitType: 'lancer' }).refused).toBeUndefined();
   });
 
@@ -60,7 +63,7 @@ describe('training', () => {
     const fab = structure('fab', { type: 'ordnance_fab' });
     const order = { type: 'TRAIN_UNIT', structureId: 'fab', unitType: 'swarm_host' } as const;
     expect(run(view({ structures: [fab] }), order).refused).toMatch(/Tier 2/);
-    const researched = view({ structures: [fab], economy: research(setCompute(createEconomy(1000), 'blue', TIER_RESEARCH_COST[2]), 'blue', 2)! });
+    const researched = view({ structures: [fab], economy: atTier2(createEconomy(1000)) });
     const r = run(researched, order);
     expect(r.refused).toBeUndefined();
     expect(r.economy!.blue.cores).toBe(1000 - 340);
@@ -76,7 +79,9 @@ describe('research', () => {
     const v = view({ structures: [hq], economy: setCompute(createEconomy(1000), 'blue', 500) });
     expect(run(v, { type: 'RESEARCH_TIER', tier: 3 }).refused).toMatch(/Tier 2 first/);
     const r = run(v, { type: 'RESEARCH_TIER', tier: 2 });
-    expect(r.economy!.blue).toMatchObject({ tier: 2, compute: 500 - TIER_RESEARCH_COST[2] });
+    // Paid now; the tier unlocks when the research is done (sim/economy.ts advanceTierResearch).
+    expect(r.economy!.blue).toMatchObject({ tier: 1, compute: 500 - TIER_RESEARCH_COST[2], tierResearch: { tier: 2 } });
+    expect(run(view({ structures: [hq], economy: r.economy! }), { type: 'RESEARCH_TIER', tier: 2 }).refused).toMatch(/already under way/);
   });
 
   it('refuses without compute or without an HQ', () => {

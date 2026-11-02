@@ -62,7 +62,7 @@ import { MatchConfig, STARTING_CORES, aiTeamsOf, doctrineOf, incomeMultipliers, 
 import { AI_PROFILES, aiThink, freshAiMemory, nextThinkDelay, thinkOffsets } from '../sim/ai';
 import { OrderCommand, applyOrderToStructures, applyOrderToUnits, isOperational, orderEffects, popUsed, coreNodesHeld, serverNodesHeld, teamPopCap, teamTier } from '../sim/orders';
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
-import { UNIT_RULES, isAirType, type DamageType } from '../sim/units';
+import { UNIT_RULES, isAirType, TIER_RESEARCH_MS, type DamageType } from '../sim/units';
 import { airPath, fastestPath, sentinelHazardOf } from '../sim/pathfinding';
 import { fireFlechettes, regenerateShield, shieldedHit } from '../sim/kestrel';
 import { markScreened, pruneSmoke, SMOKE, SmokeScreen } from '../sim/titan';
@@ -82,7 +82,7 @@ import { abilitiesFor, abilityDef, addBuff, empVictims, hasBuff, pruneBuffs, spe
 import { applyFieldCloak, CLOAK_FIELD, fieldCloakedIds, generatorsReplacedBy, isCloakFieldUp, isHidden } from '../sim/cloak';
 import { Victory, checkVictory } from '../sim/victory';
 import type { MatchSummary } from './MatchScreens';
-import { Economy, createEconomy, incomeBreakdown, refund, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
+import { Economy, createEconomy, incomeBreakdown, refund, canAfford, spend, setCores, setCompute, researchCost, addWarheads, takeWarhead, payIncome, advanceTierResearch, teamStats, productionStep, advanceWarheadProduction, unitCost, structureCost, warheadCost, warheadBuildTime, doctrinePowerCost, ECONOMY_TICK_MS } from '../sim/economy';
 import { THUNDERHEAD_LAUNCH_Y } from './models/ThunderheadModel';
 import { glow, kitMaterial, PALETTE, teamPaint } from './kit/materials';
 import { Plate, Turned } from './kit/shapes';
@@ -1920,6 +1920,24 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const setHoverGridPos = hoverStore.set;
   // Cores, warhead stockpiles and tier progress. Only change it through the sim/economy helpers.
   const [economy, setEconomy] = useState<Economy>(() => createEconomy(STARTING_CORES[match.mode]));
+  // A tier unlocked when its research finishes: for the player the fanfare and the announcer, and
+  // word when the enemy gets there.
+  const tiersRef = useRef<{ blue: number; red: number } | null>(null);
+  useEffect(() => {
+      const now = { blue: economy.blue.tier, red: economy.red.tier };
+      const before = tiersRef.current;
+      tiersRef.current = now;
+      if (!before) return;
+      for (const team of ['blue', 'red'] as const) {
+          if (now[team] <= before[team]) continue;
+          const tier = now[team];
+          if (team === playerTeam) {
+              playUiSound('tier_up');
+              announce(tier === 3 ? 'vo_tier_3' : 'vo_tier_2', { delayMs: 1200 });
+              onNotice?.(`Tier ${tier} researched: new units and doctrine powers unlocked; research their upgrades at Advanced Research`);
+          } else onNotice?.(`The enemy has reached Tier ${tier}`, 'warn');
+      }
+  }, [economy.blue.tier, economy.red.tier, playerTeam]);
   const economyRef = useRef(economy);
   economyRef.current = economy;
   // How far each Battery Mule reaches, from its side's research (sim/energy.ts muleRange).
@@ -3082,12 +3100,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           economyRef.current = charge(economyRef.current) ?? economyRef.current;
           setEconomy(prev => charge(prev) ?? prev);
       }
-      if (command.type === 'RESEARCH_TIER') {
-          if (team === playerTeam) {
-              playUiSound('tier_up');
-              announce(command.tier === 3 ? 'vo_tier_3' : 'vo_tier_2', { delayMs: 1200 });
-          }
-          onNotice?.(team === playerTeam ? `Tier ${command.tier} researched: new units and doctrine powers unlocked; research their upgrades at Advanced Research` : `The enemy has reached Tier ${command.tier}`, team === playerTeam ? 'info' : 'warn');
+      // Tier research takes a while: it unlocks when done (the tier effect below says so).
+      if (command.type === 'RESEARCH_TIER' && team === playerTeam) {
+          onNotice?.(`Researching Tier ${command.tier}: ready in ${TIER_RESEARCH_MS[command.tier] / 1000}s`);
       }
       if (fx.unitUpdates.size > 0) setUnits(prev => applyOrderToUnits(prev, fx));
       if (fx.structureUpdates.size > 0 || fx.newStructures.length > 0 || fx.removeStructures?.length) setStructuresState(prev => applyOrderToStructures(prev, fx));
@@ -3579,7 +3594,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setEconomy(prev => payIncome(prev, buildingsRef.current, incomeMultipliers(matchRef.current), structuresRef.current));
+      // Income, and tier research under way (sim/economy.ts).
+      setEconomy(prev => advanceTierResearch(payIncome(prev, buildingsRef.current, incomeMultipliers(matchRef.current), structuresRef.current), structuresRef.current, ECONOMY_TICK_MS).economy);
     }, ECONOMY_TICK_MS);
     return () => clearInterval(timer);
   }, []);
@@ -3620,7 +3636,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       // Whose base or node: yours, or (spectating) the side you are viewing as.
       const whose = spectating ? `${teamName(me)}'s` : 'Your';
       const myEconomy = economyRef.current[me];
-      if (myEconomy.tier < 3) {
+      if (myEconomy.tier < 3 && !myEconomy.tierResearch) {
           const next = (myEconomy.tier + 1) as 2 | 3;
           if (myEconomy.compute >= researchCost(next)) say(`research-${next}`, `Enough compute for Tier ${next}: research it in your team panel or HQ menu`, 'info', 60000, false, 'vo_tier_ready');
       }
@@ -5034,6 +5050,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                     hq={s}
                     tier={economy[team].tier}
                     compute={economy[team].compute}
+                    tierResearch={economy[team].tierResearch}
                     onResearch={mine ? (tier: 2 | 3) => dispatchOrder({ type: 'RESEARCH_TIER', tier }) : undefined}
                     onTrain={mine ? (unitType: UnitType) => dispatchOrder({ type: 'TRAIN_UNIT', structureId: s.id, unitType }) : undefined}
                     buildProgress={(s.buildTotalMs || 0) > 0 ? 1 - (s.buildRemainingMs || 0) / s.buildTotalMs! : 1}

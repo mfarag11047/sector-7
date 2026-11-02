@@ -302,6 +302,8 @@ export interface TeamStats {
   // Compute per second, the researched tech tier, and population used / cap.
   computeRate?: number;
   tier?: number;
+  // The next tier being researched, and how long it has left.
+  tierResearch?: { tier: 2 | 3; remainingMs: number } | null;
   pop?: number;
   popCap?: number;
   // Energy-grid tiles its captured buildings cover, which raise the population cap.

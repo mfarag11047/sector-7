@@ -188,13 +188,18 @@ which stay unlocked for good.
 | Command HQ (always) | 0.25 |
 | Each server node held | 1 |
 
-| Tier | Research cost | Unlocks |
-|---|---|---|
-| T1 | Start | Scout RC Cars (from the HQ), Troopers, Ghosts, Razorbacks, Thunderheads, Battery Mules, Drones, Guardians, Helios, Masons |
-| T2 | 120 compute | Lancers, Titans, Aegis, Wasps, Hornets, Banshees, Field Fabricators, Swarm Hosts, T2 doctrine powers |
-| T3 | 360 compute | Bombardment Drones, Ballistas, T3 doctrine powers |
+| Tier | Research cost | Research time | Unlocks |
+|---|---|---|---|
+| T1 | Start | | Scout RC Cars (from the HQ), Troopers, Ghosts, Razorbacks, Thunderheads, Battery Mules, Drones, Guardians, Helios, Masons |
+| T2 | 120 compute | 45 s | Lancers, Titans, Aegis, Wasps, Hornets, Banshees, Field Fabricators, Swarm Hosts, T2 doctrine powers |
+| T3 | 360 compute | 60 s | Bombardment Drones, Ballistas, T3 doctrine powers |
 
-Research from the button in your team panel or the HQ build menu.
+Research from the button in your team panel or the HQ build menu. The compute is paid when you
+start; the tier unlocks when the research is done (`TIER_RESEARCH_MS` in `sim/units.ts`,
+`advanceTierResearch` in `sim/economy.ts`), counting down only while you have an HQ standing. Both
+buttons show the countdown and a progress bar meanwhile, and one tier is researched at a time. The
+fanfare, the announcer's "Tier two unlocked" and the notice come when it unlocks; the computer
+player researches the same way.
 
 ### Unit upgrades (Advanced Research)
 

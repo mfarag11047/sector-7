@@ -1,10 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { BUILDING_VALUES, DOCTRINE_CONFIG, UNIT_STATS } from '../constants';
-import { COMPUTE_PER_SERVER_NODE, GRID_TILES_PER_POP, HQ_COMPUTE, POP_BASE, POP_MAX, POP_PER_CORE_NODE, popCap, TIER_RESEARCH_COST } from './units';
+import { COMPUTE_PER_SERVER_NODE, GRID_TILES_PER_POP, HQ_COMPUTE, POP_BASE, POP_MAX, POP_PER_CORE_NODE, popCap, TIER_RESEARCH_COST, TIER_RESEARCH_MS } from './units';
 import { gridTiles } from './energy';
 import type { BuildingData, StructureData, UnitData } from '../types';
 import {
-  addWarheads, advanceWarheadProduction, canAfford, createEconomy, doctrinePowerCost, HQ_INCOME, incomeFor, payIncome,
+  addWarheads, advanceTierResearch, advanceWarheadProduction, canAfford, createEconomy, doctrinePowerCost, HQ_INCOME, incomeFor, payIncome,
   productionStep, setCores, spend, STARTING_CORES, takeWarhead, teamStats, unitCost, warheadBuildTime, computeRateFor, research, setCompute,
 } from './economy';
 
@@ -117,12 +117,25 @@ describe('compute and research', () => {
     expect(e.red.compute).toBe(HQ_COMPUTE + COMPUTE_PER_SERVER_NODE);
   });
 
-  it('researches one tier at a time, permanently', () => {
+  it('researches one tier at a time, paid up front, unlocking when the research is done, permanently', () => {
+    const hq = [{ id: 'hq', type: 'hq', team: 'blue', health: 1000, gridPos: { x: 0, z: 0 } }] as StructureData[];
     let e = setCompute(createEconomy(0), 'blue', TIER_RESEARCH_COST[2] + TIER_RESEARCH_COST[3]);
     expect(research(e, 'blue', 3)).toBeNull();
     e = research(e, 'blue', 2)!;
-    expect(e.blue).toMatchObject({ tier: 2, compute: TIER_RESEARCH_COST[3] });
-    e = research(e, 'blue', 3)!;
+    expect(e.blue).toMatchObject({ tier: 1, compute: TIER_RESEARCH_COST[3], tierResearch: { tier: 2, remainingMs: TIER_RESEARCH_MS[2] } });
+    // Not twice, and not the tier after while it is under way.
+    expect(research(e, 'blue', 2)).toBeNull();
+    expect(research(e, 'blue', 3)).toBeNull();
+    // It only progresses while the side has an HQ standing.
+    expect(advanceTierResearch(e, [], 10_000).economy.blue.tierResearch?.remainingMs).toBe(TIER_RESEARCH_MS[2]);
+    let step = advanceTierResearch(e, hq, TIER_RESEARCH_MS[2] - 1000);
+    expect(step.economy.blue.tier).toBe(1);
+    expect(step.reached).toEqual([]);
+    step = advanceTierResearch(step.economy, hq, 1000);
+    expect(step.reached).toEqual([{ team: 'blue', tier: 2 }]);
+    e = step.economy;
+    expect(e.blue).toMatchObject({ tier: 2, tierResearch: null });
+    e = advanceTierResearch(research(e, 'blue', 3)!, hq, TIER_RESEARCH_MS[3]).economy;
     expect(e.blue).toMatchObject({ tier: 3, compute: 0 });
     // Losing every server node afterwards changes nothing.
     expect(payIncome(e, []).blue.tier).toBe(3);
@@ -169,7 +182,8 @@ describe('HUD stats', () => {
   it('summarises a team', () => {
     const units = [{ team: 'blue', type: 'trooper', health: 1 }, { team: 'blue', type: 'tank', health: 1 }, { team: 'red', type: 'trooper', health: 1 }] as UnitData[];
     const map = [building('c1', 'core_node', 'blue'), building('s1', 'server_node', 'blue'), building('s2', 'server_node', 'blue', true)];
-    const econ = research(setCompute(addWarheads(createEconomy(500), 'blue', 'emp'), 'blue', 200), 'blue', 2)!;
+    const started = research(setCompute(addWarheads(createEconomy(500), 'blue', 'emp'), 'blue', 200), 'blue', 2)!;
+    const econ = { ...started, blue: { ...started.blue, tier: 2 as const } };
     const stats = teamStats(econ, 'blue', map, units);
     expect(stats).toMatchObject({
       resources: 500,

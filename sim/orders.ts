@@ -181,6 +181,7 @@ function researchOrder(view: OrdersView, team: Team, tier: 2 | 3): OrderOutcome 
   const e = view.economy[team];
   if (tier <= e.tier) return reject(`Tier ${tier} is already researched`);
   if (tier !== e.tier + 1) return reject(`research Tier ${e.tier + 1} first`);
+  if (e.tierResearch) return reject(`Tier ${e.tierResearch.tier} research is already under way`);
   if (!view.structures.some(s => s.type === 'hq' && s.team === team && s.health > 0)) return reject('needs your HQ');
   if (!research(view.economy, team, tier)) return reject(`needs ${researchCost(tier)} compute`);
   return effects({ economy: econ => research(econ, team, tier) });

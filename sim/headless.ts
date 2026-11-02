@@ -30,7 +30,7 @@ import { damageDrones, emptySwarm, shieldWasps, Swarm, swarmThreats, swarmTick }
 import type { GridPos, Team } from './commands';
 import { coverMap, damageBuildings } from './cover';
 import { applyStructureCombat, bombardBuildings, bombardUnitDamage, resolveAttacks } from './combat';
-import { addWarheads, advanceWarheadProduction, createEconomy, Economy, payIncome, productionStep, refund } from './economy';
+import { addWarheads, advanceWarheadProduction, createEconomy, Economy, payIncome, advanceTierResearch, productionStep, refund } from './economy';
 import { chargeSources, isInsideEnergyGrid, muleRange, powerTick } from './energy';
 import { generateCity, seededRandom } from './mapgen';
 import { Difficulty, MatchConfig, startingRoster } from './match';
@@ -384,6 +384,8 @@ export function stepMatch(m: HeadlessMatch): void {
   // Once a second: income and victory.
   if (now % 1000 === 0) {
     m.economy = payIncome(m.economy, m.buildings, m.opts.income ?? {}, m.structures);
+    // Tier research under way (sim/economy.ts).
+    m.economy = advanceTierResearch(m.economy, m.structures, 1000).economy;
     const victory = checkVictory(m.structures);
     if (victory && !m.victory) {
       m.victory = victory;

@@ -7,7 +7,7 @@
 import { ABILITY_CONFIG, BUILDING_VALUES, DOCTRINE_CONFIG, STRUCTURE_INFO, TIER_UNLOCK_COSTS, UNIT_STATS } from '../constants';
 import type { BuildingData, DoctrineType, StructureData, StructureType, TeamStats, UnitData, UnitType } from '../types';
 import type { Team, Warhead } from './commands';
-import { COMPUTE_PER_SERVER_NODE, HQ_COMPUTE, popCap, popUsed, Tier, TIER_RESEARCH_COST } from './units';
+import { COMPUTE_PER_SERVER_NODE, HQ_COMPUTE, popCap, popUsed, Tier, TIER_RESEARCH_COST, TIER_RESEARCH_MS } from './units';
 import { gridTiles } from './energy';
 import { refineryIncome, type RefineryIncome } from './refinery';
 import type { UpgradeId } from './upgrades';
@@ -30,6 +30,8 @@ export interface TeamEconomy {
   lifetimeCompute: number;
   // The highest tech tier researched. Never goes down.
   tier: Tier;
+  // The next tier being researched, paid for, and how long it has left (advanceTierResearch).
+  tierResearch?: { tier: 2 | 3; remainingMs: number } | null;
   // Unit upgrades researched at Advanced Research (sim/upgrades.ts).
   upgrades: UpgradeId[];
 }
@@ -141,12 +143,31 @@ export const computeRateFor = (buildings: readonly BuildingData[], team: Team) =
 
 export const researchCost = (tier: 2 | 3) => TIER_RESEARCH_COST[tier];
 
-// Returns the economy after researching `tier`, or null when it isn't the next tier or the
-// team lacks the compute.
+// Returns the economy with research of `tier` started and paid for, or null when it isn't the
+// next tier, it is already under way, or the team lacks the compute. The tier unlocks when the
+// research finishes (advanceTierResearch), TIER_RESEARCH_MS later.
 export function research(economy: Economy, team: Team, tier: 2 | 3): Economy | null {
   const e = economy[team];
-  if (tier !== e.tier + 1 || e.compute < researchCost(tier)) return null;
-  return withTeam(economy, team, { compute: e.compute - researchCost(tier), tier });
+  if (tier !== e.tier + 1 || e.tierResearch || e.compute < researchCost(tier)) return null;
+  return withTeam(economy, team, { compute: e.compute - researchCost(tier), tierResearch: { tier, remainingMs: TIER_RESEARCH_MS[tier] } });
+}
+
+// Steps tier research on by `dtMs` for each side with an HQ standing; a tier whose research is
+// done unlocks. Returns the economy and the tiers reached.
+export function advanceTierResearch(economy: Economy, structures: readonly StructureData[], dtMs: number): { economy: Economy; reached: { team: Team; tier: 2 | 3 }[] } {
+  let next = economy;
+  const reached: { team: Team; tier: 2 | 3 }[] = [];
+  for (const team of TEAMS) {
+    const r = next[team].tierResearch;
+    if (!r || !structures.some(s => s.type === 'hq' && s.team === team && s.health > 0 && !s.isBlueprint && (s.buildRemainingMs || 0) <= 0)) continue;
+    const remainingMs = r.remainingMs - dtMs;
+    if (remainingMs > 0) next = withTeam(next, team, { tierResearch: { ...r, remainingMs } });
+    else {
+      next = withTeam(next, team, { tier: r.tier, tierResearch: null });
+      reached.push({ team, tier: r.tier });
+    }
+  }
+  return { economy: next, reached };
 }
 
 // Returns the economy after spending `amount` compute, or null when the team lacks it.
@@ -216,6 +237,7 @@ export function teamStats(
     compute: economy[team].compute,
     computeRate: computeRateFor(buildings, team),
     tier: economy[team].tier,
+    tierResearch: economy[team].tierResearch ?? null,
     pop: popUsed(units, structures, team),
     popCap: popCap(owned.core_node, grid),
     gridTiles: grid,

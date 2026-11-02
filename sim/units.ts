@@ -183,10 +183,12 @@ export const popCap = (coreNodesHeld: number, gridTiles = 0) =>
 export const COMPUTE_PER_SERVER_NODE = 1; // per second
 export const HQ_COMPUTE = 0.25; // per second
 export const TIER_RESEARCH_COST: Record<2 | 3, number> = { 2: 120, 3: 360 };
+// How long researching a tier takes once paid for (ms), while the side has an HQ standing.
+export const TIER_RESEARCH_MS: Record<2 | 3, number> = { 2: 45_000, 3: 60_000 };
 export const TIER_REQUIREMENT: Record<Tier, string> = {
   1: 'Available from the start',
-  2: `Research Tier 2 at the HQ (${TIER_RESEARCH_COST[2]} compute)`,
-  3: `Research Tier 3 at the HQ (${TIER_RESEARCH_COST[3]} compute)`,
+  2: `Research Tier 2 at the HQ (${TIER_RESEARCH_COST[2]} compute, ${TIER_RESEARCH_MS[2] / 1000}s)`,
+  3: `Research Tier 3 at the HQ (${TIER_RESEARCH_COST[3]} compute, ${TIER_RESEARCH_MS[3] / 1000}s)`,
 };
 
 // Living units plus everything queued, which reserves its population when ordered.

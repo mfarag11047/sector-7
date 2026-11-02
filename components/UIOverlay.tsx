@@ -8,7 +8,7 @@ import { ArmyControls, ArmyInfo, ArmyPanel, SelectionSummary } from './ArmyPanel
 import { ROLE_GLYPH, roleGlyphFilled, teamBadgeColor, UNIT_ROLE } from './unitIcons';
 import { BUILDING_COLORS, TEAM_COLORS, ABILITY_CONFIG, STRUCTURE_INFO, CITY_CONFIG, DOCTRINE_CONFIG, TEAM_BASES } from '../constants';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
-import { GRID_TILES_PER_POP, POP_BASE, POP_MAX, POP_PER_CORE_NODE, TIER_REQUIREMENT, TIER_RESEARCH_COST } from '../sim/units';
+import { GRID_TILES_PER_POP, POP_BASE, POP_MAX, POP_PER_CORE_NODE, TIER_REQUIREMENT, TIER_RESEARCH_COST, TIER_RESEARCH_MS } from '../sim/units';
 import { DISTRICT_COLORS, districtBorders } from '../sim/districts';
 import type { MatchConfig } from '../sim/match';
 import type { MatchInfo } from './CityMap';
@@ -164,7 +164,21 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
         </div>
       </div>
 
-      {isVisible && onResearch && (stats.tier ?? 1) < 3 && (() => {
+      {isVisible && stats.tierResearch && (() => {
+        const r = stats.tierResearch;
+        return (
+          <div className="relative z-10 w-full px-2 py-1 rounded border border-blue-400/60 bg-blue-500/10 font-mono text-[11px] text-blue-100">
+            <div className="flex items-center justify-between">
+              <span>RESEARCHING TIER {r.tier}</span>
+              <span>{Math.ceil(r.remainingMs / 1000)}s</span>
+            </div>
+            <div className="mt-1 h-1 bg-slate-800 rounded-sm overflow-hidden">
+              <div className="h-1 bg-blue-400 transition-[width] duration-1000 ease-linear" style={{ width: `${(1 - r.remainingMs / TIER_RESEARCH_MS[r.tier]) * 100}%` }} />
+            </div>
+          </div>
+        );
+      })()}
+      {isVisible && onResearch && !stats.tierResearch && (stats.tier ?? 1) < 3 && (() => {
         const next = ((stats.tier ?? 1) + 1) as 2 | 3;
         const cost = TIER_RESEARCH_COST[next];
         const have = stats.compute || 0;
@@ -568,6 +582,7 @@ interface UIOverlayProps {
 // What the player should be doing next, from where they stand.
 const objective = (s: TeamStats) => {
   if (s.buildings.core_node === 0) return 'Send infantry to capture the core node near your base for income.';
+  if (s.tierResearch) return `Researching Tier ${s.tierResearch.tier}: ready in ${Math.ceil(s.tierResearch.remainingMs / 1000)}s.`;
   if ((s.tier ?? 1) < 3 && (s.compute ?? 0) >= TIER_RESEARCH_COST[((s.tier ?? 1) + 1) as 2 | 3]) return `You have the compute: research Tier ${(s.tier ?? 1) + 1} in your team panel.`;
   if ((s.tier ?? 1) < 2 && s.buildings.server_node === 0) return 'Build a Barracks and Factory, then take the guarded server node in your half for compute.';
   if ((s.tier ?? 1) < 2) return 'Compute is building up. Research Tier 2 when you reach it.';

@@ -219,7 +219,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   if (scouts < (memory.scouts ?? 0)) mem.scoutLostAt = now;
   mem.scouts = scouts;
   // Research the next tier a while after there's compute for it.
-  if (tier < 3) {
+  if (tier < 3 && !view.economy[team].tierResearch) {
     const next = (tier + 1) as 2 | 3;
     if (view.economy[team].compute >= researchCost(next)) {
       mem.researchReadySince ??= now;
