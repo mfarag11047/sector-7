@@ -1,10 +1,11 @@
 // The Wasp's micro-drones: a swarm that hunts on its own and rides along with the Wasp between
 // fights, like the Swarm Host's Crawlers but in the air and without anchoring.
 //
-// A Wasp builds a drone every MICRODRONE.buildMs, launched from its pods. With no enemy near it
-// keeps MICRODRONE.escort of them circling it as it flies, and docks any more; once an enemy comes
-// within MICRODRONE.seekRadius it builds up to MICRODRONE.max, and every drone peels off and dives
-// at an enemy near the Wasp, spreading over the targets rather than piling onto one. A drone is
+// A Wasp builds a drone every MICRODRONE.buildMs, launched from its pods, always, up to
+// MICRODRONE.max out at once. With no enemy near they circle it as it flies, so it arrives at a
+// fight with a full swarm; once an enemy comes within MICRODRONE.seekRadius every drone peels off
+// and dives at an enemy near the Wasp, spreading over the targets rather than piling onto one, and
+// it keeps launching more at the same rate as the fight goes on. A drone is
 // spent when it strikes: it detonates on its target (machine-gun damage by armour, so it hurts
 // everything a little, aircraft included) in a small blast (MICRODRONE.blast, well inside a tile)
 // that also catches every other enemy there for MICRODRONE.splash of that, so units bunched on one
@@ -12,6 +13,11 @@
 // ground. A drone never chases further than MICRODRONE.leash from its Wasp. When the fight is over
 // the survivors form up round it again. A Wasp that is destroyed takes its swarm down with it, and
 // one knocked out by an EMP or stun builds no more until it recovers.
+//
+// The drones also shield their Wasp (shieldWasps): fire that hits it is taken first by its drones
+// within MICRODRONE.shieldRange, each soaking up to MICRODRONE.absorb and spent doing it, so a
+// big hit still partly gets through. Once the Wasp is under fire it keeps the MICRODRONE.guard
+// drones nearest it back as guards, circling it rather than diving, so the shield lasts the fight.
 //
 // The drones are small and fragile: Aegis and CIWS guns shoot them out of the air like missiles
 // (sim/ciws.ts, swarmThreats), and an enemy force field stops one that dives at a unit inside it.
@@ -27,10 +33,9 @@ import { damageTakenMultiplier, isEmpDisabled, upgradeDamage } from './unitAbili
 import { DAMAGE_MULTIPLIER, UNIT_RULES } from './units';
 
 export const MICRODRONE = {
-  // Drones a Wasp has out at once in a fight, and how many ride with it between fights.
-  max: 8,
-  escort: 5,
-  // One built every this long, while it has fewer than it wants.
+  // Drones a Wasp has out at once, in a fight or not.
+  max: 10,
+  // One built every this long, whenever it has fewer.
   buildMs: 1500,
   // How far from the Wasp they find enemies, and the furthest they chase one.
   seekRadius: 6,
@@ -47,13 +52,18 @@ export const MICRODRONE = {
   // The escort's circle round the Wasp: radius in tiles and one lap's time.
   orbit: 0.9,
   orbitMs: 5000,
-  // How close a docking drone has to get to fold back in.
-  dockRange: 0.5,
   // Fire a drone takes to bring down (sim/ciws.ts ORDNANCE_INTEGRITY).
   integrity: 6,
+  // Shielding the Wasp: how near a drone has to be to take fire for it, how much of a hit one
+  // soaks before it is spent, how many stay back to guard a Wasp under fire, and for how long
+  // after the last hit.
+  shieldRange: 1.5,
+  absorb: 25,
+  guard: 3,
+  guardMs: 3000,
 };
 
-export type DroneMode = 'escort' | 'attack' | 'dock';
+export type DroneMode = 'escort' | 'attack';
 
 export interface Microdrone {
   id: string;
@@ -73,9 +83,11 @@ export interface Swarm {
   drones: Microdrone[];
   // When each Wasp can build its next drone.
   buildAt: Record<string, number>;
+  // When each Wasp last took fire (shieldWasps), for its guards.
+  hitAt?: Record<string, number>;
 }
 
-export const emptySwarm = (): Swarm => ({ drones: [], buildAt: {} });
+export const emptySwarm = (): Swarm => ({ drones: [], buildAt: {}, hitAt: {} });
 
 export interface SwarmTick {
   swarm: Swarm;
@@ -124,7 +136,11 @@ export function swarmTick(
   // A Wasp gone takes its swarm with it.
   let drones = swarm.drones.filter(d => (byId.get(d.waspId)?.health ?? 0) > 0);
   const buildAt: Record<string, number> = {};
-  for (const w of wasps) if (swarm.buildAt[w.id] !== undefined) buildAt[w.id] = swarm.buildAt[w.id];
+  const hitAt: Record<string, number> = {};
+  for (const w of wasps) {
+    if (swarm.buildAt[w.id] !== undefined) buildAt[w.id] = swarm.buildAt[w.id];
+    if (swarm.hitAt?.[w.id] !== undefined) hitAt[w.id] = swarm.hitAt[w.id];
+  }
 
   // The enemies near each Wasp, nearest first.
   const foes = new Map<string, UnitData[]>();
@@ -135,11 +151,10 @@ export function swarmTick(
     if (near.length > 0) result.engaged.set(w.id, near[0].id);
   }
 
-  // Building: up to the escort between fights, up to the full swarm in one.
+  // Building: always, at the same rate, in a fight or not, up to the full swarm.
   for (const w of wasps) {
     const mine = drones.filter(d => d.waspId === w.id);
-    const wanted = foes.get(w.id)!.length > 0 ? MICRODRONE.max : MICRODRONE.escort;
-    if (mine.length >= wanted || now < (buildAt[w.id] ?? -Infinity) || w.isStunned || isEmpDisabled(w)) continue;
+    if (mine.length >= MICRODRONE.max || now < (buildAt[w.id] ?? -Infinity) || w.isStunned || isEmpDisabled(w)) continue;
     const taken = new Set(mine.map(d => d.slot));
     let slot = 0;
     while (taken.has(slot)) slot++;
@@ -151,20 +166,25 @@ export function swarmTick(
   // How many drones are already on each enemy, so new ones spread out.
   const assigned = new Map<string, number>();
   for (const d of drones) if (d.mode === 'attack' && d.targetId) assigned.set(d.targetId, (assigned.get(d.targetId) ?? 0) + 1);
-  // Each drone's place in its Wasp's escort, by slot.
+  // Each drone's place in its Wasp's escort circle, by slot; and, for a Wasp under fire, the
+  // drones nearest it that stay back to guard it.
   const rank = new Map<string, number>();
   const escortSize = new Map<string, number>();
+  const guards = new Set<string>();
   for (const w of wasps) {
     const mine = drones.filter(d => d.waspId === w.id).sort((a, b) => a.slot - b.slot);
     mine.forEach((d, i) => rank.set(d.id, i));
-    escortSize.set(w.id, Math.min(MICRODRONE.escort, mine.length));
+    escortSize.set(w.id, mine.length);
+    if (now - (hitAt[w.id] ?? -Infinity) < MICRODRONE.guardMs) {
+      [...mine].sort((a, b) => dist(a.at, w.gridPos) - dist(b.at, w.gridPos)).slice(0, MICRODRONE.guard).forEach(d => guards.add(d.id));
+    }
   }
 
   const next: Microdrone[] = [];
   for (const d of drones) {
     const w = byId.get(d.waspId)!;
     const near = foes.get(w.id)!;
-    if (near.length > 0) {
+    if (near.length > 0 && !guards.has(d.id)) {
       // Hunt: keep a target still worth chasing, or pick the nearest least-covered one.
       let target = d.targetId ? byId.get(d.targetId) : undefined;
       if (!target || !prey(w, target) || dist(target.gridPos, w.gridPos) > MICRODRONE.leash) {
@@ -199,23 +219,60 @@ export function swarmTick(
       next.push({ ...d, mode: 'attack', targetId: target.id, at: toward(d.at, target.gridPos, step) });
       continue;
     }
-    // No enemy near: the first few form up round the Wasp, the rest fly back in and dock.
-    const r = rank.get(d.id)!;
-    if (r >= MICRODRONE.escort) {
-      if (dist(d.at, w.gridPos) <= MICRODRONE.dockRange + step) continue;
-      next.push({ ...d, mode: 'dock', targetId: null, at: toward(d.at, w.gridPos, step) });
-      continue;
-    }
-    next.push({ ...d, mode: 'escort', targetId: null, at: toward(d.at, escortPoint(w.gridPos, r, escortSize.get(w.id)!, now), step) });
+    // No enemy near (or guarding a Wasp under fire): circle the Wasp.
+    next.push({ ...d, mode: 'escort', targetId: null, at: toward(d.at, escortPoint(w.gridPos, rank.get(d.id)!, escortSize.get(w.id)!, now), step) });
   }
-  result.swarm = { drones: next, buildAt };
+  result.swarm = { drones: next, buildAt, hitAt };
   return result;
+}
+
+// Every Wasp with a full swarm circling it, as one that has had time to build it comes to a fight
+// (the balance skirmish starts this way).
+export function fullSwarms(units: readonly UnitData[], newId: () => string): Swarm {
+  const drones: Microdrone[] = [];
+  for (const w of units) {
+    if (w.type !== 'wasp' || w.health <= 0) continue;
+    for (let slot = 0; slot < MICRODRONE.max; slot++) {
+      drones.push({ id: newId(), waspId: w.id, team: w.team, at: escortPoint(w.gridPos, slot, MICRODRONE.max, 0), mode: 'escort', targetId: null, slot, hp: MICRODRONE.integrity });
+    }
+  }
+  return { drones, buildAt: {}, hitAt: {} };
 }
 
 // Where escort drone `rank` of `size` flies round a Wasp at `at`, turning slowly.
 export function escortPoint(at: { x: number; z: number }, rank: number, size: number, now: number) {
   const angle = (rank / Math.max(1, size)) * Math.PI * 2 + (now / MICRODRONE.orbitMs) * Math.PI * 2;
   return { x: at.x + Math.cos(angle) * MICRODRONE.orbit, z: at.z + Math.sin(angle) * MICRODRONE.orbit };
+}
+
+// Fire on the Wasps this tick (`damage`, by unit id), taken first by their drones: each drone within
+// MICRODRONE.shieldRange of its Wasp, nearest first, soaks up to MICRODRONE.absorb of it and is
+// spent. Returns the damage left for the units, the drones spent, and the swarm, which remembers
+// each Wasp hit (so it keeps guards back).
+export function shieldWasps(swarm: Swarm, damage: ReadonlyMap<string, number>, units: readonly UnitData[], now: number):
+  { swarm: Swarm; damage: Map<string, number>; spent: Microdrone[] } {
+  const left = new Map(damage);
+  const spent: Microdrone[] = [];
+  const hitAt = { ...(swarm.hitAt ?? {}) };
+  let changed = false;
+  for (const w of units) {
+    if (w.type !== 'wasp' || w.health <= 0) continue;
+    let incoming = left.get(w.id) ?? 0;
+    if (incoming <= 0) continue;
+    hitAt[w.id] = now;
+    changed = true;
+    const shields = swarm.drones.filter(d => d.waspId === w.id && dist(d.at, w.gridPos) <= MICRODRONE.shieldRange)
+      .sort((a, b) => dist(a.at, w.gridPos) - dist(b.at, w.gridPos));
+    for (const d of shields) {
+      if (incoming <= 0) break;
+      incoming -= Math.min(incoming, MICRODRONE.absorb);
+      spent.push(d);
+    }
+    left.set(w.id, incoming);
+  }
+  if (!changed) return { swarm, damage: left, spent };
+  const gone = new Set(spent.map(d => d.id));
+  return { swarm: { ...swarm, drones: swarm.drones.filter(d => !gone.has(d.id)), hitAt }, damage: left, spent };
 }
 
 // The drones as targets for the Aegis and CIWS guns.

@@ -7,7 +7,7 @@ import { UNIT_STATS } from '../constants';
 import type { UnitData, UnitType } from '../types';
 import { applyCiwsState, ciwsTick } from './ciws';
 import { applyDamage, resolveAttacks } from './combat';
-import { damageDrones, emptySwarm, swarmThreats, swarmTick } from './microdrones';
+import { damageDrones, fullSwarms, shieldWasps, swarmThreats, swarmTick } from './microdrones';
 import { BASE_SPEED, MOVE_TICK_MS } from './movement';
 import { afterRailShot, fireRailguns } from './railgun';
 import { UNIT_RULES } from './units';
@@ -58,9 +58,10 @@ export function simulateBattle(blue: ArmyEntry[], red: ArmyEntry[], maxSeconds =
   const startRed = value(units, 'red');
   let lastHit = 0;
   let now = 0;
-  // Wasps' micro-drones (sim/microdrones.ts).
-  let swarm = emptySwarm();
+  // Wasps' micro-drones (sim/microdrones.ts). A Wasp builds its swarm all the time, so it comes
+  // to a fight with a full one circling it.
   let droneIds = 0;
+  let swarm = fullSwarms(units, () => `md-${++droneIds}`);
 
   for (; now < maxSeconds * 1000; now += MOVE_TICK_MS) {
     const attack = resolveAttacks(units, [], now, () => false);
@@ -74,7 +75,12 @@ export function simulateBattle(blue: ArmyEntry[], red: ArmyEntry[], maxSeconds =
     const rail = fireRailguns(units, [], now);
     const railFired = new Set(rail.shots.map(s => s.attackerId));
     if (attack.fired.size > 0 || ciws.links.length > 0 || railFired.size > 0 || drones.hits.length > 0) lastHit = now;
-    units = applyDamage(applyCiwsState(units, ciws.updates).map(u => railFired.has(u.id) ? afterRailShot(u, now) : u), attack.unitDamage, ciws.unitDamage, rail.unitDamage, drones.unitDamage).map(u => ({
+    // Fire on the Wasps is taken first by their drones.
+    const damage = new Map<string, number>();
+    for (const map of [attack.unitDamage, ciws.unitDamage, rail.unitDamage, drones.unitDamage]) map.forEach((n, id) => damage.set(id, (damage.get(id) ?? 0) + n));
+    const shield = shieldWasps(swarm, damage, units, now);
+    swarm = shield.swarm;
+    units = applyDamage(applyCiwsState(units, ciws.updates).map(u => railFired.has(u.id) ? afterRailShot(u, now) : u), shield.damage).map(u => ({
       ...u,
       combatTargetId: u.type === 'aegis' ? u.ciwsTargetId ?? null : attack.aiming.get(u.id) ?? null,
       lastAttackTime: attack.fired.has(u.id) ? now : u.lastAttackTime,

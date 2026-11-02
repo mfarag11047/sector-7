@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { UnitData } from '../types';
 import { ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
-import { damageDrones, dronesOf, emptySwarm, MICRODRONE, Swarm, swarmThreats, swarmTick } from './microdrones';
+import { damageDrones, dronesOf, emptySwarm, MICRODRONE, shieldWasps, Swarm, swarmThreats, swarmTick } from './microdrones';
 import { createUnit } from './production';
 import { DAMAGE_MULTIPLIER, UNIT_RULES } from './units';
 
@@ -24,10 +24,11 @@ function run(units: UnitData[], ms: number, swarm: Swarm = emptySwarm(), start =
 }
 
 describe('Wasp micro-drones', () => {
-  it('between fights, builds up an escort that circles the Wasp, and no more', () => {
+  it('between fights, builds up a full swarm of 10 that circles the Wasp, and no more', () => {
     const wasp = unit('w', 'wasp', 'blue', 10, 10);
-    const { tick } = run([wasp], 20_000);
-    expect(dronesOf(tick.swarm, 'w')).toBe(MICRODRONE.escort);
+    const { tick } = run([wasp], 30_000);
+    expect(MICRODRONE.max).toBe(10);
+    expect(dronesOf(tick.swarm, 'w')).toBe(MICRODRONE.max);
     for (const d of tick.swarm.drones) {
       expect(d.mode).toBe('escort');
       expect(Math.hypot(d.at.x - 10, d.at.z - 10)).toBeLessThan(MICRODRONE.orbit + 0.6);
@@ -91,15 +92,63 @@ describe('Wasp micro-drones', () => {
     expect(tick.engaged.size).toBe(0);
   });
 
-  it('after the fight, forms up again and docks the drones beyond the escort', () => {
+  it('after the fight, the survivors form up round the Wasp again', () => {
     const wasp = unit('w', 'wasp', 'blue', 0, 0);
     // A full swarm out with nothing left to fight.
     const swarm: Swarm = { buildAt: { w: Infinity }, drones: Array.from({ length: MICRODRONE.max }, (_, i) => ({
       id: `d${i}`, waspId: 'w', team: 'blue', at: { x: 5, z: 0 }, mode: 'attack', targetId: 'gone', slot: i, hp: MICRODRONE.integrity,
     })) };
     const { tick } = run([wasp], 3000, swarm);
-    expect(dronesOf(tick.swarm, 'w')).toBe(MICRODRONE.escort);
+    expect(dronesOf(tick.swarm, 'w')).toBe(MICRODRONE.max);
     expect(tick.swarm.drones.every(d => d.mode === 'escort')).toBe(true);
+  });
+
+  it('opens a fight with its whole swarm at once, and keeps launching at the same rate', () => {
+    const wasp = unit('w', 'wasp', 'blue', 0, 0);
+    const full = run([wasp], 20_000).tick.swarm;
+    // A tank in reach: every drone dives at once.
+    const tank = unit('t', 'tank', 'red', 4, 0, { health: 1e6, maxHealth: 1e6 });
+    const first = swarmTick(full, [wasp, tank], 20_000, TICK, newId);
+    expect(first.swarm.drones.filter(d => d.mode === 'attack')).toHaveLength(MICRODRONE.max);
+    // Over the next 6 s it launches another every 1.5 s, all of them striking.
+    let launched = 0, hits = 0, sw = first.swarm;
+    for (let t = 20_100; t < 26_000; t += TICK) {
+      const r = swarmTick(sw, [wasp, tank], t, TICK, newId);
+      launched += r.launched.length; hits += r.hits.length; sw = r.swarm;
+    }
+    expect(launched).toBeGreaterThanOrEqual(Math.floor(6000 / MICRODRONE.buildMs) - 1);
+    expect(hits).toBeGreaterThan(MICRODRONE.max);
+  });
+
+  it('shields its Wasp: drones near it take the fire first, each soaking a share and spent', () => {
+    const wasp = unit('w', 'wasp', 'blue', 0, 0);
+    const swarm = run([wasp], 20_000).tick.swarm;
+    // A light hit is taken whole by one drone.
+    const light = shieldWasps(swarm, new Map([['w', 20], ['x', 50]]), [wasp], 20_000);
+    expect(light.damage.get('w')).toBe(0);
+    expect(light.damage.get('x')).toBe(50);
+    expect(light.spent).toHaveLength(1);
+    expect(dronesOf(light.swarm, 'w')).toBe(MICRODRONE.max - 1);
+    // A heavy one is soaked by as many as it takes, a share each, until they run out.
+    const heavy = shieldWasps(swarm, new Map([['w', 1000]]), [wasp], 20_000);
+    expect(heavy.spent).toHaveLength(MICRODRONE.max);
+    expect(heavy.damage.get('w')).toBeCloseTo(1000 - MICRODRONE.max * MICRODRONE.absorb);
+    // Drones off hunting, out of reach of the Wasp, don't shield it.
+    const away: Swarm = { ...swarm, drones: swarm.drones.map(d => ({ ...d, at: { x: 5, z: 0 } })) };
+    expect(shieldWasps(away, new Map([['w', 20]]), [wasp], 20_000).damage.get('w')).toBe(20);
+  });
+
+  it('keeps a few drones back to guard a Wasp under fire, while the rest hunt', () => {
+    const wasp = unit('w', 'wasp', 'blue', 0, 0);
+    const full = run([wasp], 20_000).tick.swarm;
+    const tank = unit('t', 'tank', 'red', 4, 0, { health: 1e6, maxHealth: 1e6 });
+    const hit = shieldWasps(full, new Map([['w', 1]]), [wasp], 20_000).swarm;
+    const r = swarmTick(hit, [wasp, tank], 20_100, TICK, newId);
+    expect(r.swarm.drones.filter(d => d.mode === 'escort')).toHaveLength(MICRODRONE.guard);
+    expect(r.swarm.drones.filter(d => d.mode === 'attack').length).toBeGreaterThan(0);
+    // Not hit for a while: they all hunt again.
+    const later = swarmTick(r.swarm, [wasp, tank], 20_000 + MICRODRONE.guardMs + 100, TICK, newId);
+    expect(later.swarm.drones.filter(d => d.mode === 'escort')).toHaveLength(0);
   });
 
   it('drops with its Wasp, and an EMPed Wasp builds no more', () => {

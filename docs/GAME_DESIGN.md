@@ -899,7 +899,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 |---|---|---|---|---|---|---|---|
 | **Infiltrator Drone** | 60 | 1 | T1 | 60 | Air | None | Scout, surveillance |
 | **"Kestrel" Attack Drone** (new) | 130 | 1 | T1 | 110 | Air | Machine gun 6 / 0.4 s / 3, hits ground and air | Cheap generalist; fast (1.5×), sees 5, remote-controlled; Flechette Burst (T2, researched), Regenerative Shield (T3, researched) |
-| **Wasp** | 240 | 2 | T2 | 160 | Air | Micro-drones: 14 (MG) a strike, 40% to others within 0.6 tiles, one built / 1.5 s, hunt within 6, ground and air | Swarm launcher; see Wasp micro-drone swarm |
+| **Wasp** | 240 | 2 | T2 | 160 | Air | Micro-drones: 14 (MG) a strike, 40% to others within 0.6 tiles, one built / 1.5 s always (up to 10), hunt within 6, ground and air, shield the Wasp | Swarm launcher; see Wasp micro-drone swarm |
 | **Hornet Gunship** (new) | 320 | 3 | T2 | 320 | Air | AP 32 / 1.6 s / 4; researched T3 rocket AP 60 / 6 s | Anti-vehicle air |
 | **Bombardment Drone** | 480 | 4 | T3 | 260 | Air | None | Levels city blocks; 5 drops, rearms at base |
 
@@ -1065,12 +1065,13 @@ replaced the old manually aimed Main Cannon:
 `sim/microdrones.ts`. The Wasp is a swarm launcher, an airborne Swarm Host that never has to
 anchor. It has no gun of its own: its micro-drones are its weapon.
 
-- **Building:** it builds a micro-drone every 1.5 s, launched from its wing pods. With no
-  enemy near, it keeps 5 circling it as an escort, riding along wherever it flies (more than 5
-  fly back in and dock).
+- **Building:** it always builds a micro-drone every 1.5 s, launched from its wing pods, up to
+  10 out at once. With no enemy near they circle it as an escort, riding along wherever it
+  flies, so it comes to a fight with a full swarm.
 - **Hunting:** once an enemy (ground or air, not the neutral Sentinels) comes within 6 tiles of
-  the Wasp, it builds up to 8, and every drone peels off and dives at an enemy near the Wasp,
-  spreading over the targets rather than piling onto one. A drone is spent when it strikes: it
+  the Wasp, every drone peels off at once and dives at an enemy near the Wasp, spreading over the
+  targets rather than piling onto one: a burst of up to 10 strikes to open the fight. It keeps
+  launching a drone every 1.5 s through the fight, each diving in as it comes. A drone is spent when it strikes: it
   detonates on its target for 14 damage by the machine-gun multipliers (about 13 to infantry, 8
   to heavy armour, 11 to aircraft), with the Wasp's refits, in a small blast 0.6 tiles across
   that catches every other enemy there for 40% of that. So units bunched on the same tile are
@@ -1078,7 +1079,17 @@ anchor. It has no gun of its own: its micro-drones are its weapon.
   ground on the ground, and an enemy force field still shelters what is inside it. (A full-strength
   blast would let Wasps beat the Troopers meant to counter them, since chasing infantry bunch up.)
   Drones never chase more than 9 tiles from their Wasp.
+- **Shielding:** the drones take fire meant for their Wasp. Damage that hits the Wasp is taken
+  first by its drones within 1.5 tiles of it, nearest first, each soaking up to 25 and spent
+  doing it (a puff where it goes), so light fire is soaked whole and a heavy hit still partly gets
+  through. Once the Wasp has been hit, it keeps the 3 drones nearest it back as guards, circling it
+  rather than diving, until 3 s pass without a hit; the drones it launches meanwhile fill the
+  guard first. Drones out hunting are too far off to shield it. (`shieldWasps`, applied to the
+  tick's direct fire, CIWS, rail and blast damage before it is dealt.)
 - **Regrouping:** when the fight is over, the survivors form up round the Wasp again.
+- **Balance:** the balance skirmish (`sim/battle.ts`) starts each Wasp with its full swarm, as it
+  would come to a fight. At equal cost it beats tanks, Hornets, Lancers and Ghosts and loses to
+  Troopers, Razorbacks and Aegis.
 - **Holding:** a Wasp whose swarm is fighting holds its attack-move there, as a gun does.
 - **Counters:** the drones are fragile. Aegis and CIWS guns shoot them out of the air like
   missiles (a drone comes apart in one tick of fire), and an enemy force field stops a drone

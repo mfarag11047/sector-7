@@ -66,7 +66,7 @@ import { airPath, fastestPath, sentinelHazardOf } from '../sim/pathfinding';
 import { fireFlechettes, regenerateShield, shieldedHit } from '../sim/kestrel';
 import { markScreened, pruneSmoke, SMOKE, SmokeScreen } from '../sim/titan';
 import { armMules, countdownOf, dueCharges, VOLT, VoltCharge, voltBlasts } from '../sim/voltCore';
-import { damageDrones, emptySwarm, swarmThreats, swarmTick } from '../sim/microdrones';
+import { damageDrones, emptySwarm, shieldWasps, swarmThreats, swarmTick } from '../sim/microdrones';
 import { DRONE_AIR_Y, MicrodroneSwarm } from './MicrodroneSwarm';
 import { canisterSpots, HE, WARHEAD_LIST, WP, wpGasDamage } from '../sim/warheads';
 import { heroBlocker, heroOf } from '../sim/heroes';
@@ -4306,6 +4306,20 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               else if (after.fieldDownUntil === undefined && before.fieldDownUntil !== undefined) onNoticeRef.current?.('Force field back up');
           });
           shieldHitsRef.current = new Map();
+
+          // Fire on the Wasps is taken first by their drones, each spent in a puff (sim/microdrones.ts).
+          const waspShield = shieldWasps(swarmRef.current, attacks.unitDamage, currentUnitsRef, now);
+          if (waspShield.swarm !== swarmRef.current) {
+              swarmRef.current = waspShield.swarm;
+              attacks.unitDamage.clear();
+              waspShield.damage.forEach((n, id) => attacks.unitDamage.set(id, n));
+          }
+          if (waspShield.spent.length > 0) {
+              setExplosions(prev => [...prev, ...waspShield.spent.map(d => ({
+                  id: `drone-shield-${d.id}`, radius: 1.2, duration: 350, createdAt: now,
+                  position: { x: d.at.x * tileSize - offset, y: DRONE_AIR_Y, z: d.at.z * tileSize - offset },
+              }))]);
+          }
 
           // This used to run inside a setStructuresState updater. React runs updaters twice in
           // development, so the whole unit tick (damage, battery, charging) ran twice per tick.

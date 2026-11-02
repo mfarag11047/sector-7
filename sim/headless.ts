@@ -26,7 +26,7 @@ import { bombardTick } from './bombard';
 import { baseCentreOf, spawnTile } from './baseLayout';
 import { captureTick } from './capture';
 import { applyCiwsState, ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
-import { damageDrones, emptySwarm, Swarm, swarmThreats, swarmTick } from './microdrones';
+import { damageDrones, emptySwarm, shieldWasps, Swarm, swarmThreats, swarmTick } from './microdrones';
 import type { GridPos, Team } from './commands';
 import { coverMap, damageBuildings } from './cover';
 import { applyStructureCombat, bombardBuildings, bombardUnitDamage, resolveAttacks } from './combat';
@@ -291,6 +291,11 @@ export function stepMatch(m: HeadlessMatch): void {
     m.buildings = bombardBuildings(m.buildings, strikes.map(s => s.at));
     bombardUnitDamage(m.units, strikes).forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
   }
+  // Fire on the Wasps is taken first by their drones (sim/microdrones.ts).
+  const shield = shieldWasps(m.swarm, attacks.unitDamage, m.units, now);
+  m.swarm = shield.swarm;
+  attacks.unitDamage.clear();
+  shield.damage.forEach((n, id) => attacks.unitDamage.set(id, n));
   // Who hit whom, for the pacing report's damage tally.
   recordWeaponHits(m.pacing, {
     fired: attacks.fired, shots: [...(attacks.splashed ?? []), ...rail.shots, ...rail.pierceHits, ...hornets.shots, ...flechettes.shots, ...volt.hits, ...drones.hits], ciws: ciws.links,
