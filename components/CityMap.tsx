@@ -2130,7 +2130,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   useEffect(() => { cloudsRef.current = clouds; }, [clouds]);
   // EMP missile blackouts still in effect: the enemy grid is down inside each (sim/energy.ts).
   const activeBlackouts = (): Blackout[] => cloudsRef.current.filter(c => c.type === 'emp' && Date.now() - c.createdAt < c.duration);
-  useEffect(() => { structuresRef.current = structuresState; }, [structuresState]);
+  // No effect copies structuresState into structuresRef: every change is made to both, the ref
+  // first. Effects run after the render, sometimes after another game tick, so such a copy put
+  // back an older list: a unit that had just come out was still in its queue and came out again.
   useEffect(() => { selectedUnitIdsRef.current = selectedUnitIds; }, [selectedUnitIds]);
 
   // Expose Cheats
@@ -3602,11 +3604,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             });
         }
         if (deliveries.length === 0) return;
-        setStructuresState(prev => {
+        const counts = new Map<string, number>();
+        deliveries.forEach(d => counts.set(d.id, (counts.get(d.id) || 0) + 1));
+        // To the ref and the state alike (the ref is not refreshed from the state).
+        const haul = (list: StructureData[]) => {
             let changed = false;
-            const counts = new Map<string, number>();
-            deliveries.forEach(d => counts.set(d.id, (counts.get(d.id) || 0) + 1));
-            const next = prev.map(s => {
+            const next = list.map(s => {
                 const hauls = counts.get(s.id) || 0;
                 if (!hauls || !s.isBlueprint) return s;
                 const constructionProgress = Math.min(s.maxProgress, s.constructionProgress + hauls * ABILITY_CONFIG.MASON_BUILD_AMOUNT);
@@ -3614,10 +3617,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 changed = true;
                 return { ...s, constructionProgress, isBlueprint: constructionProgress < s.maxProgress };
             });
-            if (!changed) return prev;
-            structuresRef.current = next;
-            return next;
-        });
+            return changed ? next : list;
+        };
+        const hauled = haul(structuresRef.current);
+        if (hauled === structuresRef.current) return;
+        structuresRef.current = hauled;
+        setStructuresState(haul);
     }, 400);
     return () => clearInterval(timer);
   }, [findPath, dynamicRoadTileSet]);
