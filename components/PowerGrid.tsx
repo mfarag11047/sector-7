@@ -1,5 +1,6 @@
-// The energy grid made visible (layout in powerGrid.ts): each side's streets carry a line in its
-// colour, as far as its power reaches, and the streetlights are lit by whoever holds the power
+// The energy grid made visible (layout in powerGrid.ts): the streets each side's captured buildings
+// power outside its base carry a line in its colour, as far as that power reaches and in to the
+// base's edge (none inside the base), and the streetlights are lit by whoever holds the power
 // there, brightest by their HQ, with an indicator light on top in that side's colour.
 //
 // The lines lie on the road, just off its centre line: a dark casing with a faint glow and a slim

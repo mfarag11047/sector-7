@@ -10,14 +10,17 @@ describe('grid lines on the streets', () => {
   // A street along z = 0 from x = 0 to 39.
   const tiles = Array.from({ length: 40 }, (_, x) => ({ x, z: 0, type: 'street' })) as RoadTileData[];
 
-  it("run along the road as far as a side's power reaches and stop there, one line per street", () => {
+  it("run along the road as far as a side's power reaches and stop there, one line per street, none inside the base", () => {
     // Vanta's HQ at x = 0 powers 6 tiles round it; a building captured at x = 20 four more each way.
     const lines = gridRoadLines(tiles, 40, [building('b', 20, 1, 'blue')], { blue: [{ x: 0, z: 1 }], red: [] });
     const runs = lines.map(l => [l.team, l.points[0].x, l.points[1].x]);
-    expect(runs).toContainEqual(['blue', 0, 5]);
     expect(runs).toContainEqual(['blue', 17, 23]);
-    // Nothing past the edge of the grid, and only along the road: two lines, not one per building.
-    expect(lines).toHaveLength(2);
+    // Nothing past the edge of the grid, nothing in the base's own circle, and only along the road:
+    // one line, not one per building.
+    expect(lines).toHaveLength(1);
+    // A building captured next to the base: its line runs in to the base's edge and stops there.
+    const near = gridRoadLines(tiles, 40, [building('n', 9, 1, 'blue')], { blue: [{ x: 0, z: 1 }], red: [] });
+    expect(near.map(l => [l.points[0].x, l.points[1].x])).toEqual([[6, 12]]);
     // Distance from the HQ grows along a line, so its pulses run outward.
     const far = lines.find(l => l.points[0].x === 17)!;
     expect(far.points[1].d).toBeGreaterThan(far.points[0].d);

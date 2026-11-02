@@ -5,10 +5,11 @@
 // and every captured building but core nodes) and isn't blacked out there by an enemy EMP. Where
 // both sides' grids reach, the side whose HQ is nearer holds it.
 //
-// Grid lines (gridRoadLines): every street inside a side's grid carries a line in its colour along
-// the road, running on as far as the side's power reaches and stopping where it ends, so a side's
-// territory reads as its streets lit up, one line per street, with no branches off to the
-// buildings themselves.
+// Grid lines (gridRoadLines): every street a side's captured buildings power outside its bases
+// carries a line in its colour along the road, running on as far as that power reaches and up to
+// the edge of the base, so a side's outer grid reads as its streets lit up, running in to the
+// base, one line per street, with no branches off to the buildings themselves. Inside a base's own
+// circle there are none.
 //
 // Streetlights: one every other street tile, at the edge of the road, on the same side all along a
 // street. A lamp inside a side's grid is lit, brightest by its HQ and dimmer the further out it
@@ -61,7 +62,8 @@ export function powerAt(buildings: readonly BuildingData[], bases: Record<Team, 
 // A straight line along a street, in tiles, each end with its distance from the side's nearest HQ.
 export interface GridLine { team: Team; points: { x: number; z: number; d: number }[] }
 
-// Each side's lines: along every run of two or more street tiles in a row that it powers.
+// Each side's lines: along every run of two or more street tiles in a row that it powers, outside
+// every command base's own circle.
 export function gridRoadLines(
   tiles: readonly RoadTileData[],
   gridSize: number,
@@ -70,9 +72,12 @@ export function gridRoadLines(
   blackouts: readonly Blackout[] = [],
 ): GridLine[] {
   const power = powerAt(buildings, bases, blackouts);
+  const baseR = ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS;
+  const allBases = [...bases.blue, ...bases.red];
+  const inBase = (t: Pos) => allBases.some(b => Math.hypot(t.x - b.x, t.z - b.z) <= baseR);
   const held = new Map<number, { team: Team; d: number }>();
   for (const t of tiles) {
-    if (t.type !== 'main' && t.type !== 'street') continue;
+    if ((t.type !== 'main' && t.type !== 'street') || inBase(t)) continue;
     const p = power(t);
     if (p.team) held.set(t.x * 4096 + t.z, { team: p.team, d: p.fromBase });
   }

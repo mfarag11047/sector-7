@@ -1692,14 +1692,16 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   each block, and long planters with clipped hedges along the foot of every tower.
 - **The energy grid made visible** (`components/powerGrid.ts`, drawn by `components/PowerGrid.tsx`).
   Each side's grid shows in the city itself, so who holds what reads without the minimap:
-  - **Grid lines on the streets**: every street a side's grid covers carries a line in the side's
-    colour along the road, just off its centre line, running on as far as the side's power
-    reaches and stopping where it ends: a dark casing with a faint glow and a slim core, pulses
+  - **Grid lines on the streets**: every street a side's captured buildings power outside its
+    base carries a line in the side's colour along the road, just off its centre line, running on
+    as far as that power reaches and in to the edge of the base's own circle (6 tiles round the
+    HQ), so the lines show the outer grid feeding the base; inside a base there are none: a dark casing with a faint glow and a slim core, pulses
     running along it outward from the HQ. One line per street and none off to the buildings, so a
     side's territory reads as its streets lit up without a line for every building it holds. Where
     both sides' grids reach, the side whose HQ is nearer holds the street, and a stretch blacked
     out by an enemy EMP goes dark. (Earlier versions drew a line from the HQ to every powered
-    building, then overhead power lines on the lamp posts: both too cluttered.)
+    building, then overhead power lines on the lamp posts: both too cluttered; then lines inside the
+    bases too.)
   - **Streetlights**: a lamp on every other street tile, at the road's edge, on the same side all
     along a street, in sodium orange. A
     lamp inside a side's grid is lit, brightest by its HQ and dimming to 30% 30 tiles out
