@@ -125,8 +125,6 @@ matters:
 | `vo_tier_ready` | You have the compute for the next tier | R | Compute threshold reached. New tier available. |
 | `vo_tier_2` | Tier 2 researched | R | Tier two unlocked. |
 | `vo_tier_3` | Tier 3 researched | R | Tier three unlocked. |
-| `vo_unit_ready` | A unit finishes training | R | Unit ready. |
-| `vo_unit_ready_2` | (variant) | R | Reinforcements ready. |
 
 ### Your weapons and powers
 

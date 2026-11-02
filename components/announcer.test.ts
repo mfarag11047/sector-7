@@ -15,7 +15,7 @@ describe('the announcer queue', () => {
 
   it('lets a threat cut off a report, but makes everything else wait its turn', () => {
     const q = new AnnouncerQueue();
-    q.started('vo_unit_ready', 0, 1000);
+    q.started('vo_depot_online', 0, 1000);
     expect(q.request('vo_research_complete', 200)).toBe('queued');
     expect(q.request('vo_base_under_attack', 300)).toBe('interrupt');
     q.started('vo_base_under_attack', 300, 1900);
@@ -28,7 +28,7 @@ describe('the announcer queue', () => {
     q.started('vo_match_start', 0, 3000);
     expect(q.request('vo_server_node_captured', 100)).toBe('queued');
     // A less important line doesn't push it out...
-    expect(q.request('vo_unit_ready', 200)).toBe('dropped');
+    expect(q.request('vo_depot_online', 200)).toBe('dropped');
     expect(q.next(3100)).toBe('vo_server_node_captured');
     // ...and one left waiting too long isn't said.
     q.started('vo_server_node_captured', 3100, 3000);

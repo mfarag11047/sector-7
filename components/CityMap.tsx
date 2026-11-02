@@ -4355,10 +4355,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               });
               born.forEach(u => { if (u.team === 'blue' || u.team === 'red') tallyRef.current[u.team].trained++; });
               const mine = born.find(u => u.team === playerTeam);
-              if (mine) {
-                  playSound('unit_ready', mine.gridPos.x * tileSize - offset, mine.gridPos.z * tileSize - offset);
-                  announce('vo_unit_ready', { delayMs: 300 });
-              }
+              // Just the sound: units come out too often for the announcer to call each one.
+              if (mine) playSound('unit_ready', mine.gridPos.x * tileSize - offset, mine.gridPos.z * tileSize - offset);
               unitsRef.current = [...unitsRef.current, ...born];
               setUnits(prev => [...prev, ...born]);
           }

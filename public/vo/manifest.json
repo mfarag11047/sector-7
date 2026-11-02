@@ -338,17 +338,6 @@
       "Tier three unlocked."
     ]
   },
-  "vo_unit_ready": {
-    "register": "report",
-    "files": [
-      "vo/vo_unit_ready.mp3",
-      "vo/vo_unit_ready_2.mp3"
-    ],
-    "lines": [
-      "Unit ready.",
-      "Reinforcements ready."
-    ]
-  },
   "vo_missile_away": {
     "register": "report",
     "files": [

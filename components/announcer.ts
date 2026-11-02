@@ -23,7 +23,7 @@ export type VoKey =
   | 'vo_construction_complete' | 'vo_barracks_online' | 'vo_factory_online' | 'vo_airpad_online' | 'vo_depot_online'
   | 'vo_comm_link_online' | 'vo_munitions_online' | 'vo_ordnance_fab_online' | 'vo_research_online' | 'vo_refinery_online'
   | 'vo_sentry_online' | 'vo_ciws_online' | 'vo_hq_deploying' | 'vo_hq_online' | 'vo_refinery_upgraded'
-  | 'vo_research_complete' | 'vo_tier_ready' | 'vo_tier_2' | 'vo_tier_3' | 'vo_unit_ready'
+  | 'vo_research_complete' | 'vo_tier_ready' | 'vo_tier_2' | 'vo_tier_3'
   | 'vo_missile_away' | 'vo_missile_shot_down' | 'vo_orbital_drop' | 'vo_bulwark_field' | 'vo_decoys'
   | 'vo_cloaking_field' | 'vo_nano_cloud'
   | 'vo_not_enough_cores' | 'vo_cannot_build_there' | 'vo_unable';
@@ -72,8 +72,6 @@ export const LINES: Record<VoKey, { priority: Priority; cooldownMs: number }> = 
   vo_tier_ready: { priority: R, cooldownMs: 60_000 },
   vo_tier_2: { priority: O, cooldownMs: 10_000 },
   vo_tier_3: { priority: O, cooldownMs: 10_000 },
-  // Units come out all the time: said now and then, not for every one.
-  vo_unit_ready: { priority: R, cooldownMs: 12_000 },
   vo_missile_away: { priority: R, cooldownMs: 4_000 },
   vo_missile_shot_down: { priority: O, cooldownMs: 4_000 },
   vo_orbital_drop: { priority: O, cooldownMs: 5_000 },
