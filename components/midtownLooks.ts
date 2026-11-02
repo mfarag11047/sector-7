@@ -12,6 +12,8 @@
 import { CITY_CONFIG } from '../constants';
 import type { BuildingData } from '../types';
 import { residentialLookOf } from './residentialLooks';
+import { centerpieceOf } from '../sim/centerpieces';
+import { CENTERPIECE_LOOKS } from './centerpieceLooks';
 import { industrialLookOf } from './industrialLooks';
 import { type Crown, type Facade, FACADES, type FacadeName, facadeOf, type Massing } from './corpoFacades';
 
@@ -65,6 +67,9 @@ export function midtownLookOf(f: Footprint, gridSize = CITY_CONFIG.gridSize): Fa
 // The look of any city building that has one: corporate towers, midtown blocks, cheap housing and industry.
 export function lookOf(b: Pick<BuildingData, 'type' | 'footprint'>): Facade | null {
   if (!b.footprint) return null;
+  // The district centerpieces have their own (centerpieceLooks.ts).
+  const cp = centerpieceOf(b.footprint, CITY_CONFIG.gridSize);
+  if (cp) { const look = CENTERPIECE_LOOKS[cp.kind]; return { ...FACADES[look.windows], body: look.body, accent: look.accent, crown: look.crown, stencil: look.stencil }; }
   if (b.type === 'commercial') return facadeOf(b.footprint);
   if (b.type === 'hightech') return midtownLookOf(b.footprint);
   if (b.type === 'residential') return residentialLookOf(b.footprint);

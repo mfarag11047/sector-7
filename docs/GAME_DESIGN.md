@@ -1744,6 +1744,32 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   bones. The corporate towers of downtown and the core, and the two sides' megatowers, get no
   stack: pristine monoliths, as new as the day they went up. Picked from where a building
   stands, so its twin across the map is the same.
+- **District centerpieces** (`sim/centerpieces.ts`, styled in `components/centerpieceLooks.ts`,
+  drawn with the city building kit plus `components/Centerpieces.tsx`). Each side has a landmark
+  in its midtown and one in its industrial zone, mirrored across the map: a mass that stands out
+  from across the city and is just as recognisable at its front door, its look carried all the
+  way down to the pavement.
+  - **The megablock** (midtown, 3x3, 62 high): housing narrow at its foot and swelling out over
+    the street a third of the way up, chamfered corners, clad from the pavement to the roof in big
+    crimson and slate panels, holo billboards on its faces, its number (07) lit huge near the top
+    of every face and again over the entrance in the middle of each: a tall dark portal between
+    panel pylons under a heavy canopy with a light strip. Cooling rigs and camera masts on the
+    corners of its roof, antennas in the middle.
+  - **The lifted block** (industrial, 5x3, 40 high): a block of pale concrete with blue panels and
+    blue stripes painted round it every few storeys, lifted on braced concrete pylons over a
+    narrow core with blue loading doors at street level, its code (S7-03) stencilled big on its
+    front, and a tower of stacked chamfered modules in the same stripes rising out of its middle
+    to 66. Cooling rigs and air handlers on its corner roofs.
+  In the game they're ordinary city buildings, captured and destroyed tile by tile; only their
+  heights differ (set in map generation, so shots and missiles meet them where they're drawn),
+  kept below the core's towers so the camera can still come down low over them. They're never
+  layered with eras, left unfinished or squatted.
+- **Everyday rulers** (`components/streetFurniture.ts`, drawn by
+  `components/StreetFurniture.tsx`). Things everyone knows the size of, set on the pavement at the
+  foot of every building at least 34 high so the towers read as huge against them: benches and
+  bollards beside the corporate towers of the core and downtown (now and then a vending machine),
+  benches, vending machines with their fronts lit and dumpsters (dull blue or rust) beside the
+  other tall buildings. A piece or two to each stretch of pavement, the same every time.
 - **Decay** (`components/decay.ts`, drawn by `components/Decay.tsx` and
   `components/FootprintBuilding.tsx`). Each city block of the poor edge and a few in midtown has
   fallen into one state of ruin, sometimes with traces of a second (a block's primary state

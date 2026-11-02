@@ -30,7 +30,7 @@ import { SCENE } from './scenePalette';
 import { useFrame } from '@react-three/fiber';
 import type { BuildingData } from '../types';
 import { AD_COUNT, HoloBillboard } from './HoloBillboard';
-import { type Crown, facadeOf, stencilMaterial, facadeWindowMaterial, featureSides, goldScaleMaterial, MASSING_STEPS, shopfrontMaterial } from './corpoFacades';
+import { type Crown, FACADES, facadeOf, stencilMaterial, facadeWindowMaterial, featureSides, goldScaleMaterial, MASSING_STEPS, shopfrontMaterial } from './corpoFacades';
 import { midtownLookOf } from './midtownLooks';
 import { residentialLookOf } from './residentialLooks';
 import { industrialLookOf } from './industrialLooks';
@@ -41,6 +41,10 @@ import { claddingMaterial, CLADDING_REPEAT, Conduit, FRONTAGE_HEIGHT, FrontageFa
 import { type Decay, decayAt, finishedHeight, strengthOf, UNFINISHED } from './decay';
 import { Frame, GRIME_REPEAT, grimeMaterial, LeanTo } from './Decay';
 import { CITY_CONFIG } from '../constants';
+import { centerpieceOf } from '../sim/centerpieces';
+import { CENTERPIECE_LOOKS } from './centerpieceLooks';
+import { Entrance, LoadingDoors, numberMaterial, Pylons, Stripes } from './Centerpieces';
+import { CLADDING } from './eras';
 
 type Kind = 'commercial' | 'hightech' | 'industrial' | 'residential';
 
@@ -522,9 +526,13 @@ const FootprintSegmentView: React.FC<{
   // The building's full height; one stopped mid-build is finished only part of the way up, a bare
   // frame above (the game still counts the full height).
   const H = data.scale[1];
-  const unfinished = H >= UNFINISHED.minHeight && decayed('deconstruction');
+  // A district centerpiece (sim/centerpieces.ts) has its own look (centerpieceLooks.ts) and is
+  // never left unfinished or squatted.
+  const cp = useMemo(() => centerpieceOf(f, CITY_CONFIG.gridSize), [f]);
+  const cpLook = cp ? CENTERPIECE_LOOKS[cp.kind] : null;
+  const unfinished = !cp && H >= UNFINISHED.minHeight && decayed('deconstruction');
   const h = unfinished ? finishedHeight(H) : H;
-  const squatted = !unfinished && decayed('redevelopment');
+  const squatted = !cp && !unfinished && decayed('redevelopment');
   const grimy = decayed('deterioration');
   const lx = data.gridX - f.x;
   const lz = data.gridZ - f.z;
@@ -532,7 +540,7 @@ const FootprintSegmentView: React.FC<{
   const anchor = f.tower ? isTower : lx === Math.floor((f.w - 1) / 2) && lz === Math.floor((f.d - 1) / 2);
   // Corporate towers each wear one of the facade styles (corpoFacades.ts).
   // Midtown blocks have their own looks too (midtownLooks.ts).
-  const facade = useMemo(() => (kind === 'commercial' ? facadeOf(f) : kind === 'hightech' ? midtownLookOf(f) : kind === 'residential' ? residentialLookOf(f) : kind === 'industrial' ? industrialLookOf(f) : null), [kind, f]);
+  const facade = useMemo(() => cpLook ? { ...FACADES[cpLook.windows], body: cpLook.body, accent: cpLook.accent, crown: cpLook.crown, stencil: cpLook.stencil } : (kind === 'commercial' ? facadeOf(f) : kind === 'hightech' ? midtownLookOf(f) : kind === 'residential' ? residentialLookOf(f) : kind === 'industrial' ? industrialLookOf(f) : null), [kind, f, cpLook]);
   // Its own neon whoever holds it (see roofCap).
   const accent = facade?.accent ?? style.accent;
   // The fire escape goes on the broad face toward its own side's camera.
@@ -543,6 +551,10 @@ const FootprintSegmentView: React.FC<{
   // Its eras (eras.ts): none for the corporate towers.
   const stack = useMemo(() => eraStackOf({ type: data.type, footprint: f, sawtooth: facade?.sawtooth }), [data.type, f, facade]);
   const retrofitAt = useMemo(() => retrofitTile(f), [f]);
+  // Panel cladding: an era's (eras.ts) or a centerpiece's own, ground to roof.
+  const cladScheme = stack?.cladding != null ? CLADDING[stack.cladding] : cpLook?.cladding ?? null;
+  // What a tower stands on: a corporate tower's podium, or the centerpiece block it rises out of.
+  const podiumHeight = cp?.tower ? cp.height : PODIUM_HEIGHT;
 
   const parts = useMemo(() => {
     const half = T / 2;
@@ -561,12 +573,13 @@ const FootprintSegmentView: React.FC<{
     const worldZ = data.gridZ * T;
     // Shops take the ground storey; the floors above start over them.
     // A building with eras has its era's ground storey (Frontage.tsx) instead.
-    const bottom = tower ? PODIUM_HEIGHT : stack ? FRONTAGE_HEIGHT[stack.frontage] + 0.8 : facade?.shops ? SHOP_HEIGHT + 0.8 : style.groundFloor;
+    // A centerpiece is clad right down to the pavement; its tower's windows start over its roof.
+    const bottom = tower ? (cp ? cp.height + 0.5 : PODIUM_HEIGHT) : cpLook ? 0.4 : stack ? FRONTAGE_HEIGHT[stack.frontage] + 0.8 : facade?.shops ? SHOP_HEIGHT + 0.8 : style.groundFloor;
 
     // Tiers, from the ground up: at each step of the building's massing its outside walls stand
     // in (or out, overhanging) by that many steps. Steps too near the roof are dropped, and the
     // ground tier starts at the foot even when a step is set at 0.
-    const steps = (facade?.massing ? MASSING_STEPS[facade.massing] : []).map(([a, n]) => [a * h, n] as const);
+    const steps = (cpLook ? (tower ? cpLook.towerSteps ?? [] : cpLook.steps) : facade?.massing ? MASSING_STEPS[facade.massing] : []).map(([a, n]) => [a * h, n] as const);
     const footInset = steps.length && steps[0][0] === 0 ? steps[0][1] : 0;
     const breaks = steps.filter(([y]) => y > 3 && y < h - 2);
     // Shallow steps, so towers stay broad and the streets stay walled in.
@@ -578,8 +591,9 @@ const FootprintSegmentView: React.FC<{
     });
     const top = tiers[tiers.length - 1];
     // The outside corners of the whole building on this tile, cut back by its bones' era.
-    const corner: Corner = stack && !tower ? stack.corner : 'square';
-    const atCorner: Record<CornerKey, boolean> = { nw: outside.west && outside.north, ne: outside.east && outside.north, se: outside.east && outside.south, sw: outside.west && outside.south };
+    const corner: Corner = cpLook ? cpLook.corner : stack && !tower ? stack.corner : 'square';
+    const atCorner: Record<CornerKey, boolean> = tower ? { nw: true, ne: true, se: true, sw: true }
+      : { nw: outside.west && outside.north, ne: outside.east && outside.north, se: outside.east && outside.south, sw: outside.west && outside.south };
     const cutsOf = (t: Rect, less = 0): Partial<Record<CornerKey, number>> => {
       if (corner === 'square') return {};
       const c = Math.max(0, Math.min(T * CORNER_CUT[corner], Math.min(t.x1 - t.x0, t.z1 - t.z0) / 2 - 0.3) - less);
@@ -642,7 +656,7 @@ const FootprintSegmentView: React.FC<{
     // Holo billboards on commercial towers tall enough to carry one: at most one a tile, on one
     // of its outside faces, within one tier.
     let billboard: { kind: 'panel' | 'blade'; ad: number; width: number; height: number; position: [number, number, number]; rot: number } | null = null;
-    if (kind === 'commercial' && h >= 24) {
+    if ((kind === 'commercial' || cpLook?.billboards) && h >= 24) {
       const blade = tileHash(data.gridX, data.gridZ, 9) < 0.45;
       const choices = windows.filter(w => w.top - w.bottom > 10);
       const face = choices.find((w, i) => tileHash(data.gridX, data.gridZ, i + 1) < 0.45);
@@ -659,15 +673,16 @@ const FootprintSegmentView: React.FC<{
     })) : [];
     // Corporate panel cladding over the middle floors, lined up in world space, the windows
     // showing through its slots.
-    const cladding = stack?.cladding != null ? windows.map(w => ({
-      ...w, geometry: faceGeometry(w.width, w.height, w.start / CLADDING_REPEAT, w.bottom / CLADDING_REPEAT, CLADDING_REPEAT, CLADDING_REPEAT),
+    const cladRepeat = cpLook ? CLADDING_REPEAT * 2 : CLADDING_REPEAT;
+    const cladding = cladScheme ? windows.map(w => ({
+      ...w, geometry: faceGeometry(w.width, w.height, w.start / cladRepeat, w.bottom / cladRepeat, cladRepeat, cladRepeat),
     })) : [];
     // Grime streaked down each outside face of a neglected building, darkest under the roof.
     const grime = grimy ? windows.map(w => ({
       ...w, geometry: faceGeometry(w.width, w.ledge - w.bottom, w.start / GRIME_REPEAT, 0, GRIME_REPEAT, w.ledge - w.bottom),
     })) : [];
     return { box, body: top, tower, windows, faces, cap, billboard, scales, bodyGeometry, shops, cornerFaces, capGeometry, cladding, grime, outside };
-  }, [T, lx, lz, f, isTower, data.gridX, data.gridZ, h, H, style, kind, facade, texW, texH, stack, grimy]);
+  }, [T, lx, lz, f, isTower, data.gridX, data.gridZ, h, H, style, kind, facade, texW, texH, stack, grimy, cp, cpLook, cladScheme]);
 
   useEffect(() => () => {
     parts.windows.forEach(w => w.geometry.dispose()); parts.scales.forEach(w => w.geometry.dispose()); parts.shops.forEach(w => w.geometry.dispose()); parts.bodyGeometry.dispose();
@@ -679,6 +694,8 @@ const FootprintSegmentView: React.FC<{
   // The roof retrofit, on the tile that carries it, in place of the usual rooftop piece there.
   // A squatted building's roof is a shanty of containers instead; an unfinished one has none.
   const roofPiece = unfinished ? null : squatted && stack ? 'shanty' as const : stack?.retrofit ?? null;
+  // Whether this tile is the middle of the building's face on that side.
+  const middleOf = (side: Side) => (side === 'north' || side === 'south' ? lx === Math.floor(f.w / 2) : lz === Math.floor(f.d / 2));
   const retrofit = roofPiece && lx === retrofitAt.lx && lz === retrofitAt.lz ? roofPiece : null;
   // An unfinished building's crane stands where its rooftop piece would.
   const crownGone = (!!roofPiece && retrofitAt.replacesCrown) || unfinished;
@@ -691,8 +708,8 @@ const FootprintSegmentView: React.FC<{
   return (
     <group>
       {tower && (
-        <mesh position={[(box.x0 + box.x1) / 2, PODIUM_HEIGHT / 2, (box.z0 + box.z1) / 2]} material={podiumMaterial} castShadow receiveShadow>
-          <boxGeometry args={[box.x1 - box.x0, PODIUM_HEIGHT, box.z1 - box.z0]} />
+        <mesh position={[(box.x0 + box.x1) / 2, podiumHeight / 2, (box.z0 + box.z1) / 2]} material={podiumMaterial} castShadow receiveShadow>
+          <boxGeometry args={[box.x1 - box.x0, podiumHeight, box.z1 - box.z0]} />
         </mesh>
       )}
 
@@ -809,8 +826,41 @@ const FootprintSegmentView: React.FC<{
           <Crane mast={H - h + 12 + (f.x % 3) * 2} jibAngle={(f.x * 1.7 + f.z) % (Math.PI * 2)} />
         </group>
       )}
+      {/* The district centerpieces' own pieces (Centerpieces.tsx). */}
+      {cpLook?.number && windows.filter(w => middleOf(w.side)).map(w => {
+        if (w.key.endsWith('-0')) return (
+          <group key={`door-${w.key}`} position={[w.position[0], 0, w.position[2]]} rotation={[0, w.rot, 0]}>
+            <Entrance number={cpLook.number!} panel={cpLook.cladding[0]} />
+          </group>
+        );
+        if (w.ledge !== h) return null;
+        const size = Math.min(w.width * 0.85, 11);
+        return (
+          <group key={`num-${w.key}`} position={[w.position[0], h - size / 2 - 3, w.position[2]]} rotation={[0, w.rot, 0]}>
+            <mesh position={[0, 0, 0.35]} material={numberMaterial(cpLook.number!)}><planeGeometry args={[size, size]} /></mesh>
+          </group>
+        );
+      })}
+      {/* Plant on a centerpiece's corner roofs. */}
+      {cpLook && !tower && (lx === 0 || lx === f.w - 1) && (lz === 0 || lz === f.d - 1) && (
+        <RetrofitPiece kind={cpLook.roofKit[(lx + lz) % 2]} span={Math.min(cap.x1 - cap.x0, cap.z1 - cap.z0)} faceZ={blueSide ? -1 : 1} seed={tileHash(data.gridX, data.gridZ, 62)}
+          position={[(cap.x0 + cap.x1) / 2, h + 0.25, (cap.z0 + cap.z1) / 2]} />
+      )}
+      {cpLook?.pylons && !tower && (
+        <Pylons r={box} outside={outside} top={cpLook.steps[1][0] * h} core={cpLook.steps[0][1] * T * 0.07 + T * 0.08 - 0.8} />
+      )}
+      {cpLook?.pylons && !tower && windows.filter(w => w.key.endsWith('-0')).map(w => (
+        <group key={`dock-${w.key}`} position={[w.position[0], 0, w.position[2]]} rotation={[0, w.rot, 0]}>
+          <LoadingDoors width={w.width} />
+        </group>
+      ))}
+      {cpLook?.stripes && windows.map(w => (
+        <group key={`stripe-${w.key}`} position={[w.position[0], 0, w.position[2]]} rotation={[0, w.rot, 0]}>
+          <Stripes width={w.width} bottom={w.bottom} top={w.ledge} every={cpLook.stripes!.every} color={cpLook.stripes!.color} />
+        </group>
+      ))}
       {cladding.map(w => (
-        <mesh key={`clad-${w.key}`} geometry={w.geometry} position={w.position} rotation={[0, w.rot, 0]} material={claddingMaterial(stack!.cladding!)}>
+        <mesh key={`clad-${w.key}`} geometry={w.geometry} position={w.position} rotation={[0, w.rot, 0]} material={claddingMaterial(cladScheme!)}>
         </mesh>
       ))}
       {/* Conduit bolted up the walls of an old building, on some stretches. */}

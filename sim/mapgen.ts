@@ -10,6 +10,7 @@ import { BUILDING_COLORS, BUILDING_HEALTH, UNIT_STATS } from '../constants';
 import type { BuildingBlock, BuildingData, RoadTileData, RoadType, UnitData } from '../types';
 import type { GridPos } from './commands';
 import { districtOfBlock, type District } from './districts';
+import { centerpieceHeight, centerpieceOf } from './centerpieces';
 import { CITY_PLAN } from './cityPlan';
 
 // Small, fast, seedable PRNG (mulberry32). Returns floats in [0, 1).
@@ -342,9 +343,13 @@ export function generateCity(opts: CityOptions): City {
     const width = tileSize * (tiles.length > 1 ? 0.96 : 0.7);
     const footprint: NonNullable<BuildingData['footprint']> = { x: p.x, z: p.z, w: p.w, d: p.d };
     if (p.tower) footprint.tower = { ...p.tower };
+    // A district centerpiece (sim/centerpieces.ts) stands taller, its tower rising out of it.
+    const centerpiece = centerpieceOf(footprint, gridSize);
+    if (centerpiece?.tower) footprint.tower = { x: p.x + centerpiece.tower.lx, z: p.z + centerpiece.tower.lz };
     const blockId = p.id;
     const own = tiles.map(t => {
-      const h = !p.tower ? height : t.x === p.tower.x && t.z === p.tower.z ? Math.min(hi * 1.25, height * 1.2) : PODIUM_HEIGHT;
+      const h = centerpiece ? centerpieceHeight(centerpiece, t.x - p.x, t.z - p.z)
+        : !p.tower ? height : t.x === p.tower.x && t.z === p.tower.z ? Math.min(hi * 1.25, height * 1.2) : PODIUM_HEIGHT;
       occupied.add(key(t.x, t.z));
       buildingMap.set(key(t.x, t.z), blockId);
       return { ...building(`b-${t.x}-${t.z}`, t.x, t.z, type, h, blockId, [width, h, width]), footprint };

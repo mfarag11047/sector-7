@@ -136,13 +136,16 @@ const signMaterial = (i: number) => signMats[i] ??= new THREE.MeshBasicMaterial(
   }, 600 + i * 17),
 });
 
-const claddingMats = new Map<number, THREE.MeshStandardMaterial>();
+const claddingMats = new Map<string, THREE.MeshStandardMaterial>();
 // The corporate era's panels: big shapes with their corners cut at 45 degrees in two dark tones,
 // seams between them, and slots left for the windows to show through.
-export const claddingMaterial = (scheme: number) => {
-  let m = claddingMats.get(scheme);
+// `scheme` is [panel, accent panel] (one of eras.ts CLADDING, or a centerpiece's own).
+export const claddingMaterial = (scheme: readonly [string, string]) => {
+  const key = scheme.join();
+  let m = claddingMats.get(key);
   if (m) return m;
-  const [base, accent] = CLADDING[scheme];
+  const [base, accent] = scheme;
+  const seed = parseInt(base.slice(1, 4), 16);
   const map = canvas(256, (g, rnd) => {
     g.fillStyle = base; g.fillRect(0, 0, 256, 256);
     // Two big chamfered panels in the accent tone.
@@ -166,9 +169,9 @@ export const claddingMaterial = (scheme: number) => {
       const x = col * 64 + 22;
       for (let y = 8; y < 256; y += 32) if (rnd() > 0.2) g.clearRect(x, y, 20, 20);
     }
-  }, 7700 + scheme);
+  }, 7700 + seed);
   m = new THREE.MeshStandardMaterial({ map, alphaTest: 0.5, metalness: 0.35, roughness: 0.75, polygonOffset: true, polygonOffsetFactor: -1 });
-  claddingMats.set(scheme, m);
+  claddingMats.set(key, m);
   return m;
 };
 export const CLADDING_REPEAT = REPEAT.cladding;

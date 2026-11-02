@@ -30,6 +30,7 @@ import { CITY_CONFIG } from '../constants';
 import type { BuildingData } from '../types';
 import { districtAt, type District } from '../sim/districts';
 import { complexOf } from './midtownLooks';
+import { centerpieceOf } from '../sim/centerpieces';
 
 export type Era = 1 | 2 | 3 | 4;
 export type Corner = 'square' | 'round' | 'chamfer';
@@ -101,7 +102,9 @@ const pick = <T,>(r: number, odds: Odds<T>): T => {
 // districts that layer.
 export function eraStackOf(b: Pick<BuildingData, 'type' | 'footprint'> & { sawtooth?: boolean }, gridSize = CITY_CONFIG.gridSize): EraStack | null {
   const f = b.footprint;
-  if (!f || b.type === 'commercial') return null;
+  // The corporate towers and the district centerpieces (sim/centerpieces.ts) are built to their
+  // own design.
+  if (!f || b.type === 'commercial' || centerpieceOf(f, gridSize)) return null;
   const district = districtAt(f.x, f.z, gridSize);
   const odds = district ? DISTRICT_ERAS[district] : undefined;
   if (!odds) return null;
