@@ -1,98 +1,129 @@
-// The energy grid made visible (layout in powerGrid.ts): overhead power lines strung from each
-// side's HQ along the streetlights to the buildings it powers, and the streetlights, lit by
-// whoever holds the power there and brightest by their HQ.
+// The energy grid made visible (layout in powerGrid.ts): each side's streets carry a line in its
+// colour, as far as its power reaches, and the streetlights are lit by whoever holds the power
+// there, brightest by their HQ, with an indicator light on top in that side's colour.
 //
-// The wires are plain dark cable, the same for both sides. Which side powers a street shows on
-// its lamp posts: each powered post carries a small indicator light on top in that side's colour
-// (captured city buildings themselves aren't marked), and on its wires: a small glowing coupler
-// halfway along each span, in the colour of the side whose network the wire belongs to. They sag between the tops of the lamp posts and drop to each powered
-// building's wall facing the last post, all of them in one mesh, rebuilt only when the grid
-// changes. The streetlights are three instanced meshes (poles, heads and the pools of light
+// The lines lie on the road, just off its centre line: a dark casing with a faint glow and a slim
+// core in the side's colour, pulses running along it outward from the HQ. One line per street, no
+// branches off to the buildings. All of a side's lines are one mesh, rebuilt only when the grid
+// changes. The streetlights are instanced meshes (poles, heads, indicators and the pools of light
 // under them), re-coloured when the grid changes, not every frame.
 
 import React, { useLayoutEffect, useMemo, useRef } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import type { BuildingData, CloudData, RoadTileData } from '../types';
 import { TEAM_COLORS } from '../constants';
-import { gridFeeders, lampStates, powerNetwork, streetLamps, streetsOf, wireRuns, type Lamp, type LampSide, type WireRun } from './powerGrid';
+import type { BuildingData, CloudData, RoadTileData } from '../types';
+import { gridRoadLines, lampStates, streetLamps, type GridLine, type Lamp, type LampSide } from './powerGrid';
 
 type Team = 'blue' | 'red';
 type Pos = { x: number; z: number };
 
+// The lines: height above the road, widths (world units), how far off the road's centre line they
+// run, and the pulses, one every PULSE_SPACING tiles moving out at PULSE_SPEED tiles a second.
+const LINE_Y = 0.32;
+const CASING_WIDTH = 1.6;
+const CORE_WIDTH = 0.6;
+const GLOW_WIDTH = 2.6;
+const OFF_CENTRE = 2.2;
+const PULSE_SPACING = 3;
+const PULSE_SPEED = 2.2;
 // Streetlights: sodium orange (the scenery palette, scenePalette.ts), pole height and pool size.
 const LAMP_COLOR = new THREE.Color('#ffb07a');
-const DEAD_HEAD = new THREE.Color('#1a1c20');
+const DEAD = new THREE.Color('#1a1c20');
 const POLE_HEIGHT = 5.5;
 const POOL_RADIUS = 6;
 const STEP: Record<LampSide, [number, number]> = { e: [1, 0], w: [-1, 0], s: [0, 1], n: [0, -1] };
-// Wires: thickness (world units), where they hang from on a post and on the HQ, the sag in the
-// middle of a span (a little more for longer ones), and points along each span.
-const WIRE_WIDTH = 0.34;
-const POST_TOP = POLE_HEIGHT + 0.2;
-const HQ_ANCHOR = 11;
-const SAG = 0.5;
-const SAG_PER_UNIT = 0.035;
-const SPAN_POINTS = 10;
-// The coupler on each span: a short glowing sleeve round the wire in the colour of the side whose
-// grid the wire carries.
-const COUPLER_RADIUS = 0.42;
-const COUPLER_LENGTH = 1.5;
-const MAX_COUPLERS = 4096;
-const wireMaterial = new THREE.MeshBasicMaterial({ color: '#59606c', side: THREE.DoubleSide });
-const poleMaterial = new THREE.MeshStandardMaterial({ color: '#2a2d33', metalness: 0.6, roughness: 0.5 });
 
-// A building feeding the grid, once however many tiles it has: its footprint in tiles and height.
-interface Feeder { x: number; z: number; rect: { x0: number; z0: number; x1: number; z1: number }; height: number }
-
-function feedersOf(buildings: readonly BuildingData[], team: Team): Feeder[] {
-  const seen = new Map<string, Feeder>();
-  for (const b of gridFeeders(buildings, team)) {
-    const f = b.footprint ?? { x: b.gridX, z: b.gridZ, w: 1, d: 1 };
-    const key = `${f.x},${f.z}`;
-    if (seen.has(key)) continue;
-    seen.set(key, {
-      x: Math.round(f.x + (f.w - 1) / 2), z: Math.round(f.z + (f.d - 1) / 2),
-      rect: { x0: f.x - 0.45, z0: f.z - 0.45, x1: f.x + f.w - 0.55, z1: f.z + f.d - 0.55 },
-      height: b.height,
-    });
+// A flat ribbon along each line, `width` wide, its u running with distance from the HQ, shifted
+// OFF_CENTRE off the road's centre line (+z for a run along x, +x for one along z), and run on past
+// each end by half the width so lines meeting at a corner join.
+function ribbon(lines: readonly GridLine[], width: number, tileSize: number, offset: number, y: number): THREE.BufferGeometry {
+  const pos: number[] = [], uv: number[] = [], index: number[] = [];
+  for (const line of lines) {
+    const [a, b] = line.points;
+    let ax = a.x * tileSize - offset, az = a.z * tileSize - offset, bx = b.x * tileSize - offset, bz = b.z * tileSize - offset;
+    const len = Math.hypot(bx - ax, bz - az);
+    if (len < 1e-6) continue;
+    if (az === bz) { az += OFF_CENTRE; bz += OFF_CENTRE; } else { ax += OFF_CENTRE; bx += OFF_CENTRE; }
+    const nx = -(bz - az) / len * (width / 2), nz = (bx - ax) / len * (width / 2);
+    const ex = (bx - ax) / len * (width / 2 + OFF_CENTRE), ez = (bz - az) / len * (width / 2 + OFF_CENTRE);
+    const base = pos.length / 3;
+    pos.push(ax - ex + nx, y, az - ez + nz, ax - ex - nx, y, az - ez - nz, bx + ex + nx, y, bz + ez + nz, bx + ex - nx, y, bz + ez - nz);
+    const u0 = a.d / PULSE_SPACING, u1 = b.d / PULSE_SPACING;
+    uv.push(u0, 0, u0, 1, u1, 0, u1, 1);
+    index.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
   }
-  return [...seen.values()];
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(index);
+  return g;
 }
 
-// A soft round pool of light for under each lamp.
-function poolTexture(): THREE.CanvasTexture {
+const canvasTexture = (w: number, h: number, draw: (g: CanvasRenderingContext2D) => void, wrap = false) => {
   const c = document.createElement('canvas');
-  c.width = c.height = 64;
-  const g = c.getContext('2d')!;
+  c.width = w;
+  c.height = h;
+  draw(c.getContext('2d')!);
+  const t = new THREE.CanvasTexture(c);
+  if (wrap) t.wrapS = THREE.RepeatWrapping;
+  return t;
+};
+// Along a line: a dim steady glow with a bright pulse in each repeat.
+const pulseTexture = () => canvasTexture(128, 8, g => {
+  const grad = g.createLinearGradient(0, 0, 128, 0);
+  grad.addColorStop(0, 'rgba(255,255,255,0.3)');
+  grad.addColorStop(0.55, 'rgba(255,255,255,0.32)');
+  grad.addColorStop(0.9, 'rgba(255,255,255,1)');
+  grad.addColorStop(1, 'rgba(255,255,255,0.3)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 8);
+}, true);
+// Across a line's glow: strongest beside the core, fading out to the edges.
+const glowTexture = () => canvasTexture(4, 32, g => {
+  const grad = g.createLinearGradient(0, 0, 0, 32);
+  grad.addColorStop(0, 'rgba(255,255,255,0)');
+  grad.addColorStop(0.42, 'rgba(255,255,255,0.7)');
+  grad.addColorStop(0.58, 'rgba(255,255,255,0.7)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 4, 32);
+});
+// A soft round pool of light for under each lamp.
+const poolTexture = () => canvasTexture(64, 64, g => {
   const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
   grad.addColorStop(0, 'rgba(255,255,255,0.55)');
   grad.addColorStop(0.5, 'rgba(255,255,255,0.18)');
   grad.addColorStop(1, 'rgba(255,255,255,0)');
   g.fillStyle = grad;
   g.fillRect(0, 0, 64, 64);
-  return new THREE.CanvasTexture(c);
-}
+});
 
-// The midpoint of a span, at the bottom of its sag, and its direction there: where its coupler sits.
-interface Coupler { at: THREE.Vector3; dir: THREE.Vector3; team: Team }
-const sagOf = (a: THREE.Vector3, b: THREE.Vector3) => SAG + Math.hypot(b.x - a.x, b.z - a.z) * SAG_PER_UNIT;
+const casingMaterial = new THREE.MeshBasicMaterial({ color: '#0b0d12', polygonOffset: true, polygonOffsetFactor: -1 });
+const poleMaterial = new THREE.MeshStandardMaterial({ color: '#2a2d33', metalness: 0.6, roughness: 0.5 });
 
-// A sagging span of wire from `a` to `b` (world), as a flat strip, into the arrays.
-function span(a: THREE.Vector3, b: THREE.Vector3, pos: number[], index: number[]) {
-  const len = Math.hypot(b.x - a.x, b.z - a.z);
-  if (len < 0.5) return;
-  const sag = sagOf(a, b);
-  // Across the wire, flat, so it shows from the camera above.
-  const nx = -(b.z - a.z) / len * (WIRE_WIDTH / 2), nz = (b.x - a.x) / len * (WIRE_WIDTH / 2);
-  const base = pos.length / 3;
-  for (let i = 0; i <= SPAN_POINTS; i++) {
-    const t = i / SPAN_POINTS;
-    const x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t;
-    const y = a.y + (b.y - a.y) * t - sag * 4 * t * (1 - t);
-    pos.push(x + nx, y, z + nz, x - nx, y, z - nz);
-    if (i > 0) { const k = base + (i - 1) * 2; index.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
-  }
-}
+const TeamLines: React.FC<{ team: Team; lines: GridLine[]; pulses: THREE.Texture; glow: THREE.Texture; tileSize: number; offset: number }> = ({ team, lines, pulses, glow, tileSize, offset }) => {
+  const geometries = useMemo(() => ({
+    casing: ribbon(lines, CASING_WIDTH, tileSize, offset, LINE_Y),
+    glow: ribbon(lines, GLOW_WIDTH, tileSize, offset, LINE_Y + 0.01),
+    core: ribbon(lines, CORE_WIDTH, tileSize, offset, LINE_Y + 0.02),
+  }), [lines, tileSize, offset]);
+  const materials = useMemo(() => ({
+    glow: new THREE.MeshBasicMaterial({ color: TEAM_COLORS[team], map: glow, transparent: true, opacity: 0.1, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -1.5 }),
+    // Plain blending, not additive, so crossing lines stay one line's brightness.
+    core: new THREE.MeshBasicMaterial({ color: TEAM_COLORS[team], map: pulses, transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 }),
+  }), [team, pulses, glow]);
+  useLayoutEffect(() => () => { geometries.casing.dispose(); geometries.glow.dispose(); geometries.core.dispose(); }, [geometries]);
+  useLayoutEffect(() => () => { materials.glow.dispose(); materials.core.dispose(); }, [materials]);
+  if (lines.length === 0) return null;
+  return (
+    <group>
+      <mesh geometry={geometries.casing} material={casingMaterial} raycast={() => null} />
+      <mesh geometry={geometries.glow} material={materials.glow} raycast={() => null} />
+      <mesh geometry={geometries.core} material={materials.core} raycast={() => null} />
+    </group>
+  );
+};
 
 export const PowerGrid: React.FC<{
   buildings: readonly BuildingData[];
@@ -114,121 +145,38 @@ export const PowerGrid: React.FC<{
   const blackouts = useMemo(() => clouds.filter(c => c.type === 'emp' && Date.now() - c.createdAt < c.duration).map(c => ({ gridPos: c.gridPos, radius: c.radius, team: c.team })), [clouds]);
   const blackoutKey = blackouts.map(b => `${b.gridPos.x},${b.gridPos.z},${b.team}`).join(';');
 
-  const streets = useMemo(() => streetsOf(roadTiles, gridSize), [roadTiles, gridSize]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const lines = useMemo(() => gridRoadLines(roadTiles, gridSize, buildings, bases, blackouts), [roadTiles, gridSize, feedKey, baseKey, blackoutKey]);
+  const byTeam = useMemo(() => ({ blue: lines.filter(l => l.team === 'blue'), red: lines.filter(l => l.team === 'red') }), [lines]);
   const lamps = useMemo(() => streetLamps(roadTiles, gridSize), [roadTiles, gridSize]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const states = useMemo(() => lampStates(lamps, buildings, bases, blackouts), [lamps, feedKey, baseKey, blackoutKey]);
 
-  // Where a lamp post stands (world): at the road's edge on its side.
-  const postAt = (l: Lamp) => {
-    const [dx, dz] = STEP[l.side], edge = (tileSize * 0.95) / 2 - 0.9;
-    return { x: l.x * tileSize - offset + dx * edge, z: l.z * tileSize - offset + dz * edge };
-  };
-
-  // The wires: each side's network, from its bases over the posts to the buildings it powers.
-  const wires = useMemo(() => {
-    const pos: number[] = [], index: number[] = [];
-    const couplers: Coupler[] = [];
-    const strung = new Set<string>();
-    const world = (p: Pos) => ({ x: p.x * tileSize - offset, z: p.z * tileSize - offset });
-    const post = (i: number) => { const w = postAt(lamps[i]); return new THREE.Vector3(w.x, POST_TOP, w.z); };
-    for (const team of ['blue', 'red'] as const) {
-      const feeders = feedersOf(buildings, team);
-      const byTile = new Map(feeders.map(f => [`${f.x},${f.z}`, f]));
-      const runs: WireRun[] = wireRuns(powerNetwork(bases[team], feeders, streets), lamps);
-      // Where a wire meets a building: on its wall nearest `toward`, part way up.
-      const onBuilding = (p: Pos, toward: THREE.Vector3) => {
-        const f = byTile.get(`${p.x},${p.z}`);
-        const w = world(p);
-        if (!f) return new THREE.Vector3(w.x, 6, w.z);
-        const x = Math.min(Math.max(toward.x, f.rect.x0 * tileSize - offset), f.rect.x1 * tileSize - offset);
-        const z = Math.min(Math.max(toward.z, f.rect.z0 * tileSize - offset), f.rect.z1 * tileSize - offset);
-        return new THREE.Vector3(x, Math.min(Math.max(f.height * 0.45, 3), 10), z);
-      };
-      for (const run of runs) {
-        const posts = run.poles.map(post);
-        const endpointToward = (from: THREE.Vector3 | undefined, fallback: Pos) => from ?? (() => { const w = world(fallback); return new THREE.Vector3(w.x, POST_TOP, w.z); })();
-        const first = endpointToward(posts[0], run.end);
-        const last = endpointToward(posts[posts.length - 1], run.start);
-        const start = run.startIsBase ? (() => { const w = world(run.start); const d = Math.hypot(first.x - w.x, first.z - w.z) || 1; return new THREE.Vector3(w.x + (first.x - w.x) / d * 4, HQ_ANCHOR, w.z + (first.z - w.z) / d * 4); })() : onBuilding(run.start, first);
-        const end = onBuilding(run.end, last);
-        const chain = [start, ...posts, end];
-        for (let i = 0; i + 1 < chain.length; i++) {
-          // A span between two posts is strung once, however many runs pass along it.
-          const a = run.poles[i - 1], b = run.poles[i];
-          if (i > 0 && i < chain.length - 2) {
-            const key = a < b ? `${a}-${b}` : `${b}-${a}`;
-            if (strung.has(key)) continue;
-            strung.add(key);
-          }
-          span(chain[i], chain[i + 1], pos, index);
-          // A coupler halfway along, in the colour of the side whose wire it is.
-          const from = chain[i], to = chain[i + 1];
-          if (Math.hypot(to.x - from.x, to.z - from.z) >= 0.5) {
-            couplers.push({
-              at: new THREE.Vector3((from.x + to.x) / 2, (from.y + to.y) / 2 - sagOf(from, to), (from.z + to.z) / 2),
-              dir: new THREE.Vector3(to.x - from.x, to.y - from.y, to.z - from.z).normalize(),
-              team,
-            });
-          }
-        }
-      }
-    }
-    const g = new THREE.BufferGeometry();
-    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setIndex(index);
-    return { geometry: g, couplers };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [feedKey, baseKey, streets, lamps, tileSize, offset]);
-  useLayoutEffect(() => () => wires.geometry.dispose(), [wires]);
-  // The couplers: one glowing sleeve on each span, turned along the wire, in its side's colour.
-  const couplerMesh = useRef<THREE.InstancedMesh>(null);
-  useLayoutEffect(() => {
-    const m = couplerMesh.current;
-    if (!m) return;
-    const o = new THREE.Object3D(), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
-    const n = Math.min(wires.couplers.length, MAX_COUPLERS);
-    for (let i = 0; i < n; i++) {
-      const k = wires.couplers[i];
-      o.position.copy(k.at);
-      o.quaternion.setFromUnitVectors(up, k.dir);
-      o.updateMatrix();
-      m.setMatrixAt(i, o.matrix);
-      m.setColorAt(i, c.set(TEAM_COLORS[k.team]).multiplyScalar(1.5));
-    }
-    m.count = n;
-    m.instanceMatrix.needsUpdate = true;
-    if (m.instanceColor) m.instanceColor.needsUpdate = true;
-  }, [wires]);
-
+  const pulses = useMemo(pulseTexture, []);
+  const glow = useMemo(glowTexture, []);
   const pool = useMemo(poolTexture, []);
+  useFrame((_, delta) => { pulses.offset.x -= (PULSE_SPEED / PULSE_SPACING) * Math.min(delta, 0.1); });
+
   const poles = useRef<THREE.InstancedMesh>(null);
-  const arms = useRef<THREE.InstancedMesh>(null);
   const heads = useRef<THREE.InstancedMesh>(null);
   const beacons = useRef<THREE.InstancedMesh>(null);
   const pools = useRef<THREE.InstancedMesh>(null);
   // Where each lamp stands: at the road's edge on its side, its head leaning out over the road.
   useLayoutEffect(() => {
     const o = new THREE.Object3D();
-    lamps.forEach((l, i) => {
+    const edge = (tileSize * 0.95) / 2 - 0.9;
+    lamps.forEach((l: Lamp, i) => {
       const [dx, dz] = STEP[l.side];
-      const { x, z } = postAt(l);
+      const x = l.x * tileSize - offset + dx * edge, z = l.z * tileSize - offset + dz * edge;
       o.rotation.set(0, 0, 0);
-      o.scale.set(1, 1, 1);
       o.position.set(x, POLE_HEIGHT / 2 + 0.4, z);
       o.updateMatrix();
       poles.current?.setMatrixAt(i, o.matrix);
-      // A crossarm across the street's line at the top, where the wires hang from.
-      o.position.set(x, POST_TOP + 0.1, z);
-      o.rotation.set(0, dx !== 0 ? 0 : Math.PI / 2, 0);
-      o.updateMatrix();
-      arms.current?.setMatrixAt(i, o.matrix);
-      o.rotation.set(0, 0, 0);
       o.position.set(x - dx * 1.2, POLE_HEIGHT + 0.4, z - dz * 1.2);
       o.updateMatrix();
       heads.current?.setMatrixAt(i, o.matrix);
       // The indicator light on top of the post.
-      o.position.set(x, POST_TOP + 0.75, z);
+      o.position.set(x, POLE_HEIGHT + 0.95, z);
       o.updateMatrix();
       beacons.current?.setMatrixAt(i, o.matrix);
       o.position.set(x - dx * 2.2, 0.62, z - dz * 2.2);
@@ -236,43 +184,36 @@ export const PowerGrid: React.FC<{
       o.updateMatrix();
       pools.current?.setMatrixAt(i, o.matrix);
     });
-    for (const m of [poles.current, arms.current, heads.current, beacons.current, pools.current]) if (m) { m.count = lamps.length; m.instanceMatrix.needsUpdate = true; }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    for (const m of [poles.current, heads.current, beacons.current, pools.current]) if (m) { m.count = lamps.length; m.instanceMatrix.needsUpdate = true; }
   }, [lamps, tileSize, offset]);
-  // Lit or dark, how bright, and whose: the indicator on top shows the side holding that stretch
-  // of the grid, in its colour.
+  // Lit or dark, how bright, and whose: the indicator on top shows the side holding the power there.
   useLayoutEffect(() => {
     const c = new THREE.Color();
     states.forEach(({ level, team }, i) => {
-      heads.current?.setColorAt(i, level > 0 ? c.copy(LAMP_COLOR).multiplyScalar(0.6 + level) : DEAD_HEAD);
+      heads.current?.setColorAt(i, level > 0 ? c.copy(LAMP_COLOR).multiplyScalar(0.6 + level) : DEAD);
       pools.current?.setColorAt(i, c.copy(LAMP_COLOR).multiplyScalar(level));
-      beacons.current?.setColorAt(i, team ? c.set(TEAM_COLORS[team]).multiplyScalar(1.6) : DEAD_HEAD);
+      beacons.current?.setColorAt(i, team ? c.set(TEAM_COLORS[team]).multiplyScalar(1.6) : DEAD);
     });
     for (const m of [heads.current, beacons.current, pools.current]) if (m?.instanceColor) m.instanceColor.needsUpdate = true;
   }, [states]);
 
+  const n = Math.max(1, lamps.length);
   return (
     <group>
-      <mesh geometry={wires.geometry} material={wireMaterial} raycast={() => null} frustumCulled={false} />
-      <instancedMesh ref={couplerMesh} args={[undefined, undefined, MAX_COUPLERS]} raycast={() => null} frustumCulled={false}>
-        <cylinderGeometry args={[COUPLER_RADIUS, COUPLER_RADIUS, COUPLER_LENGTH, 8]} />
-        <meshBasicMaterial toneMapped={false} />
-      </instancedMesh>
-      <instancedMesh ref={poles} args={[undefined, undefined, Math.max(1, lamps.length)]} material={poleMaterial} raycast={() => null} frustumCulled={false}>
+      <TeamLines team="blue" lines={byTeam.blue} pulses={pulses} glow={glow} tileSize={tileSize} offset={offset} />
+      <TeamLines team="red" lines={byTeam.red} pulses={pulses} glow={glow} tileSize={tileSize} offset={offset} />
+      <instancedMesh ref={poles} args={[undefined, undefined, n]} material={poleMaterial} raycast={() => null} frustumCulled={false}>
         <cylinderGeometry args={[0.12, 0.16, POLE_HEIGHT, 6]} />
       </instancedMesh>
-      <instancedMesh ref={arms} args={[undefined, undefined, Math.max(1, lamps.length)]} material={poleMaterial} raycast={() => null} frustumCulled={false}>
-        <boxGeometry args={[2.2, 0.16, 0.16]} />
-      </instancedMesh>
-      <instancedMesh ref={heads} args={[undefined, undefined, Math.max(1, lamps.length)]} raycast={() => null} frustumCulled={false}>
+      <instancedMesh ref={heads} args={[undefined, undefined, n]} raycast={() => null} frustumCulled={false}>
         <boxGeometry args={[1.1, 0.25, 1.1]} />
         <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
-      <instancedMesh ref={beacons} args={[undefined, undefined, Math.max(1, lamps.length)]} raycast={() => null} frustumCulled={false}>
+      <instancedMesh ref={beacons} args={[undefined, undefined, n]} raycast={() => null} frustumCulled={false}>
         <sphereGeometry args={[0.55, 10, 8]} />
         <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
-      <instancedMesh ref={pools} args={[undefined, undefined, Math.max(1, lamps.length)]} raycast={() => null} frustumCulled={false}>
+      <instancedMesh ref={pools} args={[undefined, undefined, n]} raycast={() => null} frustumCulled={false}>
         <circleGeometry args={[POOL_RADIUS, 20]} />
         <meshBasicMaterial map={pool} transparent blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
       </instancedMesh>

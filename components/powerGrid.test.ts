@@ -1,67 +1,38 @@
 import { describe, expect, it } from 'vitest';
 import type { BuildingData, RoadTileData } from '../types';
 import { ABILITY_CONFIG } from '../constants';
-import { LIGHT, lampLevels, lampStates, powerNetwork, streetLamps, streetsOf, wireRuns } from './powerGrid';
+import { gridRoadLines, LIGHT, lampLevels, lampStates, streetLamps } from './powerGrid';
 
 const building = (id: string, x: number, z: number, owner: BuildingData['owner'], type: BuildingData['type'] = 'residential'): BuildingData =>
   ({ id, gridX: x, gridZ: z, owner, type, destroyed: false, position: [0, 0, 0] } as unknown as BuildingData);
 
-describe('power conduits', () => {
-  it('join every building feeding the grid to a base along the streets, distance growing outward', () => {
-    const net = powerNetwork([{ x: 0, z: 0 }], [{ x: 5, z: 0 }, { x: 5, z: 4 }, { x: 0, z: 9 }]);
-    expect(net).toHaveLength(3);
-    for (const c of net) {
-      // Straight legs only, along x or z.
-      for (let i = 0; i + 1 < c.points.length; i++) {
-        const a = c.points[i], b = c.points[i + 1];
-        expect(a.x === b.x || a.z === b.z).toBe(true);
-        expect(b.d - a.d).toBeCloseTo(Math.abs(b.x - a.x) + Math.abs(b.z - a.z));
-      }
-    }
-    // The far building hangs off the near one rather than running all the way back to the base.
-    const far = net.find(c => c.points.at(-1)!.z === 4)!;
-    expect(far.points[0]).toMatchObject({ x: 5, z: 0, d: 5 });
-    expect(far.points.at(-1)!.d).toBe(9);
+describe('grid lines on the streets', () => {
+  // A street along z = 0 from x = 0 to 39.
+  const tiles = Array.from({ length: 40 }, (_, x) => ({ x, z: 0, type: 'street' })) as RoadTileData[];
+
+  it("run along the road as far as a side's power reaches and stop there, one line per street", () => {
+    // Vanta's HQ at x = 0 powers 6 tiles round it; a building captured at x = 20 four more each way.
+    const lines = gridRoadLines(tiles, 40, [building('b', 20, 1, 'blue')], { blue: [{ x: 0, z: 1 }], red: [] });
+    const runs = lines.map(l => [l.team, l.points[0].x, l.points[1].x]);
+    expect(runs).toContainEqual(['blue', 0, 5]);
+    expect(runs).toContainEqual(['blue', 17, 23]);
+    // Nothing past the edge of the grid, and only along the road: two lines, not one per building.
+    expect(lines).toHaveLength(2);
+    // Distance from the HQ grows along a line, so its pulses run outward.
+    const far = lines.find(l => l.points[0].x === 17)!;
+    expect(far.points[1].d).toBeGreaterThan(far.points[0].d);
   });
 
-  it('starts from every base a side has, and draws nothing without one', () => {
-    const net = powerNetwork([{ x: 0, z: 0 }, { x: 40, z: 40 }], [{ x: 41, z: 40 }]);
-    expect(net[0].points[0]).toMatchObject({ x: 40, z: 40, d: 0 });
-    expect(powerNetwork([], [{ x: 1, z: 1 }])).toEqual([]);
-  });
-});
-
-describe('power conduits along the streets', () => {
-  it('run through the road tiles between the streets nearest each end', () => {
-    // Roads: along z = 0 and along x = 10, an L; the base by the first, a building by the second.
-    const tiles = [...Array.from({ length: 11 }, (_, x) => ({ x, z: 0, type: 'street' })), ...Array.from({ length: 10 }, (_, z) => ({ x: 10, z: z + 1, type: 'street' }))] as RoadTileData[];
-    const streets = streetsOf(tiles, 20);
-    const [c] = powerNetwork([{ x: 0, z: 1 }], [{ x: 11, z: 8 }], streets);
-    // From the base onto the road, along it to the corner, up the second road, then off to the building.
-    const corners = c.points.map(p => `${p.x},${p.z}`);
-    expect(corners[0]).toBe('0,1');
-    expect(corners).toContain('10,0');
-    expect(corners.at(-1)).toBe('11,8');
-    for (const p of c.points.slice(1, -1)) expect(streets.isRoad(p.x, p.z)).toBe(true);
-    // Distance runs on along the way.
-    expect(c.points.at(-1)!.d).toBe(1 + 10 + 8 + 1);
-  });
-});
-
-describe('the wires', () => {
-  it('run from the base over the posts along the way, in order, to the building', () => {
-    const tiles = [...Array.from({ length: 11 }, (_, x) => ({ x, z: 0, type: 'street' })), ...Array.from({ length: 10 }, (_, z) => ({ x: 10, z: z + 1, type: 'street' }))] as RoadTileData[];
-    const lamps = streetLamps(tiles, 20);
-    const net = powerNetwork([{ x: 0, z: 1 }], [{ x: 11, z: 8 }], streetsOf(tiles, 20));
-    const [run] = wireRuns(net, lamps);
-    expect(run.startIsBase).toBe(true);
-    expect(run.end).toEqual({ x: 11, z: 8 });
-    // Every lamp on the way, first along the first street then up the second, none twice.
-    const seq = run.poles.map(i => lamps[i]);
-    expect(seq.length).toBeGreaterThan(5);
-    expect(new Set(run.poles).size).toBe(run.poles.length);
-    const along = seq.filter(l => l.z === 0).map(l => l.x);
-    expect(along).toEqual([...along].sort((a, b) => a - b));
+  it("give a street both sides' grids reach to the side whose HQ is nearer, and leave blacked-out stretches dark", () => {
+    const bases = { blue: [{ x: 0, z: 1 }], red: [{ x: 39, z: 1 }] };
+    const both = [building('b', 20, 1, 'blue'), building('r', 22, 1, 'red')];
+    const lines = gridRoadLines(tiles, 40, both, bases);
+    const owner = (x: number) => lines.find(l => l.points[0].x <= x && x <= l.points[1].x)?.team;
+    expect(owner(17)).toBe('blue');
+    expect(owner(25)).toBe('red');
+    // An enemy EMP over Vanta's HQ cuts its line there.
+    const dark = gridRoadLines(tiles, 40, both, bases, [{ gridPos: { x: 2, z: 0 }, radius: 10, team: 'red' }]);
+    expect(dark.some(l => l.team === 'blue' && l.points[0].x <= 3)).toBe(false);
   });
 });
 
@@ -74,7 +45,7 @@ describe('streetlights', () => {
     expect(lamps).toHaveLength(5);
     for (const l of lamps) {
       expect((l.x + l.z) % 2).toBe(0);
-      // All on one side of the street, so the wires between them run straight.
+      // All on one side of the street, in a line.
       expect(l.side).toBe('n');
     }
   });
