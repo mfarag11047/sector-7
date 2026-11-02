@@ -1702,7 +1702,9 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
     sides (an earlier version drew glowing lines in the sides' colours on the ground, too
     cluttered). Which side powers a street shows on its lamp posts: each powered post carries a
     small indicator light on top in that side's colour (where both grids reach, the side whose HQ
-    is nearer), dark on an unpowered post. This replaces marking captured city buildings in their
+    is nearer), dark on an unpowered post. Each span of wire also carries a coupler halfway along, a short
+    glowing sleeve at the bottom of its sag in the colour of the side whose network the wire
+    belongs to. This replaces marking captured city buildings in their
     owner's colour: their trim and roof now stay their own; only core and server nodes still wear
     their holder's colour.
   - **Streetlights**: a lamp on every other street tile, at the road's edge, on the same side all

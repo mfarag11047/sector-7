@@ -4,7 +4,8 @@
 //
 // The wires are plain dark cable, the same for both sides. Which side powers a street shows on
 // its lamp posts: each powered post carries a small indicator light on top in that side's colour
-// (captured city buildings themselves aren't marked). They sag between the tops of the lamp posts and drop to each powered
+// (captured city buildings themselves aren't marked), and on its wires: a small glowing coupler
+// halfway along each span, in the colour of the side whose network the wire belongs to. They sag between the tops of the lamp posts and drop to each powered
 // building's wall facing the last post, all of them in one mesh, rebuilt only when the grid
 // changes. The streetlights are three instanced meshes (poles, heads and the pools of light
 // under them), re-coloured when the grid changes, not every frame.
@@ -32,6 +33,11 @@ const HQ_ANCHOR = 11;
 const SAG = 0.5;
 const SAG_PER_UNIT = 0.035;
 const SPAN_POINTS = 10;
+// The coupler on each span: a short glowing sleeve round the wire in the colour of the side whose
+// grid the wire carries.
+const COUPLER_RADIUS = 0.42;
+const COUPLER_LENGTH = 1.5;
+const MAX_COUPLERS = 4096;
 const wireMaterial = new THREE.MeshBasicMaterial({ color: '#59606c', side: THREE.DoubleSide });
 const poleMaterial = new THREE.MeshStandardMaterial({ color: '#2a2d33', metalness: 0.6, roughness: 0.5 });
 
@@ -67,11 +73,15 @@ function poolTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c);
 }
 
+// The midpoint of a span, at the bottom of its sag, and its direction there: where its coupler sits.
+interface Coupler { at: THREE.Vector3; dir: THREE.Vector3; team: Team }
+const sagOf = (a: THREE.Vector3, b: THREE.Vector3) => SAG + Math.hypot(b.x - a.x, b.z - a.z) * SAG_PER_UNIT;
+
 // A sagging span of wire from `a` to `b` (world), as a flat strip, into the arrays.
 function span(a: THREE.Vector3, b: THREE.Vector3, pos: number[], index: number[]) {
   const len = Math.hypot(b.x - a.x, b.z - a.z);
   if (len < 0.5) return;
-  const sag = SAG + len * SAG_PER_UNIT;
+  const sag = sagOf(a, b);
   // Across the wire, flat, so it shows from the camera above.
   const nx = -(b.z - a.z) / len * (WIRE_WIDTH / 2), nz = (b.x - a.x) / len * (WIRE_WIDTH / 2);
   const base = pos.length / 3;
@@ -118,6 +128,7 @@ export const PowerGrid: React.FC<{
   // The wires: each side's network, from its bases over the posts to the buildings it powers.
   const wires = useMemo(() => {
     const pos: number[] = [], index: number[] = [];
+    const couplers: Coupler[] = [];
     const strung = new Set<string>();
     const world = (p: Pos) => ({ x: p.x * tileSize - offset, z: p.z * tileSize - offset });
     const post = (i: number) => { const w = postAt(lamps[i]); return new THREE.Vector3(w.x, POST_TOP, w.z); };
@@ -151,16 +162,44 @@ export const PowerGrid: React.FC<{
             strung.add(key);
           }
           span(chain[i], chain[i + 1], pos, index);
+          // A coupler halfway along, in the colour of the side whose wire it is.
+          const from = chain[i], to = chain[i + 1];
+          if (Math.hypot(to.x - from.x, to.z - from.z) >= 0.5) {
+            couplers.push({
+              at: new THREE.Vector3((from.x + to.x) / 2, (from.y + to.y) / 2 - sagOf(from, to), (from.z + to.z) / 2),
+              dir: new THREE.Vector3(to.x - from.x, to.y - from.y, to.z - from.z).normalize(),
+              team,
+            });
+          }
         }
       }
     }
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
     g.setIndex(index);
-    return g;
+    return { geometry: g, couplers };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [feedKey, baseKey, streets, lamps, tileSize, offset]);
-  useLayoutEffect(() => () => wires.dispose(), [wires]);
+  useLayoutEffect(() => () => wires.geometry.dispose(), [wires]);
+  // The couplers: one glowing sleeve on each span, turned along the wire, in its side's colour.
+  const couplerMesh = useRef<THREE.InstancedMesh>(null);
+  useLayoutEffect(() => {
+    const m = couplerMesh.current;
+    if (!m) return;
+    const o = new THREE.Object3D(), up = new THREE.Vector3(0, 1, 0), c = new THREE.Color();
+    const n = Math.min(wires.couplers.length, MAX_COUPLERS);
+    for (let i = 0; i < n; i++) {
+      const k = wires.couplers[i];
+      o.position.copy(k.at);
+      o.quaternion.setFromUnitVectors(up, k.dir);
+      o.updateMatrix();
+      m.setMatrixAt(i, o.matrix);
+      m.setColorAt(i, c.set(TEAM_COLORS[k.team]).multiplyScalar(1.5));
+    }
+    m.count = n;
+    m.instanceMatrix.needsUpdate = true;
+    if (m.instanceColor) m.instanceColor.needsUpdate = true;
+  }, [wires]);
 
   const pool = useMemo(poolTexture, []);
   const poles = useRef<THREE.InstancedMesh>(null);
@@ -214,7 +253,11 @@ export const PowerGrid: React.FC<{
 
   return (
     <group>
-      <mesh geometry={wires} material={wireMaterial} raycast={() => null} frustumCulled={false} />
+      <mesh geometry={wires.geometry} material={wireMaterial} raycast={() => null} frustumCulled={false} />
+      <instancedMesh ref={couplerMesh} args={[undefined, undefined, MAX_COUPLERS]} raycast={() => null} frustumCulled={false}>
+        <cylinderGeometry args={[COUPLER_RADIUS, COUPLER_RADIUS, COUPLER_LENGTH, 8]} />
+        <meshBasicMaterial toneMapped={false} />
+      </instancedMesh>
       <instancedMesh ref={poles} args={[undefined, undefined, Math.max(1, lamps.length)]} material={poleMaterial} raycast={() => null} frustumCulled={false}>
         <cylinderGeometry args={[0.12, 0.16, POLE_HEIGHT, 6]} />
       </instancedMesh>
