@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BuildingData, RoadTileData } from '../types';
 import { ABILITY_CONFIG } from '../constants';
-import { LIGHT, lampLevels, powerNetwork, streetLamps, streetsOf } from './powerGrid';
+import { LIGHT, lampLevels, powerNetwork, streetLamps, streetsOf, wireRuns } from './powerGrid';
 
 const building = (id: string, x: number, z: number, owner: BuildingData['owner'], type: BuildingData['type'] = 'residential'): BuildingData =>
   ({ id, gridX: x, gridZ: z, owner, type, destroyed: false, position: [0, 0, 0] } as unknown as BuildingData);
@@ -48,6 +48,23 @@ describe('power conduits along the streets', () => {
   });
 });
 
+describe('the wires', () => {
+  it('run from the base over the posts along the way, in order, to the building', () => {
+    const tiles = [...Array.from({ length: 11 }, (_, x) => ({ x, z: 0, type: 'street' })), ...Array.from({ length: 10 }, (_, z) => ({ x: 10, z: z + 1, type: 'street' }))] as RoadTileData[];
+    const lamps = streetLamps(tiles, 20);
+    const net = powerNetwork([{ x: 0, z: 1 }], [{ x: 11, z: 8 }], streetsOf(tiles, 20));
+    const [run] = wireRuns(net, lamps);
+    expect(run.startIsBase).toBe(true);
+    expect(run.end).toEqual({ x: 11, z: 8 });
+    // Every lamp on the way, first along the first street then up the second, none twice.
+    const seq = run.poles.map(i => lamps[i]);
+    expect(seq.length).toBeGreaterThan(5);
+    expect(new Set(run.poles).size).toBe(run.poles.length);
+    const along = seq.filter(l => l.z === 0).map(l => l.x);
+    expect(along).toEqual([...along].sort((a, b) => a - b));
+  });
+});
+
 describe('streetlights', () => {
   // A road along z = 5 from x = 0 to 9, lots either side.
   const tiles = Array.from({ length: 10 }, (_, x) => ({ x, z: 5, type: 'street' })) as RoadTileData[];
@@ -57,7 +74,8 @@ describe('streetlights', () => {
     expect(lamps).toHaveLength(5);
     for (const l of lamps) {
       expect((l.x + l.z) % 2).toBe(0);
-      expect(['n', 's']).toContain(l.side);
+      // All on one side of the street, so the wires between them run straight.
+      expect(l.side).toBe('n');
     }
   });
 

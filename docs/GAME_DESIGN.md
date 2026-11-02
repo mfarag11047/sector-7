@@ -1692,13 +1692,17 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   each block, and long planters with clipped hedges along the foot of every tower.
 - **The energy grid made visible** (`components/powerGrid.ts`, drawn by `components/PowerGrid.tsx`).
   Each side's grid shows in the city itself, so who holds what reads without the minimap:
-  - **Power conduits**: from each of a side's command bases, cables in the side's colour run out
-    to every building feeding its grid (every captured building but core nodes), laid along the
-    streets as a spanning tree (each building joined to the nearest point already on the
-    network, by the shortest way through the road tiles), so trunk lines are shared by the branches
-    off them. A cable is a dark casing with a soft glow and a core in the side's colour, Vanta's
-    run on one side of the road and Tokugen's on the other, and pulses run along it out from the HQ.
-  - **Streetlights**: a lamp on every other street tile, at the road's edge, in sodium orange. A
+  - **Power lines**: overhead wires strung from each of a side's command bases out to every
+    building feeding its grid (every captured building but core nodes), along the streets on the
+    lamp posts, which double as utility poles with a crossarm at the top. The network grows as a
+    spanning tree (each building joined to the nearest point already on it, by the shortest way
+    through the road tiles), so trunk lines are shared by the branches off them; the wire sags from
+    post to post and drops to the wall of each powered building facing the last post (once per
+    building, however many tiles it has). The wires are plain steel-grey cable, the same for both
+    sides: which side powers a street shows in which lamps are lit (an earlier version drew glowing
+    lines in the sides' colours on the ground, too cluttered).
+  - **Streetlights**: a lamp on every other street tile, at the road's edge, on the same side all
+    along a street so the wires run straight, in sodium orange. A
     lamp inside a side's grid is lit, brightest by its HQ and dimming to 30% 30 tiles out
     (`LIGHT`); one in nobody's grid, or in a grid blacked out by an EMP, is dark. So the light
     peaks round each base, thins out over contested ground and leaves the unclaimed perimeter dark,

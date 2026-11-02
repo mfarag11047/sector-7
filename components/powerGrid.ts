@@ -1,17 +1,20 @@
-// The energy grid made visible (drawn by PowerGrid.tsx): each side's power conduits, and the
-// city's streetlights lit by whoever holds the power.
+// The energy grid made visible (drawn by PowerGrid.tsx): overhead power lines strung from each
+// side's HQ along the streetlights to the buildings it powers, and the streetlights lit by
+// whoever holds the power.
 //
-// Conduits: from each of a side's command bases, glowing cables run out to every building that
+// The network: from each of a side's command bases, power runs out to every building that
 // feeds its grid (every captured building but core nodes, sim/energy.ts), as a tree: each building
 // is joined to the nearest point already on the network, starting from the bases (Prim's spanning
 // tree, by grid distance). Given the streets, each cable runs along them (the shortest way through
 // the road tiles, from the street nearest one end to the street nearest the other), so the network
-// reads as cables laid under the roads, trunk lines shared by the branches off them; without, it is
-// an L of two straight legs.
+// follows the roads, trunk lines shared by the branches off them; without, it is an L of two
+// straight legs. It is drawn as wires (wireRuns): from the HQ or a building, from pole to pole
+// along the streetlights on the way, and down to the building at the end.
 // Every point on a cable knows how far it is from its base along the network, so pulses can run
 // outward from the HQ.
 //
-// Streetlights: one every other street tile, at the edge of the road. A lamp inside a side's grid
+// Streetlights: one every other street tile, at the edge of the road, on the same side all along a
+// street so the wires between them run straight. A lamp inside a side's grid
 // is lit, brightest by its HQ and dimmer the further out it stands (LIGHT); one in nobody's grid,
 // or in a grid blacked out by an EMP, is dark. So the city's light follows who holds it: bright
 // round each base, thinning out over contested ground, the unclaimed perimeter dark.
@@ -144,15 +147,19 @@ export type LampSide = 'n' | 's' | 'e' | 'w';
 const STEP: Record<LampSide, [number, number]> = { e: [1, 0], w: [-1, 0], s: [0, 1], n: [0, -1] };
 export interface Lamp { x: number; z: number; side: LampSide }
 
-// One lamp on every other street tile, on an edge of the road facing a lot.
+// One lamp on every other street tile, on an edge of the road facing a lot: the north side of a
+// street running east-west and the west side of one running north-south (or the other side where
+// that has no lot), so a street's lamps stand in a line.
 export function streetLamps(tiles: readonly RoadTileData[], gridSize: number): Lamp[] {
   const road = new Set<number>();
   for (const t of tiles) if (t.type === 'main' || t.type === 'street') road.add(t.x * 4096 + t.z);
+  const isRoad = (x: number, z: number) => road.has(x * 4096 + z);
   const lamps: Lamp[] = [];
   for (const t of tiles) {
     if ((t.type !== 'main' && t.type !== 'street') || (t.x + t.z) % 2 !== 0) continue;
-    // Alternate sides of the street from one lamp to the next.
-    const order: LampSide[] = (t.x + t.z) % 4 === 0 ? ['n', 'w', 's', 'e'] : ['s', 'e', 'n', 'w'];
+    const alongX = isRoad(t.x - 1, t.z) || isRoad(t.x + 1, t.z);
+    const alongZ = isRoad(t.x, t.z - 1) || isRoad(t.x, t.z + 1);
+    const order: LampSide[] = alongX && !alongZ ? ['n', 's'] : alongZ && !alongX ? ['w', 'e'] : ['n', 'w', 's', 'e'];
     for (const side of order) {
       const [dx, dz] = STEP[side];
       const nx = t.x + dx, nz = t.z + dz;
@@ -162,6 +169,35 @@ export function streetLamps(tiles: readonly RoadTileData[], gridSize: number): L
     }
   }
   return lamps;
+}
+
+// --- Wires ---
+
+// One run of wire: from `start` (a base or a building, in tiles), over the poles of lamps `poles`
+// (indices into the lamps) in order, down to the building at `end`.
+export interface WireRun { start: Pos; startIsBase: boolean; poles: number[]; end: Pos }
+
+// The wire runs along each cable of the network, over the lamps on the road tiles it passes.
+export function wireRuns(conduits: readonly Conduit[], lamps: readonly Lamp[]): WireRun[] {
+  const lampAt = new Map<number, number>();
+  lamps.forEach((l, i) => lampAt.set(l.x * 4096 + l.z, i));
+  return conduits.map(c => {
+    const poles: number[] = [];
+    for (let i = 0; i + 1 < c.points.length; i++) {
+      const a = c.points[i], b = c.points[i + 1];
+      const steps = Math.max(Math.abs(b.x - a.x), Math.abs(b.z - a.z));
+      const sx = Math.sign(b.x - a.x), sz = Math.sign(b.z - a.z);
+      const straight = a.x === b.x || a.z === b.z;
+      // Only the straight legs along the road (the stubs on and off it go straight to their ends).
+      if (!straight) continue;
+      for (let k = 0; k <= steps; k++) {
+        const pole = lampAt.get((a.x + sx * k) * 4096 + (a.z + sz * k));
+        if (pole !== undefined && poles[poles.length - 1] !== pole) poles.push(pole);
+      }
+    }
+    const first = c.points[0], last = c.points[c.points.length - 1];
+    return { start: { x: first.x, z: first.z }, startIsBase: first.d === 0, poles, end: { x: last.x, z: last.z } };
+  });
 }
 
 export const LIGHT = {

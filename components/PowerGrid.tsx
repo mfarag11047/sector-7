@@ -1,103 +1,54 @@
-// The energy grid made visible (layout in powerGrid.ts): each side's power conduits in its
-// colour, pulses running out from its HQ along them, and the streetlights, lit by whoever holds
-// the power there and brightest by their HQ.
+// The energy grid made visible (layout in powerGrid.ts): overhead power lines strung from each
+// side's HQ along the streetlights to the buildings it powers, and the streetlights, lit by
+// whoever holds the power there and brightest by their HQ.
 //
-// Conduits are flat cables on the ground: a dark casing with a glowing core in the side's
-// colour, all of a side's in one mesh, the pulses a texture scrolling along it. Streetlights are
-// three instanced meshes (poles, heads and the pools of light under them), re-coloured when the
-// grid changes, not every frame.
+// The wires are plain dark cable, the same for both sides: which side powers a street shows in
+// which lamps are lit. They sag between the tops of the lamp posts and drop to each powered
+// building's wall facing the last post, all of them in one mesh, rebuilt only when the grid
+// changes. The streetlights are three instanced meshes (poles, heads and the pools of light
+// under them), re-coloured when the grid changes, not every frame.
 
 import React, { useLayoutEffect, useMemo, useRef } from 'react';
-import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { TEAM_COLORS } from '../constants';
 import type { BuildingData, CloudData, RoadTileData } from '../types';
-import { gridFeeders, lampLevels, powerNetwork, streetLamps, streetsOf, type Conduit, type LampSide } from './powerGrid';
+import { gridFeeders, lampLevels, powerNetwork, streetLamps, streetsOf, wireRuns, type Lamp, type LampSide, type WireRun } from './powerGrid';
 
 type Team = 'blue' | 'red';
 type Pos = { x: number; z: number };
 
-// Height of the cables (just above the sidewalks), their widths in world units, and the pulses:
-// one every PULSE_SPACING tiles along a cable, moving out at PULSE_SPEED tiles a second.
-const CABLE_Y = 0.56;
-const CASING_WIDTH = 2.6;
-const CORE_WIDTH = 0.9;
-// A soft glow either side of the core, so a cable reads as live power, not road paint.
-const GLOW_WIDTH = 3.2;
-// Each side's cables run off-centre along the road, Vanta's to one side and Tokugen's to the
-// other, so where both use a street they lie side by side.
-const LANE: Record<Team, number> = { blue: -2.4, red: 2.4 };
-const PULSE_SPACING = 3;
-const PULSE_SPEED = 2.2;
 // Streetlights: sodium orange (the scenery palette, scenePalette.ts), pole height and pool size.
 const LAMP_COLOR = new THREE.Color('#ffb07a');
 const DEAD_HEAD = new THREE.Color('#1a1c20');
 const POLE_HEIGHT = 5.5;
 const POOL_RADIUS = 6;
 const STEP: Record<LampSide, [number, number]> = { e: [1, 0], w: [-1, 0], s: [0, 1], n: [0, -1] };
+// Wires: thickness (world units), where they hang from on a post and on the HQ, the sag in the
+// middle of a span (a little more for longer ones), and points along each span.
+const WIRE_WIDTH = 0.34;
+const POST_TOP = POLE_HEIGHT + 0.2;
+const HQ_ANCHOR = 11;
+const SAG = 0.5;
+const SAG_PER_UNIT = 0.035;
+const SPAN_POINTS = 10;
+const wireMaterial = new THREE.MeshBasicMaterial({ color: '#59606c', side: THREE.DoubleSide });
+const poleMaterial = new THREE.MeshStandardMaterial({ color: '#2a2d33', metalness: 0.6, roughness: 0.5 });
 
-// A flat ribbon along each conduit, `width` wide, its u running with distance from the base,
-// shifted `lane` off the line (+z for a stretch along x, +x for one along z).
-function ribbon(conduits: readonly Conduit[], width: number, tileSize: number, offset: number, y: number, lane = 0): THREE.BufferGeometry {
-  const pos: number[] = [], uv: number[] = [], index: number[] = [];
-  for (const c of conduits) {
-    for (let i = 0; i + 1 < c.points.length; i++) {
-      const a = c.points[i], b = c.points[i + 1];
-      let ax = a.x * tileSize - offset, az = a.z * tileSize - offset, bx = b.x * tileSize - offset, bz = b.z * tileSize - offset;
-      const len = Math.hypot(bx - ax, bz - az);
-      if (len < 1e-6) continue;
-      if (Math.abs(bz - az) < 1e-6) { az += lane; bz += lane; } else if (Math.abs(bx - ax) < 1e-6) { ax += lane; bx += lane; }
-      // Across the cable, and run past each end so the corners join.
-      const nx = -(bz - az) / len * (width / 2), nz = (bx - ax) / len * (width / 2);
-      const reach = width / 2 + Math.abs(lane);
-      const ex = (bx - ax) / len * reach, ez = (bz - az) / len * reach;
-      const base = pos.length / 3;
-      pos.push(ax - ex + nx, y, az - ez + nz, ax - ex - nx, y, az - ez - nz, bx + ex + nx, y, bz + ez + nz, bx + ex - nx, y, bz + ez - nz);
-      const u0 = a.d / PULSE_SPACING, u1 = b.d / PULSE_SPACING;
-      uv.push(u0, 0, u0, 1, u1, 0, u1, 1);
-      index.push(base, base + 2, base + 1, base + 1, base + 2, base + 3);
-    }
+// A building feeding the grid, once however many tiles it has: its footprint in tiles and height.
+interface Feeder { x: number; z: number; rect: { x0: number; z0: number; x1: number; z1: number }; height: number }
+
+function feedersOf(buildings: readonly BuildingData[], team: Team): Feeder[] {
+  const seen = new Map<string, Feeder>();
+  for (const b of gridFeeders(buildings, team)) {
+    const f = b.footprint ?? { x: b.gridX, z: b.gridZ, w: 1, d: 1 };
+    const key = `${f.x},${f.z}`;
+    if (seen.has(key)) continue;
+    seen.set(key, {
+      x: Math.round(f.x + (f.w - 1) / 2), z: Math.round(f.z + (f.d - 1) / 2),
+      rect: { x0: f.x - 0.45, z0: f.z - 0.45, x1: f.x + f.w - 0.55, z1: f.z + f.d - 0.55 },
+      height: b.height,
+    });
   }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  g.setIndex(index);
-  return g;
-}
-
-// The pulse: a short bright stretch in each repeat, fading behind, over a steady dim glow.
-function pulseTexture(): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = 128;
-  c.height = 8;
-  const g = c.getContext('2d')!;
-  const grad = g.createLinearGradient(0, 0, 128, 0);
-  grad.addColorStop(0, 'rgba(255,255,255,0.22)');
-  grad.addColorStop(0.55, 'rgba(255,255,255,0.25)');
-  grad.addColorStop(0.9, 'rgba(255,255,255,1)');
-  grad.addColorStop(1, 'rgba(255,255,255,0.22)');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 128, 8);
-  const t = new THREE.CanvasTexture(c);
-  t.wrapS = THREE.RepeatWrapping;
-  return t;
-}
-
-// Across a cable's glow: clear in the middle (the core lies there) and fading out at the edges.
-function glowTexture(): THREE.CanvasTexture {
-  const c = document.createElement('canvas');
-  c.width = 4;
-  c.height = 32;
-  const g = c.getContext('2d')!;
-  const grad = g.createLinearGradient(0, 0, 0, 32);
-  grad.addColorStop(0, 'rgba(255,255,255,0)');
-  grad.addColorStop(0.4, 'rgba(255,255,255,0.7)');
-  grad.addColorStop(0.5, 'rgba(255,255,255,0.2)');
-  grad.addColorStop(0.6, 'rgba(255,255,255,0.7)');
-  grad.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = grad;
-  g.fillRect(0, 0, 4, 32);
-  return new THREE.CanvasTexture(c);
+  return [...seen.values()];
 }
 
 // A soft round pool of light for under each lamp.
@@ -114,33 +65,22 @@ function poolTexture(): THREE.CanvasTexture {
   return new THREE.CanvasTexture(c);
 }
 
-const casingMaterial = new THREE.MeshBasicMaterial({ color: '#0b0d12', polygonOffset: true, polygonOffsetFactor: -1 });
-const poleMaterial = new THREE.MeshStandardMaterial({ color: '#2a2d33', metalness: 0.6, roughness: 0.5 });
-
-const TeamConduits: React.FC<{ team: Team; conduits: Conduit[]; pulses: THREE.Texture; tileSize: number; offset: number }> = ({ team, conduits, pulses, tileSize, offset }) => {
-  const casing = useMemo(() => ribbon(conduits, CASING_WIDTH, tileSize, offset, CABLE_Y, LANE[team]), [conduits, tileSize, offset, team]);
-  const core = useMemo(() => ribbon(conduits, CORE_WIDTH, tileSize, offset, CABLE_Y + 0.02, LANE[team]), [conduits, tileSize, offset, team]);
-  const glow = useMemo(() => ribbon(conduits, GLOW_WIDTH, tileSize, offset, CABLE_Y + 0.01, LANE[team]), [conduits, tileSize, offset, team]);
-  const glowMaterial = useMemo(() => new THREE.MeshBasicMaterial({
-    color: TEAM_COLORS[team], map: glowTexture(), transparent: true, opacity: 0.12, depthWrite: false, toneMapped: false,
-    polygonOffset: true, polygonOffsetFactor: -1.5,
-  }), [team]);
-  // Plain blending, not additive: cables overlapping on a shared street stay one cable's brightness.
-  const coreMaterial = useMemo(() => new THREE.MeshBasicMaterial({
-    color: TEAM_COLORS[team], map: pulses, transparent: true, depthWrite: false, toneMapped: false,
-    polygonOffset: true, polygonOffsetFactor: -2,
-  }), [team, pulses]);
-  useLayoutEffect(() => () => { casing.dispose(); core.dispose(); glow.dispose(); }, [casing, core, glow]);
-  useLayoutEffect(() => () => { coreMaterial.dispose(); glowMaterial.map?.dispose(); glowMaterial.dispose(); }, [coreMaterial, glowMaterial]);
-  if (conduits.length === 0) return null;
-  return (
-    <group>
-      <mesh geometry={casing} material={casingMaterial} raycast={() => null} />
-      <mesh geometry={glow} material={glowMaterial} raycast={() => null} />
-      <mesh geometry={core} material={coreMaterial} raycast={() => null} />
-    </group>
-  );
-};
+// A sagging span of wire from `a` to `b` (world), as a flat strip, into the arrays.
+function span(a: THREE.Vector3, b: THREE.Vector3, pos: number[], index: number[]) {
+  const len = Math.hypot(b.x - a.x, b.z - a.z);
+  if (len < 0.5) return;
+  const sag = SAG + len * SAG_PER_UNIT;
+  // Across the wire, flat, so it shows from the camera above.
+  const nx = -(b.z - a.z) / len * (WIRE_WIDTH / 2), nz = (b.x - a.x) / len * (WIRE_WIDTH / 2);
+  const base = pos.length / 3;
+  for (let i = 0; i <= SPAN_POINTS; i++) {
+    const t = i / SPAN_POINTS;
+    const x = a.x + (b.x - a.x) * t, z = a.z + (b.z - a.z) * t;
+    const y = a.y + (b.y - a.y) * t - sag * 4 * t * (1 - t);
+    pos.push(x + nx, y, z + nz, x - nx, y, z - nz);
+    if (i > 0) { const k = base + (i - 1) * 2; index.push(k, k + 2, k + 1, k + 1, k + 2, k + 3); }
+  }
+}
 
 export const PowerGrid: React.FC<{
   buildings: readonly BuildingData[];
@@ -163,35 +103,85 @@ export const PowerGrid: React.FC<{
   const blackoutKey = blackouts.map(b => `${b.gridPos.x},${b.gridPos.z},${b.team}`).join(';');
 
   const streets = useMemo(() => streetsOf(roadTiles, gridSize), [roadTiles, gridSize]);
-  const networks = useMemo(() => ({
-    blue: powerNetwork(bases.blue, gridFeeders(buildings, 'blue').map(b => ({ x: b.gridX, z: b.gridZ })), streets),
-    red: powerNetwork(bases.red, gridFeeders(buildings, 'red').map(b => ({ x: b.gridX, z: b.gridZ })), streets),
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [feedKey, baseKey, streets]);
-
   const lamps = useMemo(() => streetLamps(roadTiles, gridSize), [roadTiles, gridSize]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const levels = useMemo(() => lampLevels(lamps, buildings, bases, blackouts), [lamps, feedKey, baseKey, blackoutKey]);
 
-  const pulses = useMemo(pulseTexture, []);
-  const pool = useMemo(poolTexture, []);
-  useFrame((_, delta) => { pulses.offset.x -= (PULSE_SPEED / PULSE_SPACING) * Math.min(delta, 0.1); });
+  // Where a lamp post stands (world): at the road's edge on its side.
+  const postAt = (l: Lamp) => {
+    const [dx, dz] = STEP[l.side], edge = (tileSize * 0.95) / 2 - 0.9;
+    return { x: l.x * tileSize - offset + dx * edge, z: l.z * tileSize - offset + dz * edge };
+  };
 
+  // The wires: each side's network, from its bases over the posts to the buildings it powers.
+  const wires = useMemo(() => {
+    const pos: number[] = [], index: number[] = [];
+    const strung = new Set<string>();
+    const world = (p: Pos) => ({ x: p.x * tileSize - offset, z: p.z * tileSize - offset });
+    const post = (i: number) => { const w = postAt(lamps[i]); return new THREE.Vector3(w.x, POST_TOP, w.z); };
+    for (const team of ['blue', 'red'] as const) {
+      const feeders = feedersOf(buildings, team);
+      const byTile = new Map(feeders.map(f => [`${f.x},${f.z}`, f]));
+      const runs: WireRun[] = wireRuns(powerNetwork(bases[team], feeders, streets), lamps);
+      // Where a wire meets a building: on its wall nearest `toward`, part way up.
+      const onBuilding = (p: Pos, toward: THREE.Vector3) => {
+        const f = byTile.get(`${p.x},${p.z}`);
+        const w = world(p);
+        if (!f) return new THREE.Vector3(w.x, 6, w.z);
+        const x = Math.min(Math.max(toward.x, f.rect.x0 * tileSize - offset), f.rect.x1 * tileSize - offset);
+        const z = Math.min(Math.max(toward.z, f.rect.z0 * tileSize - offset), f.rect.z1 * tileSize - offset);
+        return new THREE.Vector3(x, Math.min(Math.max(f.height * 0.45, 3), 10), z);
+      };
+      for (const run of runs) {
+        const posts = run.poles.map(post);
+        const endpointToward = (from: THREE.Vector3 | undefined, fallback: Pos) => from ?? (() => { const w = world(fallback); return new THREE.Vector3(w.x, POST_TOP, w.z); })();
+        const first = endpointToward(posts[0], run.end);
+        const last = endpointToward(posts[posts.length - 1], run.start);
+        const start = run.startIsBase ? (() => { const w = world(run.start); const d = Math.hypot(first.x - w.x, first.z - w.z) || 1; return new THREE.Vector3(w.x + (first.x - w.x) / d * 4, HQ_ANCHOR, w.z + (first.z - w.z) / d * 4); })() : onBuilding(run.start, first);
+        const end = onBuilding(run.end, last);
+        const chain = [start, ...posts, end];
+        for (let i = 0; i + 1 < chain.length; i++) {
+          // A span between two posts is strung once, however many runs pass along it.
+          const a = run.poles[i - 1], b = run.poles[i];
+          if (i > 0 && i < chain.length - 2) {
+            const key = a < b ? `${a}-${b}` : `${b}-${a}`;
+            if (strung.has(key)) continue;
+            strung.add(key);
+          }
+          span(chain[i], chain[i + 1], pos, index);
+        }
+      }
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setIndex(index);
+    return g;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [feedKey, baseKey, streets, lamps, tileSize, offset]);
+  useLayoutEffect(() => () => wires.dispose(), [wires]);
+
+  const pool = useMemo(poolTexture, []);
   const poles = useRef<THREE.InstancedMesh>(null);
+  const arms = useRef<THREE.InstancedMesh>(null);
   const heads = useRef<THREE.InstancedMesh>(null);
   const pools = useRef<THREE.InstancedMesh>(null);
-  const span = tileSize * 0.95;
   // Where each lamp stands: at the road's edge on its side, its head leaning out over the road.
   useLayoutEffect(() => {
     const o = new THREE.Object3D();
     lamps.forEach((l, i) => {
       const [dx, dz] = STEP[l.side];
-      const x = l.x * tileSize - offset + dx * (span / 2 - 0.9), z = l.z * tileSize - offset + dz * (span / 2 - 0.9);
+      const { x, z } = postAt(l);
       o.rotation.set(0, 0, 0);
       o.scale.set(1, 1, 1);
       o.position.set(x, POLE_HEIGHT / 2 + 0.4, z);
       o.updateMatrix();
       poles.current?.setMatrixAt(i, o.matrix);
+      // A crossarm across the street's line at the top, where the wires hang from.
+      o.position.set(x, POST_TOP + 0.1, z);
+      o.rotation.set(0, dx !== 0 ? 0 : Math.PI / 2, 0);
+      o.updateMatrix();
+      arms.current?.setMatrixAt(i, o.matrix);
+      o.rotation.set(0, 0, 0);
       o.position.set(x - dx * 1.2, POLE_HEIGHT + 0.4, z - dz * 1.2);
       o.updateMatrix();
       heads.current?.setMatrixAt(i, o.matrix);
@@ -200,8 +190,9 @@ export const PowerGrid: React.FC<{
       o.updateMatrix();
       pools.current?.setMatrixAt(i, o.matrix);
     });
-    for (const m of [poles.current, heads.current, pools.current]) if (m) { m.count = lamps.length; m.instanceMatrix.needsUpdate = true; }
-  }, [lamps, tileSize, offset, span]);
+    for (const m of [poles.current, arms.current, heads.current, pools.current]) if (m) { m.count = lamps.length; m.instanceMatrix.needsUpdate = true; }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lamps, tileSize, offset]);
   // Lit or dark, and how bright.
   useLayoutEffect(() => {
     const c = new THREE.Color();
@@ -214,10 +205,12 @@ export const PowerGrid: React.FC<{
 
   return (
     <group>
-      <TeamConduits team="blue" conduits={networks.blue} pulses={pulses} tileSize={tileSize} offset={offset} />
-      <TeamConduits team="red" conduits={networks.red} pulses={pulses} tileSize={tileSize} offset={offset} />
+      <mesh geometry={wires} material={wireMaterial} raycast={() => null} frustumCulled={false} />
       <instancedMesh ref={poles} args={[undefined, undefined, Math.max(1, lamps.length)]} material={poleMaterial} raycast={() => null} frustumCulled={false}>
         <cylinderGeometry args={[0.12, 0.16, POLE_HEIGHT, 6]} />
+      </instancedMesh>
+      <instancedMesh ref={arms} args={[undefined, undefined, Math.max(1, lamps.length)]} material={poleMaterial} raycast={() => null} frustumCulled={false}>
+        <boxGeometry args={[2.2, 0.16, 0.16]} />
       </instancedMesh>
       <instancedMesh ref={heads} args={[undefined, undefined, Math.max(1, lamps.length)]} raycast={() => null} frustumCulled={false}>
         <boxGeometry args={[1.1, 0.25, 1.1]} />
