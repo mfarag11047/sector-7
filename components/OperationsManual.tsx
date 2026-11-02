@@ -119,7 +119,7 @@ const UNIT_NOTES: Record<UnitType, UnitNote> = {
     actions: [{ name: 'Surveillance', text: `Flies to a spot and circles it for ${ABILITY_CONFIG.SURVEILLANCE_DURATION / 60000} minutes, its radar reaching ${SEARCH_RADAR.surveillanceRange} tiles from the centre.` }],
   },
   wasp: {
-    use: `Swarm launcher aircraft. Builds a micro-drone every ${MICRODRONE.buildMs / 1000}s and keeps ${MICRODRONE.escort} circling it as it flies. When enemies come within ${MICRODRONE.seekRadius} tiles it builds up to ${MICRODRONE.max}, and they dive at them on their own, spreading over the targets: each drone hits once (ground or air) and is spent. After the fight they form up round the Wasp again. Lose the Wasp and you lose its swarm; Aegis and CIWS guns shoot the drones down.`,
+    use: `Swarm launcher aircraft. Builds a micro-drone every ${MICRODRONE.buildMs / 1000}s and keeps ${MICRODRONE.escort} circling it as it flies. When enemies come within ${MICRODRONE.seekRadius} tiles it builds up to ${MICRODRONE.max}, and they dive at them on their own, spreading over the targets: each drone hits once (ground or air) and is spent, detonating in a small blast (${MICRODRONE.blast} tiles) that also catches anything bunched on the same tile for ${Math.round(MICRODRONE.splash * 100)}% of its damage. After the fight they form up round the Wasp again. Lose the Wasp and you lose its swarm; Aegis and CIWS guns shoot the drones down.`,
   },
   hornet: { use: `Gunship. Hunts vehicles with armour-piercing rounds; at Tier 3 it also fires an anti-vehicle rocket every ${HORNET.rocket.cooldownMs / 1000}s at its target (${HORNET.rocket.damage} AP) and gains the Hellfire Salvo, a rocket barrage over an area. Avoid Aegis and massed Troopers.` },
   bombard: {

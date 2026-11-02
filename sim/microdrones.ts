@@ -5,8 +5,11 @@
 // keeps MICRODRONE.escort of them circling it as it flies, and docks any more; once an enemy comes
 // within MICRODRONE.seekRadius it builds up to MICRODRONE.max, and every drone peels off and dives
 // at an enemy near the Wasp, spreading over the targets rather than piling onto one. A drone is
-// spent when it strikes (machine-gun damage by armour, so it hurts everything a little, aircraft
-// included) and never chases further than MICRODRONE.leash from its Wasp. When the fight is over
+// spent when it strikes: it detonates on its target (machine-gun damage by armour, so it hurts
+// everything a little, aircraft included) in a small blast (MICRODRONE.blast, well inside a tile)
+// that also catches every other enemy there for MICRODRONE.splash of that, so units bunched on one
+// tile are all hit, but the next tile over is not. A blast on an aircraft stays in the air and one on the ground stays on the
+// ground. A drone never chases further than MICRODRONE.leash from its Wasp. When the fight is over
 // the survivors form up round it again. A Wasp that is destroyed takes its swarm down with it, and
 // one knocked out by an EMP or stun builds no more until it recovers.
 //
@@ -35,8 +38,12 @@ export const MICRODRONE = {
   // Tiles a second, and how close a drone has to get to strike.
   speed: 9,
   hitRange: 0.6,
-  // Damage a strike does before armour (machine-gun multipliers).
-  damage: 16,
+  // Damage a strike does to its target before armour (machine-gun multipliers), and the share of
+  // it every other enemy within `blast` tiles takes. (Infantry chasing a Wasp bunch up, so a full
+  // blast would turn the Trooper's edge over it round: sim/balance.test.ts.)
+  damage: 14,
+  blast: 0.6,
+  splash: 0.4,
   // The escort's circle round the Wasp: radius in tiles and one lap's time.
   orbit: 0.9,
   orbitMs: 5000,
@@ -73,7 +80,7 @@ export const emptySwarm = (): Swarm => ({ drones: [], buildAt: {} });
 export interface SwarmTick {
   swarm: Swarm;
   unitDamage: Map<string, number>;
-  // Who hit whom, by Wasp, for the pacing report.
+  // Who hit whom, by Wasp, for the pacing report: each unit a blast caught.
   hits: { attackerId: string; targetId: string }[];
   // Drones that struck this tick, where, and at what (for the bursts drawn and heard).
   strikes: { at: { x: number; z: number }; team: UnitData['team']; air: boolean }[];
@@ -174,10 +181,18 @@ export function swarmTick(
         if (shotBlocked(fields, d.team, d.at, target.gridPos)) {
           result.absorbed.push({ at: { ...target.gridPos }, team: d.team, from: { ...d.at } });
         } else {
-          const n = MICRODRONE.damage * DAMAGE_MULTIPLIER.mg[UNIT_RULES[target.type].armor] * upgradeDamage(w) * damageTakenMultiplier(target);
-          result.unitDamage.set(target.id, (result.unitDamage.get(target.id) ?? 0) + n);
-          result.hits.push({ attackerId: w.id, targetId: target.id });
-          result.strikes.push({ at: { ...target.gridPos }, team: d.team, air });
+          // Detonate on the target: everything of the other side caught in the blast, in the same
+          // layer (air or ground), cloaked units included, unless a force field shelters it.
+          const at = target.gridPos;
+          for (const v of units) {
+            if (v.team === w.team || v.team === 'neutral' || v.health <= 0) continue;
+            if ((UNIT_RULES[v.type].armor === 'air') !== air || dist(v.gridPos, at) > MICRODRONE.blast) continue;
+            if (v !== target && shotBlocked(fields, d.team, d.at, v.gridPos)) continue;
+            const n = (v === target ? 1 : MICRODRONE.splash) * MICRODRONE.damage * DAMAGE_MULTIPLIER.mg[UNIT_RULES[v.type].armor] * upgradeDamage(w) * damageTakenMultiplier(v);
+            result.unitDamage.set(v.id, (result.unitDamage.get(v.id) ?? 0) + n);
+            result.hits.push({ attackerId: w.id, targetId: v.id });
+          }
+          result.strikes.push({ at: { ...at }, team: d.team, air });
         }
         continue;
       }

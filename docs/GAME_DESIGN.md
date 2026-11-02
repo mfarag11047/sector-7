@@ -899,7 +899,7 @@ Trained from the HQ's own menu (each Command HQ, including ones built later), 8 
 |---|---|---|---|---|---|---|---|
 | **Infiltrator Drone** | 60 | 1 | T1 | 60 | Air | None | Scout, surveillance |
 | **"Kestrel" Attack Drone** (new) | 130 | 1 | T1 | 110 | Air | Machine gun 6 / 0.4 s / 3, hits ground and air | Cheap generalist; fast (1.5×), sees 5, remote-controlled; Flechette Burst (T2, researched), Regenerative Shield (T3, researched) |
-| **Wasp** | 240 | 2 | T2 | 160 | Air | Micro-drones: 16 (MG) a strike, one built / 1.5 s, hunt within 6, ground and air | Swarm launcher; see Wasp micro-drone swarm |
+| **Wasp** | 240 | 2 | T2 | 160 | Air | Micro-drones: 14 (MG) a strike, 40% to others within 0.6 tiles, one built / 1.5 s, hunt within 6, ground and air | Swarm launcher; see Wasp micro-drone swarm |
 | **Hornet Gunship** (new) | 320 | 3 | T2 | 320 | Air | AP 32 / 1.6 s / 4; researched T3 rocket AP 60 / 6 s | Anti-vehicle air |
 | **Bombardment Drone** | 480 | 4 | T3 | 260 | Air | None | Levels city blocks; 5 drops, rearms at base |
 
@@ -1070,9 +1070,14 @@ anchor. It has no gun of its own: its micro-drones are its weapon.
   fly back in and dock).
 - **Hunting:** once an enemy (ground or air, not the neutral Sentinels) comes within 6 tiles of
   the Wasp, it builds up to 8, and every drone peels off and dives at an enemy near the Wasp,
-  spreading over the targets rather than piling onto one. A drone is spent when it strikes: 16
-  damage by the machine-gun multipliers (14 to infantry, 9 to heavy armour, 13 to aircraft),
-  with the Wasp's refits. Drones never chase more than 9 tiles from their Wasp.
+  spreading over the targets rather than piling onto one. A drone is spent when it strikes: it
+  detonates on its target for 14 damage by the machine-gun multipliers (about 13 to infantry, 8
+  to heavy armour, 11 to aircraft), with the Wasp's refits, in a small blast 0.6 tiles across
+  that catches every other enemy there for 40% of that. So units bunched on the same tile are
+  all hit, but the next tile over is not; a blast in the air stays in the air and one on the
+  ground on the ground, and an enemy force field still shelters what is inside it. (A full-strength
+  blast would let Wasps beat the Troopers meant to counter them, since chasing infantry bunch up.)
+  Drones never chase more than 9 tiles from their Wasp.
 - **Regrouping:** when the fight is over, the survivors form up round the Wasp again.
 - **Holding:** a Wasp whose swarm is fighting holds its attack-move there, as a gun does.
 - **Counters:** the drones are fragile. Aegis and CIWS guns shoot them out of the air like

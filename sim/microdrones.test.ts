@@ -55,6 +55,27 @@ describe('Wasp micro-drones', () => {
     expect(tick.swarm.drones.length).toBeLessThanOrEqual(MICRODRONE.max);
   });
 
+  it('detonates on its target: everything else bunched on that tile is caught too, the next tile is not', () => {
+    const wasp = unit('w', 'wasp', 'blue', 0, 0);
+    // A drone on top of its target, two troopers sharing its tile and one a tile away.
+    const swarm: Swarm = { buildAt: { w: Infinity }, drones: [{
+      id: 'd', waspId: 'w', team: 'blue', at: { x: 3, z: 0 }, mode: 'attack', targetId: 'a', slot: 0, hp: MICRODRONE.integrity,
+    }] };
+    const units = [wasp, unit('a', 'trooper', 'red', 3), unit('b', 'trooper', 'red', 3.3), unit('next', 'trooper', 'red', 4),
+      unit('own', 'trooper', 'blue', 3.2), unit('air', 'hornet', 'red', 3)];
+    const tick = swarmTick(swarm, units, 0, TICK, newId);
+    const each = MICRODRONE.damage * DAMAGE_MULTIPLIER.mg.infantry;
+    expect(tick.unitDamage.get('a')).toBeCloseTo(each);
+    expect(tick.unitDamage.get('b')).toBeCloseTo(each * MICRODRONE.splash);
+    expect(tick.unitDamage.has('next')).toBe(false);
+    expect(tick.unitDamage.has('own')).toBe(false);
+    // A blast on the ground doesn't reach an aircraft overhead.
+    expect(tick.unitDamage.has('air')).toBe(false);
+    expect(tick.strikes).toHaveLength(1);
+    expect(tick.hits.map(h => h.targetId).sort()).toEqual(['a', 'b']);
+    expect(MICRODRONE.blast).toBeLessThanOrEqual(1);
+  });
+
   it('hits aircraft too, and never its own side or the neutral Sentinels', () => {
     const wasp = unit('w', 'wasp', 'blue', 0, 0);
     const { damage } = run([wasp, unit('h', 'hornet', 'red', 3), unit('own', 'tank', 'blue', 2), unit('s', 'defense_drone', 'neutral', 0, 3)], 8000);

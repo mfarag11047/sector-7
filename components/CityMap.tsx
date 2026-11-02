@@ -3950,7 +3950,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           if (drones.strikes.length > 0 || drones.absorbed.length > 0) {
               setExplosions(prev => [...prev,
                   ...drones.strikes.map((st, i) => ({
-                      id: `drone-hit-${now}-${i}`, radius: 1.8, duration: 400, createdAt: now,
+                      // The blast (MICRODRONE.blast): a small burst, heard as a small explosion.
+                      id: `drone-hit-${now}-${i}`, radius: 2.6, duration: 450, createdAt: now,
                       position: { x: st.at.x * tileSize - offset, y: st.air ? DRONE_AIR_Y : 1.2, z: st.at.z * tileSize - offset },
                   })),
                   ...drones.absorbed.map((a, i) => shieldFlash(`drone-${now}-${i}`, a.at, 6)),
