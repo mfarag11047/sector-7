@@ -369,15 +369,16 @@ const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => nu
     }
     for (let k = 0; k < 3; k++) blot(ctx, rand() * SIZE, rand() * SIZE, 30 + rand() * 40, '#4a4f58', 0.25);
   },
-  // Grass, seamless so a courtyard of several tiles reads as one lawn: blades in three greens over
-  // soft patches, nothing that lines up with the tile edge.
+  // Grass, seamless so a courtyard of several tiles reads as one lawn: blades over soft patches,
+  // nothing that lines up with the tile edge. Dry and dusty olive, not green: green is Tokugen's,
+  // and its units must stand out on it (scenePalette.ts).
   lawn: (ctx, rand) => {
-    ctx.fillStyle = '#2f4b2f';
+    ctx.fillStyle = '#3a3a2f';
     ctx.fillRect(0, 0, SIZE, SIZE);
     // Soft lighter and darker patches, drawn wrapped round the edges so tiles join without a seam.
     for (let k = 0; k < 10; k++) {
       const x = rand() * SIZE, y = rand() * SIZE, r = 50 + rand() * 80;
-      const color = rand() > 0.5 ? '#3d6239' : '#243d26';
+      const color = rand() > 0.5 ? '#4a4834' : '#2b2c25';
       for (const ox of [-SIZE, 0, SIZE]) for (const oy of [-SIZE, 0, SIZE]) blot(ctx, x + ox, y + oy, r, color, 0.45);
     }
     // Blades: short strokes leaning every way.
@@ -385,12 +386,12 @@ const DRAW: Record<GroundTexture, (ctx: CanvasRenderingContext2D, rand: () => nu
     for (let k = 0; k < 9000; k++) {
       const x = rand() * SIZE, y = rand() * SIZE, a = rand() * Math.PI * 2, l = 3 + rand() * 4;
       const c = rand();
-      ctx.strokeStyle = c > 0.66 ? 'rgba(92, 140, 80, 0.55)' : c > 0.33 ? 'rgba(62, 104, 58, 0.55)' : 'rgba(30, 52, 32, 0.5)';
+      ctx.strokeStyle = c > 0.66 ? 'rgba(118, 110, 76, 0.55)' : c > 0.33 ? 'rgba(84, 82, 60, 0.55)' : 'rgba(40, 40, 32, 0.5)';
       ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(a) * l, y + Math.sin(a) * l); ctx.stroke();
     }
     // A few small flowers and clover.
     for (let k = 0; k < 40; k++) {
-      ctx.fillStyle = rand() > 0.5 ? 'rgba(214, 220, 160, 0.5)' : 'rgba(150, 190, 120, 0.5)';
+      ctx.fillStyle = rand() > 0.5 ? 'rgba(170, 150, 120, 0.5)' : 'rgba(120, 112, 90, 0.5)';
       ctx.fillRect(rand() * SIZE, rand() * SIZE, 2, 2);
     }
   },

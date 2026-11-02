@@ -204,7 +204,8 @@ function paintYard(layout: YardLayout): THREE.Texture {
   ctx.clip();
   ctx.fillStyle = 'rgba(20, 18, 14, 0.85)';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = 'rgba(234, 179, 8, 0.85)';
+  // Red, not hazard yellow: the core nodes in these yards keep amber to themselves.
+  ctx.fillStyle = 'rgba(200, 52, 40, 0.85)';
   const period = PX * 0.32;
   for (let d = -canvas.height; d < canvas.width + canvas.height; d += period) {
     ctx.beginPath();

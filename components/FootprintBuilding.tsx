@@ -18,6 +18,7 @@
 import React, { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
 import { Edges } from '@react-three/drei';
+import { SCENE } from './scenePalette';
 import { useFrame } from '@react-three/fiber';
 import { TEAM_COLORS } from '../constants';
 import type { BuildingData } from '../types';
@@ -32,11 +33,12 @@ type Kind = 'commercial' | 'hightech' | 'industrial' | 'residential';
 
 // How a building type dresses its outside faces. A window texture covers texW x texH world units
 // and repeats, lined up in world space so it runs on unbroken across tiles.
-const STYLE: Record<Kind, { accent: string; texW: number; texH: number; groundFloor: number }> = {
+// Accents in the scenery palette (scenePalette.ts), clear of the sides' and the nodes' colours.
+export const STYLE: Record<Kind, { accent: string; texW: number; texH: number; groundFloor: number }> = {
   commercial: { accent: '#e879f9', texW: 7, texH: 12, groundFloor: 2 },
-  hightech: { accent: '#2dd4bf', texW: 7, texH: 6, groundFloor: 2 },
-  industrial: { accent: '#f59e0b', texW: 14, texH: 14, groundFloor: 0 },
-  residential: { accent: '#38bdf8', texW: 7, texH: 7, groundFloor: 1.5 },
+  hightech: { accent: SCENE.blue, texW: 7, texH: 6, groundFloor: 2 },
+  industrial: { accent: SCENE.orange, texW: 14, texH: 14, groundFloor: 0 },
+  residential: { accent: SCENE.rose, texW: 7, texH: 7, groundFloor: 1.5 },
 };
 
 // --- Window textures, drawn once per type ---
@@ -51,9 +53,9 @@ function windowTexture(kind: Kind): THREE.CanvasTexture {
   let seed = kind.length * 977;
   const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
   if (kind === 'hightech') {
-    // Continuous window bands with dark spandrels, and a few dark bays.
+    // Continuous blue window bands with dark spandrels, and a few dark bays.
     for (let row = 0; row < 4; row++) {
-      g.fillStyle = 'rgba(94,234,212,0.55)';
+      g.fillStyle = 'rgba(96,128,255,0.55)';
       g.fillRect(0, row * 32 + 8, 128, 12);
       for (let col = 0; col < 8; col++) if (rnd() > 0.7) { g.fillStyle = 'rgba(8,20,30,0.9)'; g.fillRect(col * 16, row * 32 + 8, 16, 12); }
     }
@@ -69,11 +71,12 @@ function windowTexture(kind: Kind): THREE.CanvasTexture {
   } else {
     // A strip of high clerestory windows and a hazard band along the foot of the wall.
     for (let col = 0; col < 8; col++) {
-      g.fillStyle = rnd() > 0.4 ? 'rgba(251,191,36,0.7)' : 'rgba(251,191,36,0.15)';
+      g.fillStyle = rnd() > 0.4 ? 'rgba(255,140,70,0.7)' : 'rgba(255,140,70,0.15)';
       g.fillRect(col * 16 + 3, 70, 10, 10);
     }
     for (let i = -2; i < 16; i++) {
-      g.fillStyle = 'rgba(250,204,21,0.8)';
+      // Red hazard chevrons, not yellow: amber is the core nodes' (scenePalette.ts).
+      g.fillStyle = 'rgba(214,56,44,0.8)';
       g.beginPath();
       g.moveTo(i * 16, 128); g.lineTo(i * 16 + 8, 128); g.lineTo(i * 16 + 16, 112); g.lineTo(i * 16 + 8, 112);
       g.fill();
@@ -173,7 +176,8 @@ const tileHash = (x: number, z: number, salt = 0) => {
 
 const pipeMaterial = new THREE.MeshStandardMaterial({ color: '#64748b', metalness: 0.8, roughness: 0.35 });
 const rustMaterial = new THREE.MeshStandardMaterial({ color: '#9a3412', metalness: 0.5, roughness: 0.6 });
-const craneMaterial = new THREE.MeshStandardMaterial({ color: '#eab308', metalness: 0.4, roughness: 0.5, emissive: '#422006', emissiveIntensity: 0.4 });
+// Rust orange, not crane yellow: the core nodes' amber stands alone in the industrial zones.
+const craneMaterial = new THREE.MeshStandardMaterial({ color: '#c8572a', metalness: 0.4, roughness: 0.5, emissive: '#3a1206', emissiveIntensity: 0.4 });
 
 // A tower crane standing on a shed roof, its jib swung out over the yard.
 const Crane: React.FC<{ jibAngle: number; mast: number }> = ({ jibAngle, mast }) => (
@@ -194,7 +198,7 @@ const Crane: React.FC<{ jibAngle: number; mast: number }> = ({ jibAngle, mast })
       <mesh position={[0.9, 0.6, 0]} material={plantMaterial}>
         <boxGeometry args={[1.4, 1.2, 1.4]} />
       </mesh>
-      <mesh position={[0.9, 0.7, 0.71]} material={neonMaterial('#7dd3fc')}>
+      <mesh position={[0.9, 0.7, 0.71]} material={neonMaterial(SCENE.blue)}>
         <boxGeometry args={[1.1, 0.6, 0.02]} />
       </mesh>
       <mesh position={[10, 1.4, 0]} material={craneMaterial}>
@@ -313,9 +317,9 @@ const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: b
         <mesh position={[0, 1.02, 0]} rotation={[-Math.PI / 2, 0, 0]} material={neonMaterial(accent)}><ringGeometry args={[span * 0.3, span * 0.33, 32]} /></mesh>
         {/* The H. */}
         {[[-0.09, 0], [0.09, 0]].map(([x], i) => (
-          <mesh key={i} position={[span * x, 1.03, 0]} material={neonMaterial('#e2e8f0')}><boxGeometry args={[span * 0.03, 0.04, span * 0.22]} /></mesh>
+          <mesh key={i} position={[span * x, 1.03, 0]} material={neonMaterial(SCENE.red)}><boxGeometry args={[span * 0.03, 0.04, span * 0.22]} /></mesh>
         ))}
-        <mesh position={[0, 1.03, 0]} material={neonMaterial('#e2e8f0')}><boxGeometry args={[span * 0.18, 0.04, span * 0.03]} /></mesh>
+        <mesh position={[0, 1.03, 0]} material={neonMaterial(SCENE.red)}><boxGeometry args={[span * 0.18, 0.04, span * 0.03]} /></mesh>
         {[[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([x, z], i) => (
           <mesh key={`l${i}`} position={[x * span * 0.36, 1.1, z * span * 0.36]} material={redLight()}><sphereGeometry args={[0.3, 6, 4]} /></mesh>
         ))}
@@ -366,7 +370,7 @@ const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: b
           <cylinderGeometry args={[2.6, 0.9, BEAM_HEIGHT, 16, 1, true]} />
         </mesh>
         {[[10, 0.55, 4], [24, 0.42, 3]].map(([y, r, band], i) => (
-          <mesh key={i} position={[0, y, 0]} material={adRingMaterial(i ? '#67e8f9' : accent)}>
+          <mesh key={i} position={[0, y, 0]} material={adRingMaterial(i ? SCENE.hotPink : accent)}>
             <cylinderGeometry args={[span * r, span * r, band, 32, 1, true]} />
           </mesh>
         ))}
@@ -401,7 +405,7 @@ const TowerCrown: React.FC<{ crown: Crown; span: number; long: number; alongX: b
       <group position={[-span * 0.12, 0, -span * 0.08]}>
         <mesh position={[0, 1.3, 0]} material={tankMaterial} castShadow><boxGeometry args={[span * 0.42, 2.6, span * 0.36]} /></mesh>
         <mesh position={[0, 2.75, 0]} rotation={[0, 0, 0.14]} material={rustMaterial}><boxGeometry args={[span * 0.5, 0.12, span * 0.44]} /></mesh>
-        <mesh position={[span * 0.08, 1.5, span * 0.18 + 0.03]} material={neonMaterial('#fbbf24')}><boxGeometry args={[0.9, 0.7, 0.05]} /></mesh>
+        <mesh position={[span * 0.08, 1.5, span * 0.18 + 0.03]} material={neonMaterial(SCENE.rose)}><boxGeometry args={[0.9, 0.7, 0.05]} /></mesh>
         <mesh position={[-span * 0.14, 3.4, -span * 0.08]} material={pipeMaterial}><cylinderGeometry args={[0.18, 0.18, 1.6, 6]} /></mesh>
       </group>
     )}
@@ -506,7 +510,8 @@ const FireEscape: React.FC<{ x: number; y0: number; y1: number; width: number }>
 // How tall a ground storey of shops is.
 const SHOP_HEIGHT = 3.4;
 const tankMaterial = new THREE.MeshStandardMaterial({ color: '#57534e', metalness: 0.3, roughness: 0.8 });
-const gardenMaterial = new THREE.MeshStandardMaterial({ color: '#2f5a3a', roughness: 0.95, emissive: '#0d2a18' });
+// Dull and unlit: a bright green garden would read as a Tokugen roof.
+const gardenMaterial = new THREE.MeshStandardMaterial({ color: '#3a4234', roughness: 0.95 });
 
 // How high the podium under a tower stands (the podium tiles around it are 8-12).
 const PODIUM_HEIGHT = 10;
@@ -773,7 +778,7 @@ const FootprintSegmentView: React.FC<{
           <mesh position={[0, 1.1, 0]} rotation={[-0.45, 0, 0]} material={sawtoothMaterial}>
             <boxGeometry args={[longAlongX ? bw : bd, 0.25, T * 0.5]} />
           </mesh>
-          <mesh position={[0, 1.15, T * 0.24]} material={neonMaterial('#fbbf24')}>
+          <mesh position={[0, 1.15, T * 0.24]} material={neonMaterial(SCENE.orange)}>
             <boxGeometry args={[(longAlongX ? bw : bd) * 0.98, 2, 0.1]} />
           </mesh>
         </group>

@@ -540,9 +540,11 @@ const Nexum: React.FC<{ kit: Kit }> = ({ kit }) => {
   );
 };
 
-// Axiom: twin spires on a sky bridge, a blue light column from the roof and a holo koi.
+// Axiom: twin spires on a sky bridge, a blue light column from the roof and a holo koi. Electric
+// blue, not cyan: the centre server node beside it is the cyan in the core.
+const AXIOM_BLUE = '#4f8bff';
 const Axiom: React.FC<{ kit: Kit }> = ({ kit }) => {
-  const cyan = '#3ee0ff';
+  const cyan = AXIOM_BLUE;
   return (
     <group>
       <WindowBlock size={[64, 12, 64]} position={[0, 6, 0]} tex={kit.windows.cool} />
@@ -566,8 +568,8 @@ const Axiom: React.FC<{ kit: Kit }> = ({ kit }) => {
       <Sign tex={kit.verticalSigns.axiom} glow={kit.glow} color={cyan} size={[8, 32]} position={[25.1, 120, 15]} rotationY={Math.PI / 2} />
       <Sign tex={kit.signs.axiom} glow={kit.glow} color={cyan} size={[20, 5]} position={[-14, 212, -2.9]} />
       <Beacon position={[-14, 228, -14]} glow={kit.glow} />
-      <SkyBeam position={[-14, 226, -14]} color="#4fc8ff" radius={4} length={460} strength={0.85} />
-      <HoloKoi center={[0, 130, 0]} radius={58} length={78} color="#64d8ff" speed={0.12} bob={10} />
+      <SkyBeam position={[-14, 226, -14]} color="#4f7bff" radius={4} length={460} strength={0.85} />
+      <HoloKoi center={[0, 130, 0]} radius={58} length={78} color="#6f8fff" speed={0.12} bob={10} />
     </group>
   );
 };
@@ -752,7 +754,7 @@ const Aerodynes: React.FC<{ glow: THREE.Texture }> = ({ glow }) => {
 // units and usually sits around 80: at this scale the tallest roofs are a little over 110.
 const TOWER_SCALE = 0.5;
 const TOWER_TOP = 230 * TOWER_SCALE;
-const LOT_COLORS: Record<LandmarkKind, string> = { tokugen: '#8dff7a', nexum: '#ff7a5a', axiom: '#3ee0ff', vanta: '#cfe6ff' };
+const LOT_COLORS: Record<LandmarkKind, string> = { tokugen: '#8dff7a', nexum: '#ff7a5a', axiom: AXIOM_BLUE, vanta: '#cfe6ff' };
 
 // A tower's whole city block: a dark plaza edged in its corp colour, with the tower on it. While
 // the camera is down among the floors of a tower, the tower is hidden so it never fills the view.
@@ -787,14 +789,15 @@ export const Landmarks: React.FC<{ landmarks: Landmark[]; tileSize: number; offs
     windowTexture(53, ['#d9ffd2', '#9dff8a', '#f2fff0'], 0.16),
     signTexture('TOKUGEN', '#8dff7a'),
     signTexture('NEXUM', '#ff7a5a', { emblem: true }),
-    signTexture('AXIOM', '#3ee0ff'),
+    signTexture('AXIOM', AXIOM_BLUE),
     signTexture('VANTA', '#cfe6ff'),
-    signTexture('AXIOM', '#3ee0ff', { vertical: true }),
+    signTexture('AXIOM', AXIOM_BLUE, { vertical: true }),
     signTexture('VANTA', '#ff6a2a', { vertical: true }),
     signTexture('TOKUGEN', '#8dff7a', { vertical: true }),
-    advertTexture(5, ['#ff2a8a', '#2ad8ff', '#ffb02a']),
-    advertTexture(9, ['#2affc8', '#8a5aff', '#ff4a6a']),
-    advertTexture(13, ['#ff7a2a', '#ff2a5a', '#ffd84a']),
+    // Adverts in the scenery palette (scenePalette.ts).
+    advertTexture(5, ['#ff2a8a', '#4f7bff', '#ff7a2a']),
+    advertTexture(9, ['#ff4fd8', '#6d6bff', '#ff4a6a']),
+    advertTexture(13, ['#ff7a2a', '#ff2a5a', '#e879f9']),
   ], []);
   const kit: Kit = useMemo(() => ({
     glow,

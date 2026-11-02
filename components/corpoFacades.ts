@@ -4,20 +4,24 @@
 // blue's side (CURATED) and given to its twin across the map too, and one of a few shades of
 // its style's body colour.
 //
-//   monolith   near-black, a scatter of warm windows, full-height white light strips
+//   monolith   near-black, a scatter of warm windows, full-height indigo light strips
 //   goldscale  dark, with glowing panels of gold scales across its two broad faces
 //   office     slate blue, dense rows of cool white office windows
-//   brutalist  charcoal, horizontal louvre fins, an amber light line round it
-//   ticker     dark, bands of red LED readouts between thin white lines
+//   brutalist  charcoal, horizontal louvre fins, an orange light line round it
+//   ticker     dark, bands of red LED readouts between thin rose lines
 //
 // Each tower also gets its own massing (how it steps in on the way up) and crown, so towers
 // side by side differ in silhouette as well as dress.
+//
+// Their neon keeps to the scenery palette (scenePalette.ts): never the sides' white or green, nor
+// the nodes' cyan or amber.
 //
 // Used by FootprintBuilding.tsx; Building.tsx takes the body colour from here.
 
 import * as THREE from 'three';
 import { CITY_CONFIG } from '../constants';
 import type { BuildingData } from '../types';
+import { SCENE, SHOP_SIGNS } from './scenePalette';
 
 export type FacadeName = 'monolith' | 'goldscale' | 'office' | 'brutalist' | 'ticker'
   // Midtown's apartment blocks (midtownLooks.ts).
@@ -61,23 +65,23 @@ export interface Facade {
 }
 
 export const FACADES: Record<FacadeName, Facade> = {
-  monolith: { name: 'monolith', body: '#16181d', bodies: ['#16181d', '#3b3e45', '#2c2f36'], accent: '#f8fafc', texW: 5, texH: 5, strips: { count: 2, color: '#f1f5f9' } },
-  goldscale: { name: 'goldscale', body: '#221e19', bodies: ['#221e19', '#433d35'], accent: '#fbbf24', texW: 5, texH: 5, scales: true },
-  office: { name: 'office', body: '#1e2838', bodies: ['#1e2838', '#3a4352', '#2e3848'], accent: '#7dd3fc', texW: 6, texH: 4 },
-  brutalist: { name: 'brutalist', body: '#2e3034', bodies: ['#2e3034', '#4b4d52', '#575960'], accent: '#facc15', texW: 8, texH: 3, band: { at: 0.32, color: '#fde047' } },
-  ticker: { name: 'ticker', body: '#1a1820', bodies: ['#1a1820', '#3b3740'], accent: '#ff2d55', texW: 7, texH: 6, strips: { count: 1, color: '#e2e8f0' } },
+  monolith: { name: 'monolith', body: '#16181d', bodies: ['#16181d', '#3b3e45', '#2c2f36'], accent: SCENE.indigo, texW: 5, texH: 5, strips: { count: 2, color: SCENE.indigo } },
+  goldscale: { name: 'goldscale', body: '#221e19', bodies: ['#221e19', '#433d35'], accent: SCENE.hotPink, texW: 5, texH: 5, scales: true },
+  office: { name: 'office', body: '#1e2838', bodies: ['#1e2838', '#3a4352', '#2e3848'], accent: SCENE.blue, texW: 6, texH: 4 },
+  brutalist: { name: 'brutalist', body: '#2e3034', bodies: ['#2e3034', '#4b4d52', '#575960'], accent: SCENE.orange, texW: 8, texH: 3, band: { at: 0.32, color: SCENE.amberless } },
+  ticker: { name: 'ticker', body: '#1a1820', bodies: ['#1a1820', '#3b3740'], accent: SCENE.red, texW: 7, texH: 6, strips: { count: 1, color: SCENE.rose } },
   // Midtown: the data-centre bands it always had, apartment windows, balcony floors.
-  bands: { name: 'bands', body: '#1f2d2a', bodies: ['#1f2d2a', '#22302e', '#1d2a2c'], accent: '#2dd4bf', texW: 7, texH: 6 },
-  apartment: { name: 'apartment', body: '#26302e', bodies: ['#26302e', '#2b3330', '#252d33'], accent: '#5eead4', texW: 5, texH: 4 },
-  balcony: { name: 'balcony', body: '#2a3331', bodies: ['#2a3331', '#2e3532', '#283035'], accent: '#a7f3d0', texW: 6, texH: 3.5 },
+  bands: { name: 'bands', body: '#1f2d2a', bodies: ['#1f2d2a', '#22302e', '#1d2a2c'], accent: SCENE.blue, texW: 7, texH: 6 },
+  apartment: { name: 'apartment', body: '#26302e', bodies: ['#26302e', '#2b3330', '#252d33'], accent: SCENE.hotPink, texW: 5, texH: 4 },
+  balcony: { name: 'balcony', body: '#2a3331', bodies: ['#2a3331', '#2e3532', '#283035'], accent: SCENE.amberless, texW: 6, texH: 3.5 },
   // Outskirts: weathered paint and bare concrete, cramped lit windows.
-  tenement: { name: 'tenement', body: '#4a3f38', bodies: ['#4a3f38', '#3f4a48', '#4d4436', '#45394a'], accent: '#38bdf8', texW: 4.5, texH: 3.6 },
-  projects: { name: 'projects', body: '#4b4e52', bodies: ['#4b4e52', '#55524b', '#474c55'], accent: '#7dd3fc', texW: 6, texH: 3.4 },
-  patched: { name: 'patched', body: '#3c4146', bodies: ['#3c4146', '#463f3b', '#3a4440'], accent: '#f472b6', texW: 7, texH: 7 },
+  tenement: { name: 'tenement', body: '#4a3f38', bodies: ['#4a3f38', '#3f4a48', '#4d4436', '#45394a'], accent: SCENE.rose, texW: 4.5, texH: 3.6 },
+  projects: { name: 'projects', body: '#4b4e52', bodies: ['#4b4e52', '#55524b', '#474c55'], accent: SCENE.indigo, texW: 6, texH: 3.4 },
+  patched: { name: 'patched', body: '#3c4146', bodies: ['#3c4146', '#463f3b', '#3a4440'], accent: SCENE.pink, texW: 7, texH: 7 },
   // Industry: pale corporate plant concrete, rusty teal and orange sheds, corrugated warehouses.
-  plant: { name: 'plant', body: '#8d8c86', bodies: ['#8d8c86', '#9a978f', '#7f817e'], accent: '#ef4444', texW: 8, texH: 6, skirt: '#26272a' },
-  rustshed: { name: 'rustshed', body: '#5b4335', bodies: ['#5b4335', '#2f4d4a', '#4d3b30'], accent: '#5eead4', texW: 6, texH: 5 },
-  warehouse: { name: 'warehouse', body: '#4a4e53', bodies: ['#4a4e53', '#55585c', '#3f4447'], accent: '#f59e0b', texW: 14, texH: 14 },
+  plant: { name: 'plant', body: '#8d8c86', bodies: ['#8d8c86', '#9a978f', '#7f817e'], accent: SCENE.crimson, texW: 8, texH: 6, skirt: '#26272a' },
+  rustshed: { name: 'rustshed', body: '#5b4335', bodies: ['#5b4335', '#2f4d4a', '#4d3b30'], accent: SCENE.orange, texW: 6, texH: 5 },
+  warehouse: { name: 'warehouse', body: '#4a4e53', bodies: ['#4a4e53', '#55585c', '#3f4447'], accent: SCENE.blue, texW: 14, texH: 14 },
 };
 
 // How a tower is massed, from the ground up: at each share of its height, how many steps its
@@ -200,7 +204,7 @@ const WINDOWS: Record<FacadeName, (g: CanvasRenderingContext2D, rnd: () => numbe
     for (let row = 0; row < 8; row++) {
       for (let col = 0; col < 10; col++) {
         const lit = rnd();
-        g.fillStyle = lit > 0.35 ? (lit > 0.9 ? 'rgba(165,243,252,0.75)' : 'rgba(226,236,250,0.62)') : 'rgba(100,116,139,0.12)';
+        g.fillStyle = lit > 0.35 ? (lit > 0.9 ? 'rgba(150,170,255,0.75)' : 'rgba(226,236,250,0.62)') : 'rgba(100,116,139,0.12)';
         g.fillRect(col * 12.8 + 2, row * 16 + 4, 9, 9);
       }
     }
@@ -231,19 +235,19 @@ const WINDOWS: Record<FacadeName, (g: CanvasRenderingContext2D, rnd: () => numbe
       }
     }
   },
-  // Continuous green window bands with dark spandrels and a few dark bays.
+  // Continuous blue window bands with dark spandrels and a few dark bays (not green: Tokugen's).
   bands: (g, rnd) => {
     for (let row = 0; row < 4; row++) {
-      g.fillStyle = 'rgba(94,234,212,0.55)';
+      g.fillStyle = 'rgba(96,128,255,0.55)';
       g.fillRect(0, row * 32 + 8, 128, 12);
       for (let col = 0; col < 8; col++) if (rnd() > 0.7) { g.fillStyle = 'rgba(8,20,30,0.9)'; g.fillRect(col * 16, row * 32 + 8, 16, 12); }
     }
   },
-  // Flats: a grid of windows, lit warm, white or teal, many dark, a few with curtains drawn.
+  // Flats: a grid of windows, lit warm, lavender or pink, many dark, a few with curtains drawn.
   apartment: (g, rnd) => {
     for (let row = 0; row < 8; row++) for (let col = 0; col < 6; col++) {
       const lit = rnd();
-      g.fillStyle = lit > 0.82 ? 'rgba(253,224,160,0.85)' : lit > 0.7 ? 'rgba(204,251,241,0.7)' : lit > 0.6 ? 'rgba(244,170,200,0.6)' : 'rgba(100,130,130,0.14)';
+      g.fillStyle = lit > 0.82 ? 'rgba(253,224,160,0.85)' : lit > 0.7 ? 'rgba(170,180,255,0.65)' : lit > 0.6 ? 'rgba(244,170,200,0.6)' : 'rgba(100,130,130,0.14)';
       g.fillRect(col * 21 + 5, row * 16 + 4, 11, 9);
     }
   },
@@ -253,7 +257,7 @@ const WINDOWS: Record<FacadeName, (g: CanvasRenderingContext2D, rnd: () => numbe
       const y = row * 32;
       for (let col = 0; col < 4; col++) {
         const lit = rnd();
-        g.fillStyle = lit > 0.6 ? 'rgba(253,230,170,0.75)' : lit > 0.45 ? 'rgba(167,243,208,0.55)' : 'rgba(90,110,110,0.15)';
+        g.fillStyle = lit > 0.6 ? 'rgba(253,230,170,0.75)' : lit > 0.45 ? 'rgba(255,160,120,0.55)' : 'rgba(90,110,110,0.15)';
         g.fillRect(col * 32 + 4, y + 6, 24, 18);
       }
       g.fillStyle = 'rgba(200,214,210,0.45)';
@@ -302,7 +306,7 @@ const WINDOWS: Record<FacadeName, (g: CanvasRenderingContext2D, rnd: () => numbe
       g.fillStyle = lit > 0.85 ? 'rgba(244,114,182,0.75)' : 'rgba(253,214,150,0.75)';
       g.fillRect(col * 32 + 10, row * 32 + 10, 12, 10);
     }
-    g.fillStyle = 'rgba(34,211,238,0.7)';
+    g.fillStyle = 'rgba(110,140,255,0.7)';
     g.fillRect(20 + rnd() * 60, 100, 26, 3);
   },
   // Big concrete panels with grimy joints and a few small high windows.
@@ -372,7 +376,7 @@ export function goldScaleMaterial(): THREE.MeshBasicMaterial {
 let shopMaterial: THREE.MeshBasicMaterial | null = null;
 export function shopfrontMaterial(): THREE.MeshBasicMaterial {
   if (shopMaterial) return shopMaterial;
-  const signs = ['#f472b6', '#22d3ee', '#facc15', '#a78bfa', '#4ade80', '#fb923c'];
+  const signs = SHOP_SIGNS;
   const tex = canvas(128, (g, rnd) => {
     g.fillStyle = 'rgba(10,12,16,0.9)';
     g.fillRect(0, 0, 128, 128);

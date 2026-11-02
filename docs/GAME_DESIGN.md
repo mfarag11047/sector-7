@@ -1643,7 +1643,7 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
 - Each starting base is a walled military compound (`baseCompound` in `sim/mapgen.ts`, drawn by
   `components/BaseCompound.tsx`). A blast wall runs four tiles out from the HQ along the two sides
   facing the map, with the Blackwall at its back: a solid lower wall of dark concrete panels with a
-  coping, downlights on both faces throwing pools of light down it and a line of the side's colour
+  coping, sodium-orange downlights on both faces throwing pools of light down it and a line of the side's colour
   under the coping; above it a louvred fence of angled horizontal slats in a frame, split by
   mullions, between square capped pillars; and a watchtower on the corner. Each of the four roads
   that run through it has a blast gate between two tall black capped pillars with lights facing
@@ -1672,12 +1672,13 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   fringe, bases) are paler worn asphalt with cracks, a few patches and a faded dashed yellow
   centre line. Junctions are unmarked.
 - The open ground in each district has its own texture (`components/districtTheme.ts`). In
-  midtown every block is a green courtyard: open tiles beside a street or the boulevard are light
-  concrete paving, the rest are lawn laid edge to edge, with a low pale kerb where lawn meets
+  midtown every block is a courtyard: open tiles beside a street or the boulevard are light
+  concrete paving, the rest are dry, dusty olive lawn laid edge to edge (not green, so Tokugen's
+  units stand out on it), with a low pale kerb where lawn meets
   paving (`groundOfTile`). The outskirts work the same way with darker ground: small dark-grey
   pavers along the streets round empty parking lots marked out in bays, laid edge to edge
   with their aisles all one way. The industrial yards are plain jointed concrete with markings
-  painted over each whole zone (`components/IndustrialYard.tsx`): a yellow-and-black hazard band
+  painted over each whole zone (`components/IndustrialYard.tsx`): a red-and-black hazard band (not yellow, which is the core nodes')
   along every yard edge onto the street, tyre tracks from each shed's door through its yard to
   the nearest street (the band breaks there for a gate), an oil stain at every door and a few
   more scattered about. Painted once for blue's zone and shown turned round over red's. The
@@ -1689,12 +1690,26 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   plaza (`components/DowntownDressing.tsx`): polished dark granite along the streets with a
   magenta neon line inlaid at the kerb, plaza stone laid in a two-tone diamond lattice inside
   each block, and long planters with clipped hedges along the foot of every tower.
+- **Colour readability** (`components/scenePalette.ts`, checked by its test). Some colours are
+  reserved so they always mean one thing: the sides' Vanta near-white and Tokugen green (every
+  unit, and the trim and roof of every captured building), neutral purple, and the objectives'
+  cyan (server nodes) and amber (core nodes). The scenery never uses them: its neon keeps to
+  magenta and pink, reds, orange, and blue and indigo, with dark bodies between them as rest for
+  the eye, so a building's own trim never reads as captured, nothing near a node competes with it
+  and units don't melt into walls of their own colour. On purpose, the two sides' megatowers
+  keep their corporations' colours, the gold-scale towers their gold (none stands near a core
+  node), and road paint stays road paint. So: midtown's trim is blue, hot pink and orange (it was
+  teal, mint and pale mint), the outskirts' rose, indigo and pink (sky blue), industry's orange,
+  red and blue (amber and mint); the downtown facades are listed below; helipad markings are red;
+  cranes rust orange; roof gardens and lawns dull olive; the Axiom tower electric blue (it was
+  cyan, beside the centre server node); the adverts and shop signs lost their cyan, green and
+  yellow; and the base compounds' floodlights are sodium orange.
 - The corporate towers downtown and in the core each wear one of five facades taken from Night
   City's centre (`components/corpoFacades.ts`), picked by hand for every tower and shared with its
-  twin: **monolith** (near-black, scattered warm windows, full-height white light strips),
+  twin: **monolith** (near-black, scattered warm windows, full-height indigo light strips),
   **gold scale** (dark, glowing panels of gold scales on its two broad faces), **office** (slate
-  blue, dense rows of lit office windows), **brutalist** (charcoal, horizontal louvre fins, an
-  amber light line round it) and **ticker** (dark, bands of red LED readout). Each style comes in
+  blue, dense rows of lit office windows, blue trim), **brutalist** (charcoal, horizontal louvre fins, an
+  orange light line round it) and **ticker** (dark, bands of red LED readout between rose lines). Each style comes in
   a few body shades, from near-black to dark grey, picked per tower so the district isn't a wall
   of black under the fog. Each tower is also massed
   and crowned by hand. Downtown mixes broad monolithic masses (3x3, 5x2, 2x3) with slim spires

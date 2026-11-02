@@ -10,14 +10,15 @@ import React from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-// The adverts: corporate names from the city's towers and street businesses.
-const ADS: { title: string; glyphs: string; color: string; glow: string }[] = [
+// The adverts: corporate names from the city's towers and street businesses, in the scenery
+// palette (scenePalette.ts), never the sides' white or green or the nodes' cyan or amber.
+export const ADS: { title: string; glyphs: string; color: string; glow: string }[] = [
   { title: 'TOKUGEN', glyphs: '徳源', color: '#f472b6', glow: '#db2777' },
-  { title: 'NEXUM', glyphs: 'ネクサム', color: '#22d3ee', glow: '#0891b2' },
-  { title: 'AXIOM', glyphs: '公理', color: '#fbbf24', glow: '#d97706' },
-  { title: 'VANTA', glyphs: '漆黒', color: '#a78bfa', glow: '#7c3aed' },
+  { title: 'NEXUM', glyphs: 'ネクサム', color: '#ff7a5a', glow: '#c2410c' },
+  { title: 'AXIOM', glyphs: '公理', color: '#4f7bff', glow: '#1d4ed8' },
+  { title: 'VANTA', glyphs: '漆黒', color: '#ff4fd8', glow: '#be185d' },
   { title: 'NOODLES', glyphs: 'ラーメン', color: '#f87171', glow: '#dc2626' },
-  { title: 'SYNTH SAKE', glyphs: '合成酒', color: '#4ade80', glow: '#16a34a' },
+  { title: 'SYNTH SAKE', glyphs: '合成酒', color: '#e879f9', glow: '#a21caf' },
 ];
 export const AD_COUNT = ADS.length;
 
