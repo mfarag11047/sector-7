@@ -1744,6 +1744,28 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   bones. The corporate towers of downtown and the core, and the two sides' megatowers, get no
   stack: pristine monoliths, as new as the day they went up. Picked from where a building
   stands, so its twin across the map is the same.
+- **Decay** (`components/decay.ts`, drawn by `components/Decay.tsx` and
+  `components/FootprintBuilding.tsx`). Each city block of the poor edge and a few in midtown has
+  fallen into one state of ruin, sometimes with traces of a second (a block's primary state
+  shows on all its buildings, its secondary on about a third):
+  - **Deconstruction**: building stopped mid-build. A building at least 14 tall is finished only
+    to whole storeys about 60% of the way up; above that its upper floors are a bare concrete
+    frame of columns and slabs, the top slab half poured and the columns ragged with rebar
+    sticking out, scaffolding up one face with a faded denim or rust tarp hung on it, and a tower
+    crane left standing over it. (The game still counts the full height.)
+  - **Deterioration**: weather and neglect. Sand drifted into the gutters of the streets round
+    the block, puddles of standing water in the road (dark, with smeared reflections of the sky
+    and the neon), weeds up through the pavement cracks, and grime streaked down the buildings'
+    walls from their roofs.
+  - **Redevelopment**: people living in the ruins. Shipping containers stacked two or three high
+    into homes on the roofs (rust, faded blue, dull orange, grey; a lit window, a tarp to a pole,
+    a ladder up) in place of the usual rooftop piece, and lean-to shacks of sheet metal against
+    the ground floors with tarps stretched out over the pavement.
+  The fringe always decays (mostly redevelopment and deterioration), the outskirts often, the
+  industrial zones as often (the taller sheds left half built), midtown rarely; the core, downtown, the
+  bases and the corporate towers never. **Devastation**, the fourth state, isn't laid out: it's
+  what the fighting leaves (ruins and craters, below). Picked per block, a block and its twin
+  across the map the same.
 - **Ruins and craters** (`components/ruins.ts`, drawn by `components/Ruins.tsx`). A match leaves
   its mark on the city:
   - **Ruins**: a destroyed building tile is a ruin rather than a bare patch: the broken

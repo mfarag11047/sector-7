@@ -10,6 +10,8 @@
 //                   bundle running off it
 //   sentry     (3)  a mast with a chamfered camera housing, a red light and a small dish
 //   pavilion   (4)  a round glass pavilion with champagne trim, a few dark trees round it
+//   shanty          not an era's: where people live in the ruins (decay.ts), shipping containers
+//                   stacked into homes, a lit window, a tarp between them and a ladder up
 //
 // The colours keep to the scenery palette (scenePalette.ts): no cyan, amber, white or green.
 
@@ -35,6 +37,12 @@ const M = {
   champagne: std('#a8966a', 0.9, 0.3),
   leaves: std('#2c3528', 0, 0.95),
   sign: std('#1a1420', 0.3, 0.6, { emissive: '#2a0f2a', emissiveIntensity: 0.6 }),
+  boxRust: std('#7a3626', 0.5, 0.65),
+  boxBlue: std('#3d5670', 0.5, 0.65),
+  boxOrange: std('#8a5a2a', 0.5, 0.65),
+  boxGrey: std('#5a5d60', 0.5, 0.65),
+  tarp: std('#3f5a78', 0, 0.9, { side: THREE.DoubleSide }),
+  window: glow('#ffb070'),
   fan: glow(SCENE.blue),
   red: glow('#ff003c'),
   pink: glow(SCENE.hotPink),
@@ -69,7 +77,8 @@ class Kit {
 
 // Build a retrofit for a roof `span` across (its narrow side), the sign facing +z when `faceZ`
 // is 1, -z when -1. `seed` in [0, 1) varies the details.
-export function buildRetrofit(kind: Retrofit, span: number, faceZ: 1 | -1, seed: number) {
+export type RoofPiece = Retrofit | 'shanty';
+export function buildRetrofit(kind: RoofPiece, span: number, faceZ: 1 | -1, seed: number) {
   const k = new Kit();
   const s = span;
   switch (kind) {
@@ -145,6 +154,26 @@ export function buildRetrofit(kind: Retrofit, span: number, faceZ: 1 | -1, seed:
       k.box('frame', [0.9, 1.2, 0.7], [x - 1.4, 0.6, z + 0.8]);
       break;
     }
+    case 'shanty': {
+      // Containers 6 long, 2.5 wide and 2.6 high: two side by side, one or two on top, turned.
+      const boxes: Mat[] = ['boxRust', 'boxBlue', 'boxOrange', 'boxGrey'];
+      const L = Math.min(6, s * 0.55), W = 2.5, Hc = 2.6;
+      const spots: [number, number, number, number][] = [[-W * 0.6, Hc / 2, -s * 0.05, 0], [W * 0.6, Hc / 2, s * 0.02, 0], [0, Hc * 1.5, 0, Math.PI / 2 + (seed - 0.5) * 0.4]];
+      if (seed > 0.5) spots.push([-W * 0.6, Hc * 2.5, -s * 0.05, 0.1]);
+      spots.forEach(([x, y, z, turn], i) => {
+        const mat = boxes[(Math.floor(seed * 7) + i) % boxes.length];
+        k.box(mat, [W, Hc, L], [x, y, z], [0, turn, 0]);
+        // The ribs down its sides, and a lit window cut in it.
+        for (let r = -2; r <= 2; r++) k.box(mat, [W + 0.12, Hc * 0.9, 0.12], [x, y, z + (r * L) / 5.5], [0, turn, 0]);
+        if (i !== 1) k.box('window', [0.06, 0.7, 1.1], [x + Math.cos(turn) * (W / 2 + 0.04), y + 0.2, z - Math.sin(turn) * (W / 2 + 0.04)], [0, turn, 0]);
+      });
+      // A tarp stretched from the stack to a pole, and a ladder up the side.
+      k.add('tarp', new THREE.PlaneGeometry(3.4, 3), [W * 1.6 + 1, Hc + 0.4, s * 0.1], [-Math.PI / 2 + 0.25, 0, 0]);
+      k.box('steel', [0.1, Hc + 0.4, 0.1], [W * 1.6 + 2.6, (Hc + 0.4) / 2, s * 0.1 + 1.3]);
+      for (const dz of [-0.3, 0.3]) k.box('steel', [0.08, Hc * 2, 0.08], [-W * 1.1 - 0.1, Hc, -s * 0.05 + dz]);
+      for (let y = 0.4; y < Hc * 2; y += 0.6) k.box('steel', [0.06, 0.06, 0.6], [-W * 1.1 - 0.1, y, -s * 0.05]);
+      break;
+    }
     case 'pavilion': {
       const r = s * 0.24;
       k.cyl('frame', r * 1.25, r * 1.3, 0.4, [0, 0.2, 0], 24);
@@ -163,7 +192,7 @@ export function buildRetrofit(kind: Retrofit, span: number, faceZ: 1 | -1, seed:
   return k.build();
 }
 
-export const RetrofitPiece: React.FC<{ kind: Retrofit; span: number; faceZ: 1 | -1; seed: number; position: [number, number, number] }> = ({ kind, span, faceZ, seed, position }) => {
+export const RetrofitPiece: React.FC<{ kind: RoofPiece; span: number; faceZ: 1 | -1; seed: number; position: [number, number, number] }> = ({ kind, span, faceZ, seed, position }) => {
   const parts = useMemo(() => buildRetrofit(kind, span, faceZ, seed), [kind, span, faceZ, seed]);
   useLayoutEffect(() => () => parts.forEach(p => p.geometry.dispose()), [parts]);
   return (

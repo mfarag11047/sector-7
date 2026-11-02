@@ -28,6 +28,7 @@ import { freezeContainer } from '../perf';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 import { PowerGrid } from './PowerGrid';
 import { Craters } from './Ruins';
+import { DecayStreets } from './Decay';
 import { addCraters, craterOf, type Crater } from './ruins';
 import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from '../sim/movement';
 import { positionKey, publishMotion, simClock, stampPosition } from './glide';
@@ -4809,6 +4810,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
         {/* The energy grid made visible: each side's conduits, and the streetlights it powers. */}
         <Craters craters={craters} />
+        <DecayStreets roadTiles={roadTiles} gridSize={gridSize} tileSize={tileSize} offset={offset} />
         <PowerGrid buildings={buildings} bases={teamBases} roadTiles={roadTiles} clouds={clouds} tileSize={tileSize} offset={offset} />
         <EnergyGridField
             buildings={buildings}

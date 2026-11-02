@@ -18,7 +18,10 @@
 // Every building but the corporate towers also shows the eras it was built and added to
 // (eras.ts): its outside corners square (era 1), rounded (era 2) or chamfered (era 3), and a
 // retrofit bolted onto its roof (Retrofits.tsx); its ground storey done up in one era and,
-// over its middle floors, corporate panel cladding or bolted-on conduit (Frontage.tsx).
+// over its middle floors, corporate panel cladding or bolted-on conduit (Frontage.tsx). And the
+// state of ruin its block has fallen into (decay.ts, Decay.tsx): stopped mid-build, its upper
+// floors a bare frame with a crane left standing over it; squatted, containers stacked on its
+// roof and shacks against its ground floor; or let go, grime streaked down its walls.
 
 import React, { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
@@ -35,6 +38,9 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { ARC_STEPS, CORNER_CUT, CORNER_OUT, type Corner, type CornerKey, eraStackOf, outline, type Rect, retrofitTile } from './eras';
 import { RetrofitPiece } from './Retrofits';
 import { claddingMaterial, CLADDING_REPEAT, Conduit, FRONTAGE_HEIGHT, FrontageFace } from './Frontage';
+import { type Decay, decayAt, finishedHeight, strengthOf, UNFINISHED } from './decay';
+import { Frame, GRIME_REPEAT, grimeMaterial, LeanTo } from './Decay';
+import { CITY_CONFIG } from '../constants';
 
 type Kind = 'commercial' | 'hightech' | 'industrial' | 'residential';
 
@@ -509,7 +515,17 @@ const FootprintSegmentView: React.FC<{
   const kind = data.type as Kind;
   const style = STYLE[kind];
   const f = data.footprint;
-  const h = data.scale[1];
+  // Its block's decay (decay.ts): all its buildings show the block's primary state, some of them
+  // its secondary one. The corporate towers never decay.
+  const decay = useMemo(() => (data.type === 'commercial' ? null : decayAt(data.gridX, data.gridZ, CITY_CONFIG.gridSize)), [data.type, data.gridX, data.gridZ]);
+  const decayed = (state: Decay) => { const k = strengthOf(decay, state); return k > 0 && tileHash(f.x, f.z, 50 + state.length) < k; };
+  // The building's full height; one stopped mid-build is finished only part of the way up, a bare
+  // frame above (the game still counts the full height).
+  const H = data.scale[1];
+  const unfinished = H >= UNFINISHED.minHeight && decayed('deconstruction');
+  const h = unfinished ? finishedHeight(H) : H;
+  const squatted = !unfinished && decayed('redevelopment');
+  const grimy = decayed('deterioration');
   const lx = data.gridX - f.x;
   const lz = data.gridZ - f.z;
   const isTower = !!f.tower && f.tower.x === data.gridX && f.tower.z === data.gridZ;
@@ -571,7 +587,7 @@ const FootprintSegmentView: React.FC<{
     };
     // The body, every tier in one mesh centred on half the height, so the capture fill climbs
     // the whole building.
-    const bodyGeometry = mergeGeometries(tiers.map(t => prism(outline(t, cutsOf(t), corner), t.y0 - h / 2, t.y1 - h / 2)))!;
+    const bodyGeometry = mergeGeometries(tiers.map(t => prism(outline(t, cutsOf(t), corner), t.y0 - H / 2, t.y1 - H / 2)))!;
 
     // Windows on each tier's outside faces, lined up in world space.
     const windows = tiers.flatMap((t, k) => faces.map(side => {
@@ -646,19 +662,26 @@ const FootprintSegmentView: React.FC<{
     const cladding = stack?.cladding != null ? windows.map(w => ({
       ...w, geometry: faceGeometry(w.width, w.height, w.start / CLADDING_REPEAT, w.bottom / CLADDING_REPEAT, CLADDING_REPEAT, CLADDING_REPEAT),
     })) : [];
-    return { box, body: top, tower, windows, faces, cap, billboard, scales, bodyGeometry, shops, cornerFaces, capGeometry, cladding };
-  }, [T, lx, lz, f, isTower, data.gridX, data.gridZ, h, style, kind, facade, texW, texH, stack]);
+    // Grime streaked down each outside face of a neglected building, darkest under the roof.
+    const grime = grimy ? windows.map(w => ({
+      ...w, geometry: faceGeometry(w.width, w.ledge - w.bottom, w.start / GRIME_REPEAT, 0, GRIME_REPEAT, w.ledge - w.bottom),
+    })) : [];
+    return { box, body: top, tower, windows, faces, cap, billboard, scales, bodyGeometry, shops, cornerFaces, capGeometry, cladding, grime, outside };
+  }, [T, lx, lz, f, isTower, data.gridX, data.gridZ, h, H, style, kind, facade, texW, texH, stack, grimy]);
 
   useEffect(() => () => {
     parts.windows.forEach(w => w.geometry.dispose()); parts.scales.forEach(w => w.geometry.dispose()); parts.shops.forEach(w => w.geometry.dispose()); parts.bodyGeometry.dispose();
-    parts.cornerFaces.forEach(w => w.geometry.dispose()); parts.capGeometry.dispose(); parts.cladding.forEach(w => w.geometry.dispose());
+    parts.cornerFaces.forEach(w => w.geometry.dispose()); parts.capGeometry.dispose(); parts.cladding.forEach(w => w.geometry.dispose()); parts.grime.forEach(w => w.geometry.dispose());
   }, [parts]);
-  const { box, body, tower, windows, cap, billboard, scales, bodyGeometry, shops, cornerFaces, capGeometry, cladding } = parts;
+  const { box, body, tower, windows, cap, billboard, scales, bodyGeometry, shops, cornerFaces, capGeometry, cladding, grime, outside } = parts;
   // The ground storey's era; an industrial plant's dark skirt stands in for a bare era-1 one.
   const frontage = stack && !tower && !(stack.frontage === 1 && facade?.skirt) ? stack.frontage : null;
   // The roof retrofit, on the tile that carries it, in place of the usual rooftop piece there.
-  const retrofit = stack?.retrofit && lx === retrofitAt.lx && lz === retrofitAt.lz ? stack.retrofit : null;
-  const crownGone = !!stack?.retrofit && retrofitAt.replacesCrown;
+  // A squatted building's roof is a shanty of containers instead; an unfinished one has none.
+  const roofPiece = unfinished ? null : squatted && stack ? 'shanty' as const : stack?.retrofit ?? null;
+  const retrofit = roofPiece && lx === retrofitAt.lx && lz === retrofitAt.lz ? roofPiece : null;
+  // An unfinished building's crane stands where its rooftop piece would.
+  const crownGone = (!!roofPiece && retrofitAt.replacesCrown) || unfinished;
   const bw = body.x1 - body.x0;
   const bd = body.z1 - body.z0;
   const bx = (body.x0 + body.x1) / 2;
@@ -674,7 +697,7 @@ const FootprintSegmentView: React.FC<{
       )}
 
       {/* The body carries the capture fill. */}
-      <mesh position={[0, h / 2, 0]} geometry={bodyGeometry} castShadow receiveShadow>
+      <mesh position={[0, H / 2, 0]} geometry={bodyGeometry} castShadow receiveShadow>
         <meshStandardMaterial ref={materialRef} metalness={0.6} roughness={0.35} onBeforeCompile={onBeforeCompile} />
         {hovered && <Edges color="#ffffff" threshold={40} />}
       </mesh>
@@ -768,6 +791,24 @@ const FootprintSegmentView: React.FC<{
           <FrontageFace era={frontage} width={w.width} start={w.start} hash={tileHash(data.gridX, data.gridZ, 70 + i)} tone={tileHash(f.x + f.x * f.w, f.z, 71)} />
         </group>
       ))}
+      {grime.map(w => (
+        <group key={`grime-${w.key}`} position={[w.position[0], (w.bottom + w.ledge) / 2, w.position[2]]} rotation={[0, w.rot, 0]}>
+          <mesh geometry={w.geometry} position={[0, 0, 0.1]} material={grimeMaterial()} />
+        </group>
+      ))}
+      {/* Shacks against the ground floor of a squatted building, on some stretches. */}
+      {squatted && windows.filter(w => w.key.endsWith('-0')).map((w, i) => tileHash(data.gridX, data.gridZ, 100 + i) < 0.55 && (
+        <group key={`leanto-${w.key}`} position={[w.position[0], 0, w.position[2]]} rotation={[0, w.rot, 0]}>
+          <LeanTo width={w.width} hash={tileHash(data.gridX, data.gridZ, 110 + i)} />
+        </group>
+      ))}
+      {/* An unfinished building's bare frame, and the crane left standing over it. */}
+      {unfinished && <Frame r={body} y0={h} y1={H} outside={outside} seed={tileHash(data.gridX, data.gridZ, 120)} />}
+      {unfinished && anchor && (
+        <group position={[bx - Math.min(bw, bd) * 0.2, h, bz - Math.min(bw, bd) * 0.2]}>
+          <Crane mast={H - h + 12 + (f.x % 3) * 2} jibAngle={(f.x * 1.7 + f.z) % (Math.PI * 2)} />
+        </group>
+      )}
       {cladding.map(w => (
         <mesh key={`clad-${w.key}`} geometry={w.geometry} position={w.position} rotation={[0, w.rot, 0]} material={claddingMaterial(stack!.cladding!)}>
         </mesh>
