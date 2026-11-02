@@ -1917,11 +1917,14 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   (`components/IndustrialGantries.tsx`) cross every alley and street between facing industrial
   buildings: red steel trusses carrying pipes from the halls and sheds, bare pipe runs between the
   small utility blocks. Industrial heights run 8 to 22.
-- Server nodes are drawn as data centres (`components/ServerNode.tsx`): a gunmetal block whose
-  walls are banks of server racks behind glass with blinking status LEDs, a cooling plant of
-  four spinning fans and exhaust vents on the roof, a status mast and parapet in the owner's
-  colour (cyan when neutral), and glowing fibre conduits down its corners and out along the
-  ground with data pulses running along them.
+- Server nodes are drawn as compute clusters, kept minimal so they read cleanly from the camera
+  (`components/ServerNode.tsx`): a gunmetal block whose walls are four tall cabinets of dark glass
+  to a face, each with one slim light line down it that breathes slowly with a pulse climbing it
+  now and then (no rows of LEDs); a light line up each corner and a band round the top of the
+  walls in the holder's colour (cyan when neutral); and on the roof a solid cooling deck with four
+  round wells cut into it, a fan spinning down in each, each well ringed in the same colour. (It
+  used to have blinking LEDs on every rack unit, fans in separate housings standing on the roof,
+  vents, a mast and fibre runs along the ground: too busy.)
 - Core nodes are drawn as core extraction reactors (`components/CoreNode.tsx`): an armoured hex
   housing over the shaft, four pylons holding a glowing amber energy core that turns and pulses
   inside two tilted containment rings, an energy column down into the shaft, and six conduits on
