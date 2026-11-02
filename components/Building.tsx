@@ -11,6 +11,13 @@ import { CoreNode } from './CoreNode';
 import { useFrame } from '@react-three/fiber';
 import { globalFrustum } from '../frustum';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
+
+// Which side's colour a building shows: only the objectives (core and server nodes) wear their
+// holder's colour. A captured city building looks as it did; which side holds a stretch of the
+// grid shows on the streetlights instead (PowerGrid.tsx). The capture fill still climbs a building
+// in the capturer's colour while it is being taken.
+const shownOwner = (d: BuildingData): BuildingData['owner'] | undefined =>
+  d.type === 'server_node' || d.type === 'core_node' ? d.owner : undefined;
 import { freezeSubtree, refreshSubtree, isSphereVisible, blockSubtreeRaycast, isSubtreeVisible } from '../perf';
 
 interface BuildingProps {
@@ -82,7 +89,7 @@ const CommercialTower = ({
     const coreHeight = height * 0.85;
     const podiumHeight = height * 0.15;
     
-    const glowColor = data.owner ? TEAM_COLORS[data.owner] : data.color;
+    const glowColor = shownOwner(data) ? TEAM_COLORS[shownOwner(data)!] : data.color;
 
     return (
         <group>
@@ -137,7 +144,7 @@ const CommercialTower = ({
             {/* Top Cap */}
             <mesh position={[0, height, 0]}>
                 <cylinderGeometry args={[radius * 1.1, radius * 1.1, height * 0.05, 16]} />
-                <meshStandardMaterial color={data.owner ? TEAM_COLORS[data.owner] : "#1e293b"} emissive={data.owner ? TEAM_COLORS[data.owner] : "#000000"} emissiveIntensity={data.owner ? 0.45 : 0} />
+                <meshStandardMaterial color={shownOwner(data) ? TEAM_COLORS[shownOwner(data)!] : "#1e293b"} emissive={shownOwner(data) ? TEAM_COLORS[shownOwner(data)!] : "#000000"} emissiveIntensity={shownOwner(data) ? 0.45 : 0} />
             </mesh>
 
             {/* Hologram */}
@@ -218,7 +225,7 @@ const HighTechBuilding = ({
             {/* Roof */}
             <mesh position={[0, height, 0]}>
                 <boxGeometry args={[width, 0.2, depth]} />
-                <meshStandardMaterial color={data.owner ? TEAM_COLORS[data.owner] : "#0f172a"} emissive={data.owner ? TEAM_COLORS[data.owner] : "#000000"} emissiveIntensity={data.owner ? 0.45 : 0} />
+                <meshStandardMaterial color={shownOwner(data) ? TEAM_COLORS[shownOwner(data)!] : "#0f172a"} emissive={shownOwner(data) ? TEAM_COLORS[shownOwner(data)!] : "#000000"} emissiveIntensity={shownOwner(data) ? 0.45 : 0} />
             </mesh>
         </group>
     );
@@ -270,7 +277,7 @@ const IndustrialComplex = ({
             {/* Reactor Top Cap */}
             <mesh position={[0, height + 0.5, 0]}>
                 <cylinderGeometry args={[reactorRadius * 0.8, reactorRadius, 0.5, 8]} />
-                <meshStandardMaterial color={data.owner ? TEAM_COLORS[data.owner] : "#334155"} emissive={data.owner ? TEAM_COLORS[data.owner] : "#000000"} emissiveIntensity={data.owner ? 0.45 : 0} />
+                <meshStandardMaterial color={shownOwner(data) ? TEAM_COLORS[shownOwner(data)!] : "#334155"} emissive={shownOwner(data) ? TEAM_COLORS[shownOwner(data)!] : "#000000"} emissiveIntensity={shownOwner(data) ? 0.45 : 0} />
             </mesh>
 
             {/* Smokestack 1 */}
@@ -401,7 +408,7 @@ const ResidentialBuilding = ({
                 {/* Main Plate */}
                 <mesh position={[0, 0.05, 0]}>
                     <boxGeometry args={[width * 0.7, 0.1, depth * 0.7]} />
-                    <meshStandardMaterial color={data.owner ? TEAM_COLORS[data.owner] : "#1e293b"} emissive={data.owner ? TEAM_COLORS[data.owner] : "#000000"} emissiveIntensity={data.owner ? 0.45 : 0} />
+                    <meshStandardMaterial color={shownOwner(data) ? TEAM_COLORS[shownOwner(data)!] : "#1e293b"} emissive={shownOwner(data) ? TEAM_COLORS[shownOwner(data)!] : "#000000"} emissiveIntensity={shownOwner(data) ? 0.45 : 0} />
                 </mesh>
                 {/* AC Units */}
                 <mesh position={[width * 0.15, 0.25, -depth * 0.15]}>
@@ -456,8 +463,8 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
       base: body ?? c.clone().multiplyScalar(0.25), // Dark dimmed state
       hover: body ? body.clone().multiplyScalar(1.6) : c.clone().multiplyScalar(0.4), // Slightly lighter for hover
       glow: c.clone().multiplyScalar(1.8).addScalar(0.1), // Bright glowing state for capture fill
-      team: data.owner ? new THREE.Color(TEAM_COLORS[data.owner]) : new THREE.Color(0, 0, 0),
-      edge: data.owner ? new THREE.Color(TEAM_COLORS[data.owner]) : c.clone().multiplyScalar(0.8)
+      team: shownOwner(data) ? new THREE.Color(TEAM_COLORS[shownOwner(data)!]) : new THREE.Color(0, 0, 0),
+      edge: shownOwner(data) ? new THREE.Color(TEAM_COLORS[shownOwner(data)!]) : c.clone().multiplyScalar(0.8)
     };
   }, [data.color, data.owner, data.type, data.footprint]);
 
@@ -531,7 +538,7 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
     if (uGlowColor.value && uGlowColor.value.copy) uGlowColor.value.copy(colors.glow);
     if (uTeamColor.value && uTeamColor.value.copy) uTeamColor.value.copy(colors.team);
     
-    if (uHasOwner.value !== undefined) uHasOwner.value = !!data.owner;
+    if (uHasOwner.value !== undefined) uHasOwner.value = !!shownOwner(data);
     if (uHeight.value !== undefined) uHeight.value = data.scale[1];
 
     if (ringRef.current) {
@@ -667,9 +674,9 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
       <mesh position={[0, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={isFootprintSegment(data) ? [CITY_CONFIG.tileSize, CITY_CONFIG.tileSize] : [data.scale[0] * 1.2, data.scale[2] * 1.2]} />
         <meshBasicMaterial 
-          color={data.owner ? TEAM_COLORS[data.owner] : data.color} 
+          color={shownOwner(data) ? TEAM_COLORS[shownOwner(data)!] : data.color} 
           transparent 
-          opacity={data.owner ? 0.3 : 0.1} 
+          opacity={shownOwner(data) ? 0.3 : 0.1} 
         />
       </mesh>
       )}
@@ -765,7 +772,7 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
             </mesh>
             <mesh position={[0, 2.5, 0]}>
               <sphereGeometry args={[0.15, 8, 8]} />
-              <meshBasicMaterial color={data.owner ? TEAM_COLORS[data.owner] : "#ff003c"} />
+              <meshBasicMaterial color={shownOwner(data) ? TEAM_COLORS[shownOwner(data)!] : "#ff003c"} />
             </mesh>
           </>
         )}

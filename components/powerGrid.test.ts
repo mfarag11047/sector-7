@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BuildingData, RoadTileData } from '../types';
 import { ABILITY_CONFIG } from '../constants';
-import { LIGHT, lampLevels, powerNetwork, streetLamps, streetsOf, wireRuns } from './powerGrid';
+import { LIGHT, lampLevels, lampStates, powerNetwork, streetLamps, streetsOf, wireRuns } from './powerGrid';
 
 const building = (id: string, x: number, z: number, owner: BuildingData['owner'], type: BuildingData['type'] = 'residential'): BuildingData =>
   ({ id, gridX: x, gridZ: z, owner, type, destroyed: false, position: [0, 0, 0] } as unknown as BuildingData);
@@ -85,6 +85,10 @@ describe('streetlights', () => {
     // A building captured out at x = 30 carries the grid there; nothing at x = 60.
     const owned = [building('b', 30, 1, 'blue'), building('c', 60, 1, 'blue', 'core_node')];
     const [near, out, none] = lampLevels(lamps, owned, bases);
+    // Whose they are, for the indicator on top: the powered ones Vanta's, the dark one nobody's.
+    expect(lampStates(lamps, owned, bases).map(s => s.team)).toEqual(['blue', 'blue', null]);
+    // Where both sides' grids reach, the one whose HQ is nearer holds the lamp.
+    expect(lampStates([{ x: 30, z: 0, side: 'n' }], [building('b', 30, 1, 'blue'), building('r', 31, 0, 'red')], { blue: [{ x: 0, z: 0 }], red: [{ x: 40, z: 0 }] })[0].team).toBe('red');
     expect(near).toBeGreaterThan(0.9);
     expect(out).toBeCloseTo(LIGHT.least);
     // A core node doesn't feed the grid.

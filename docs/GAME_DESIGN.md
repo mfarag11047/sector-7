@@ -1699,8 +1699,12 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
     through the road tiles), so trunk lines are shared by the branches off them; the wire sags from
     post to post and drops to the wall of each powered building facing the last post (once per
     building, however many tiles it has). The wires are plain steel-grey cable, the same for both
-    sides: which side powers a street shows in which lamps are lit (an earlier version drew glowing
-    lines in the sides' colours on the ground, too cluttered).
+    sides (an earlier version drew glowing lines in the sides' colours on the ground, too
+    cluttered). Which side powers a street shows on its lamp posts: each powered post carries a
+    small indicator light on top in that side's colour (where both grids reach, the side whose HQ
+    is nearer), dark on an unpowered post. This replaces marking captured city buildings in their
+    owner's colour: their trim and roof now stay their own; only core and server nodes still wear
+    their holder's colour.
   - **Streetlights**: a lamp on every other street tile, at the road's edge, on the same side all
     along a street so the wires run straight, in sodium orange. A
     lamp inside a side's grid is lit, brightest by its HQ and dimming to 30% 30 tiles out
@@ -1711,7 +1715,8 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   tick.
 - **Colour readability** (`components/scenePalette.ts`, checked by its test). Some colours are
   reserved so they always mean one thing: the sides' Vanta near-white and Tokugen green (every
-  unit, and the trim and roof of every captured building), neutral purple, and the objectives'
+  unit, the indicator lights on the streetlights of the grid each holds, and the objectives they
+  hold), neutral purple, and the objectives'
   cyan (server nodes) and amber (core nodes). The scenery never uses them: its neon keeps to
   magenta and pink, reds, orange, and blue and indigo, with dark bodies between them as rest for
   the eye, so a building's own trim never reads as captured, nothing near a node competes with it
@@ -1771,9 +1776,10 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   a hex pad with pulses running in. The rim, rings and pylon lights take the holder's colour.
 - A building bigger than one tile is drawn as one building (`components/FootprintBuilding.tsx`),
   though each of its tiles is still captured, damaged and destroyed on its own. Windows and neon
-  run along its outside faces only, a dark roof slab with a lit rim covers it (once a tile is
-  taken, its stretch of the rim and a band along the slab's edge turn the owner's colour, with
-  small diagonal hash marks in that colour over the middle of the roof), and one tile carries its rooftop pieces: a crown and spire on commercial
+  run along its outside faces only, a dark roof slab with a lit rim covers it (it looks the
+  same whoever holds it: a captured city building isn't marked in its owner's colour, though the
+  capture fill still climbs it in the capturer's colour while it is being taken; which side holds
+  a stretch of the grid shows on the streetlights' indicator lights instead), and one tile carries its rooftop pieces: a crown and spire on commercial
   towers, plant and an antenna on high-tech blocks, a smokestack and storage tank on industrial
   sheds (which also get sawtooth roofs, pipe runs along their walls and, on many, a tower crane)
   and a water tank on housing. Towers on podiums stand slim on a low base. Downtown towers carry

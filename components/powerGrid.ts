@@ -15,8 +15,9 @@
 //
 // Streetlights: one every other street tile, at the edge of the road, on the same side all along a
 // street so the wires between them run straight. A lamp inside a side's grid
-// is lit, brightest by its HQ and dimmer the further out it stands (LIGHT); one in nobody's grid,
-// or in a grid blacked out by an EMP, is dark. So the city's light follows who holds it: bright
+// is lit, brightest by its HQ and dimmer the further out it stands (LIGHT), with a small indicator
+// light on top in that side's colour; one in nobody's grid, or in a grid blacked out by an EMP,
+// is dark. So the city's light follows who holds it: bright
 // round each base, thinning out over contested ground, the unclaimed perimeter dark.
 //
 // Pure, for testing.
@@ -208,17 +209,19 @@ export const LIGHT = {
   falloffTiles: 30,
 };
 
-// How bright each lamp is (0 dark, up to LIGHT.full), from the two sides' grids.
-export function lampLevels(
+// Each lamp: how bright it is (0 dark, up to LIGHT.full), and whose grid powers it (null for
+// none), from the two sides' grids. Where both reach, the side whose HQ is nearer holds it.
+export function lampStates(
   lamps: readonly Lamp[],
   buildings: readonly BuildingData[],
   bases: Record<Team, readonly Pos[]>,
   blackouts: readonly Blackout[] = [],
-): number[] {
+): { level: number; team: Team | null }[] {
   const baseR = ABILITY_CONFIG.ENERGY_GRID_BASE_RADIUS, buildingR = ABILITY_CONFIG.ENERGY_GRID_BUILDING_RADIUS;
   const feeders = { blue: gridFeeders(buildings, 'blue'), red: gridFeeders(buildings, 'red') };
   return lamps.map(l => {
     let level = 0;
+    let holder: Team | null = null;
     for (const team of ['blue', 'red'] as const) {
       if (bases[team].length === 0) continue;
       let nearestBase = Infinity;
@@ -226,8 +229,12 @@ export function lampLevels(
       const powered = nearestBase <= baseR || feeders[team].some(f => (l.x - f.gridX) ** 2 + (l.z - f.gridZ) ** 2 <= buildingR * buildingR);
       if (!powered || (blackouts.length > 0 && isBlackedOut(l, team, blackouts))) continue;
       const k = Math.min(1, nearestBase / LIGHT.falloffTiles);
-      level = Math.max(level, LIGHT.full - (LIGHT.full - LIGHT.least) * k);
+      const lit = LIGHT.full - (LIGHT.full - LIGHT.least) * k;
+      if (lit > level) { level = lit; holder = team; }
     }
-    return level;
+    return { level, team: holder };
   });
 }
+
+// How bright each lamp is (see lampStates).
+export const lampLevels = (...args: Parameters<typeof lampStates>) => lampStates(...args).map(s => s.level);

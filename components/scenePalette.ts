@@ -2,10 +2,11 @@
 //
 // Some colours are reserved so they always mean one thing:
 //   - The sides: Vanta's near-white and Tokugen's green (TEAM_COLORS in constants.ts), on every
-//     unit and on every building a side has captured (its trim and roof take the owner's colour).
+//     unit, on the indicator lights of the streetlights its grid powers, and on the objectives it
+//     holds.
 //     Neutral purple marks unowned units.
 //   - The objectives: cyan for server nodes (neutral) and amber for core nodes.
-// So the scenery never uses them: a building's own neon in green or white would read as captured,
+// So the scenery never uses them: neon in green or white would read as a side's,
 // cyan or amber trim next to a node would blur the objective, and units would melt into walls in
 // their own colours. The scenery keeps to magenta and pink, reds, orange, and blue and indigo
 // (SCENE), with neutral dark bodies between them as rest for the eye.

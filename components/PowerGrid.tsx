@@ -2,8 +2,9 @@
 // side's HQ along the streetlights to the buildings it powers, and the streetlights, lit by
 // whoever holds the power there and brightest by their HQ.
 //
-// The wires are plain dark cable, the same for both sides: which side powers a street shows in
-// which lamps are lit. They sag between the tops of the lamp posts and drop to each powered
+// The wires are plain dark cable, the same for both sides. Which side powers a street shows on
+// its lamp posts: each powered post carries a small indicator light on top in that side's colour
+// (captured city buildings themselves aren't marked). They sag between the tops of the lamp posts and drop to each powered
 // building's wall facing the last post, all of them in one mesh, rebuilt only when the grid
 // changes. The streetlights are three instanced meshes (poles, heads and the pools of light
 // under them), re-coloured when the grid changes, not every frame.
@@ -11,7 +12,8 @@
 import React, { useLayoutEffect, useMemo, useRef } from 'react';
 import * as THREE from 'three';
 import type { BuildingData, CloudData, RoadTileData } from '../types';
-import { gridFeeders, lampLevels, powerNetwork, streetLamps, streetsOf, wireRuns, type Lamp, type LampSide, type WireRun } from './powerGrid';
+import { TEAM_COLORS } from '../constants';
+import { gridFeeders, lampStates, powerNetwork, streetLamps, streetsOf, wireRuns, type Lamp, type LampSide, type WireRun } from './powerGrid';
 
 type Team = 'blue' | 'red';
 type Pos = { x: number; z: number };
@@ -105,7 +107,7 @@ export const PowerGrid: React.FC<{
   const streets = useMemo(() => streetsOf(roadTiles, gridSize), [roadTiles, gridSize]);
   const lamps = useMemo(() => streetLamps(roadTiles, gridSize), [roadTiles, gridSize]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const levels = useMemo(() => lampLevels(lamps, buildings, bases, blackouts), [lamps, feedKey, baseKey, blackoutKey]);
+  const states = useMemo(() => lampStates(lamps, buildings, bases, blackouts), [lamps, feedKey, baseKey, blackoutKey]);
 
   // Where a lamp post stands (world): at the road's edge on its side.
   const postAt = (l: Lamp) => {
@@ -164,6 +166,7 @@ export const PowerGrid: React.FC<{
   const poles = useRef<THREE.InstancedMesh>(null);
   const arms = useRef<THREE.InstancedMesh>(null);
   const heads = useRef<THREE.InstancedMesh>(null);
+  const beacons = useRef<THREE.InstancedMesh>(null);
   const pools = useRef<THREE.InstancedMesh>(null);
   // Where each lamp stands: at the road's edge on its side, its head leaning out over the road.
   useLayoutEffect(() => {
@@ -185,23 +188,29 @@ export const PowerGrid: React.FC<{
       o.position.set(x - dx * 1.2, POLE_HEIGHT + 0.4, z - dz * 1.2);
       o.updateMatrix();
       heads.current?.setMatrixAt(i, o.matrix);
+      // The indicator light on top of the post.
+      o.position.set(x, POST_TOP + 0.75, z);
+      o.updateMatrix();
+      beacons.current?.setMatrixAt(i, o.matrix);
       o.position.set(x - dx * 2.2, 0.62, z - dz * 2.2);
       o.rotation.set(-Math.PI / 2, 0, 0);
       o.updateMatrix();
       pools.current?.setMatrixAt(i, o.matrix);
     });
-    for (const m of [poles.current, arms.current, heads.current, pools.current]) if (m) { m.count = lamps.length; m.instanceMatrix.needsUpdate = true; }
+    for (const m of [poles.current, arms.current, heads.current, beacons.current, pools.current]) if (m) { m.count = lamps.length; m.instanceMatrix.needsUpdate = true; }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lamps, tileSize, offset]);
-  // Lit or dark, and how bright.
+  // Lit or dark, how bright, and whose: the indicator on top shows the side holding that stretch
+  // of the grid, in its colour.
   useLayoutEffect(() => {
     const c = new THREE.Color();
-    levels.forEach((level, i) => {
+    states.forEach(({ level, team }, i) => {
       heads.current?.setColorAt(i, level > 0 ? c.copy(LAMP_COLOR).multiplyScalar(0.6 + level) : DEAD_HEAD);
       pools.current?.setColorAt(i, c.copy(LAMP_COLOR).multiplyScalar(level));
+      beacons.current?.setColorAt(i, team ? c.set(TEAM_COLORS[team]).multiplyScalar(1.6) : DEAD_HEAD);
     });
-    for (const m of [heads.current, pools.current]) if (m?.instanceColor) m.instanceColor.needsUpdate = true;
-  }, [levels]);
+    for (const m of [heads.current, beacons.current, pools.current]) if (m?.instanceColor) m.instanceColor.needsUpdate = true;
+  }, [states]);
 
   return (
     <group>
@@ -214,6 +223,10 @@ export const PowerGrid: React.FC<{
       </instancedMesh>
       <instancedMesh ref={heads} args={[undefined, undefined, Math.max(1, lamps.length)]} raycast={() => null} frustumCulled={false}>
         <boxGeometry args={[1.1, 0.25, 1.1]} />
+        <meshBasicMaterial toneMapped={false} />
+      </instancedMesh>
+      <instancedMesh ref={beacons} args={[undefined, undefined, Math.max(1, lamps.length)]} raycast={() => null} frustumCulled={false}>
+        <sphereGeometry args={[0.55, 10, 8]} />
         <meshBasicMaterial toneMapped={false} />
       </instancedMesh>
       <instancedMesh ref={pools} args={[undefined, undefined, Math.max(1, lamps.length)]} raycast={() => null} frustumCulled={false}>
