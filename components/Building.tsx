@@ -8,6 +8,7 @@ import { FootprintSegment, isFootprintSegment } from './FootprintBuilding';
 import { lookOf } from './midtownLooks';
 import { ServerNode } from './ServerNode';
 import { CoreNode } from './CoreNode';
+import { RuinTile } from './Ruins';
 import { useFrame } from '@react-three/fiber';
 import { globalFrustum } from '../frustum';
 import { isObjectInFrustum, isPointInFrustum } from '../frustum';
@@ -647,22 +648,11 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
     }
   }, [data.scale]);
 
+  // A destroyed tile is a ruin: the broken shell of its ground floor, rubble and soot (Ruins.tsx).
   if (data.destroyed) {
-    const footprint = Math.max(data.scale[0], data.scale[2]) * 0.45;
     return (
       <group ref={rootRef} position={data.position}>
-        <mesh position={[0, 0.15, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-          <circleGeometry args={[footprint, 6]} />
-          <meshStandardMaterial color="#1c1917" roughness={1} />
-        </mesh>
-        <mesh position={[footprint * 0.15, 0.35, 0]}>
-          <boxGeometry args={[footprint * 0.7, 0.4, footprint * 0.45]} />
-          <meshStandardMaterial color="#44403c" roughness={0.95} />
-        </mesh>
-        <mesh position={[-footprint * 0.25, 0.22, footprint * 0.2]}>
-          <boxGeometry args={[footprint * 0.35, 0.25, footprint * 0.3]} />
-          <meshStandardMaterial color="#292524" roughness={1} />
-        </mesh>
+        <RuinTile data={data} />
       </group>
     );
   }

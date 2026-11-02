@@ -1711,6 +1711,23 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
     and streets light up as a side takes them.
   Both redraw only when the grid changes (a building changing hands, a base, an EMP), not every
   tick.
+- **Ruins and craters** (`components/ruins.ts`, drawn by `components/Ruins.tsx`). A match leaves
+  its mark on the city:
+  - **Ruins**: a destroyed building tile is a ruin rather than a bare patch: the broken
+    ground-floor slab, jagged wall stubs in the building's own colour gone dark with soot (14% to
+    42% of its height, at least 1.6 and at most 14 m), with gaps blown through them and rebar
+    sticking up, standing only along the building's outside walls so a ruined building of several
+    tiles reads as one gutted shell; chunks of concrete and slabs of fallen floor inside, grey to
+    charred black with now and then a piece of facade; and a soot stain spilling past its edge.
+    For 45 seconds after it falls, embers glow on the rubble and a plume of smoke rises, both dying
+    away. Laid out from the tile's id, so it looks the same every time. A block levelled whole
+    still has its rubble cleared for a base site (above).
+  - **Craters**: a blast on the ground at least 3 world units across (Bombardment strikes,
+    Thunderhead shells, Ballista warheads, grenades, vehicle wrecks, a Volt Core going critical) leaves a
+    scorched crater that stays for the match: a charred pit with a ring of debris and soot thrown
+    out in streaks, 80% of the blast's radius (2.5 to 18). Small hits (bullets, drone strikes, a
+    single Hornet rocket), blasts in the air and energy effects (EMP, the Black Wall, a shot
+    stopped by a force field) leave none. The newest 320 are kept, drawn as one instanced decal.
 - **Colour readability** (`components/scenePalette.ts`, checked by its test). Some colours are
   reserved so they always mean one thing: the sides' Vanta near-white and Tokugen green (every
   unit, the indicator lights on the streetlights of the grid each holds, and the objectives they

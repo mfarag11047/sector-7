@@ -27,6 +27,8 @@ import { Zap, Ban, Building2 } from 'lucide-react';
 import { freezeContainer } from '../perf';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 import { PowerGrid } from './PowerGrid';
+import { Craters } from './Ruins';
+import { addCraters, craterOf, type Crater } from './ruins';
 import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from '../sim/movement';
 import { positionKey, publishMotion, simClock, stampPosition } from './glide';
 import { ArmyControls, ArmyInfo, MAX_ARMIES, SelectionSummary } from './ArmyPanel';
@@ -1651,6 +1653,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // Explosions and launched missiles are made in many places; each is heard once, the first time
   // it appears here (components/sfx.ts).
   const heardRef = useRef(new Set<string>());
+  // Craters left by heavy blasts, kept for the match.
+  const [craters, setCraters] = useState<Crater[]>([]);
   // The city's background runs for as long as the map is up (components/sfx.ts).
   useEffect(() => {
       startAmbience();
@@ -1663,12 +1667,17 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   useEffect(() => () => { for (const kind of ['laser_beam', 'ciws_fire', 'construction'] as const) setLoops(kind, [], { now: true }); }, []);
   useEffect(() => {
       const heard = heardRef.current;
+      const scorched: Crater[] = [];
       for (const e of explosions) {
           if (heard.has(e.id)) continue;
           heard.add(e.id);
           const kind = explosionSound(e);
           if (kind) playSound(kind, e.position.x, e.position.z, e.radius / 4);
+          // Heavy blasts on the ground leave a crater that stays (components/ruins.ts).
+          const crater = craterOf(e);
+          if (crater) scorched.push(crater);
       }
+      if (scorched.length > 0) setCraters(prev => addCraters(prev, scorched));
       for (const p of projectiles) {
           if (heard.has(p.id)) continue;
           heard.add(p.id);
@@ -2166,6 +2175,20 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           buildingsRef.current = level(buildingsRef.current);
           setBuildings(level);
           return { x: ix * 6 + 3, z: iz * 6 + 3 };
+      },
+      // Wreck the buildings within `radius` tiles of `at`, leaving their ruins (unlike levelBlock).
+      wreck: (at: { x: number; z: number }, radius: number) => {
+          const inRange = (b: BuildingData) => !b.destroyed && Math.hypot(b.gridX - at.x, b.gridZ - at.z) <= radius;
+          const wrecked = buildingsRef.current.filter(inRange).map(b => ({ id: b.id, x: b.gridX, z: b.gridZ, type: b.type }));
+          const hit = (list: BuildingData[]) => list.map(b => inRange(b) ? { ...b, destroyed: true, health: 0 } : b);
+          buildingsRef.current = hit(buildingsRef.current);
+          setBuildings(hit);
+          return wrecked;
+      },
+      // A blast on the ground at a tile, `radius` world units across, e.g. to leave a crater.
+      blast: (at: { x: number; z: number }, radius: number) => {
+          const now = Date.now();
+          setExplosions(prev => [...prev, { id: `cheat-blast-${now}-${spawnCounterRef.current++}`, position: { x: at.x * tileSize - offset, y: 1, z: at.z * tileSize - offset }, radius, duration: 900, createdAt: now }]);
       },
       // A doctrine power, e.g. power('SHADOW_OPS_TIER3', { x, z }, 'blue'), with the usual checks.
       power: (type: string, target: { x: number; z: number }, team: 'blue' | 'red') => runDoctrinePowerRef.current({ type, target, team }),
@@ -4780,6 +4803,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
         />
 
         {/* The energy grid made visible: each side's conduits, and the streetlights it powers. */}
+        <Craters craters={craters} />
         <PowerGrid buildings={buildings} bases={teamBases} roadTiles={roadTiles} clouds={clouds} tileSize={tileSize} offset={offset} />
         <EnergyGridField
             buildings={buildings}
