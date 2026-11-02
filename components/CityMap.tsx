@@ -26,6 +26,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import { Zap, Ban, Building2 } from 'lucide-react';
 import { freezeContainer } from '../perf';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
+import { PowerGrid } from './PowerGrid';
 import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from '../sim/movement';
 import { positionKey, publishMotion, simClock, stampPosition } from './glide';
 import { ArmyControls, ArmyInfo, MAX_ARMIES, SelectionSummary } from './ArmyPanel';
@@ -2184,6 +2185,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           structuresRef.current = [...structuresRef.current, s];
           setStructuresState(prev => [...prev, s]);
           return s.id;
+      },
+      // Hand every standing building within `radius` tiles of `at` to `team`, for testing.
+      capture: (at: { x: number; z: number }, radius: number, team: 'blue' | 'red') => {
+          const take = (list: BuildingData[]) => list.map(b => !b.destroyed && Math.hypot(b.gridX - at.x, b.gridZ - at.z) <= radius ? { ...b, owner: team, captureProgress: 0, capturingTeam: null } : b);
+          buildingsRef.current = take(buildingsRef.current);
+          setBuildings(take);
       },
       // Units still playing their death (components/FallenUnits.tsx).
       fallen: () => [...fallenRef.current.values()],
@@ -4772,6 +4779,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
             onHover={stableHover}
         />
 
+        {/* The energy grid made visible: each side's conduits, and the streetlights it powers. */}
+        <PowerGrid buildings={buildings} bases={teamBases} roadTiles={roadTiles} clouds={clouds} tileSize={tileSize} offset={offset} />
         <EnergyGridField
             buildings={buildings}
             playerTeam={playerTeam}

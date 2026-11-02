@@ -1690,6 +1690,21 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   plaza (`components/DowntownDressing.tsx`): polished dark granite along the streets with a
   magenta neon line inlaid at the kerb, plaza stone laid in a two-tone diamond lattice inside
   each block, and long planters with clipped hedges along the foot of every tower.
+- **The energy grid made visible** (`components/powerGrid.ts`, drawn by `components/PowerGrid.tsx`).
+  Each side's grid shows in the city itself, so who holds what reads without the minimap:
+  - **Power conduits**: from each of a side's command bases, cables in the side's colour run out
+    to every building feeding its grid (every captured building but core nodes), laid along the
+    streets as a spanning tree (each building joined to the nearest point already on the
+    network, by the shortest way through the road tiles), so trunk lines are shared by the branches
+    off them. A cable is a dark casing with a soft glow and a core in the side's colour, Vanta's
+    run on one side of the road and Tokugen's on the other, and pulses run along it out from the HQ.
+  - **Streetlights**: a lamp on every other street tile, at the road's edge, in sodium orange. A
+    lamp inside a side's grid is lit, brightest by its HQ and dimming to 30% 30 tiles out
+    (`LIGHT`); one in nobody's grid, or in a grid blacked out by an EMP, is dark. So the light
+    peaks round each base, thins out over contested ground and leaves the unclaimed perimeter dark,
+    and streets light up as a side takes them.
+  Both redraw only when the grid changes (a building changing hands, a base, an EMP), not every
+  tick.
 - **Colour readability** (`components/scenePalette.ts`, checked by its test). Some colours are
   reserved so they always mean one thing: the sides' Vanta near-white and Tokugen green (every
   unit, and the trim and roof of every captured building), neutral purple, and the objectives'
