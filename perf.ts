@@ -98,3 +98,52 @@ export function isSphereVisible(frustum: THREE.Frustum, center: THREE.Vector3, r
 }
 
 export { _center };
+
+/**
+ * The per-frame matrix walk, made to skip what it needn't visit.
+ *
+ * three.js's `Object3D.updateMatrixWorld` visits every object in the scene every frame (since
+ * r0.15x it no longer stops at a subtree whose root has `matrixWorldAutoUpdate` cleared, so the
+ * freeze above only saved the matrix maths, not the walk). The city is some 80,000 objects; in a
+ * big battle the walk was the single largest cost of a frame. This replaces it with one that:
+ *
+ *   - stops at a frozen subtree's root (`matrixWorldAutoUpdate === false`) unless an ancestor's
+ *     matrix changed, as three.js used to and as `freezeSubtree` expects;
+ *   - stops at anything hidden (`visible === false`): units and buildings off screen, muzzle
+ *     flashes, pooled effects. Nothing hidden is drawn, so its matrices can wait until it's shown.
+ *     If an ancestor moved meanwhile, the hidden object is marked to catch up when next visited,
+ *     so it's never drawn where it was. Something hidden that must still be picked by the pointer
+ *     (an invisible hit proxy) sets `userData.pickWhileHidden` to keep being updated.
+ *
+ * Code that reads a hidden object's world position must go through `getWorldPosition` (or
+ * `updateWorldMatrix`), which brings its matrices up to date on demand.
+ */
+function updateMatrixWorldSkipping(this: THREE.Object3D, force?: boolean) {
+    if (this.matrixAutoUpdate) this.updateMatrix();
+    if (this.matrixWorldNeedsUpdate || force) {
+        if (this.matrixWorldAutoUpdate === true) {
+            if (this.parent === null) this.matrixWorld.copy(this.matrix);
+            else this.matrixWorld.multiplyMatrices(this.parent.matrixWorld, this.matrix);
+        }
+        this.matrixWorldNeedsUpdate = false;
+        force = true;
+    }
+    const children = this.children;
+    for (let i = 0, l = children.length; i < l; i++) {
+        const child = children[i];
+        if (child.visible === false && child.userData.pickWhileHidden !== true) {
+            // Catch up on the parent's move when it's next shown.
+            if (force) child.matrixWorldNeedsUpdate = true;
+            continue;
+        }
+        if (child.matrixWorldAutoUpdate === false && !force && !child.matrixWorldNeedsUpdate) continue;
+        child.updateMatrixWorld(force);
+    }
+}
+
+let walkInstalled = false;
+export function installMatrixWalk() {
+    if (walkInstalled) return;
+    walkInstalled = true;
+    THREE.Object3D.prototype.updateMatrixWorld = updateMatrixWorldSkipping;
+}

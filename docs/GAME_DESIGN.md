@@ -139,6 +139,13 @@ side can invest in its economy instead of only fighting for nodes.
   there sooner than the direct line through side streets and empty lots.
 - Aircraft ignore terrain: they fly a straight line, diagonals included, over buildings and city
   blocks, at the same speed everywhere.
+- On screen, a unit glides between the game's movement ticks (`components/glide.ts`): it keeps
+  going along its route at its speed and is eased toward each new position as it comes in. The
+  guess counts game time in ticks, not seconds: the game moves a unit one tick's worth per tick
+  however late the tick runs, and with the page busy in a big fight ticks come late, so a guess
+  by the clock ran units on past where the next tick put them and each tick pulled them back
+  (rubber-banding). Now a unit reaches where the next tick will put it just as that tick comes in,
+  at the pace ticks have lately been coming, and waits there if the tick is later still.
 
 ## New command bases
 
@@ -351,6 +358,22 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   field dome) don't. Tone mapping comes after bloom, then grading on the displayed image: a little
   more contrast and saturation, and a vignette. `?render=slow` (software rendering for tests) skips
   the post-processing chain.
+- **Drawing cost** (`components/kit/Batched.tsx`, `perf.ts`): a model is dozens of small parts,
+  each its own draw call (twice with its shadow), so every unit model and city building is drawn
+  through `Batched`: watched for a moment after it appears, then every part that has stayed put
+  is merged, one mesh per material, into a mesh carried by whatever carries it (the model, or a
+  part that moves: a turret, a wheel, a bobbing hull). Nothing has to say what moves: a part found
+  moving, changing or being shown or hidden later puts the model back to its own parts at once,
+  and the rest are merged again a moment later without it. Merging is spread over frames (2 ms a
+  frame, what's on screen first), and identical models (every Trooper of a side) share their
+  merged shapes. Parts whose own shader reads their coordinates (a building's capture fill) stay
+  apart; the kit's wear grain, which only shifts, doesn't count. Typical units go from 70 to 170
+  draw calls to 17 to 30, and a zoomed-out view of the city with an army in it from about 7,800
+  draw calls a frame to 3,300. And three.js's per-frame matrix walk, which visited every one of the
+  scene's 80,000 objects, now skips anything hidden (off screen, merged away, a muzzle flash
+  between shots) and frozen subtrees (`installMatrixWalk`); a hidden object catches up when shown.
+  `GAME_CHEATS.batching(false)` turns merging off to compare; `verifyBatching()` checks every
+  merged model draws just what its own parts would.
 - **Explosions** (`components/FireballFx.tsx`): a high-explosive blast is a white-hot flash and a
   glow thrown on the ground, a pressure ring racing out along it, a fireball of soft, ragged flame
   puffs thrown out and up that cool from white through yellow and orange to a deep red, sparks

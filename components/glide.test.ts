@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { follow, MAX_EXTRAPOLATION_S, motionOf, positionKey, predictPosition, publishMotion, stampedAt, stampPosition, walkAlong } from './glide';
+import { follow, MAX_EXTRAPOLATION_S, motionOf, positionKey, predictPosition, publishMotion, simSecondsSince, stampedAt, stampOf, stampPosition, walkAlong } from './glide';
 
 describe('walkAlong', () => {
   const route = [{ x: 10, z: 0 }, { x: 10, z: 10 }];
@@ -64,15 +64,18 @@ describe('motion under uneven updates', () => {
     }
 
     let drawn = { x: 0, z: 0 };
-    let report = { x: 0, z: 0, at: 0 };
+    let report = { x: 0, z: 0, tick: 0 };
     let next = 0;
     const speeds: number[] = [];
     for (let now = 0; now < 11500; now += FRAME) {
       while (next < updates.length && updates[next].shownAt <= now) {
-        report = { x: updates[next].x, z: 0, at: updates[next].tickAt };
+        report = { x: updates[next].x, z: 0, tick: next + 1 };
         next++;
       }
-      const predicted = predictPosition(report, [{ x: 1e6, z: 0 }], SPEED, (now - report.at) / 1000);
+      // The ticks themselves run on time; only their results reach the screen late.
+      const ran = Math.min(Math.floor(now / TICK), 120);
+      const clock = { lastTickAt: ran * TICK, ticks: ran, gap: TICK };
+      const predicted = predictPosition(report, [{ x: 1e6, z: 0 }], SPEED, simSecondsSince(report.tick, now, clock));
       const moved = follow(drawn, predicted, FRAME / 1000, TILE);
       if (now > 1000) speeds.push((moved.x - drawn.x) / (FRAME / 1000) / SPEED);
       drawn = moved;
@@ -80,6 +83,53 @@ describe('motion under uneven updates', () => {
 
     expect(Math.min(...speeds)).toBeGreaterThan(0.8);
     expect(Math.max(...speeds)).toBeLessThan(1.2);
+  });
+});
+
+// The bug the tick counting fixes: with the page busy, ticks run late (the simulation moves a unit
+// one tick's worth however late the tick is). Guessing by the clock ran units on past where the
+// next tick put them, and each tick pulled them back.
+describe('motion under late ticks', () => {
+  it('never pulls a unit back, and keeps it moving', () => {
+    const TICK = 100, SPEED = 30, FRAME = 1000 / 60;
+    let seed = 11;
+    const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    // Ticks 100 to 300 ms apart, each moving the unit a tick's worth.
+    const tickTimes: number[] = [];
+    for (let t = 0; t < 12000;) { t += 100 + rand() * 200; tickTimes.push(t); }
+    const clock = { lastTickAt: 0, ticks: 0, gap: TICK };
+    let report = { x: 0, z: 0, tick: 0 };
+    let drawn = { x: 0, z: 0 };
+    let worstBack = 0, travelled = 0, next = 0;
+    for (let now = 0; now < 12000; now += FRAME) {
+      while (next < tickTimes.length && tickTimes[next] <= now) {
+        clock.gap += (Math.min(tickTimes[next] - clock.lastTickAt, 4 * TICK) - clock.gap) * 0.2;
+        clock.lastTickAt = tickTimes[next];
+        clock.ticks++;
+        next++;
+        // Shown a frame or so after the tick.
+        report = { x: (SPEED * TICK * clock.ticks) / 1000, z: 0, tick: clock.ticks };
+      }
+      const predicted = predictPosition(report, [{ x: 1e6, z: 0 }], SPEED, simSecondsSince(report.tick, now, clock));
+      const moved = follow(drawn, predicted, FRAME / 1000, 14);
+      worstBack = Math.max(worstBack, drawn.x - moved.x);
+      travelled = moved.x;
+      drawn = moved;
+    }
+    expect(worstBack).toBeLessThan(1e-6);
+    // It keeps up with where the simulation has it.
+    expect(report.x - travelled).toBeLessThan(SPEED * 0.25);
+  });
+
+  it('counts game time, not the clock', () => {
+    const clock = { lastTickAt: 1000, ticks: 10, gap: 100 };
+    expect(simSecondsSince(10, 1050, clock)).toBeCloseTo(0.05);
+    // Two ticks since, and half of the next.
+    expect(simSecondsSince(8, 1050, clock)).toBeCloseTo(0.25);
+    // The next tick is late: wait for it rather than run on.
+    expect(simSecondsSince(10, 1400, clock)).toBeCloseTo(0.1);
+    // Ticks have been coming 200 ms apart: the share of the next is spread over 200 ms.
+    expect(simSecondsSince(10, 1100, { ...clock, gap: 200 })).toBeCloseTo(0.05);
   });
 });
 
@@ -94,6 +144,8 @@ describe('tick stamps', () => {
     expect(stampedAt('u1', at(0.6))).toBe(1200);
     expect(stampedAt('u1', at(0.9))).toBeUndefined();
     expect(stampedAt('nobody', at(0.2))).toBeUndefined();
+    stampPosition('u1', at(0.8), 1300, 13);
+    expect(stampOf('u1', at(0.8))).toMatchObject({ at: 1300, tick: 13 });
   });
 
   it('predicting from the right tick keeps a late position moving forward, never pulled back', () => {

@@ -29,7 +29,8 @@ import { BOMBARD } from '../sim/bombard';
 import { CLOAK_FIELD } from '../sim/cloak';
 import { FORCE_FIELD } from '../sim/forcefield';
 import { BlackwallExposure, BlackwallInfection } from './BlackwallFx';
-import { follow, motionOf, positionKey, predictPosition, stampedAt, walkAlong } from './glide';
+import { Batched } from './kit/Batched';
+import { follow, motionOf, positionKey, predictPosition, simSecondsSince, stampOf, walkAlong } from './glide';
 import { MAX_TETHERS } from '../sim/jamming';
 import { JamRange, JamStatic } from './JamStatic';
 import { GlitchField } from './GlitchField';
@@ -403,7 +404,7 @@ const Unit: React.FC<UnitProps> = ({
   //
   // Read each frame from the motion registry (motionOf), not from props, so that moving part of
   // the way along a tile doesn't re-render the unit; decoys, which aren't units, use their props.
-  const tracked = useRef<{ key: string; path: readonly string[]; route: { x: number; z: number }[]; speed: number; report: { x: number; z: number; at: number } } | null>(null);
+  const tracked = useRef<{ key: string; path: readonly string[]; route: { x: number; z: number }[]; speed: number; report: { x: number; z: number; at: number; tick?: number } } | null>(null);
   const trackMotion = () => {
     const m = motionOf(id) ?? { gridPos, path, moveProgress, moveTarget, moveSpeed };
     const key = positionKey(m);
@@ -416,7 +417,8 @@ const Unit: React.FC<UnitProps> = ({
       });
       // The tick that put the unit here, which can be well before the latest one when the screen
       // is behind; a position no tick stamped (a spawn, a decoy) counts as fresh.
-      const report = { x: (tile.x * tileSize) - offset, z: (tile.z * tileSize) - offset, at: stampedAt(id, key) ?? performance.now() };
+      const stamp = stampOf(id, key);
+      const report = { x: (tile.x * tileSize) - offset, z: (tile.z * tileSize) - offset, at: stamp?.at ?? performance.now(), tick: stamp?.tick };
       t = { key, path: m.path, route, speed: 0, report };
       tracked.current = t;
     }
@@ -621,7 +623,11 @@ const Unit: React.FC<UnitProps> = ({
 
         const meshPos = meshRef.current.position;
         const { report, route, speed } = trackMotion();
-        const predicted = predictPosition(report, route, speed, (performance.now() - report.at) / 1000);
+        // Game time since that report, counted in ticks (glide.ts): by the clock alone a unit ran
+        // on past where late ticks would put it, then was pulled back.
+        const now = performance.now();
+        const since = report.tick !== undefined ? simSecondsSince(report.tick, now) : Math.min((now - report.at) / 1000, 0.1);
+        const predicted = predictPosition(report, route, speed, since);
         if (placedMesh.current !== meshRef.current) {
             placedMesh.current = meshRef.current;
             meshPos.set(predicted.x, hoverHeight, predicted.z);
@@ -822,7 +828,8 @@ const Unit: React.FC<UnitProps> = ({
       </mesh>
 
       <group ref={bodyRef} key={decoyActive ? 'cloaked' : fieldCloaked ? 'field' : 'solid'}>
-        {model}
+        {/* Its still parts drawn merged, a few meshes instead of a hundred (kit/Batched.tsx). */}
+        <Batched>{model}</Batched>
       </group>
 
       {decoyActive && (

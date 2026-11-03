@@ -24,7 +24,8 @@ import * as THREE from 'three';
 import { Edges, Html, Line, Float, Instance, Instances } from '@react-three/drei';
 import { useFrame, useThree } from '@react-three/fiber';
 import { Zap, Ban, Building2 } from 'lucide-react';
-import { freezeContainer } from '../perf';
+import { freezeContainer, installMatrixWalk } from '../perf';
+import { batchedInternals, setBatching, verifyBatching } from './kit/Batched';
 import { ENERGY_GRID_COLOR, outerEnergyGridPolylines } from '../energyGrid';
 import { PowerGrid } from './PowerGrid';
 import { Craters } from './Ruins';
@@ -33,7 +34,7 @@ import StreetFurniture from './StreetFurniture';
 import EstateGrounds from './EstateGrounds';
 import { addCraters, craterOf, type Crater } from './ruins';
 import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from '../sim/movement';
-import { positionKey, publishMotion, simClock, stampPosition } from './glide';
+import { positionKey, publishMotion, recordTick, simClock, stampPosition } from './glide';
 import { ArmyControls, ArmyInfo, MAX_ARMIES, SelectionSummary } from './ArmyPanel';
 import { cameraFocus, onRightClick } from './DroneCamera';
 import { playSound, playUiSound, setLoops, SoundKind, startAmbience, stopAmbience } from './sfx';
@@ -104,6 +105,9 @@ import { heliosBeams, microwaveDamage } from '../sim/helios';
 import { freshPacing, pacingTick, PacingRecord, recordArea, recordStrategies, recordVictory, recordWeaponHits } from '../sim/pacing';
 import type { NoticeTone } from '../App';
 import { teamName } from './factions';
+
+// A cheaper per-frame matrix walk for the whole scene (perf.ts).
+installMatrixWalk();
 
 
 // Helper to check if a grid position is inside any cloud of a specific type (optional)
@@ -2142,6 +2146,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
   // Expose Cheats
   useEffect(() => {
+    const drawnCache = new Map<string, THREE.Object3D>();
     (window as any).GAME_CHEATS = {
       setResources: (team: 'blue' | 'red', amount: number) => {
         setEconomy(prev => setCores(prev, team, amount));
@@ -2160,9 +2165,32 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       pacing: () => pacingRef.current,
       // What the last frame cost the GPU: draw calls, triangles, and live geometries and textures.
       renderStats: () => ({ ...glRef.current.info.render, ...glRef.current.info.memory }),
+      // Merge units' still parts or not (kit/Batched.tsx), to compare the two.
+      batching: (on: boolean) => setBatching(on),
+      // Whether every merged model draws just what its own parts would.
+      verifyBatching: () => verifyBatching(),
+      // A unit's model, part by part: which parts move, which are merged (kit/Batched.tsx).
+      batchedTree: (id: string) => {
+          const unit = sceneRef.current.getObjectByName(`unit-${id}`);
+          const lines: string[] = [];
+          const visit = (o: THREE.Object3D, d: number) => {
+              const d2 = Object.getOwnPropertyDescriptor(o, 'visible');
+              const flags = `${batchedInternals.moves.has(o) ? ' MOVES' : ''}${d2?.get ? ' held' : ''}${o.userData.batchedMerge ? ' MERGED' : ''}`;
+              const mat = (o as THREE.Mesh).material as THREE.Material | undefined;
+              lines.push(`${'  '.repeat(d)}${o.type}${flags}${mat && !Array.isArray(mat) ? ' ' + mat.type + ':' + mat.uuid.slice(0, 4) : ''}`);
+              o.children.forEach(c => visit(c, d + 1));
+          };
+          if (unit) visit(unit, 0);
+          return lines.join('\n');
+      },
+      // The scene and renderer, for profiling scripts.
+      probe: () => ({ scene: sceneRef.current, gl: glRef.current, camera: cameraRef.current }),
       // Where a unit's model is drawn, in tiles (to check the smoothing against the game's position).
       drawnAt: (id: string) => {
-          const obj = sceneRef.current.getObjectByName(`unit-${id}`);
+          // Found once and kept while it's in the scene: searching the whole scene every frame
+          // was slow enough to skew the measurements this is for.
+          let obj = drawnCache.get(id);
+          if (!obj || !obj.parent) { obj = sceneRef.current.getObjectByName(`unit-${id}`); if (obj) drawnCache.set(id, obj); }
           if (!obj) return null;
           const p = new THREE.Vector3();
           obj.getWorldPosition(p);
@@ -3762,7 +3790,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           const moveEnv = movementEnvRef.current;
           if (moveEnv) {
               const tickAt = performance.now();
-              simClock.lastTickAt = tickAt;
+              recordTick(tickAt);
+              // Captured here: React may run the updater below a tick or two later.
+              const tick = simClock.ticks;
               setUnits(prev => {
                   let moved = false;
                   const next = prev.map(u => {
@@ -3770,7 +3800,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       if (after !== u) {
                           moved = true;
                           // When this tick put the unit here, for smooth drawing (components/glide.ts).
-                          stampPosition(after.id, positionKey(after), tickAt);
+                          stampPosition(after.id, positionKey(after), tickAt, tick);
                       }
                       return after;
                   });

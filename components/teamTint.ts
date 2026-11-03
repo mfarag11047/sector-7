@@ -38,5 +38,7 @@ export function teamTintedMaterial(base: THREE.Material, teamColor: string, glow
   const m = (base as THREE.MeshStandardMaterial).clone();
   m.onBeforeCompile = teamTintShader(new THREE.Color(teamColor), glowKind);
   m.customProgramCacheKey = () => `team-tint-${glowKind}`;
+  // Colour only, nothing read from a part's coordinates: safe to merge (kit/Batched.tsx).
+  m.userData.mergeSafe = true;
   return m;
 }

@@ -69,6 +69,9 @@ float kitNoise(vec3 x) {
 export function weathered<T extends THREE.MeshStandardMaterial>(m: T, fill = m.userData.kitFill ?? 1): T {
   m.userData.kitWear = true;
   m.userData.kitFill = fill;
+  // Its shader reads a part's own coordinates only for the faint wear grain, which merging a
+  // model's still parts (Batched.tsx) merely shifts: safe to merge.
+  m.userData.mergeSafe = true;
   m.customProgramCacheKey = () => 'kit-wear';
   m.onBeforeCompile = shader => {
     shader.uniforms.kitFill = { value: fill };

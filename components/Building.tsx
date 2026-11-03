@@ -5,6 +5,7 @@ import { Edges } from '@react-three/drei';
 import * as THREE from 'three';
 import { TEAM_COLORS, CITY_CONFIG } from '../constants';
 import { FootprintSegment, isFootprintSegment } from './FootprintBuilding';
+import { Batched } from './kit/Batched';
 import { lookOf } from './midtownLooks';
 import { ServerNode } from './ServerNode';
 import { CoreNode } from './CoreNode';
@@ -686,7 +687,8 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
       </mesh>
 
 
-      {/* Main Building Body */}
+      {/* Main Building Body, its still parts drawn merged (kit/Batched.tsx). */}
+      <Batched>
       {isFootprintSegment(data) ? (
           <FootprintSegment
               data={data}
@@ -752,6 +754,7 @@ const Building: React.FC<BuildingProps> = ({ data, hovered = false }) => {
             />
           </mesh>
       )}
+      </Batched>
 
       {/* Rooftop Details for standard buildings (Non-commercial, Non-server, Non-hightech, Non-industrial, Non-residential) */}
       <group position={[0, data.scale[1], 0]}>

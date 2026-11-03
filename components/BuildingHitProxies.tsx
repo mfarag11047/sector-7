@@ -77,6 +77,8 @@ const BuildingHitProxies: React.FC<BuildingHitProxiesProps> = ({ buildings, onCl
             ref={meshRef}
             args={[undefined, undefined, buildings.length]}
             visible={false}
+            // Hidden but picked by the pointer, so its matrices are kept up to date (perf.ts).
+            userData={{ pickWhileHidden: true }}
             frustumCulled={false}
             onClick={handleClick}
             onContextMenu={handleContextMenu}
