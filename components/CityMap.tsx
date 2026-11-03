@@ -69,7 +69,7 @@ import { MatchConfig, STARTING_CORES, aiTeamsOf, doctrineOf, incomeMultipliers, 
 import { AI_PROFILES, aiThink, freshAiMemory, nextThinkDelay, thinkOffsets } from '../sim/ai';
 import { OrderCommand, applyOrderToStructures, applyOrderToUnits, isOperational, orderEffects, popUsed, coreNodesHeld, serverNodesHeld, teamPopCap, teamTier } from '../sim/orders';
 import { advanceProduction, applyProduction, createUnit } from '../sim/production';
-import { UNIT_RULES, isAirType, TIER_RESEARCH_MS, type DamageType } from '../sim/units';
+import { UNIT_RULES, isAirType, fliesOver, TIER_RESEARCH_MS, type DamageType } from '../sim/units';
 import { airPath, fastestPath, sentinelHazardOf } from '../sim/pathfinding';
 import { fireFlechettes, regenerateShield, shieldedHit } from '../sim/kestrel';
 import { markScreened, pruneSmoke, SMOKE, SmokeScreen } from '../sim/titan';
@@ -78,6 +78,7 @@ import { damageDrones, emptySwarm, shieldWasps, swarmThreats, swarmTick } from '
 import { DRONE_AIR_Y, MicrodroneSwarm } from './MicrodroneSwarm';
 import { canisterSpots, HE, WARHEAD_LIST, WP, wpGasDamage } from '../sim/warheads';
 import { heroBlocker, heroOf } from '../sim/heroes';
+import { freshSentinelNet, sentinelBlocker, sentinelNetTick } from '../sim/sentinelNet';
 import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade, upgradeDef, upgradeTitle, type UpgradeId } from '../sim/upgrades';
 import { FireballFx, fireballLifeMs } from './FireballFx';
 import { baseCentreOf, padKindOf, spawnTile, teamPads } from '../sim/baseLayout';
@@ -1979,6 +1980,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const playerHero = heroOf(playerDoctrine);
   const playerHeroBlocked = playerHero && (playerTeam === 'blue' || playerTeam === 'red')
     ? heroBlocker(playerHero.unit, playerTeam, playerDoctrine, playerUpgrades ?? [], units, structuresState) : null;
+  // And why it can't build Sentinels at its Comm Link (Netrunner's Sentinel Net, sim/sentinelNet.ts).
+  const playerSentinelBlocked = playerTeam === 'blue' || playerTeam === 'red' ? sentinelBlocker(playerDoctrine, economy[playerTeam].sentinelCode) : null;
 
   // Cheat State
 
@@ -2620,7 +2623,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           let changed = false;
           const next = prev.map(u => {
               // The bombardment drone hovers, so building tiles are a valid route.
-              if (isAirType(u.type)) return u;
+              if (fliesOver(u.type)) return u;
               const settled = settle(u);
               if (!settled) return u;
               changed = true;
@@ -3123,6 +3126,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   // Every unit ability goes through sim/abilities.ts as a command: it is checked for the
   // current team (ownership, unit type, cooldowns, charges, range) and only then applied.
   const spawnCounterRef = useRef(0);
+  // Netrunner's Sentinel Net: each server node's next defender (sim/sentinelNet.ts).
+  const sentinelNetRef = useRef(freshSentinelNet());
   // Why the last ability order was refused, for a single notice after a group order.
   const lastAbilityRefusalRef = useRef('');
   const newId = (prefix: string) => `${prefix}-${Date.now()}-${++spawnCounterRef.current}`;
@@ -4357,6 +4362,38 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           // Infantry capture buildings and core nodes (sim/capture.ts).
           setBuildings(prev => captureTick(prev, unitsRef.current));
 
+          // Netrunner's Sentinel Net: cracking the code, hacking neutral guards, server node
+          // defenders (sim/sentinelNet.ts).
+          {
+              const doctrineOf = (t: 'blue' | 'red') => aiHelpersRef.current.doctrines?.[t]?.selected ?? null;
+              if (doctrineOf('blue') === 'netrunner' || doctrineOf('red') === 'netrunner') {
+                  const net = sentinelNetTick(sentinelNetRef.current, unitsRef.current, buildingsRef.current, doctrineOf, t => !!economyRef.current[t].sentinelCode, now, TICK_RATE, () => `sn-${now}-${++spawnCounterRef.current}`);
+                  sentinelNetRef.current = net.net;
+                  const before = new Map(unitsRef.current.map(u => [u.id, u]));
+                  const changed = new Map(net.units.filter(u => before.has(u.id) && before.get(u.id) !== u).map(u => [u.id, u]));
+                  const spawned = net.units.filter(u => !before.has(u.id));
+                  if (changed.size > 0 || spawned.length > 0) {
+                      const apply = (list: UnitData[]) => {
+                          const next = list.map(u => {
+                              const c = changed.get(u.id);
+                              return c ? { ...u, team: c.team, hackProgress: c.hackProgress, sentinelPost: c.sentinelPost, path: c.team !== u.team ? [] : u.path, combatTargetId: c.team !== u.team ? null : u.combatTargetId } : u;
+                          });
+                          return spawned.length > 0 ? [...next, ...spawned] : next;
+                      };
+                      unitsRef.current = apply(unitsRef.current);
+                      setUnits(apply);
+                  }
+                  if (net.cracked.length > 0) {
+                      const crack = (e: Economy) => net.cracked.reduce((acc, t) => ({ ...acc, [t]: { ...acc[t], sentinelCode: true } }), e);
+                      economyRef.current = crack(economyRef.current);
+                      setEconomy(crack);
+                      if (net.cracked.includes(playerTeamRef.current as 'blue' | 'red')) onNoticeRef.current?.('Sentinel code cracked: build Sentinels at your Comm Link, and walk your units up to neutral Sentinels to hack them');
+                  }
+                  for (const h of net.hacked) if (h.team === playerTeamRef.current) onNoticeRef.current?.('Sentinel hacked: it guards its server node for you now');
+                  for (const d of net.defenders) if (d.team === playerTeamRef.current) onNoticeRef.current?.('A Sentinel has taken up post at your server node');
+              }
+          }
+
           // Computed once, outside any state updater, so React's double-invoked updaters
           // in development cannot add the same finished warhead twice.
           const fabTick = advanceWarheadProduction(structuresRef.current, team => aiHelpersRef.current.doctrines?.[team]?.selected);
@@ -4441,7 +4478,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   taken.add(`${spawn.x},${spawn.z}`);
                   const unit = createUnit(unitType, structure.team, `u-${structure.team}-${now}-${i}`, spawn);
                   const rally = structure.rallyPoint;
-                  if (rally) unit.path = isAirType(unitType) ? aiHelpersRef.current.findAirPath(spawn, rally) : findPath(spawn, rally);
+                  if (rally) unit.path = fliesOver(unitType) ? aiHelpersRef.current.findAirPath(spawn, rally) : findPath(spawn, rally);
                   return unit;
               });
               born.forEach(u => { if (u.team === 'blue' || u.team === 'red') tallyRef.current[u.team].trained++; });
@@ -4626,7 +4663,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       // If dead from damage, handled by filter later, but we update ref
                       if (newUnit.health <= 0) return newUnit;
 
-                      if (leashStep(u, newUnit, power.tetherHosts.get(u.id), isAirType(u.type) ? aiHelpersRef.current.findAirPath : findPath)) uChanged = true;
+                      if (leashStep(u, newUnit, power.tetherHosts.get(u.id), fliesOver(u.type) ? aiHelpersRef.current.findAirPath : findPath)) uChanged = true;
                       if (fabricationStep(u, newUnit, aiHelpersRef.current.doctrines?.[u.team as 'blue' | 'red']?.selected)) uChanged = true;
                       if (ballistaLoadStep(u, newUnit, TICK_RATE)) uChanged = true;
                       // Battery drain and charging (sim/energy.ts).
@@ -4921,8 +4958,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 upgrades={s.type === 'research_lab' ? playerUpgrades : undefined}
                 compute={s.type === 'research_lab' && (playerTeam === 'blue' || playerTeam === 'red') ? economy[playerTeam].compute : undefined}
                 upgradesUnderway={s.type === 'research_lab' ? upgradesUnderway : undefined}
-                doctrine={s.type === 'research_lab' ? playerDoctrine : undefined}
-                heroBlocked={s.type === 'research_lab' && depotMenuOpenId === s.id ? playerHeroBlocked : undefined}
+                doctrine={s.type === 'research_lab' || s.type === 'support' ? playerDoctrine : undefined}
+                heroBlocked={s.type === 'research_lab' && depotMenuOpenId === s.id ? playerHeroBlocked : s.type === 'support' && depotMenuOpenId === s.id ? playerSentinelBlocked : undefined}
                 income={s.type === 'refinery' && depotMenuOpenId === s.id && s.team === playerTeam ? incomeBreakdown(buildings, playerTeam, structuresState) : undefined}
                 refineryShare={s.type === 'refinery' && depotMenuOpenId === s.id ? refineryMultiplier(s, structuresState, coreNodeTiles) : undefined}
                 ciwsAims={s.type === 'aa_turret' ? ciwsAimsRef : undefined}

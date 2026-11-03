@@ -14,6 +14,7 @@ import { CoverMap, coverApplies, coverBetween, hitCover } from './cover';
 import { isScreened, SMOKE } from './titan';
 import { damageMultiplier, damageTakenMultiplier, fireRateMultiplier, hasBuff, isEmpDisabled, rangeBonus } from './unitAbilities';
 import { ArmorClass, canHit, DamageType, shotDamage, STRUCTURE_RULES, UNIT_RULES, Weapon } from './units';
+import { isBeingHacked } from './sentinelNet';
 
 export type DamageMap = Map<string, number>;
 
@@ -168,6 +169,8 @@ export function resolveAttacks(
     let bestDist = Infinity;
     for (const t of unitTargets) {
       if (!hostile(team, t.team) || (!fromAir && isScreened(t))) continue;
+      // A Sentinel its side is hacking is wanted intact (sim/sentinelNet.ts).
+      if (t.hackProgress?.active && t.hackProgress.team === team) continue;
       const armor = UNIT_RULES[t.type].armor;
       const isAir = armor === 'air';
       if (!canHit(weapon, isAir)) continue;
@@ -240,7 +243,8 @@ export function resolveAttacks(
 
   for (const u of units) {
     const base = UNIT_RULES[u.type].weapon;
-    if (!base || base.indirect || base.ciws || u.health <= 0 || u.decoyActive || u.isStunned || isEmpDisabled(u) || inNanoCloud(u.gridPos)) continue;
+    // A Sentinel being hacked holds its fire (sim/sentinelNet.ts).
+    if (!base || base.indirect || base.ciws || u.health <= 0 || u.decoyActive || u.isStunned || isEmpDisabled(u) || inNanoCloud(u.gridPos) || isBeingHacked(u)) continue;
     // Ability buffs (sim/unitAbilities.ts): range, damage and, for Flak Barrage, air splash.
     const weapon: Weapon = u.buffs?.length ? {
       ...base,

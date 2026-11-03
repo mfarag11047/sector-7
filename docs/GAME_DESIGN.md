@@ -1324,10 +1324,33 @@ The Banshee is the electronic-warfare vehicle (`sim/jamming.ts`).
   a leash within 8 tiles, and **cannot be jammed**. Pick a tethered drone again to let it go, or
   Disconnect to drop them all. Another Banshee taking a drone takes it off the first one's line.
 
+## Netrunner passive: the Sentinel Net
+
+`sim/sentinelNet.ts`. Netrunner turns the server nodes' Sentinels to its side.
+- **The code.** The first time a Netrunner side holds a server node it cracks the Sentinels' code,
+  for good (`TeamEconomy.sentinelCode`; a notice says so). Until then none of the rest works.
+- **Build them.** The Comm Link builds Sentinels for Netrunner only (300 cores, 2 pop, 20 s, Tier 1;
+  Mk II and Mk III refits at Advanced Research, Netrunner only). The same heavy drone with its
+  rifle (14 dmg / 0.5 s, range 3) and 300 health, wearing the side's colour on its belt. It hovers
+  over the city, not along the roads, slowly (speed 0.45 of an aircraft's 1.2): a guard to post at
+  a chokepoint or a node, not a front-line unit. Ground fire hits it as armour, not as an aircraft.
+- **Hack them.** A unit of a cracked Netrunner side within 2 tiles of a neutral Sentinel, with no
+  unit of the other side within 3 tiles of it, hacks it over 8 s; a ring on the ground fills in the
+  side's colour. Meanwhile the Sentinel's targeting is scrambled: it holds its fire, and the
+  hacking side's units leave it alone. Walk away or be contested and the hack stalls (the ring
+  dims), runs back at half speed, and the Sentinel fires again. Hacked, it joins the side,
+  guarding the node it stood at.
+- **Defenders.** Every server node a Netrunner side has held for 2 minutes gains a Sentinel of its
+  own over the roof, and another 2 minutes after the last one falls, as long as the node is held.
+- Posted Sentinels (defenders and hacked guards) take no population; built ones do. Neither side
+  routes round its own or its enemy's Sentinels, only the neutral ones.
+- The computer as Netrunner builds its Comm Link as soon as it has the code, keeps one Sentinel of
+  its own at home (two on Hard), and hacks guards as its army comes up to them.
+
 ## Netrunner doctrine: Black Wall Infect
 
-`sim/blackwall.ts`. The Netrunner doctrine (formerly Skunkworks) keeps its Overclock passive (+10%
-production) and Nano-Cloud (Tier 2). Its Tier 3 power (1100 cores, 300 s cooldown) is Black Wall
+`sim/blackwall.ts`. The Netrunner doctrine (formerly Skunkworks) has the Sentinel Net as its
+passive (below; it replaced the old +10% production Overclock) and Nano-Cloud (Tier 2). Its Tier 3 power (1100 cores, 300 s cooldown) is Black Wall
 Infect: a virus bomb that falls for 1.2 s and goes off in a 1.5-tile blast.
 - Every enemy unit in the blast loses 25% of its maximum health at once and is infected.
 - An infected unit burns 2.5% of its maximum health a second until it dies (30 s from 75%).

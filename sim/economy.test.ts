@@ -154,9 +154,9 @@ describe('doctrine powers', () => {
 });
 
 describe('warhead production', () => {
-  it('runs 10% faster under Netrunner', () => {
+  it('runs at the same pace for every doctrine (Netrunner\'s passive is now the Sentinel Net)', () => {
     expect(productionStep(null)).toBe(100);
-    expect(productionStep('netrunner')).toBeCloseTo(110);
+    expect(productionStep('netrunner')).toBe(100);
   });
 
   it('finishes exactly once and reports the team and warhead', () => {

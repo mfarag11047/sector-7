@@ -18,7 +18,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { glow, kitMaterial, own, PALETTE, smoothMaterial } from '../kit/materials';
+import { glow, kitMaterial, own, PALETTE, smoothMaterial, teamPaint } from '../kit/materials';
 import { Plate, Strip, Turned } from '../kit/shapes';
 
 const SCALE = 1.35;
@@ -72,7 +72,10 @@ const partTurned = (profile: [number, number][], phiStart: number, phiLength: nu
 export const SentinelDroneModel: React.FC<{
   // Where its laser is aimed in the world, or nothing while it isn't firing.
   aimOf?: () => THREE.Vector3 | undefined;
-}> = ({ aimOf }) => {
+  // A side's own Sentinel (Netrunner's, sim/sentinelNet.ts) wears its colour on its belt; the
+  // neutral guards are grey.
+  teamColor?: string;
+}> = ({ aimOf, teamColor }) => {
   const shell = shellMaterial(), grey = kitMaterial('structGrey'), dark = kitMaterial('structDark'), black = kitMaterial('black'), steel = kitMaterial('steel');
   // The eye's lights, its own to brighten while it fires.
   const iris = useMemo(() => own(glow(RED)), []);
@@ -156,7 +159,7 @@ export const SentinelDroneModel: React.FC<{
           {[-1, 1].map(s => (
             <Turned key={s} profile={[[SEAM_R + 0.012, s * SEAM_Y - 0.035], [SEAM_R + 0.03, s * SEAM_Y], [SEAM_R + 0.012, s * SEAM_Y + 0.035]]} segments={40} material={dark} rotation={UP} />
           ))}
-          <mesh geometry={geometry.belt} material={grey} castShadow />
+          <mesh geometry={geometry.belt} material={teamColor ? teamPaint(teamColor) : grey} castShadow />
           {[1.05, Math.PI, -1.05].map(a => (
             <Strip key={a} size={[0.42, 0.07, 0.03]} material={iris} position={[Math.sin(a) * (R + 0.095), 0, Math.cos(a) * (R + 0.095)]} rotation={[0, a, 0]} />
           ))}

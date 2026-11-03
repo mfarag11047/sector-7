@@ -291,7 +291,7 @@ export function generateCity(opts: CityOptions): City {
       id: `drone-${id}`, type: 'defense_drone', unitClass: 'defense', team: 'neutral',
       gridPos: { x, z }, path: [], visionRange: UNIT_STATS.defense_drone.visionRange,
       health: UNIT_STATS.defense_drone.maxHealth, maxHealth: UNIT_STATS.defense_drone.maxHealth,
-      battery: 100, maxBattery: 100, cooldowns: {},
+      battery: 100, maxBattery: 100, cooldowns: {}, sentinelPost: id,
     });
   }
 

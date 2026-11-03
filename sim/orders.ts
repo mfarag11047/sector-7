@@ -17,7 +17,8 @@ import { researchBlocker, upgradeDef, type UpgradeId } from './upgrades';
 import { REFINERY, refineriesOf, refineryLimit, upgradeBlocker } from './refinery';
 import { builtCost, canDismantle, cancelledWork, isUnfinished, startDismantling } from './dismantle';
 import { BUILDING_PADS, freePadsFor, isPad, padKindOf, TURRET_PADS } from './baseLayout';
-import { isAirType, popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from './units';
+import { fliesOver, isAirType, popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from './units';
+import { sentinelBlocker } from './sentinelNet';
 import { tetheredIds, unjammedIds } from './jamming';
 import { heroBlocker, isHeroType } from './heroes';
 
@@ -206,6 +207,10 @@ function trainOrder(view: OrdersView, team: Team, structureId: string, unitType:
     const blocked = heroBlocker(unitType, team, view.doctrines?.[team], view.economy[team].upgrades ?? [], view.units, view.structures);
     if (blocked) return reject(blocked);
   }
+  if (unitType === 'defense_drone') {
+    const blocked = sentinelBlocker(view.doctrines?.[team], view.economy[team].sentinelCode);
+    if (blocked) return reject(blocked);
+  }
   if ((s.queue?.length || 0) >= MAX_QUEUE) return reject('queue full');
   const cap = view.unlimitedPop ? Infinity : teamPopCap(view.buildings, team);
   if (popUsed(view.units, view.structures, team) + rules.pop > cap) return reject(`population cap reached (${cap}); spread your grid or hold more core nodes`);
@@ -339,7 +344,7 @@ function moveOrder(view: OrdersView, team: Team, unitIds: readonly string[], tar
     if (!dest) continue;
     reserved.add(`${dest.x},${dest.z}`);
     // Aircraft fly straight there; ground units take the quickest road.
-    const path = isAirType(u.type) ? ctx.findAirPath(u.gridPos, dest) : ctx.findPath(u.gridPos, dest);
+    const path = fliesOver(u.type) ? ctx.findAirPath(u.gridPos, dest) : ctx.findPath(u.gridPos, dest);
     // A planted Thunderhead packs up to move, dropping its fire mission.
     const packUp = (x: UnitData): UnitData => x.type === 'howitzer' && x.isDeployed ? { ...x, isDeployed: false, anchoredAt: undefined, artilleryTarget: null, artilleryAim: null } : x;
     if (path.length > 0) unitUpdates.set(u.id, x => ({ ...packUp(x), path, attackMove }));

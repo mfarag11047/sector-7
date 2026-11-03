@@ -58,7 +58,9 @@ export type RefitId =
   | 'mule_mk2'
   | 'mule_mk3'
   | 'swarm_host_mk2'
-  | 'swarm_host_mk3';
+  | 'swarm_host_mk3'
+  | 'defense_drone_mk2'
+  | 'defense_drone_mk3';
 
 export interface UpgradeDef {
   id: UpgradeId;
@@ -138,6 +140,9 @@ export const UPGRADES: readonly UpgradeDef[] = [
   refit('mule_mk3', 'mule', 3, 3),
   refit('swarm_host_mk2', 'swarm_host', 2, 2),
   refit('swarm_host_mk3', 'swarm_host', 3, 3),
+  // Netrunner's Sentinels (sim/sentinelNet.ts): only its own side can refit them.
+  { ...refit('defense_drone_mk2', 'defense_drone', 2, 2), doctrine: 'netrunner' },
+  { ...refit('defense_drone_mk3', 'defense_drone', 3, 3), doctrine: 'netrunner' },
   ...heroUpgrades('heavy_metal'),
   ...heroUpgrades('shadow_ops'),
   ...heroUpgrades('netrunner'),

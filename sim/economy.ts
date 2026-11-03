@@ -18,7 +18,6 @@ export const ECONOMY_TICK_MS = 1000;
 // Warhead fabs and Field Fabricators advance once per logic tick.
 export const PRODUCTION_TICK_MS = 100;
 // Netrunner tier 1 passive: production runs 10% faster.
-const NETRUNNER_PRODUCTION_BONUS = 1.1;
 
 export interface TeamEconomy {
   cores: number;
@@ -34,6 +33,8 @@ export interface TeamEconomy {
   tierResearch?: { tier: 2 | 3; remainingMs: number } | null;
   // Unit upgrades researched at Advanced Research (sim/upgrades.ts).
   upgrades: UpgradeId[];
+  // Netrunner: has held a server node, cracking the Sentinels' code (sim/sentinelNet.ts).
+  sentinelCode?: boolean;
 }
 
 export type Economy = Record<Team, TeamEconomy>;
@@ -188,7 +189,7 @@ export function setCompute(economy: Economy, team: Team, compute: number): Econo
 
 // Milliseconds of build progress one production tick is worth for this team.
 export const productionStep = (doctrine: DoctrineType | null | undefined) =>
-  PRODUCTION_TICK_MS * (doctrine === 'netrunner' ? NETRUNNER_PRODUCTION_BONUS : 1);
+  PRODUCTION_TICK_MS;
 
 export interface WarheadProductionResult {
   // New production state for each fab that advanced, keyed by structure id.

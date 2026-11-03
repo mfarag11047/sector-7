@@ -169,7 +169,7 @@ const UPGRADE_IDS = Object.keys({
   tank_mk2: 1, aegis_mk2: 1, drone_mk2: 1, drone_mk3: 1, wasp_mk2: 1, wasp_mk3: 1,
   bombard_mk2: 1, bombard_mk3: 1, guardian_mk2: 1, guardian_mk3: 1, helios_mk2: 1, helios_mk3: 1,
   banshee_mk2: 1, banshee_mk3: 1, ballista_mk2: 1, ballista_mk3: 1, mason_mk2: 1, mason_mk3: 1, mule_mk2: 1,
-  mule_mk3: 1, swarm_host_mk2: 1, swarm_host_mk3: 1,
+  mule_mk3: 1, swarm_host_mk2: 1, swarm_host_mk3: 1, defense_drone_mk2: 1, defense_drone_mk3: 1,
   hero_heavy_metal_unlock: 1, hero_heavy_metal_mk2: 1, hero_heavy_metal_mk3: 1,
   hero_shadow_ops_unlock: 1, hero_shadow_ops_mk2: 1, hero_shadow_ops_mk3: 1,
   hero_netrunner_unlock: 1, hero_netrunner_mk2: 1, hero_netrunner_mk3: 1,

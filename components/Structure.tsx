@@ -57,6 +57,8 @@ interface StructureProps {
   upgradesUnderway?: readonly UpgradeId[];
   // The owner's doctrine, and why it can't train its hero now (sim/heroes.ts), for Advanced Research.
   doctrine?: DoctrineType | null;
+  // Why the side's doctrine unit here can't be trained: its hero at Advanced Research, Netrunner's
+  // Sentinel at the Comm Link (sim/sentinelNet.ts).
   heroBlocked?: string | null;
   // The side's income, for a Core Refinery's menu (sim/economy.ts incomeBreakdown).
   income?: IncomeBreakdown;
@@ -412,7 +414,8 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
     if (!menuOpen) return null;
     
     // Advanced Research trains only its side's own doctrine hero.
-    const buildableUnits = unitsProducedBy(data.type).filter(t => !isHeroType(t) || t === heroOf(doctrine)?.unit);
+    // The Comm Link builds Sentinels for Netrunner only.
+    const buildableUnits = unitsProducedBy(data.type).filter(t => (!isHeroType(t) || t === heroOf(doctrine)?.unit) && (t !== 'defense_drone' || doctrine === 'netrunner'));
     const queue = data.queue || [];
     const constructing = (data.buildRemainingMs || 0) > 0;
     // Coming down: it trains and builds nothing more.
@@ -446,7 +449,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                 const cost = stats.cost || 0;
                                 const locked = rules.tier > tier;
                                 const full = queue.length >= MAX_QUEUE || popUsed + rules.pop > popCap;
-                                const heroReason = isHeroType(uType) ? heroBlocked ?? null : null;
+                                const heroReason = isHeroType(uType) || uType === 'defense_drone' ? heroBlocked ?? null : null;
                                 const ok = !idle && !locked && !full && !heroReason && (resources || 0) >= cost;
                                 const queued = queue.filter(q => q.unitType === uType).length;
                                 return (

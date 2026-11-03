@@ -62,6 +62,8 @@ export interface SupportNeeds {
   scoutLostRecently?: boolean;
   // It wants a city block levelled for a new base and needs a Bombardment Drone to do it (sim/aiExpansion.ts).
   levelBlock?: boolean;
+  // Netrunner with the Sentinels' code: it can build Sentinels at its Comm Link (sim/sentinelNet.ts).
+  sentinels?: boolean;
 }
 
 // How long after losing a scout car it waits before training another.
@@ -93,6 +95,8 @@ export function specialistPick(producer: StructureType, n: SupportNeeds): UnitTy
       if (tier >= 3 && have('bombard') < (n.hard ? 2 : 1) + (air || drones ? 1 : 0) && random() < 0.5) return 'bombard';
       return null;
     case 'support':
+      // Netrunner keeps a Sentinel or two of its own guarding home.
+      if (n.sentinels && mine.filter(u => u.type === 'defense_drone' && !u.sentinelPost).length < (n.hard ? 2 : 1)) return 'defense_drone';
       if (drones ? have('helios') < Math.max(2, Math.floor(army / 3)) : have('helios') < Math.min(2, Math.floor(army / 6))) return 'helios';
       if (tier >= 2 && army >= (drones ? 3 : 6) && have('banshee') < (drones ? 2 : 1)) return 'banshee';
       return null;

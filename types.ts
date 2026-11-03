@@ -112,6 +112,11 @@ export interface UnitData {
   
   // Status Effects & Doctrine fields
   isStunned?: boolean;
+  // A Sentinel posted at a server node (its own guard, a Netrunner defender, or a hacked guard):
+  // the node's id. Posted Sentinels take no population (sim/sentinelNet.ts).
+  sentinelPost?: string;
+  // A neutral Sentinel being hacked by a Netrunner side, and whether the hack is going on now.
+  hackProgress?: { team: 'blue' | 'red'; ms: number; active: boolean };
   stunDuration?: number;
   isStealthed?: boolean;
   activeBuffs?: ('speed' | 'damage' | 'regen')[];

@@ -106,8 +106,11 @@ export const UNIT_RULES: Record<UnitType, UnitRules> = {
   hero_shadow_ops: { armor: 'infantry', weapon: { damage: 60, cooldownMs: 800, range: 1.3, type: 'blade', hitsGround: true, hitsAir: false }, pop: 4, tier: 1, producer: 'research_lab', buildTimeMs: 40000, role: 'Shadow Ops\' hero. A cloaking assassin with a katana: melee only, can\'t hit aircraft. Striking from cloak deals double damage.' },
   hero_netrunner: { armor: 'light', weapon: { damage: 14, cooldownMs: 500, range: 4, type: 'mg', hitsGround: true, hitsAir: true }, pop: 4, tier: 1, producer: 'research_lab', buildTimeMs: 40000, role: 'Netrunner\'s hero (placeholder). Hits ground and air alike.' },
 
+  // The server nodes' guards, hostile to everyone; Netrunner alone can build its own at the Comm
+  // Link once it has held a server node, and hack the neutral ones (sim/sentinelNet.ts).
+  defense_drone: { armor: 'heavy', weapon: rifle(14, 500, 3), pop: 2, tier: 1, producer: 'support', buildTimeMs: 20000, role: 'Netrunner only. A heavy guard drone with a rifle: hovers slowly over the city to wherever you send it, and holds it.' },
+
   // --- Never trained ---
-  defense_drone: { armor: 'heavy', weapon: rifle(14, 500, 3), pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Guards a server node. Hostile to everyone.' },
   titan_dropped: { armor: 'heavy', weapon: shell(60, 2200, 4, 1, 0.1), pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Orbital-drop Titan.' },
   field_generator: { armor: 'heavy', weapon: null, pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Projects a force field the enemy cannot shoot into.' },
   cloak_generator: { armor: 'light', weapon: null, pop: 0, tier: 1, producer: null, buildTimeMs: 0, role: 'Cloaks friendly units within 3 tiles while it has battery.' },
@@ -151,6 +154,9 @@ export const unitsProducedBy = (structure: StructureType): UnitType[] =>
   (Object.keys(UNIT_RULES) as UnitType[]).filter(t => UNIT_RULES[t].producer === structure);
 
 export const isAirType = (type: UnitType) => UNIT_RULES[type].armor === 'air';
+// Moves over the city rather than along its roads: aircraft, and Sentinels, which hover (though
+// they are armoured targets for ground fire, not aircraft).
+export const fliesOver = (type: UnitType) => isAirType(type) || type === 'defense_drone';
 
 // Damage one shot of `weapon` does to a target of `armor`.
 export const shotDamage = (weapon: Weapon, armor: ArmorClass) => weapon.damage * DAMAGE_MULTIPLIER[weapon.type][armor];
@@ -194,7 +200,8 @@ export const TIER_REQUIREMENT: Record<Tier, string> = {
 // Living units plus everything queued, which reserves its population when ordered.
 export function popUsed(units: readonly UnitData[], structures: readonly StructureData[], team: UnitData['team']): number {
   let used = 0;
-  for (const u of units) if (u.team === team && u.health > 0) used += UNIT_RULES[u.type].pop;
+  // A Sentinel posted at a server node (a defender or a hacked guard) is free.
+  for (const u of units) if (u.team === team && u.health > 0 && !u.sentinelPost) used += UNIT_RULES[u.type].pop;
   for (const s of structures) if (s.team === team) for (const q of s.queue || []) used += UNIT_RULES[q.unitType].pop;
   return used;
 }

@@ -25,6 +25,7 @@ import { clearedBlocks, commandPosts, rubbleCleared } from './bases';
 import { bombardTick } from './bombard';
 import { baseCentreOf, spawnTile } from './baseLayout';
 import { captureTick } from './capture';
+import { freshSentinelNet, SentinelNet, sentinelNetTick } from './sentinelNet';
 import { applyCiwsState, ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
 import { damageDrones, emptySwarm, shieldWasps, Swarm, swarmThreats, swarmTick } from './microdrones';
 import type { GridPos, Team } from './commands';
@@ -38,7 +39,7 @@ import { advanceMover, arriveAtNextTile, MovementEnv, MOVE_TICK_MS } from './mov
 import { applyOrderToStructures, applyOrderToUnits, OrderCommand, orderEffects, OrdersContext } from './orders';
 import { advanceProduction, applyProduction, createUnit } from './production';
 import { ballistaLoadStep, landCrawlers, repairTick } from './support';
-import { isAirType } from './units';
+import { fliesOver } from './units';
 import { airPath, fastestPath, sentinelHazardOf } from './pathfinding';
 import { blocksPath, compoundGround, compoundStructures, heldAtGate, hostileGateAt } from './compound';
 import { hasBuff, spendOvercharge } from './unitAbilities';
@@ -96,6 +97,8 @@ export interface HeadlessMatch {
   // Wasps' micro-drones (sim/microdrones.ts).
   swarm: Swarm;
   nextId: number;
+  // Netrunner's Sentinel Net (sim/sentinelNet.ts).
+  sentinelNet: SentinelNet;
   // Seeded, so the same options always play out the same match.
   random: () => number;
   // Static map data.
@@ -138,6 +141,7 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     volt: [],
     swarm: emptySwarm(),
     nextId: 0,
+    sentinelNet: freshSentinelNet(),
     random: seededRandom(opts.seed ^ 0x5eed),
     thinkRandom: seededRandom(opts.seed ^ 0x7a1c),
     gridSize,
@@ -190,7 +194,7 @@ export function stepMatch(m: HeadlessMatch): void {
     tileSize: CITY_CONFIG.tileSize,
     tileTypeOf: k => m.tileType[k] as never,
     arrive: u => arriveAtNextTile(u, {
-      isWalkable: (x, z) => isAirType(u.type as never) || (paths.walkable(x, z) && !hostileGateAt(m.structures, u.team, key(x, z))),
+      isWalkable: (x, z) => fliesOver(u.type as never) || (paths.walkable(x, z) && !hostileGateAt(m.structures, u.team, key(x, z))),
       reroute: (from, path) => {
         if (path.length === 0) return [];
         const [gx, gz] = path[path.length - 1].split(',').map(Number);
@@ -309,6 +313,11 @@ export function stepMatch(m: HeadlessMatch): void {
 
   // Capture.
   m.buildings = captureTick(m.buildings, m.units);
+  // Netrunner's Sentinel Net: the code, hacking neutral guards, defenders (sim/sentinelNet.ts).
+  const net = sentinelNetTick(m.sentinelNet, m.units, m.buildings, team => m.opts.doctrine[team], team => !!m.economy[team].sentinelCode, now, MOVE_TICK_MS, () => `sn-${++m.nextId}`);
+  m.units = net.units;
+  m.sentinelNet = net.net;
+  for (const team of net.cracked) m.economy = { ...m.economy, [team]: { ...m.economy[team], sentinelCode: true } };
 
   // Production.
   const build = advanceProduction(m.structures, team => m.opts.doctrine[team]);
@@ -332,7 +341,7 @@ export function stepMatch(m: HeadlessMatch): void {
     const spawn = spawnTile(structure.gridPos, baseCentreOf(structure.gridPos, m.structures, structure.team),
       (x, z) => paths.walkable(x, z) && !taken.has(key(x, z)));
     const unit = createUnit(unitType, structure.team, `h-${++m.nextId}`, spawn);
-    if (structure.rallyPoint) unit.path = isAirType(unitType) ? paths.findAirPath(spawn, structure.rallyPoint) : paths.findPath(spawn, structure.rallyPoint);
+    if (structure.rallyPoint) unit.path = fliesOver(unitType) ? paths.findAirPath(spawn, structure.rallyPoint) : paths.findPath(spawn, structure.rallyPoint);
     m.units.push(unit);
   }
   // Swarm Host canisters that have landed become Crawler Drones.

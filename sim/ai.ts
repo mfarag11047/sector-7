@@ -249,7 +249,8 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   if (tier >= plan.extra.tier && (now > 4 * 60_000 || cores >= structureCost(plan.extra.type) + 300)) wants.push(plan.extra.type);
   // Advanced Research, for the upgrades of the units it is committed to.
   if (tier >= 2) wants.push('research_lab');
-  if (tier >= 2) wants.push('support');
+  // A Netrunner that has cracked the Sentinels' code wants its Comm Link sooner, to build them.
+  if (tier >= 2 || (ctx.doctrine === 'netrunner' && view.economy[team].sentinelCode)) wants.push('support');
   // A Depot, so the Masons can put up turrets.
   if (tier >= 2 && profile.turrets > 0) wants.push('builder');
   if (tier >= 2) wants.push('ordnance_fab');
@@ -538,6 +539,7 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
       hard: ctx.difficulty === 'hard', random: ctx.random, strategy: mem.plan.strategy!,
       scoutLostRecently: now - (mem.scoutLostAt ?? -Infinity) < SCOUT_REPLACE_MS,
       levelBlock: !!expansion.level,
+      sentinels: ctx.doctrine === 'netrunner' && !!view.economy[team].sentinelCode,
     }) ?? chooseUnit(s.type, tier, threatMix, {
       counterAccuracy: profile.counterAccuracy, random: ctx.random,
       needInfantry, guardians, howitzers, army: armyUnits.length, weights,

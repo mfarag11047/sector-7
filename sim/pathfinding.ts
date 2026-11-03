@@ -119,9 +119,10 @@ export function sentinelHazard(sentinels: readonly GridPos[], reach: number): ((
   return (x, z) => (sentinels.some(s => (s.x - x) ** 2 + (s.z - z) ** 2 <= r * r) ? SENTINEL_HAZARD : 0);
 }
 
-// The hazard from the Sentinels still standing among these units.
+// The hazard from the neutral Sentinels still standing among these units (a side's own, hacked or
+// built by Netrunner, guard rather than threaten; its enemy's few aren't worth routing round).
 export const sentinelHazardOf = (units: readonly UnitData[]) =>
-  sentinelHazard(units.filter(u => u.type === 'defense_drone' && u.health > 0).map(u => u.gridPos), UNIT_RULES.defense_drone.weapon!.range);
+  sentinelHazard(units.filter(u => u.type === 'defense_drone' && u.team === 'neutral' && u.health > 0).map(u => u.gridPos), UNIT_RULES.defense_drone.weapon!.range);
 
 // A straight flight from `from` to `to`, stepping diagonally where it can, over anything.
 export function airPath(from: GridPos, to: GridPos): string[] {

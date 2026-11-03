@@ -10,7 +10,7 @@ import { speedBuffMultiplier } from './unitAbilities';
 import { ABILITY_CONFIG, UNIT_STATS } from '../constants';
 import type { RoadType, UnitData, UnitType } from '../types';
 import type { GridPos } from './commands';
-import { isAirType } from './units';
+import { fliesOver } from './units';
 
 // Movement advances on the main logic tick.
 export const MOVE_TICK_MS = 100;
@@ -18,7 +18,8 @@ export const MOVE_TICK_MS = 100;
 export const BASE_SPEED = 12;
 
 // Aircraft are whatever sim/units.ts gives air armor.
-export const isAirUnit = (type: UnitType) => isAirType(type);
+// Flies over the city (aircraft, and hovering Sentinels): no roads, the same speed everywhere.
+export const isAirUnit = (type: UnitType) => fliesOver(type);
 
 // The fields movement reads. Units and decoys both satisfy it.
 export interface Mover {

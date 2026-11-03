@@ -30,6 +30,7 @@ import { CLOAK_FIELD } from '../sim/cloak';
 import { FORCE_FIELD } from '../sim/forcefield';
 import { BlackwallExposure, BlackwallInfection } from './BlackwallFx';
 import { Batched } from './kit/Batched';
+import { SENTINEL_NET } from '../sim/sentinelNet';
 import { follow, motionOf, positionKey, predictPosition, simSecondsSince, stampOf, walkAlong } from './glide';
 import { MAX_TETHERS } from '../sim/jamming';
 import { JamRange, JamStatic } from './JamStatic';
@@ -174,6 +175,8 @@ const EmpStatic: React.FC<{ size: number }> = ({ size }) => {
 
 interface UnitProps {
   id: string;
+  // A neutral Sentinel being hacked by a Netrunner side (sim/sentinelNet.ts).
+  hackProgress?: UnitData['hackProgress'];
   type: UnitType;
   unitClass: UnitClass;
   team: 'blue' | 'red' | 'neutral';
@@ -300,7 +303,7 @@ interface UnitProps {
 }
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, grenadeAt, faceAt, turretAt, railgunFiredAt, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, ciwsSpunMs, ciwsAims, anchoredAt, artilleryTarget, artilleryAim,
+  id, hackProgress, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, grenadeAt, faceAt, turretAt, railgunFiredAt, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, ciwsSpunMs, ciwsAims, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -599,7 +602,7 @@ const Unit: React.FC<UnitProps> = ({
     if (!meshRef.current) return;
 
     if (meshRef.current) {
-        if (isDefenseDrone) {
+        if (isDefenseDrone && team === 'neutral') {
             // It turns itself to look about and at its target (SentinelDroneModel); here it only bobs.
             meshRef.current.position.y = logicalWorldPos.y + Math.sin(state.clock.elapsedTime * 2) * 0.5;
             return;
@@ -711,7 +714,7 @@ const Unit: React.FC<UnitProps> = ({
     if (isHornet) return <HornetModel teamColor={teamColor} rockets={upgrades.includes('hunter_rockets')} aimRef={turretAimRef} flashRef={flashRef} />;
     if (type === 'hero_shadow_ops') return <KageRig teamColor={teamColor} lastAttackTime={lastAttackTime} moving={moving} />;
     if (type === 'hero_heavy_metal') return <GoliathRig teamColor={teamColor} flashRef={flashRef} grenadeAt={grenadeAt} lastAttackTime={lastAttackTime} moving={moving} />;
-    if (isDefenseDrone) return <SentinelDroneModel aimOf={sentinelAimOf} />;
+    if (isDefenseDrone) return <SentinelDroneModel aimOf={sentinelAimOf} teamColor={team === 'neutral' ? undefined : teamColor} />;
 
     if (isTank) return <TitanTankModel teamColor={teamColor} moving={moving} railFiredAt={railgunFiredAt} aimRef={turretAimRef} flashRef={flashRef} decoy={isDecoy} />;
 
@@ -789,7 +792,7 @@ const Unit: React.FC<UnitProps> = ({
       ref={meshRef}
       name={`unit-${id}`}
       // Moving units are placed every frame from the glide; only static Sentinels bind here.
-      position={isDefenseDrone ? logicalWorldPos : undefined}
+      position={isDefenseDrone && team === 'neutral' ? logicalWorldPos : undefined}
       onClick={handleClick}
       onDoubleClick={handleDoubleClick}
       onPointerOver={handlePointerOver}
@@ -819,6 +822,21 @@ const Unit: React.FC<UnitProps> = ({
           <ringGeometry args={[tileSize * 0.3, tileSize * 0.36, 24]} />
           <meshBasicMaterial color={BUFF_COLORS[buffs[buffs.length - 1].kind]} transparent opacity={0.85} toneMapped={false} depthWrite={false} />
         </mesh>
+      )}
+
+      {/* A Sentinel being hacked: a ring on the ground filling in the hacker's colour, pulsing while
+          the hack goes on (sim/sentinelNet.ts). */}
+      {isDefenseDrone && hackProgress && (
+        <group position={[0, -hoverHeight + 0.35, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+          <mesh raycast={() => null}>
+            <ringGeometry args={[tileSize * 0.9, tileSize * 1.0, 48]} />
+            <meshBasicMaterial color={TEAM_COLORS[hackProgress.team]} transparent opacity={0.2} toneMapped={false} depthWrite={false} />
+          </mesh>
+          <mesh raycast={() => null}>
+            <ringGeometry args={[tileSize * 0.85, tileSize * 1.05, 48, 1, Math.PI / 2, -Math.PI * 2 * Math.min(1, hackProgress.ms / SENTINEL_NET.hackMs)]} />
+            <meshBasicMaterial color={TEAM_COLORS[hackProgress.team]} transparent opacity={hackProgress.active ? 0.9 : 0.45} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
+          </mesh>
+        </group>
       )}
 
       {/* Hitbox */}

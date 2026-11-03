@@ -66,7 +66,8 @@ export const UNIT_STATS: Record<UnitType, { captureMultiplier: number, label: st
   swarm_host: { unitClass: 'ordnance', cost: 340, captureMultiplier: 0, label: 'Swarm Host', visionRange: 4, speedMod: 0.8, maxHealth: 300 },
   courier: { unitClass: 'support', cost: 50, captureMultiplier: 0, label: 'Ordnance Courier', visionRange: 3, speedMod: 1.8, maxHealth: 40 },
   // Never trained: spawned by the map, abilities or doctrines
-  defense_drone: { unitClass: 'defense', cost: 0, captureMultiplier: 0, label: 'Sentinel Drone', visionRange: 4, speedMod: 0, maxHealth: 300 },
+  // Speed and cost only matter to Netrunner's own Sentinels (sim/sentinelNet.ts): the neutral guards never move.
+  defense_drone: { unitClass: 'defense', cost: 300, captureMultiplier: 0, label: 'Sentinel Drone', visionRange: 4, speedMod: 0.45, maxHealth: 300 },
   titan_dropped: { unitClass: 'armor', cost: 0, captureMultiplier: 0, label: 'Titan (Orbital Drop)', visionRange: 5, speedMod: 0.7, maxHealth: 700 },
   field_generator: { unitClass: 'armor', cost: 0, captureMultiplier: 0, label: 'Bulwark Field Generator', visionRange: 3, speedMod: 0, maxHealth: 2000 },
   cloak_generator: { unitClass: 'support', cost: 0, captureMultiplier: 0, label: 'Cloaking Field Generator', visionRange: 3, speedMod: 0, maxHealth: 350 },
@@ -373,7 +374,7 @@ export const DOCTRINE_CONFIG: Record<DoctrineType, {
   },
   netrunner: {
     label: "Netrunner",
-    tier1_passive: "Overclock: Production speed +10% globally.",
+    tier1_passive: "Sentinel Net: hold a server node to crack the Sentinels' code. Then build Sentinels (slow, armoured guard drones) at your Comm Link, hack the neutral Sentinels guarding other server nodes by standing your units next to one, uncontested, for 8 s (it holds fire meanwhile), and every server node you hold for 2 minutes gains a Sentinel of its own as a defender.",
     tier2_cost: 600,
     tier2_cooldown: 90000,
     tier2_name: "Nano-Cloud",
