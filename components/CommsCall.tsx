@@ -45,7 +45,7 @@ const Waveform: React.FC<{ live: boolean; tone: string }> = ({ live, tone }) => 
 const Portrait: React.FC<{ frame: string }> = ({ frame }) => {
   const src = ANNOUNCER_PROFILE.portrait;
   return (
-    <div className={`relative w-24 h-28 shrink-0 border ${frame} bg-slate-950/90 overflow-hidden`}>
+    <div className={`relative w-36 h-44 shrink-0 border ${frame} bg-slate-950/90 overflow-hidden`}>
       {src ? (
         /\.(webm|mp4)$/i.test(src)
           ? <video src={assetUrl(src)} autoPlay loop muted playsInline className="w-full h-full object-cover" />
