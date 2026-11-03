@@ -778,11 +778,6 @@ const Unit: React.FC<UnitProps> = ({
 
   if (!visible) return null;
 
-  // Calculate visual vision radius based on visionRange prop
-  const isSurveillanceActive = surveillance && surveillance.status === 'active';
-  const effectiveVision = isSurveillanceActive ? ABILITY_CONFIG.SURVEILLANCE_RADIUS : 2;
-  const visualVisionRadius = effectiveVision * tileSize;
-
   return (
     <group 
       ref={meshRef}
@@ -911,27 +906,13 @@ const Unit: React.FC<UnitProps> = ({
       )}
       {isMason && constructionTargetId && (<line><bufferGeometry ref={constructionLineRef} /><lineBasicMaterial color="#f97316" linewidth={4} transparent opacity={0.8} /></line>)}
       
-      {/* Updated Spotting Ring for Drones (Air & Ground Defense Drones) */}
+      {/* Air units (and the Sentinel) show only a faint line straight down to the ground below them,
+          so a crowd of drones doesn't paper the streets over with overlapping circles. */}
       {(isAir || isDefenseDrone) && !isDrone && (
-          <group>
-              {/* Vertical Beam */}
-              <mesh position={[0, -hoverHeight / 2, 0]} raycast={() => null}>
-                  <cylinderGeometry args={[0.05, 0.05, hoverHeight, 8, 1, true]} />
-                  <meshBasicMaterial color={teamColor} transparent opacity={0.3} blending={THREE.AdditiveBlending} depthWrite={false}/>
-              </mesh>
-              {/* Ground Ring - Explicit 2-Block Perimeter Visual. Faint: the sides' colours are light
-                  (Vanta's red, Tokugen's green) and would glare over the streets. */}
-              <group position={[0, -hoverHeight + 0.2, 0]}>
-                  <mesh rotation={[-Math.PI/2, 0, 0]} raycast={() => null}>
-                      <ringGeometry args={[visualVisionRadius - 0.5, visualVisionRadius, 16]} />
-                      <meshBasicMaterial color={teamColor} transparent opacity={0.3} side={THREE.DoubleSide} depthWrite={false} />
-                  </mesh>
-                  <mesh rotation={[-Math.PI/2, 0, 0]} raycast={() => null}>
-                      <ringGeometry args={[visualVisionRadius * 0.85, visualVisionRadius - 1, 16]} />
-                      <meshBasicMaterial color={teamColor} transparent opacity={0.03} side={THREE.DoubleSide} depthWrite={false} />
-                  </mesh>
-              </group>
-          </group>
+          <mesh position={[0, -hoverHeight / 2, 0]} raycast={() => null}>
+              <cylinderGeometry args={[0.05, 0.05, hoverHeight, 8, 1, true]} />
+              <meshBasicMaterial color={teamColor} transparent opacity={0.3} blending={THREE.AdditiveBlending} depthWrite={false}/>
+          </mesh>
       )}
 
       {/* Helios: gold while charging friends, orange-red with a beam while microwaving enemies (HeliosField.tsx). */}
