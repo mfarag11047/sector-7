@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
-import { AnnouncerQueue, BUILDING_LINES, LINES, onTransmission, PRIORITY, showTransmission, STALE_MS, VoKey } from './announcer';
+import { AnnouncerQueue, announcerVoice, BUILDING_LINES, LINES, onTransmission, PRIORITY, setAnnouncerSide, showTransmission, SIDE_VOICE, STALE_MS, VOICE_FX, VoKey } from './announcer';
 import { STRUCTURE_INFO } from '../constants';
 
 describe('the announcer queue', () => {
@@ -46,14 +46,37 @@ describe('the announcer queue', () => {
 });
 
 describe('the voice lines', () => {
-  const manifest = JSON.parse(readFileSync(resolve(__dirname, '../public/vo/manifest.json'), 'utf8')) as Record<string, { files: string[] }>;
+  for (const voice of ['vanta', 'tokugen'] as const) {
+    const manifest = JSON.parse(readFileSync(resolve(__dirname, `../public/vo/${voice}/manifest.json`), 'utf8')) as Record<string, { files: string[]; lines?: string[] }>;
 
-  it('has a recording for every line the game can ask for, and nothing it never asks for', () => {
-    expect(Object.keys(manifest).sort()).toEqual(Object.keys(LINES).sort());
-    for (const [key, entry] of Object.entries(manifest)) {
-      expect(entry.files.length, key).toBeGreaterThan(0);
-      for (const file of entry.files) expect(existsSync(resolve(__dirname, '../public', file)), file).toBe(true);
-    }
+    it(`gives ${voice}'s announcer a recording, and its words, for every line the game can ask for, and nothing it never asks for`, () => {
+      expect(Object.keys(manifest).sort()).toEqual(Object.keys(LINES).sort());
+      for (const [key, entry] of Object.entries(manifest)) {
+        expect(entry.files.length, key).toBeGreaterThan(0);
+        expect(entry.lines?.length, key).toBe(entry.files.length);
+        for (const file of entry.files) {
+          expect(file.startsWith(`vo/${voice}/`), file).toBe(true);
+          expect(existsSync(resolve(__dirname, '../public', file)), file).toBe(true);
+        }
+      }
+    });
+  }
+
+  it('gives each side its own announcer, each with its own treatment', () => {
+    expect(SIDE_VOICE).toEqual({ blue: 'vanta', red: 'tokugen' });
+    // Vanta's wide and clean; Tokugen's a narrow radio band with a squelch.
+    expect(VOICE_FX.vanta.highCut - VOICE_FX.vanta.lowCut).toBeGreaterThan(VOICE_FX.tokugen.highCut - VOICE_FX.tokugen.lowCut);
+    expect(VOICE_FX.vanta.squelch).toBe(false);
+    expect(VOICE_FX.tokugen.squelch).toBe(true);
+  });
+
+  it('speaks for the side being played, or viewed', () => {
+    setAnnouncerSide('red');
+    expect(announcerVoice()).toBe('tokugen');
+    setAnnouncerSide('neutral');
+    expect(announcerVoice()).toBe('tokugen');
+    setAnnouncerSide('blue');
+    expect(announcerVoice()).toBe('vanta');
   });
 
   it('names every base building, but not walls', () => {

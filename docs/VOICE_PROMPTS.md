@@ -1,3 +1,6 @@
+> **Superseded** by `docs/VOICE_PROMPTS_FACTIONS.md`: each side now has its own announcer, and
+> these single-announcer recordings have been replaced. Kept for the history of the lines.
+
 # Announcer voice
 
 Prompts for the announcer: a female military support AI who calls out what matters in a match.

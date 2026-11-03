@@ -58,7 +58,7 @@ const SlowRender: React.FC = () => {
 
 // ?autostart=1 skips the setup screen with default settings (for automated tests);
 // &doctrine=shadow_ops picks the player's doctrine, &mode=sandbox starts the sandbox and
-// &mode=spectate an AI vs AI match.
+// &mode=spectate an AI vs AI match, and &team=red plays as Tokugen.
 const PARAMS = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
 const AUTOSTART = !!PARAMS?.has('autostart');
 const AUTOSTART_DOCTRINE = (['heavy_metal', 'shadow_ops', 'netrunner'] as DoctrineType[]).find(d => d === PARAMS?.get('doctrine')) ?? 'heavy_metal';
@@ -79,7 +79,7 @@ function App() {
   useHudScale();
   // The setup screen fills this in. Each new match bumps `round`, which remounts the map.
   const [match, setMatch] = useState<MatchConfig | null>(() => AUTOSTART
-      ? { mode: (['sandbox', 'spectate'] as MatchMode[]).find(m => m === PARAMS?.get('mode')) ?? 'ai', seed: Math.floor(Math.random() * 1e6), playerTeam: 'blue', difficulty: 'normal', playerDoctrine: AUTOSTART_DOCTRINE, aiDoctrine: 'netrunner' }
+      ? { mode: (['sandbox', 'spectate'] as MatchMode[]).find(m => m === PARAMS?.get('mode')) ?? 'ai', seed: Math.floor(Math.random() * 1e6), playerTeam: PARAMS?.get('team') === 'red' ? 'red' : 'blue', difficulty: 'normal', playerDoctrine: AUTOSTART_DOCTRINE, aiDoctrine: 'netrunner' }
       : null);
   const [round, setRound] = useState(0);
   const [result, setResult] = useState<{ victory: Victory, summary: MatchSummary } | null>(null);

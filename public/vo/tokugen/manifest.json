@@ -1,0 +1,478 @@
+{
+  "vo_match_start": {
+    "when": "The match begins",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_match_start.mp3",
+      "vo/tokugen/vo_match_start_2.mp3"
+    ],
+    "lines": [
+      "TAC-NET online. Sat-link green. You are cleared hot, Commander.",
+      "Forward base established. Rules of engagement: weapons free."
+    ]
+  },
+  "vo_victory": {
+    "when": "The enemy's last HQ falls",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_victory.mp3"
+    ],
+    "lines": [
+      "Theatre pacified. Contract fulfilled. Outstanding work, Commander."
+    ]
+  },
+  "vo_defeat": {
+    "when": "Your last HQ falls",
+    "register": "alert",
+    "files": [
+      "vo/tokugen/vo_defeat.mp3"
+    ],
+    "lines": [
+      "H-Q is overrun! Scrub the servers and pull everyone out!"
+    ]
+  },
+  "vo_base_under_attack": {
+    "when": "Enemies reach your base",
+    "register": "alert",
+    "files": [
+      "vo/tokugen/vo_base_under_attack.mp3",
+      "vo/tokugen/vo_base_under_attack_2.mp3"
+    ],
+    "lines": [
+      "Hostiles hitting the base! Return fire!",
+      "Contact at the perimeter! Base under attack!"
+    ]
+  },
+  "vo_server_node_under_attack": {
+    "when": "The enemy starts taking your server node",
+    "register": "alert",
+    "files": [
+      "vo/tokugen/vo_server_node_under_attack.mp3"
+    ],
+    "lines": [
+      "Server node taking fire! Hold that position!"
+    ]
+  },
+  "vo_core_node_under_attack": {
+    "when": "The enemy starts taking your core node",
+    "register": "alert",
+    "files": [
+      "vo/tokugen/vo_core_node_under_attack.mp3"
+    ],
+    "lines": [
+      "Core node under attack! Push them off it!"
+    ]
+  },
+  "vo_missile_launch": {
+    "when": "An enemy Ballista or silo fires",
+    "register": "alert",
+    "files": [
+      "vo/tokugen/vo_missile_launch.mp3",
+      "vo/tokugen/vo_missile_launch_2.mp3",
+      "vo/tokugen/vo_missile_launch_3.mp3"
+    ],
+    "lines": [
+      "Launch detected! Missile inbound!",
+      "Incoming! Brace for impact!",
+      "Missile in the air! Take cover!"
+    ]
+  },
+  "vo_missile_intercepted": {
+    "when": "Your guns shoot an enemy missile down",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_missile_intercepted.mp3"
+    ],
+    "lines": [
+      "Splash one! Incoming missile intercepted."
+    ]
+  },
+  "vo_wall_breached": {
+    "when": "One of your base walls or gates is destroyed",
+    "register": "alert",
+    "files": [
+      "vo/tokugen/vo_wall_breached.mp3"
+    ],
+    "lines": [
+      "Perimeter breach! Seal that gap!"
+    ]
+  },
+  "vo_structure_lost": {
+    "when": "One of your base buildings is destroyed",
+    "register": "alert",
+    "files": [
+      "vo/tokugen/vo_structure_lost.mp3"
+    ],
+    "lines": [
+      "Structure down! Write it off and rebuild!"
+    ]
+  },
+  "vo_force_field_down": {
+    "when": "Your force field collapses",
+    "register": "alert",
+    "files": [
+      "vo/tokugen/vo_force_field_down.mp3"
+    ],
+    "lines": [
+      "Shield's down! Rebooting the generator!"
+    ]
+  },
+  "vo_force_field_up": {
+    "when": "Your force field comes back up",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_force_field_up.mp3"
+    ],
+    "lines": [
+      "Shield's back up. Good to go."
+    ]
+  },
+  "vo_jammed": {
+    "when": "Your orders are jammed",
+    "register": "alert",
+    "files": [
+      "vo/tokugen/vo_jammed.mp3"
+    ],
+    "lines": [
+      "Comms jammed! Orders aren't getting through!"
+    ]
+  },
+  "vo_enemy_orbital_drop": {
+    "when": "An enemy Orbital Drop is coming down near you",
+    "register": "alert",
+    "files": [
+      "vo/tokugen/vo_enemy_orbital_drop.mp3"
+    ],
+    "lines": [
+      "Enemy drop inbound near our position!"
+    ]
+  },
+  "vo_core_node_captured": {
+    "when": "You take a core node",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_core_node_captured.mp3",
+      "vo/tokugen/vo_core_node_captured_2.mp3"
+    ],
+    "lines": [
+      "Core node annexed. Requisition flowing.",
+      "Core node secured. Cash flow's up."
+    ]
+  },
+  "vo_server_node_captured": {
+    "when": "You take a server node",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_server_node_captured.mp3",
+      "vo/tokugen/vo_server_node_captured_2.mp3"
+    ],
+    "lines": [
+      "Server node secured. Compute online.",
+      "Server node locked down. Compute flowing."
+    ]
+  },
+  "vo_core_node_lost": {
+    "when": "You lose a core node",
+    "register": "alert",
+    "files": [
+      "vo/tokugen/vo_core_node_lost.mp3"
+    ],
+    "lines": [
+      "Core node lost! Take it back!"
+    ]
+  },
+  "vo_server_node_lost": {
+    "when": "You lose a server node",
+    "register": "alert",
+    "files": [
+      "vo/tokugen/vo_server_node_lost.mp3"
+    ],
+    "lines": [
+      "Server node lost! Get it back, Commander!"
+    ]
+  },
+  "vo_construction_complete": {
+    "when": "Any base building finishes (fallback)",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_construction_complete.mp3",
+      "vo/tokugen/vo_construction_complete_2.mp3"
+    ],
+    "lines": [
+      "Structure up and operational.",
+      "Construction complete. Ready for production."
+    ]
+  },
+  "vo_barracks_online": {
+    "when": "A Barracks finishes",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_barracks_online.mp3"
+    ],
+    "lines": [
+      "Barracks online. Contractors ready."
+    ]
+  },
+  "vo_factory_online": {
+    "when": "A Factory finishes",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_factory_online.mp3"
+    ],
+    "lines": [
+      "Factory online. Armour coming off the line."
+    ]
+  },
+  "vo_airpad_online": {
+    "when": "An Airpad finishes",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_airpad_online.mp3"
+    ],
+    "lines": [
+      "Airpad online. Air support on standby."
+    ]
+  },
+  "vo_depot_online": {
+    "when": "A Depot finishes",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_depot_online.mp3"
+    ],
+    "lines": [
+      "Depot online. Supply lines open."
+    ]
+  },
+  "vo_comm_link_online": {
+    "when": "A Comm Link finishes",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_comm_link_online.mp3"
+    ],
+    "lines": [
+      "Comm Link online. Sat-link extended."
+    ]
+  },
+  "vo_munitions_online": {
+    "when": "A Munitions plant finishes",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_munitions_online.mp3"
+    ],
+    "lines": [
+      "Munitions online. Ordnance in production."
+    ]
+  },
+  "vo_ordnance_fab_online": {
+    "when": "An Ordnance Fab finishes",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_ordnance_fab_online.mp3"
+    ],
+    "lines": [
+      "Ordnance Fab online. Heavy payloads authorised."
+    ]
+  },
+  "vo_research_online": {
+    "when": "An Advanced Research lab finishes",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_research_online.mp3"
+    ],
+    "lines": [
+      "Advanced Research online. R and D is go."
+    ]
+  },
+  "vo_refinery_online": {
+    "when": "A Core Refinery finishes",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_refinery_online.mp3"
+    ],
+    "lines": [
+      "Core Refinery online. Extraction rig running."
+    ]
+  },
+  "vo_sentry_online": {
+    "when": "A Sentry Turret finishes",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_sentry_online.mp3"
+    ],
+    "lines": [
+      "Sentry gun online. Field of fire established."
+    ]
+  },
+  "vo_ciws_online": {
+    "when": "A CIWS Turret finishes",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_ciws_online.mp3"
+    ],
+    "lines": [
+      "Sea-whiz online. Air defence is hot."
+    ]
+  },
+  "vo_hq_deploying": {
+    "when": "You order a new command base",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_hq_deploying.mp3"
+    ],
+    "lines": [
+      "New forward base deploying."
+    ]
+  },
+  "vo_hq_online": {
+    "when": "The new command base finishes",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_hq_online.mp3"
+    ],
+    "lines": [
+      "Forward operating base online."
+    ]
+  },
+  "vo_refinery_upgraded": {
+    "when": "A Core Refinery reaches level 2",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_refinery_upgraded.mp3"
+    ],
+    "lines": [
+      "Refinery upgraded. Throughput up."
+    ]
+  },
+  "vo_research_complete": {
+    "when": "An upgrade finishes researching",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_research_complete.mp3",
+      "vo/tokugen/vo_research_complete_2.mp3"
+    ],
+    "lines": [
+      "Research complete. New gear cleared.",
+      "Research done. Gear's cleared for the field."
+    ]
+  },
+  "vo_tier_ready": {
+    "when": "You have the compute for the next tier",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_tier_ready.mp3"
+    ],
+    "lines": [
+      "Compute threshold met. Next tier ready for sign-off."
+    ]
+  },
+  "vo_tier_2": {
+    "when": "Tier 2 researched",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_tier_2.mp3"
+    ],
+    "lines": [
+      "Tier two unlocked. New hardware on the catalogue."
+    ]
+  },
+  "vo_tier_3": {
+    "when": "Tier 3 researched",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_tier_3.mp3"
+    ],
+    "lines": [
+      "Tier three unlocked. Heavy weapons catalogue open."
+    ]
+  },
+  "vo_missile_away": {
+    "when": "Your Ballista or silo fires",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_missile_away.mp3"
+    ],
+    "lines": [
+      "Missile away! Ordnance on target."
+    ]
+  },
+  "vo_missile_shot_down": {
+    "when": "Your missile is shot down",
+    "register": "alert",
+    "files": [
+      "vo/tokugen/vo_missile_shot_down.mp3"
+    ],
+    "lines": [
+      "Our missile's been shot down!"
+    ]
+  },
+  "vo_orbital_drop": {
+    "when": "You call an Orbital Drop",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_orbital_drop.mp3"
+    ],
+    "lines": [
+      "Drop pods inbound. Boots on the ground in seconds."
+    ]
+  },
+  "vo_bulwark_field": {
+    "when": "You raise a Bulwark Force Field",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_bulwark_field.mp3"
+    ],
+    "lines": [
+      "Bulwark shield up."
+    ]
+  },
+  "vo_decoys": {
+    "when": "You deploy Phantom Decoys",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_decoys.mp3"
+    ],
+    "lines": [
+      "Decoys out. Spoofing their targeting."
+    ]
+  },
+  "vo_cloaking_field": {
+    "when": "Your Cloaking Field goes up",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_cloaking_field.mp3"
+    ],
+    "lines": [
+      "Cloak is up. Running dark."
+    ]
+  },
+  "vo_nano_cloud": {
+    "when": "You release a Nano-Cloud",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_nano_cloud.mp3"
+    ],
+    "lines": [
+      "Nano-cloud deployed. Area denial active."
+    ]
+  },
+  "vo_not_enough_cores": {
+    "when": "An order needs more cores than you have",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_not_enough_cores.mp3"
+    ],
+    "lines": [
+      "Not enough cores."
+    ]
+  },
+  "vo_cannot_build_there": {
+    "when": "A building can't go where you placed it",
+    "register": "report",
+    "files": [
+      "vo/tokugen/vo_cannot_build_there.mp3"
+    ],
+    "lines": [
+      "Can't build there."
+    ]
+  }
+}

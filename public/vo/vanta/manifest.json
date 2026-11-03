@@ -1,0 +1,478 @@
+{
+  "vo_match_start": {
+    "when": "The match begins",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_match_start.mp3",
+      "vo/vanta/vo_match_start_2.mp3"
+    ],
+    "lines": [
+      "Orbital grid synchronised. Sector Seven is unsettled, Director. Restore order.",
+      "Loyalty. Pragmatism. Discipline. The board is watching, Director."
+    ]
+  },
+  "vo_victory": {
+    "when": "The enemy's last HQ falls",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_victory.mp3"
+    ],
+    "lines": [
+      "The trespassers have been liquidated. Order is restored. Well executed, Director."
+    ]
+  },
+  "vo_defeat": {
+    "when": "Your last HQ falls",
+    "register": "alert",
+    "files": [
+      "vo/vanta/vo_defeat.mp3"
+    ],
+    "lines": [
+      "This compound has fallen. The Family endures. Withdraw the data cores."
+    ]
+  },
+  "vo_base_under_attack": {
+    "when": "Enemies reach your base",
+    "register": "alert",
+    "files": [
+      "vo/vanta/vo_base_under_attack.mp3",
+      "vo/vanta/vo_base_under_attack_2.mp3"
+    ],
+    "lines": [
+      "Trespassers inside our compound. Remove them.",
+      "Our compound is under attack, Director."
+    ]
+  },
+  "vo_server_node_under_attack": {
+    "when": "The enemy starts taking your server node",
+    "register": "alert",
+    "files": [
+      "vo/vanta/vo_server_node_under_attack.mp3"
+    ],
+    "lines": [
+      "Dissidents are contesting our server node."
+    ]
+  },
+  "vo_core_node_under_attack": {
+    "when": "The enemy starts taking your core node",
+    "register": "alert",
+    "files": [
+      "vo/vanta/vo_core_node_under_attack.mp3"
+    ],
+    "lines": [
+      "Our core node is being violated."
+    ]
+  },
+  "vo_missile_launch": {
+    "when": "An enemy Ballista or silo fires",
+    "register": "alert",
+    "files": [
+      "vo/vanta/vo_missile_launch.mp3",
+      "vo/vanta/vo_missile_launch_2.mp3",
+      "vo/vanta/vo_missile_launch_3.mp3"
+    ],
+    "lines": [
+      "Missile launch detected. Brace the compound.",
+      "A rival warhead is in the air.",
+      "Warning. Missile launch detected."
+    ]
+  },
+  "vo_missile_intercepted": {
+    "when": "Your guns shoot an enemy missile down",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_missile_intercepted.mp3"
+    ],
+    "lines": [
+      "Warhead intercepted. The sky remains ours."
+    ]
+  },
+  "vo_wall_breached": {
+    "when": "One of your base walls or gates is destroyed",
+    "register": "alert",
+    "files": [
+      "vo/vanta/vo_wall_breached.mp3"
+    ],
+    "lines": [
+      "Our perimeter has been breached."
+    ]
+  },
+  "vo_structure_lost": {
+    "when": "One of your base buildings is destroyed",
+    "register": "alert",
+    "files": [
+      "vo/vanta/vo_structure_lost.mp3"
+    ],
+    "lines": [
+      "A facility has been lost. It will be accounted for."
+    ]
+  },
+  "vo_force_field_down": {
+    "when": "Your force field collapses",
+    "register": "alert",
+    "files": [
+      "vo/vanta/vo_force_field_down.mp3"
+    ],
+    "lines": [
+      "Force field collapsed. Recalibrating."
+    ]
+  },
+  "vo_force_field_up": {
+    "when": "Your force field comes back up",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_force_field_up.mp3"
+    ],
+    "lines": [
+      "Force field restored. Harmony maintained."
+    ]
+  },
+  "vo_jammed": {
+    "when": "Your orders are jammed",
+    "register": "alert",
+    "files": [
+      "vo/vanta/vo_jammed.mp3"
+    ],
+    "lines": [
+      "Our signal is polluted. Orders are not arriving."
+    ]
+  },
+  "vo_enemy_orbital_drop": {
+    "when": "An enemy Orbital Drop is coming down near you",
+    "register": "alert",
+    "files": [
+      "vo/vanta/vo_enemy_orbital_drop.mp3"
+    ],
+    "lines": [
+      "Unlicensed orbital insertion near our forces."
+    ]
+  },
+  "vo_core_node_captured": {
+    "when": "You take a core node",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_core_node_captured.mp3",
+      "vo/vanta/vo_core_node_captured_2.mp3"
+    ],
+    "lines": [
+      "Core node absorbed. Dividends flowing.",
+      "Core node secured. The conglomerate grows."
+    ]
+  },
+  "vo_server_node_captured": {
+    "when": "You take a server node",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_server_node_captured.mp3",
+      "vo/vanta/vo_server_node_captured_2.mp3"
+    ],
+    "lines": [
+      "Server node acquired. Compute is ours.",
+      "Server node secured. Compute online."
+    ]
+  },
+  "vo_core_node_lost": {
+    "when": "You lose a core node",
+    "register": "alert",
+    "files": [
+      "vo/vanta/vo_core_node_lost.mp3"
+    ],
+    "lines": [
+      "A core node has slipped from our hands."
+    ]
+  },
+  "vo_server_node_lost": {
+    "when": "You lose a server node",
+    "register": "alert",
+    "files": [
+      "vo/vanta/vo_server_node_lost.mp3"
+    ],
+    "lines": [
+      "Server node lost. An unacceptable deficit."
+    ]
+  },
+  "vo_construction_complete": {
+    "when": "Any base building finishes (fallback)",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_construction_complete.mp3",
+      "vo/vanta/vo_construction_complete_2.mp3"
+    ],
+    "lines": [
+      "Facility complete. Minimal form, absolute function.",
+      "Construction complete."
+    ]
+  },
+  "vo_barracks_online": {
+    "when": "A Barracks finishes",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_barracks_online.mp3"
+    ],
+    "lines": [
+      "Barracks online. Retainers await assignment."
+    ]
+  },
+  "vo_factory_online": {
+    "when": "A Factory finishes",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_factory_online.mp3"
+    ],
+    "lines": [
+      "Factory online. Precision lines running."
+    ]
+  },
+  "vo_airpad_online": {
+    "when": "An Airpad finishes",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_airpad_online.mp3"
+    ],
+    "lines": [
+      "Airpad online. Air assets authorised."
+    ]
+  },
+  "vo_depot_online": {
+    "when": "A Depot finishes",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_depot_online.mp3"
+    ],
+    "lines": [
+      "Depot online. Logistics in order."
+    ]
+  },
+  "vo_comm_link_online": {
+    "when": "A Comm Link finishes",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_comm_link_online.mp3"
+    ],
+    "lines": [
+      "Comm Link online. Our sight extends."
+    ]
+  },
+  "vo_munitions_online": {
+    "when": "A Munitions plant finishes",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_munitions_online.mp3"
+    ],
+    "lines": [
+      "Munitions online."
+    ]
+  },
+  "vo_ordnance_fab_online": {
+    "when": "An Ordnance Fab finishes",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_ordnance_fab_online.mp3"
+    ],
+    "lines": [
+      "Ordnance Fab online. Our arsenal deepens."
+    ]
+  },
+  "vo_research_online": {
+    "when": "An Advanced Research lab finishes",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_research_online.mp3"
+    ],
+    "lines": [
+      "Advanced Research online. Special projects may proceed."
+    ]
+  },
+  "vo_refinery_online": {
+    "when": "A Core Refinery finishes",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_refinery_online.mp3"
+    ],
+    "lines": [
+      "Core Refinery online. Yield increased."
+    ]
+  },
+  "vo_sentry_online": {
+    "when": "A Sentry Turret finishes",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_sentry_online.mp3"
+    ],
+    "lines": [
+      "Sentry turret online. Trespassers will be excised."
+    ]
+  },
+  "vo_ciws_online": {
+    "when": "A CIWS Turret finishes",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_ciws_online.mp3"
+    ],
+    "lines": [
+      "Sea-whiz turret online. The sky is closed."
+    ]
+  },
+  "vo_hq_deploying": {
+    "when": "You order a new command base",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_hq_deploying.mp3"
+    ],
+    "lines": [
+      "A new compound is being established."
+    ]
+  },
+  "vo_hq_online": {
+    "when": "The new command base finishes",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_hq_online.mp3"
+    ],
+    "lines": [
+      "Regional compound online. Our reach extends."
+    ]
+  },
+  "vo_refinery_upgraded": {
+    "when": "A Core Refinery reaches level 2",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_refinery_upgraded.mp3"
+    ],
+    "lines": [
+      "Refinery upgrade complete. Yield optimised."
+    ]
+  },
+  "vo_research_complete": {
+    "when": "An upgrade finishes researching",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_research_complete.mp3",
+      "vo/vanta/vo_research_complete_2.mp3"
+    ],
+    "lines": [
+      "Research complete. Protocols updated.",
+      "Research complete."
+    ]
+  },
+  "vo_tier_ready": {
+    "when": "You have the compute for the next tier",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_tier_ready.mp3"
+    ],
+    "lines": [
+      "Compute threshold reached. The board will authorise a new tier."
+    ]
+  },
+  "vo_tier_2": {
+    "when": "Tier 2 researched",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_tier_2.mp3"
+    ],
+    "lines": [
+      "Tier two authorised."
+    ]
+  },
+  "vo_tier_3": {
+    "when": "Tier 3 researched",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_tier_3.mp3"
+    ],
+    "lines": [
+      "Tier three authorised. Special projects are yours, Director."
+    ]
+  },
+  "vo_missile_away": {
+    "when": "Your Ballista or silo fires",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_missile_away.mp3"
+    ],
+    "lines": [
+      "Judgement authorised. Missile away."
+    ]
+  },
+  "vo_missile_shot_down": {
+    "when": "Your missile is shot down",
+    "register": "alert",
+    "files": [
+      "vo/vanta/vo_missile_shot_down.mp3"
+    ],
+    "lines": [
+      "Our missile was intercepted. An inconvenience."
+    ]
+  },
+  "vo_orbital_drop": {
+    "when": "You call an Orbital Drop",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_orbital_drop.mp3"
+    ],
+    "lines": [
+      "Orbital insertion inbound."
+    ]
+  },
+  "vo_bulwark_field": {
+    "when": "You raise a Bulwark Force Field",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_bulwark_field.mp3"
+    ],
+    "lines": [
+      "Bulwark field raised."
+    ]
+  },
+  "vo_decoys": {
+    "when": "You deploy Phantom Decoys",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_decoys.mp3"
+    ],
+    "lines": [
+      "Phantom decoys deployed. Let them chase shadows."
+    ]
+  },
+  "vo_cloaking_field": {
+    "when": "Your Cloaking Field goes up",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_cloaking_field.mp3"
+    ],
+    "lines": [
+      "Cloaking field active. We are unseen."
+    ]
+  },
+  "vo_nano_cloud": {
+    "when": "You release a Nano-Cloud",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_nano_cloud.mp3"
+    ],
+    "lines": [
+      "Nano-cloud released."
+    ]
+  },
+  "vo_not_enough_cores": {
+    "when": "An order needs more cores than you have",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_not_enough_cores.mp3"
+    ],
+    "lines": [
+      "Insufficient cores."
+    ]
+  },
+  "vo_cannot_build_there": {
+    "when": "A building can't go where you placed it",
+    "register": "report",
+    "files": [
+      "vo/vanta/vo_cannot_build_there.mp3"
+    ],
+    "lines": [
+      "That site is not permitted."
+    ]
+  }
+}

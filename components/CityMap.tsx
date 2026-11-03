@@ -37,7 +37,7 @@ import { positionKey, publishMotion, simClock, stampPosition } from './glide';
 import { ArmyControls, ArmyInfo, MAX_ARMIES, SelectionSummary } from './ArmyPanel';
 import { cameraFocus, onRightClick } from './DroneCamera';
 import { playSound, playUiSound, setLoops, SoundKind, startAmbience, stopAmbience } from './sfx';
-import { announce, BUILDING_LINES, resetAnnouncer, showTransmission, VoKey } from './announcer';
+import { announce, BUILDING_LINES, resetAnnouncer, setAnnouncerSide, showTransmission, VoKey } from './announcer';
 import { AbilityCommand, abilityEffects, applyUnitEffects, FAB_LAUNCH, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
 import { WARHEAD_LABEL } from '../sim/warheads';
 import { Warhead } from '../sim/commands';
@@ -1614,6 +1614,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   if (pacingOut) pacingOut.current = pacingRef.current;
   // AI vs AI: the computer plays both sides and the viewer only watches.
   const spectating = match.mode === 'spectate';
+  // Each side's own announcer speaks to it; spectating, the side being viewed (components/announcer.ts).
+  setAnnouncerSide(playerTeam);
   // Set while a computer player (or a test cheat) is giving orders, which spectating allows.
   const aiActingRef = useRef(false);
   const offset = (gridSize * tileSize) / 2;

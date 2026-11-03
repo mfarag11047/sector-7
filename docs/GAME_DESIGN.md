@@ -767,20 +767,27 @@ being viewed: "Blue's base is under attack!", by its faction name). And a sting 
 victory or defeat. Hover and selection are silent for now.
 
 **The announcer's call window** (`components/CommsCall.tsx`, profile in
-`components/announcerProfile.ts`). While she speaks, a holo-call opens on top of the system
-message box in the bottom left, joined to it: her name (OVERWATCH, tactical support AI) over a
-portrait frame, her voice's waveform beside it (following her actual level), and the words she is
-saying below it in quotes, taken from the voice manifest's `lines`. It flickers in when a line
-starts, stays a moment after it ends, and closes; threats frame it in alarm red as a "priority
-channel", everything else in the HUD's cyan. A line cut off by a more urgent one hands the window
-straight over. The portrait frame is a space for an asset: set `ANNOUNCER_PROFILE.portrait` to an
-image or looping video under `public/` and it shows there; until then it shows a placeholder feed,
+`components/announcerProfile.ts`). While the side's announcer speaks, a holo-call opens on top of
+the system message box in the bottom left, joined to it: the caller's name (KAMI-OS, tactical
+arbiter, for Vanta; TAC-NET, overwatch, for Tokugen) over a portrait frame, the voice's waveform
+beside it (following its actual level), and the words being said below it in quotes, taken from
+the voice manifest's `lines`. It flickers in when a line starts, stays a moment after it ends, and
+closes. Each caller wears its side's colour (KAMI-OS deep red, TAC-NET green); a threat turns the
+frame alarm red, pulsing, as a "priority channel". A line cut off by a more urgent one hands the
+window straight over. The portrait frame is a space for an asset: set a caller's `portrait` in
+`ANNOUNCER_PROFILES` to an image or looping video under `public/` and it shows there; until then it shows a placeholder feed,
 a dim silhouette under scanlines marked NO FEED. `GAME_CHEATS.call(text, priority, ms)` opens it
 for testing.
 
-**The announcer** (`components/announcer.ts`; lines and recording notes in
-`docs/VOICE_PROMPTS.md`, recordings in `public/vo/`): a female military support AI who calls out
-what matters to the player: the match starting and its result; the base, a node or the
+**The announcers** (`components/announcer.ts`; lines, voice direction and recording notes in
+`docs/VOICE_PROMPTS_FACTIONS.md`, recordings in `public/vo/vanta/` and `public/vo/tokugen/`, each
+with its own `manifest.json`): each side has its own corporate AI, speaking only to that side's
+player (`setAnnouncerSide`; spectating, the side being viewed). Vanta's **KAMI-OS** is a composed,
+aristocratic female arbiter who calls the player Director, enemies trespassers, and grows colder
+rather than louder under threat; Tokugen's **TAC-NET** is a brisk, boastful male combat
+controller who calls the player Commander and escalates fast under fire. Every line has a version
+in each voice (some with two or three takes, picked at random). The announcer calls out what
+matters to the player: the match starting and its result; the base, a node or the
 perimeter under attack, an enemy missile launch, an enemy Orbital Drop near your forces, a
 structure lost, the force field going down, orders jammed; nodes taken and lost; each base
 building coming online, a new HQ, research, tiers and refinery upgrades (not units ready: they
@@ -790,10 +797,12 @@ centred, on her own channel past the effects' compressor, and the effects dip wh
 Each line has a priority (match result, then threats, objectives, base reports, refusals): a
 threat cuts off anything less urgent, anything else waits for the line in progress (only the most
 important waiting line, for up to 3.5 s), and each line has a cooldown so it isn't repeated. Lines
-for an event with its own chime or siren start just after it. The recordings are clean; her
-robotic edge is added live, the same on every line (`VOICE_FX`: a comms band-pass with a presence
-lift, a short metallic doubling, a touch of ring modulation and of bit reduction). She speaks for
-the side being viewed when spectating, and like the siren stays quiet about attacks then. Under it all, the city's own
+for an event with its own chime or siren start just after it. The recordings are clean; each voice's
+treatment is added live, the same on all its lines (`VOICE_FX`): Vanta's crystalline and expensive
+(a wide clean band, a faint high shimmer, a very short glassy doubling), Tokugen's a sat-link radio
+(a narrow comms band with a push in the mids, light saturation, a little bit reduction, and a
+squelch click keying each transmission in and out). Spectating, like the siren, the announcer
+stays quiet about attacks. Under it all, the city's own
 background, a night-time megacity bed looping for the whole match, the same everywhere on the map
 (`startAmbience`, from the steady stretch of its recording, its level evened out). Hornet rockets, Wasp micro-drone launches and the Ballista's launch have no recordings yet and are
 made in code, as is any sound whose files haven't loaded (prompts for the rest:
