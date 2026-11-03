@@ -675,7 +675,7 @@ const CombatTab: React.FC = () => (
 
 const DoctrinesTab: React.FC = () => (
   <div>
-    <p className="text-slate-400 text-xs mb-4">Pick one doctrine per match with the ★ button. Its passive is always on; its powers unlock with your tiers and cost cores to use.</p>
+    <p className="text-slate-400 text-xs mb-4">Pick one doctrine per match when you set it up; it and its powers sit in your team panel. Its passive is always on; its powers unlock with your tiers and cost cores to use.</p>
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
       {(Object.keys(DOCTRINE_CONFIG) as DoctrineType[]).map(d => {
         const c = DOCTRINE_CONFIG[d];
@@ -698,12 +698,12 @@ const InterfaceTab: React.FC<{ color: string }> = ({ color }) => (
       <H>Team panel</H>
       <Item label="⚡ Compute">Compute banked and its rate. The Research button lights up when you can afford the next tier.</Item>
       <Item label="Cores">Cores banked and income per second.</Item>
+      <Item label="Doctrine">Your doctrine's name (click it for its passive and powers) and its two powers as buttons: each shows its cost in cores, its cooldown, or the tier it waits on. Click one, then the map, to use it.</Item>
       <Item label="Grid / Cores / Tier / Pop">Buildings captured, core nodes held out of 6, researched tier, and population used of your cap.</Item>
       <H>Top of the screen</H>
       <Item label="Clock">The match clock.</Item>
       <Item label="Sound">The speaker button under the clock mutes or unmutes the battle's sounds; it remembers your choice. Sounds are loudest in the middle of the view and come from the side of the screen they happen on.</Item>
       <Item label="System message">Your current objective, and notices such as finished structures or refused orders.</Item>
-      <Item label="Active Protocols">Your doctrine's powers, with their cost and what unlocks them.</Item>
     </div>
     <div>
       <H>Minimap</H>

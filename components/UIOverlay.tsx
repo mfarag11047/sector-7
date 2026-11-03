@@ -105,13 +105,19 @@ const DoctrineIcon: React.FC<{ type: DoctrineType | null, className?: string }> 
     return null;
 };
 
-const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left' | 'right'; isVisible: boolean; cheats: boolean; onResearch?: (tier: 2 | 3) => void }> = ({ team, stats, isVisible, cheats, onResearch }) => {
+const TeamPanel: React.FC<{
+  team: 'blue' | 'red'; stats: TeamStats; align: 'left' | 'right'; isVisible: boolean; cheats: boolean;
+  onResearch?: (tier: 2 | 3) => void;
+  // The player's own side: its doctrine powers, and the doctrine's details.
+  onDoctrine?: (type: string, tier: 2 | 3, cost: number) => void;
+  onDoctrineDetails?: () => void;
+}> = ({ team, stats, isVisible, cheats, onResearch, onDoctrine, onDoctrineDetails }) => {
   // The side's corporation, in its colours (components/factions.ts).
   const baseColor = FACTION_TEXT[team];
   
   return (
     <div className={`
-      hud-plate hud-corners backdrop-blur-md p-3 pointer-events-auto min-w-[300px] z-50
+      hud-plate hud-corners backdrop-blur-md p-3 pointer-events-auto w-[380px] z-50
       flex flex-col gap-2 relative overflow-hidden transition-all duration-300
       ${!isVisible ? 'opacity-90' : 'opacity-100'}
     `}>
@@ -121,12 +127,6 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
             <h2 className={`text-xl font-bold font-mono uppercase tracking-widest ${baseColor} ${FACTION_GLOW[team]}`}>
             {teamName(team)}
             </h2>
-            {/* Doctrine Indicator */}
-            {stats.doctrine?.selected && (
-                <div className="bg-slate-800 rounded px-1.5 py-0.5 border border-slate-700 flex items-center" title={`Doctrine: ${DOCTRINE_CONFIG[stats.doctrine.selected].label}`}>
-                    <DoctrineIcon type={stats.doctrine.selected} className="text-sm" />
-                </div>
-            )}
         </div>
         <div className="flex items-baseline gap-4 pointer-events-auto">
           {isVisible ? (
@@ -164,6 +164,16 @@ const TeamPanel: React.FC<{ team: 'blue' | 'red'; stats: TeamStats; align: 'left
           )}
         </div>
       </div>
+
+      {/* The side's doctrine, and for the player its powers. */}
+      <DoctrineBar
+        type={stats.doctrine?.selected ?? null}
+        tier={stats.tier ?? 1}
+        resources={stats.resources}
+        cooldowns={stats.doctrine?.cooldowns}
+        onTrigger={isVisible ? onDoctrine : undefined}
+        onDetails={onDoctrineDetails}
+      />
 
       {isVisible && stats.tierResearch && (() => {
         const r = stats.tierResearch;
@@ -391,93 +401,75 @@ const MinimapViewfinder: React.FC<{
     return <polygon ref={shapeRef} fill="none" stroke="#22d3ee" strokeWidth="0.5" strokeOpacity="0.8" strokeLinejoin="round" />;
 };
 
-// Internal Doctrine HUD for Quick Actions
-const DoctrineHUD: React.FC<{
-    type: DoctrineType;
-    unlockedTiers: number;
+// The side's doctrine in its team panel: its name (click for the details), and its two powers
+// as buttons, each with its cost, its cooldown or what it waits on.
+const DOCTRINE_THEME: Record<DoctrineType, { border: string; text: string; bg: string }> = {
+    heavy_metal: { border: 'border-amber-400/70', text: 'text-amber-300', bg: 'bg-amber-500/10' },
+    shadow_ops: { border: 'border-fuchsia-400/70', text: 'text-fuchsia-300', bg: 'bg-fuchsia-500/10' },
+    netrunner: { border: 'border-cyan-300/70', text: 'text-cyan-200', bg: 'bg-cyan-500/10' },
+};
+
+const DoctrineBar: React.FC<{
+    type: DoctrineType | null;
+    tier: number;
     resources: number;
     cooldowns?: { tier2: number; tier3: number };
-    onTrigger: (type: string, tier: 2 | 3, cost: number) => void;
-}> = ({ type, unlockedTiers, resources, cooldowns, onTrigger }) => {
+    // The player's own side: the powers can be used. Otherwise only the name shows.
+    onTrigger?: (type: string, tier: 2 | 3, cost: number) => void;
+    onDetails?: () => void;
+}> = ({ type, tier, resources, cooldowns, onTrigger, onDetails }) => {
+    if (!type) {
+        return onDetails ? (
+            <button
+                onClick={(e) => { e.stopPropagation(); onDetails(); }}
+                className="relative z-10 w-full px-2 py-1 rounded border border-dashed border-amber-400/60 text-amber-300 font-mono text-[11px] uppercase tracking-wider hover:bg-amber-500/10 pointer-events-auto"
+            >
+                ★ Choose a doctrine
+            </button>
+        ) : null;
+    }
     const config = DOCTRINE_CONFIG[type];
-    
-    // Theme Colors
-    const theme = {
-        heavy_metal: 'border-amber-400 text-amber-300',
-        shadow_ops: 'border-fuchsia-400 text-fuchsia-300',
-        netrunner: 'border-cyan-300 text-cyan-200',
-    }[type];
-
-    const wait2 = Math.ceil((cooldowns?.tier2 || 0) / 1000);
-    const wait3 = Math.ceil((cooldowns?.tier3 || 0) / 1000);
-    const canAfford2 = resources >= config.tier2_cost && wait2 === 0;
-    const canAfford3 = resources >= config.tier3_cost && wait3 === 0;
-    const isUnlocked2 = unlockedTiers >= 2;
-    const isUnlocked3 = unlockedTiers >= 3;
-
+    const theme = DOCTRINE_THEME[type];
+    const power = (t: 2 | 3) => {
+        const name = t === 2 ? config.tier2_name : config.tier3_name;
+        const cost = t === 2 ? config.tier2_cost : config.tier3_cost;
+        const desc = t === 2 ? config.tier2_desc : config.tier3_desc;
+        const wait = Math.ceil(((t === 2 ? cooldowns?.tier2 : cooldowns?.tier3) || 0) / 1000);
+        const unlocked = tier >= t;
+        const affordable = resources >= cost;
+        const ready = unlocked && affordable && wait === 0;
+        const status = wait > 0 ? `${wait}s` : `${cost}`;
+        return (
+            <button
+                key={t}
+                disabled={!ready}
+                onClick={(e) => { e.stopPropagation(); onTrigger?.(`${type}_tier${t}`, t, cost); }}
+                title={`${name}: ${desc}\n${!unlocked ? `Needs Tier ${t}.` : wait > 0 ? `Ready in ${wait}s.` : `${cost} cores${affordable ? '' : ` (you have ${Math.floor(resources)})`}.`}`}
+                className={`flex-1 min-w-0 flex items-center justify-between gap-2 px-2 py-1 rounded border font-mono text-[11px] pointer-events-auto transition-colors ${
+                    ready ? `${theme.border} ${theme.bg} text-white hover:bg-white/15 cursor-pointer`
+                    : unlocked ? 'border-slate-700 text-slate-400 cursor-not-allowed'
+                    : 'border-slate-800 text-slate-600 cursor-not-allowed'
+                }`}
+            >
+                <span className="truncate"><span className="opacity-60">T{t}</span> {name.toUpperCase()}</span>
+                <span className={`shrink-0 ${unlocked && wait === 0 && !affordable ? 'text-red-400' : ready ? 'hud-glow-amber' : ''}`}>
+                    {unlocked ? status : '🔒'}
+                </span>
+            </button>
+        );
+    };
     return (
-        <div className={`hud-plate hud-corners p-3 border-2 ${theme} backdrop-blur-md flex flex-col gap-2 min-w-[200px] animate-in slide-in-from-bottom-4 duration-300 pointer-events-auto relative overflow-hidden`}>
-            <div className="flex justify-between items-center border-b border-white/20 pb-1 mb-1 relative z-10">
-                <span className="text-xs font-mono font-bold uppercase tracking-wider text-white">Active Protocols</span>
+        <div className="relative z-10 flex flex-col gap-1">
+            <button
+                onClick={(e) => { e.stopPropagation(); onDetails?.(); }}
+                disabled={!onDetails}
+                title={`Doctrine: ${config.label}. Passive: ${config.tier1_passive}`}
+                className={`self-start flex items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-widest ${theme.text} ${onDetails ? 'hover:text-white pointer-events-auto' : ''}`}
+            >
                 <DoctrineIcon type={type} className="text-sm" />
-            </div>
-            
-            <div className="flex gap-2 relative z-10">
-                {/* Tier 2 Button */}
-                <button
-                    disabled={!isUnlocked2 || !canAfford2}
-                    onClick={() => onTrigger(`${type}_tier2`, 2, config.tier2_cost)}
-                    title={config.tier2_desc}
-                    className={`
-                        flex-1 flex flex-col p-2 rounded border transition-all text-left relative overflow-hidden group
-                        ${isUnlocked2 
-                            ? (canAfford2 ? 'bg-black/40 hover:bg-white/10 border-white/20 hover:border-white/60 cursor-pointer' : 'bg-black/40 border-red-900/50 opacity-70') 
-                            : 'bg-black/20 border-transparent opacity-40 cursor-not-allowed grayscale'
-                        }
-                    `}
-                >
-                    <span className="text-[9px] uppercase font-bold opacity-60">T2: {config.tier2_name}</span>
-                    <span className="text-xs font-bold font-mono">
-                        {!isUnlocked2 ? "LOCKED · 1 SERVER" : wait2 > 0 ? `${wait2}s` : "ACTIVATE"}
-                    </span>
-                    <div className="mt-auto pt-1 flex justify-between items-end">
-                        <span className={`text-[9px] font-mono ${!canAfford2 && isUnlocked2 ? 'text-red-400' : 'text-slate-400'}`}>
-                            {config.tier2_cost}
-                        </span>
-                    </div>
-                    {/* Hover Tooltip Effect */}
-                    {isUnlocked2 && (
-                        <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                    )}
-                </button>
-
-                {/* Tier 3 Button */}
-                <button
-                    disabled={!isUnlocked3 || !canAfford3}
-                    onClick={() => onTrigger(`${type}_tier3`, 3, config.tier3_cost)}
-                    title={config.tier3_desc}
-                    className={`
-                        flex-1 flex flex-col p-2 rounded border transition-all text-left relative overflow-hidden group
-                        ${isUnlocked3
-                            ? (canAfford3 ? 'bg-black/40 hover:bg-white/10 border-white/20 hover:border-white/60 cursor-pointer' : 'bg-black/40 border-red-900/50 opacity-70') 
-                            : 'bg-black/20 border-transparent opacity-40 cursor-not-allowed grayscale'
-                        }
-                    `}
-                >
-                    <span className="text-[9px] uppercase font-bold opacity-60">T3: {config.tier3_name}</span>
-                    <span className="text-xs font-bold font-mono">
-                        {!isUnlocked3 ? "LOCKED · 2 SERVERS" : wait3 > 0 ? `${wait3}s` : "EXECUTE"}
-                    </span>
-                    <div className="mt-auto pt-1 flex justify-between items-end">
-                        <span className={`text-[9px] font-mono ${!canAfford3 && isUnlocked3 ? 'text-red-400' : 'text-slate-400'}`}>
-                            {config.tier3_cost}
-                        </span>
-                    </div>
-                     {isUnlocked3 && (
-                        <div className="absolute inset-0 bg-white/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
-                    )}
-                </button>
-            </div>
+                {config.label} doctrine
+            </button>
+            {onTrigger && <div className="flex gap-1.5">{power(2)}{power(3)}</div>}
         </div>
     );
 };
@@ -733,7 +725,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
              </button>}
         </div>
 
-        <TeamPanel team="blue" stats={stats.blue} align="left" isVisible={spectate || playerTeam === 'blue'} cheats={sandbox} onResearch={!spectate && playerTeam === 'blue' ? onResearch : undefined} />
+        <TeamPanel team="blue" stats={stats.blue} align="left" isVisible={spectate || playerTeam === 'blue'} cheats={sandbox} onResearch={!spectate && playerTeam === 'blue' ? onResearch : undefined} onDoctrine={!spectate && playerTeam === 'blue' && onTriggerDoctrine ? (type, tier, cost) => onTriggerDoctrine('blue', type, tier, cost) : undefined} onDoctrineDetails={!spectate && playerTeam === 'blue' ? () => setIsDoctrineOpen(true) : undefined} />
         
         <div className="mt-8 flex flex-col items-center gap-2 pointer-events-auto">
             <h1 className="hud-label font-mono text-[10px] uppercase mt-6">Sector 7 Conflict</h1>
@@ -770,21 +762,10 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                         Pacing
                     </button>
                 )}
-                {!spectate && <button 
-                    onClick={() => setIsDoctrineOpen(!isDoctrineOpen)}
-                    className={`w-8 h-8 flex items-center justify-center border transition-all pointer-events-auto hud-corners ${
-                    isDoctrineOpen 
-                        ? 'bg-amber-400 text-slate-950 border-amber-200' 
-                        : 'hud-plate text-amber-300 hover:text-white'
-                    }`}
-                    title="Doctrine Protocols"
-                >
-                    <span className="font-mono font-bold text-lg">★</span>
-                </button>}
             </div>
         </div>
 
-        <TeamPanel team="red" stats={stats.red} align="right" isVisible={spectate || playerTeam === 'red'} cheats={sandbox} onResearch={!spectate && playerTeam === 'red' ? onResearch : undefined} />
+        <TeamPanel team="red" stats={stats.red} align="right" isVisible={spectate || playerTeam === 'red'} cheats={sandbox} onResearch={!spectate && playerTeam === 'red' ? onResearch : undefined} onDoctrine={!spectate && playerTeam === 'red' && onTriggerDoctrine ? (type, tier, cost) => onTriggerDoctrine('red', type, tier, cost) : undefined} onDoctrineDetails={!spectate && playerTeam === 'red' ? () => setIsDoctrineOpen(true) : undefined} />
       </div>
 
       {/* Operations Manual */}
@@ -799,7 +780,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                     <h2 className="text-3xl font-bold text-white font-mono tracking-widest uppercase mb-1">
                         Faction Doctrine
                     </h2>
-                    <p className="text-slate-400 text-sm">Select a strategic specialization. Protocols are permanent once initialized.</p>
+                    <p className="text-slate-400 text-sm">{activeDoctrine ? 'Your doctrine: its passive, and the two powers in your team panel.' : 'Select a strategic specialization. Protocols are permanent once initialized.'}</p>
                 </div>
                 <button 
                     onClick={() => setIsDoctrineOpen(false)}
@@ -853,16 +834,6 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
               )}
             </div>
             
-            {/* Active Doctrine HUD */}
-            {activeDoctrine && onTriggerDoctrine && (
-                <DoctrineHUD 
-                    type={activeDoctrine} 
-                    unlockedTiers={unlockedTiers} 
-                    cooldowns={activeStats.doctrine?.cooldowns}
-                    resources={activeStats.resources}
-                    onTrigger={(type, tier, cost) => onTriggerDoctrine(playerTeam, type, tier, cost)}
-                />
-            )}
         </div>
 
         {/* Selection and armies above the minimap */}

@@ -840,9 +840,17 @@ may start, and everything runs through a compressor, so a big fight stays a din 
 of noise. Audio starts on the player's first click or key press, as browsers require. The speaker
 button under the match clock mutes it, remembered between visits.
 
+### Doctrine in the team panel
+
+A side's doctrine sits in its team panel under the corporation's name: the doctrine's name (the
+player's own opens the doctrine sheet, its passive and powers) and, for the player, its two powers
+as buttons. Each shows its cost in cores, or its cooldown in seconds, or a padlock until the tier
+it needs is researched; hovering gives the power's description and what it is waiting on. Click
+one, then the map, to use it. There is no separate doctrine panel or button any more.
+
 ### HUD size
 
-The HUD (team panels, clock, minimap, army panel, messages, doctrine protocols and the panels it
+The HUD (team panels, clock, minimap, army panel, messages and the panels it
 opens) and the build and unit menus in the world are laid out for a 1920x1080 window. In a smaller
 one they are drawn smaller by the share the window is smaller, by width or height, whichever is
 tighter (a 1440x900 laptop window gets three quarters), but never below 0.6, where text gets too
