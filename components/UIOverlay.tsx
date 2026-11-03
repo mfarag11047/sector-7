@@ -15,6 +15,7 @@ import type { MatchInfo } from './CityMap';
 import type { Notice } from '../App';
 import { dampenedUnits } from '../sim/ghost';
 import { FACTION_GLOW, FACTION_TEXT, inkOn, teamName } from './factions';
+import { CommsCall } from './CommsCall';
 
 const EditableStat: React.FC<{
   value: number;
@@ -833,6 +834,8 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
       <div className="flex justify-between items-end z-50">
         <div className="flex flex-col gap-2">
             <div className="hud-plate hud-corners backdrop-blur-md p-3 pointer-events-auto max-w-sm relative overflow-hidden">
+              {/* The announcer's call, on top of the messages while she speaks. */}
+              <CommsCall />
               <h3 className="relative hud-label text-[10px] font-mono uppercase mb-2 border-b border-cyan-400/25 pb-1 flex justify-between">
                 System Message
               </h3>

@@ -37,7 +37,7 @@ import { positionKey, publishMotion, simClock, stampPosition } from './glide';
 import { ArmyControls, ArmyInfo, MAX_ARMIES, SelectionSummary } from './ArmyPanel';
 import { cameraFocus, onRightClick } from './DroneCamera';
 import { playSound, playUiSound, setLoops, SoundKind, startAmbience, stopAmbience } from './sfx';
-import { announce, BUILDING_LINES, resetAnnouncer, VoKey } from './announcer';
+import { announce, BUILDING_LINES, resetAnnouncer, showTransmission, VoKey } from './announcer';
 import { AbilityCommand, abilityEffects, applyUnitEffects, FAB_LAUNCH, isBatteryLinkable, isTetherableDrone } from '../sim/abilities';
 import { WARHEAD_LABEL } from '../sim/warheads';
 import { Warhead } from '../sim/commands';
@@ -2181,6 +2181,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           setBuildings(level);
           return { x: ix * 6 + 3, z: iz * 6 + 3 };
       },
+      // Open the announcer's call window with a line, without playing it (components/CommsCall.tsx).
+      call: (text: string, priority = 1, ms = 4000) => showTransmission(text, priority, ms),
       // Wreck the buildings within `radius` tiles of `at`, leaving their ruins (unlike levelBlock).
       wreck: (at: { x: number; z: number }, radius: number) => {
           const inRange = (b: BuildingData) => !b.destroyed && Math.hypot(b.gridX - at.x, b.gridZ - at.z) <= radius;

@@ -766,6 +766,18 @@ node is under attack!" (or core node), "Enemy missile launched!" (spectating, na
 being viewed: "Blue's base is under attack!", by its faction name). And a sting for
 victory or defeat. Hover and selection are silent for now.
 
+**The announcer's call window** (`components/CommsCall.tsx`, profile in
+`components/announcerProfile.ts`). While she speaks, a holo-call opens on top of the system
+message box in the bottom left, joined to it: her name (OVERWATCH, tactical support AI) over a
+portrait frame, her voice's waveform beside it (following her actual level), and the words she is
+saying below it in quotes, taken from the voice manifest's `lines`. It flickers in when a line
+starts, stays a moment after it ends, and closes; threats frame it in alarm red as a "priority
+channel", everything else in the HUD's cyan. A line cut off by a more urgent one hands the window
+straight over. The portrait frame is a space for an asset: set `ANNOUNCER_PROFILE.portrait` to an
+image or looping video under `public/` and it shows there; until then it shows a placeholder feed,
+a dim silhouette under scanlines marked NO FEED. `GAME_CHEATS.call(text, priority, ms)` opens it
+for testing.
+
 **The announcer** (`components/announcer.ts`; lines and recording notes in
 `docs/VOICE_PROMPTS.md`, recordings in `public/vo/`): a female military support AI who calls out
 what matters to the player: the match starting and its result; the base, a node or the

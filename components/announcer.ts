@@ -162,7 +162,10 @@ export const VOICE_FX = {
 };
 
 const MANIFEST = 'vo/manifest.json';
+// Each line's recordings, with the words said in each (the manifest's "lines"), for the call
+// window's transcript.
 const takes: Partial<Record<VoKey, AudioBuffer[]>> = {};
+const words: Partial<Record<VoKey, string[]>> = {};
 const lastTake: Partial<Record<VoKey, number>> = {};
 const queue = new AnnouncerQueue();
 let chain: { ctx: AudioContext; input: AudioNode } | null = null;
@@ -173,28 +176,72 @@ const assetUrl = (path: string) => `${(import.meta as { env?: { BASE_URL?: strin
 // The recordings load as soon as the audio starts.
 onAudioReady(c => {
   fetch(assetUrl(MANIFEST))
-    .then(r => (r.ok ? r.json() as Promise<Record<string, { files: string[] }>> : Promise.reject(new Error(`${r.status}`))))
+    .then(r => (r.ok ? r.json() as Promise<Record<string, { files: string[]; lines?: string[] }>> : Promise.reject(new Error(`${r.status}`))))
     .then(manifest => {
       for (const [key, entry] of Object.entries(manifest)) {
         if (!(key in LINES)) continue;
-        for (const file of entry.files) {
+        entry.files.forEach((file, i) => {
           fetch(assetUrl(file))
             .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))))
             .then(data => c.decodeAudioData(data))
-            .then(buffer => { (takes[key as VoKey] ??= []).push(buffer); })
+            .then(buffer => {
+              (takes[key as VoKey] ??= []).push(buffer);
+              (words[key as VoKey] ??= []).push(entry.lines?.[i] ?? entry.lines?.[0] ?? '');
+            })
             .catch(e => console.warn(`voice line ${file} didn't load:`, e));
-        }
+        });
       }
     })
     .catch(e => console.warn("announcer manifest didn't load; the announcer is silent:", e));
 });
+
+// --- The transmission, for the call window (components/CommsCall.tsx) ---
+
+// What she is saying right now: the line, its words, how urgent, and how long it runs.
+export interface Transmission { key: VoKey; text: string; priority: number; startedAt: number; durationMs: number }
+const listeners = new Set<(t: Transmission | null) => void>();
+let current: Transmission | null = null;
+function emit(t: Transmission | null) {
+  current = t;
+  listeners.forEach(l => l(t));
+}
+// Shows a transmission in the call window without playing anything, for testing the window
+// (GAME_CHEATS.call in CityMap.tsx): it closes after its duration.
+export function showTransmission(text: string, priority: number = PRIORITY.report, durationMs = 3000): void {
+  const t: Transmission = { key: 'vo_match_start', text, priority, startedAt: performance.now(), durationMs };
+  emit(t);
+  setTimeout(() => { if (current === t) emit(null); }, durationMs);
+}
+// Calls `listener` whenever she starts a line (with it) and when she stops (with null); returns
+// the unsubscribe.
+export function onTransmission(listener: (t: Transmission | null) => void): () => void {
+  listeners.add(listener);
+  listener(current);
+  return () => { listeners.delete(listener); };
+}
+let meter: AnalyserNode | null = null;
+const meterData = new Uint8Array(128);
+// How loud her voice is right now, 0 to 1.
+export function voiceLevel(): number {
+  if (!meter) return 0;
+  meter.getByteTimeDomainData(meterData);
+  let sum = 0;
+  for (let i = 0; i < meterData.length; i++) { const v = (meterData[i] - 128) / 128; sum += v * v; }
+  return Math.min(1, Math.sqrt(sum / meterData.length) * 4);
+}
 
 // The treatment chain, built once, into the voice channel.
 function voiceChain(): { ctx: AudioContext; input: AudioNode } | null {
   const outlet = voiceOutput();
   if (!outlet) return null;
   if (chain?.ctx === outlet.ctx) return chain;
-  chain = { ctx: outlet.ctx, input: buildVoiceChain(outlet.ctx, outlet.out) };
+  // A level meter on her voice, for the call window's waveform.
+  meter = outlet.ctx.createAnalyser();
+  meter.fftSize = 256;
+  const tap = outlet.ctx.createGain();
+  tap.connect(outlet.out);
+  tap.connect(meter);
+  chain = { ctx: outlet.ctx, input: buildVoiceChain(outlet.ctx, tap) };
   return chain;
 }
 
@@ -264,7 +311,14 @@ function speak(key: VoKey, interrupt: boolean): void {
   const at = c.currentTime + (interrupt ? 0.1 : 0.01);
   src.start(at);
   playing = { src, gain };
-  src.onended = () => { if (playing?.src === src) playing = null; };
+  // The call window shows this line from when it starts until it ends (only this line's end
+  // closes it: a line cut off by another hands the window straight over).
+  const line: Transmission = { key, text: words[key]?.[pick] ?? '', priority: LINES[key].priority, startedAt: 0, durationMs: buffer.duration * 1000 };
+  src.onended = () => {
+    if (playing?.src === src) playing = null;
+    if (current === line) emit(null);
+  };
+  setTimeout(() => { if (playing?.src === src) { line.startedAt = performance.now(); emit(line); } }, Math.max(0, (at - c.currentTime) * 1000));
   duckEffects(VOICE_FX.duck, at, at + buffer.duration);
   if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV) ((window as unknown as { __VO?: string[] }).__VO ??= []).push(key);
   const ms = buffer.duration * 1000 + (interrupt ? 100 : 10);
@@ -296,6 +350,7 @@ export function announce(key: VoKey, { delayMs = 0, waitMs = 0 } = {}): void {
 export function resetAnnouncer(): void {
   queue.reset();
   clearTimeout(wake);
+  emit(null);
   if (playing && chain) {
     playing.gain.gain.setTargetAtTime(0, chain.ctx.currentTime, 0.03);
     playing.src.stop(chain.ctx.currentTime + 0.12);

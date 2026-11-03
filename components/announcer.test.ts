@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
-import { AnnouncerQueue, BUILDING_LINES, LINES, STALE_MS, VoKey } from './announcer';
+import { AnnouncerQueue, BUILDING_LINES, LINES, onTransmission, PRIORITY, showTransmission, STALE_MS, VoKey } from './announcer';
 import { STRUCTURE_INFO } from '../constants';
 
 describe('the announcer queue', () => {
@@ -63,5 +63,24 @@ describe('the voice lines', () => {
       if (line) expect(LINES[line]).toBeDefined();
     }
     expect(BUILDING_LINES.aa_turret).toBe('vo_ciws_online');
+  });
+});
+
+describe('the call window feed', () => {
+  it('tells listeners when a line opens and when it closes', () => {
+    vi.useFakeTimers();
+    const seen: (string | null)[] = [];
+    const off = onTransmission(t => seen.push(t ? t.text : null));
+    showTransmission('Server node secured.', PRIORITY.objective, 2000);
+    expect(seen.at(-1)).toBe('Server node secured.');
+    vi.advanceTimersByTime(2100);
+    expect(seen.at(-1)).toBeNull();
+    // A later line hands the window over; the earlier one's end doesn't close it.
+    showTransmission('First.', PRIORITY.report, 1000);
+    showTransmission('Second.', PRIORITY.threat, 3000);
+    vi.advanceTimersByTime(1500);
+    expect(seen.at(-1)).toBe('Second.');
+    off();
+    vi.useRealTimers();
   });
 });
