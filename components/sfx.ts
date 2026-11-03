@@ -14,7 +14,8 @@
 //   - flak: a duller, heavier pop.
 //   - ciws_fire: the CIWS guns' buzz-saw roar, a loop held for as long as a burst lasts (setLoops):
 //     a fast-pulsing burst of filtered noise over a low growl, for a gun firing thousands a minute,
-//     winding up from a slow chatter over the gun's spin-up (sim/ciws.ts CIWS.spinUpMs).
+//     winding up from a slow chatter over the gun's spin-up (sim/ciws.ts CIWS.spinUpMs), or, for a
+//     source with `instant` set (the Aegis, which fires at once), at full rate from the start.
 //   - cannon: a deep boom falling in pitch under a burst of noise.
 //   - rail (the Sentry Turret's slug) and tank_rail (the tank's main gun): the railgun. A hard
 //     crack, an electric zap sweeping down, a metallic ring that hangs in the air, and a sub-bass punch.
@@ -698,7 +699,8 @@ function synthWorks(c: BaseAudioContext, out: AudioNode, t: number): (at: number
 // The CIWS: looping noise through a band-pass, chopped 60 times a second, over a low square growl,
 // both winding up from a slow chatter over the barrels' spin-up.
 const CIWS_SPIN_UP_S = 1.2;
-function synthChainGun(c: BaseAudioContext, out: AudioNode, t: number): (at: number) => void {
+function synthChainGun(c: BaseAudioContext, out: AudioNode, t: number, instant = false): (at: number) => void {
+  const spin = instant ? 0.01 : CIWS_SPIN_UP_S;
   const noise = c.createBufferSource();
   noise.buffer = noiseFor(c);
   noise.loop = true;
@@ -710,15 +712,15 @@ function synthChainGun(c: BaseAudioContext, out: AudioNode, t: number): (at: num
   chop.gain.value = 0.5;
   const rate = c.createOscillator();
   rate.type = 'square';
-  rate.frequency.setValueAtTime(8, t);
-  rate.frequency.exponentialRampToValueAtTime(60, t + CIWS_SPIN_UP_S);
+  rate.frequency.setValueAtTime(instant ? 60 : 8, t);
+  rate.frequency.exponentialRampToValueAtTime(60, t + spin);
   const depth = c.createGain();
   depth.gain.value = 0.5;
   rate.connect(depth).connect(chop.gain);
   const growl = c.createOscillator();
   growl.type = 'square';
-  growl.frequency.setValueAtTime(20, t);
-  growl.frequency.exponentialRampToValueAtTime(55, t + CIWS_SPIN_UP_S);
+  growl.frequency.setValueAtTime(instant ? 55 : 20, t);
+  growl.frequency.exponentialRampToValueAtTime(55, t + spin);
   const growlLevel = c.createGain();
   growlLevel.gain.value = 0.15;
   noise.connect(band).connect(chop).connect(out);
@@ -728,11 +730,12 @@ function synthChainGun(c: BaseAudioContext, out: AudioNode, t: number): (at: num
 }
 
 // Starts a loop of `kind` into `out` at `t`: one of its recorded takes, looping between its loop
-// points after the opening plays once, or the made-in-code version. Returns how to stop it.
-function startLoop(c: BaseAudioContext, kind: LoopKind, out: AudioNode, t: number): (at: number) => void {
+// points after the opening plays once (or, `instant`, straight into the loop, skipping the
+// opening), or the made-in-code version. Returns how to stop it.
+function startLoop(c: BaseAudioContext, kind: LoopKind, out: AudioNode, t: number, instant = false): (at: number) => void {
   const takes = buffers[kind];
   const points = loopPoints[kind];
-  if (!takes?.length || !points) return (kind === 'ciws_fire' ? synthChainGun : kind === 'construction' ? synthWorks : synthBeam)(c, out, t);
+  if (!takes?.length || !points) return kind === 'ciws_fire' ? synthChainGun(c, out, t, instant) : (kind === 'construction' ? synthWorks : synthBeam)(c, out, t);
   const take = pickTake(takes.length, lastTake[kind]);
   lastTake[kind] = take;
   const src = c.createBufferSource();
@@ -741,7 +744,7 @@ function startLoop(c: BaseAudioContext, kind: LoopKind, out: AudioNode, t: numbe
   [src.loopStart, src.loopEnd] = points;
   src.playbackRate.value = rand(0.97, 1.03);
   src.connect(out);
-  src.start(t);
+  src.start(t, instant ? points[0] : 0);
   if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV) ((window as unknown as { __SFX_TAKES?: string[] }).__SFX_TAKES ??= []).push(`${kind}_${take + 1}`);
   return at => src.stop(at);
 }
@@ -760,7 +763,9 @@ function placeLoops(): void {
 // New ones start (fading in), and the rest follow their source; one whose source has been gone for
 // longer than its kind's hold fades out. Only the nearest few play when there are more. Call it
 // with an empty list and `{ now: true }` to stop them all at once.
-export function setLoops(kind: LoopKind, sources: readonly { id: string; x: number; z: number }[], { now: stopAll = false } = {}): void {
+// A source with `instant` set starts straight into the loop, skipping its opening (the Aegis's gun,
+// which fires at once, never winds up).
+export function setLoops(kind: LoopKind, sources: readonly { id: string; x: number; z: number; instant?: boolean }[], { now: stopAll = false } = {}): void {
   clearTimeout(watchdogs[kind]);
   if (sources.length > 0 || live.size > 0) watchdogs[kind] = setTimeout(() => setLoops(kind, [], { now: true }), LOOP_WATCHDOG_MS);
   const c = ctx;
@@ -790,7 +795,7 @@ export function setLoops(kind: LoopKind, sources: readonly { id: string; x: numb
     out.gain.value = 0;
     const panner = c!.createStereoPanner();
     out.connect(panner).connect(master!);
-    const stop = startLoop(c!, kind, out, c!.currentTime + 0.005);
+    const stop = startLoop(c!, kind, out, c!.currentTime + 0.005, !!s.instant);
     live.set(s.id, { kind, x: s.x, z: s.z, seen: clock, out, panner, stop });
   }
   placeLoops();

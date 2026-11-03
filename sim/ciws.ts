@@ -6,11 +6,12 @@
 // sustained burst until the magazine runs dry, then must stop and reload. After a lull it tops
 // the magazine back up on its own.
 //
-// Like a real rotary cannon it can't fire the moment it sees something: the barrels have to wind
-// up first (CIWS.spinUpMs, the length of the wind-up in its sound, public/sfx/ciws_fire_1.mp3).
-// While it spins up it already tracks the target, but does no damage. Once spun up it stays
-// spun up while it keeps finding targets, switching between them at once; after a reload, an EMP,
-// or a lull longer than CIWS.spinGraceMs it has to wind up again. Both are counted in game time,
+// The Aegis engages at once: its barrels are always kept turning, so it opens fire the moment it
+// sees something (CIWS.aegisSpinUpMs, none). The CIWS turret, like a real rotary cannon, can't:
+// its barrels have to wind up first (CIWS.spinUpMs, the length of the wind-up in its sound,
+// public/sfx/ciws_fire_1.mp3). While it spins up it already tracks the target, but does no
+// damage. Once spun up it stays spun up while it keeps finding targets, switching between them at
+// once; after a reload, an EMP, or a lull longer than CIWS.spinGraceMs it has to wind up again. Both are counted in game time,
 // tick by tick (ciwsSpunMs, ciwsIdleMs), not from the clock, so a late tick never throws them off.
 //
 // Pure: it reads the state it is given and reports damage and gun state. The caller keeps the
@@ -39,10 +40,11 @@ export const CIWS = {
   groundRange: 6,
   // Rounds a second, for drawing the tracer stream.
   roundsPerSecond: 75,
-  // The barrels' wind-up before the first round, and how long they keep turning with nothing to
-  // shoot before they have to wind up again.
+  // The turret's barrels' wind-up before the first round, and how long they keep turning with
+  // nothing to shoot before they have to wind up again. The Aegis has none: it fires at once.
   spinUpMs: 1200,
   spinGraceMs: 300,
+  aegisSpinUpMs: 0,
 };
 
 // How much fire each kind of ordnance takes to knock down.
@@ -96,6 +98,8 @@ interface Gun {
   fireRate: number;
   // Damage multiplier from the carrier's upgrades (1 for the turret).
   power: number;
+  // How long its barrels take to wind up before the first round.
+  spinUpMs: number;
 }
 
 // One tick of every Aegis and CIWS turret. Turrets carry their own tracking radar, so they need
@@ -117,11 +121,11 @@ export function ciwsTick(
   const guns: (Gun & { active: boolean })[] = [];
   for (const u of units) {
     if (u.type !== 'aegis') continue;
-    guns.push({ id: u.id, team: u.team, at: u.gridPos, state: stateOf(u), structure: false, range: CIWS.range + rangeBonus(u), fireRate: fireRateMultiplier(u), power: upgradeDamage(u), active: isRadarActive(u) });
+    guns.push({ id: u.id, team: u.team, at: u.gridPos, state: stateOf(u), structure: false, range: CIWS.range + rangeBonus(u), fireRate: fireRateMultiplier(u), power: upgradeDamage(u), active: isRadarActive(u), spinUpMs: CIWS.aegisSpinUpMs });
   }
   for (const s of structures) {
     if (s.type !== 'aa_turret') continue;
-    guns.push({ id: s.id, team: s.team, at: s.gridPos, state: stateOf(s), structure: true, range: CIWS.range, fireRate: 1, power: 1, active: isCiwsTurretReady(s) });
+    guns.push({ id: s.id, team: s.team, at: s.gridPos, state: stateOf(s), structure: true, range: CIWS.range, fireRate: 1, power: 1, active: isCiwsTurretReady(s), spinUpMs: CIWS.spinUpMs });
   }
 
   for (const gun of guns) {
@@ -171,8 +175,8 @@ export function ciwsTick(
     // Wind up: it tracks the target meanwhile, but fires nothing until the barrels are up to speed.
     state.ciwsIdleMs = 0;
     state.ciwsTargetId = hit.id;
-    if ((state.ciwsSpunMs ?? 0) < CIWS.spinUpMs) {
-      state.ciwsSpunMs = Math.min(CIWS.spinUpMs, (state.ciwsSpunMs ?? 0) + dtMs);
+    if ((state.ciwsSpunMs ?? 0) < gun.spinUpMs) {
+      state.ciwsSpunMs = Math.min(gun.spinUpMs, (state.ciwsSpunMs ?? 0) + dtMs);
       result.spinning.push(link);
       done();
       continue;

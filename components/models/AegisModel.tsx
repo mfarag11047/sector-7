@@ -59,8 +59,9 @@ export const AegisModel: React.FC<{
     const k = 1 - Math.exp(-Math.min(delta, 0.05) * (firing ? 10 : 2));
     if (moving) wheels.current?.children.forEach(w => { w.rotation.x += delta * 6; });
     if (radar.current) radar.current.rotation.y += delta * 1.2;
-    // The barrels wind up over the gun's spin-up (sim/ciws.ts) before it opens fire, and run down after.
-    spin.current = firing ? Math.min(BARREL_SPEED, spin.current + delta * BARREL_SPEED / (CIWS.spinUpMs / 1000)) : Math.max(0, spin.current - delta * BARREL_SPEED / 0.8);
+    // The barrels are up to speed the moment it opens fire (the Aegis never winds up, sim/ciws.ts),
+    // and run down after.
+    spin.current = firing ? BARREL_SPEED : Math.max(0, spin.current - delta * BARREL_SPEED / 0.8);
     if (barrels.current) barrels.current.rotation.z += delta * spin.current;
     const y = yaw.current, p = pitch.current;
     if (!y || !p || !y.parent) return;

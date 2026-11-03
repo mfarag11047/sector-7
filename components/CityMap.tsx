@@ -4101,11 +4101,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           }
           ciwsLinksRef.current = ciws.links;
           ciwsSpinningRef.current = ciws.spinning;
-          // Each gun's roar starts with its barrels winding up and lasts as long as its burst: the
-          // recording's wind-up plays while the gun spins up, then its firing loops (components/sfx.ts).
+          // Each gun's roar lasts as long as its burst. A turret's starts with its barrels winding
+          // up (the recording's wind-up plays while it spins up, then its firing loops); the
+          // Aegis fires at once, so its roar starts straight into the firing (components/sfx.ts).
           setLoops('ciws_fire', [...new Map([...ciws.spinning, ...ciws.links].map(link => [link.gunId, link])).values()].flatMap(link => {
               const gun = link.fromStructure ? structuresRef.current.find(st => st.id === link.gunId) : currentUnitsRef.find(u => u.id === link.gunId);
-              return gun ? [{ id: gun.id, x: gun.gridPos.x * tileSize - offset, z: gun.gridPos.z * tileSize - offset }] : [];
+              return gun ? [{ id: gun.id, x: gun.gridPos.x * tileSize - offset, z: gun.gridPos.z * tileSize - offset, instant: !link.fromStructure }] : [];
           }));
           if (pacing) {
               recordWeaponHits(pacing, {

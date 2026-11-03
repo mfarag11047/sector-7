@@ -144,7 +144,7 @@ const CiwsStatus: React.FC<{ usedMs: number; reloadUntil: number; firing: boolea
       <div className="flex justify-between text-[9px] font-mono uppercase">
         <span className="text-slate-400">CIWS</span>
         <span className={reloading ? 'text-amber-300' : firing ? 'text-orange-300 animate-pulse' : 'text-emerald-300'}>
-          {reloading ? `Reloading ${Math.ceil((reloadUntil - now) / 1000)}s` : firing ? (spunMs < CIWS.spinUpMs ? 'Winding up' : 'Firing') : 'Ready'}
+          {reloading ? `Reloading ${Math.ceil((reloadUntil - now) / 1000)}s` : firing ? 'Firing' : 'Ready'}
         </span>
       </div>
       <div className="h-1 bg-slate-800 rounded-sm overflow-hidden">

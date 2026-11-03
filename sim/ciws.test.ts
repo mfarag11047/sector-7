@@ -4,7 +4,8 @@ import { applyCiwsState, CIWS, ciwsMagazine, ciwsTick } from './ciws';
 import { createUnit } from './production';
 
 const at = (u: UnitData, x: number, z = 0): UnitData => ({ ...u, gridPos: { x, z } });
-// A gun already wound up and on a target at `now` (most tests look at a single tick of fire).
+// A turret already wound up and on a target at `now` (most tests look at a single tick of fire);
+// the Aegis never winds up.
 const SPUN = { ciwsSpunMs: CIWS.spinUpMs, ciwsIdleMs: 0 };
 const aegis = (patch: Partial<UnitData> = {}) => ({ ...at(createUnit('aegis', 'blue', 'a', { x: 0, z: 0 }), 0), ...SPUN, ...patch });
 // Steps the guns tick by tick from `from` up to (not including) `to`; returns the units, the
@@ -36,19 +37,17 @@ describe('Aegis CIWS', () => {
     expect(r.ordnanceDamage.get('m')).toBeCloseTo(CIWS.ordnanceDps * 0.1);
   });
 
-  it('fires a sustained burst, then has to stop and reload, and wind up again after', () => {
-    const start = CIWS.spinUpMs;
-    let { units } = run([aegis(), red('hornet', 'h', 5)], [], start, start + CIWS.burstMs);
-    const end = start + CIWS.burstMs;
+  it('fires a sustained burst, then has to stop and reload, and fires again the moment it has reloaded', () => {
+    let { units } = run([aegis(), red('hornet', 'h', 5)], [], 0, CIWS.burstMs);
+    const end = CIWS.burstMs;
     const a = units.find(u => u.id === 'a')!;
     expect(a.ciwsReloadUntil).toBeGreaterThan(end);
     expect(ciwsMagazine(a, end)).toBe(0);
     expect(ciwsTick(units, [], end, 100).links).toHaveLength(0);
-    // Reloaded: it has to wind the barrels up again before the next burst.
-    const after = run(units, [], end + CIWS.reloadMs, end + CIWS.reloadMs + CIWS.spinUpMs + 100);
-    expect(after.ticks[0].r.links).toHaveLength(0);
-    expect(after.ticks[0].r.spinning).toHaveLength(1);
-    expect(after.ticks.at(-1)!.r.links).toHaveLength(1);
+    // Reloaded: straight back to firing, no wind-up.
+    const after = run(units, [], end + CIWS.reloadMs, end + CIWS.reloadMs + 100);
+    expect(after.ticks[0].r.links).toHaveLength(1);
+    expect(after.ticks[0].r.spinning).toHaveLength(0);
   });
 
   it('tops a part-used magazine up after a lull, and is silenced by an EMP', () => {
@@ -57,42 +56,57 @@ describe('Aegis CIWS', () => {
     expect(r.updates.get('a')?.ciwsUsedMs).toBe(0);
     expect(ciwsTick([aegis({ buffs: [{ kind: 'emp', until: 1e12 }] }), red('hornet', 'h', 3)], [], 1000, 100).links).toHaveLength(0);
   });
+
+  it('engages at once: no wind-up on a new target, nor after a lull', () => {
+    expect(CIWS.aegisSpinUpMs).toBe(0);
+    const first = ciwsTick([aegis({ ciwsSpunMs: 0 }), red('hornet', 'h', 5)], [], 1000, 100);
+    expect(first.links).toEqual([{ gunId: 'a', targetId: 'h', ordnance: false, fromStructure: false }]);
+    expect(first.spinning).toHaveLength(0);
+    expect(first.unitDamage.get('h')).toBeCloseTo(CIWS.airDps * 0.1);
+    // A long lull, then a new target: still at once.
+    const lull = run([aegis()], [], 1000, 1000 + CIWS.spinGraceMs + 500);
+    const next = ciwsTick([...lull.units, red('hornet', 'h2', 4)], [], 1000 + CIWS.spinGraceMs + 500, 100);
+    expect(next.links).toHaveLength(1);
+    expect(next.spinning).toHaveLength(0);
+  });
 });
 
-describe('CIWS spin-up', () => {
+const turret = (patch: Partial<StructureData> = {}): StructureData => ({
+  id: 'tur', type: 'aa_turret', team: 'blue', gridPos: { x: 0, z: 0 }, isBlueprint: false, constructionProgress: 300,
+  maxProgress: 300, health: 800, maxHealth: 800, ...SPUN, ...patch,
+});
+
+describe('CIWS turret spin-up', () => {
   it('winds up for CIWS.spinUpMs on a new target, tracking it but doing no damage, then opens fire', () => {
-    const { ticks } = run([aegis({ ciwsSpunMs: 0 }), red('hornet', 'h', 5)], [], 1000, 1000 + CIWS.spinUpMs + 500);
+    const { ticks } = run([red('hornet', 'h', 5)], [turret({ ciwsSpunMs: 0 })], 1000, 1000 + CIWS.spinUpMs + 500);
     const winding = ticks.filter(t => t.now < 1000 + CIWS.spinUpMs);
     for (const { r } of winding) {
       expect(r.links).toHaveLength(0);
       expect(r.unitDamage.size).toBe(0);
-      expect(r.spinning).toEqual([{ gunId: 'a', targetId: 'h', ordnance: false, fromStructure: false }]);
+      expect(r.spinning).toEqual([{ gunId: 'tur', targetId: 'h', ordnance: false, fromStructure: true }]);
       // Tracking the target already, so the gun turns onto it and is heard winding up.
-      expect(r.updates.get('a')?.ciwsTargetId).toBe('h');
+      expect(r.structureUpdates.get('tur')?.ciwsTargetId).toBe('h');
     }
     const firing = ticks.filter(t => t.now >= 1000 + CIWS.spinUpMs);
     expect(firing.length).toBeGreaterThan(0);
     for (const { r } of firing) {
       expect(r.links).toHaveLength(1);
       expect(r.spinning).toHaveLength(0);
-      expect(r.unitDamage.get('h')).toBeCloseTo(CIWS.airDps * 0.1);
     }
   });
 
   it("doesn't use up the magazine or count as firing while it winds up", () => {
-    const { units } = run([aegis({ ciwsSpunMs: 0 }), red('hornet', 'h', 5)], [], 1000, 1000 + CIWS.spinUpMs);
-    const a = units.find(u => u.id === 'a')!;
-    expect(a.ciwsUsedMs ?? 0).toBe(0);
-    expect(a.ciwsLastFiredAt ?? 0).toBe(0);
+    const { structures } = run([red('hornet', 'h', 5)], [turret({ ciwsSpunMs: 0 })], 1000, 1000 + CIWS.spinUpMs);
+    const t = structures.find(s => s.id === 'tur')!;
+    expect(t.ciwsUsedMs ?? 0).toBe(0);
+    expect(t.ciwsLastFiredAt ?? 0).toBe(0);
   });
 
   it('stays spun up switching between targets, but winds up again after a lull', () => {
-    // Nothing in range for a couple of ticks, then a new target: it fires on at once.
-    const short = run([aegis()], [], 1000, 1000 + CIWS.spinGraceMs);
-    expect(ciwsTick([...short.units, red('hornet', 'h2', 4)], [], 1000 + CIWS.spinGraceMs, 100).links).toHaveLength(1);
-    // Nothing to shoot for longer than the grace: the barrels have run down.
-    const long = run([aegis()], [], 1000, 1000 + CIWS.spinGraceMs + 200);
-    const lull = ciwsTick([...long.units, red('hornet', 'h2', 4)], [], 1000 + CIWS.spinGraceMs + 200, 100);
+    const short = run([], [turret()], 1000, 1000 + CIWS.spinGraceMs);
+    expect(ciwsTick([red('hornet', 'h2', 4)], [], 1000 + CIWS.spinGraceMs, 100, short.structures).links).toHaveLength(1);
+    const long = run([], [turret()], 1000, 1000 + CIWS.spinGraceMs + 200);
+    const lull = ciwsTick([red('hornet', 'h2', 4)], [], 1000 + CIWS.spinGraceMs + 200, 100, long.structures);
     expect(lull.links).toHaveLength(0);
     expect(lull.spinning).toHaveLength(1);
   });
@@ -100,12 +114,13 @@ describe('CIWS spin-up', () => {
   it('counts the wind-up in game time, so late or uneven ticks never restart it', () => {
     // Ticks arriving two seconds apart by the clock, as on a struggling machine: each still counts
     // as one 100 ms step, so the gun fires after twelve of them.
-    let units = [aegis({ ciwsSpunMs: 0 }), red('hornet', 'h', 5)];
+    let structures = [turret({ ciwsSpunMs: 0 })];
+    const units = [red('hornet', 'h', 5)];
     let fired = -1;
     for (let i = 0; i < 20 && fired < 0; i++) {
-      const r = ciwsTick(units, [], 1000 + i * 2000, 100);
+      const r = ciwsTick(units, [], 1000 + i * 2000, 100, structures);
       if (r.links.length > 0) fired = i;
-      units = applyCiwsState(units, r.updates);
+      structures = applyCiwsState(structures, r.structureUpdates);
     }
     expect(fired).toBe(CIWS.spinUpMs / 100);
   });
@@ -117,12 +132,7 @@ describe('CIWS spin-up', () => {
 });
 
 describe('CIWS turret', () => {
-  const turret = (patch: Partial<StructureData> = {}): StructureData => ({
-    id: 'tur', type: 'aa_turret', team: 'blue', gridPos: { x: 0, z: 0 }, isBlueprint: false, constructionProgress: 300,
-    maxProgress: 300, health: 800, maxHealth: 800, ...SPUN, ...patch,
-  });
-
-  it('winds up like the Aegis before it opens fire', () => {
+  it('winds up before it opens fire, unlike the Aegis', () => {
     const { ticks } = run([red('hornet', 'h', 4)], [turret({ ciwsSpunMs: 0 })], 1000, 1000 + CIWS.spinUpMs + 100);
     expect(ticks[0].r.links).toHaveLength(0);
     expect(ticks[0].r.spinning).toEqual([{ gunId: 'tur', targetId: 'h', ordnance: false, fromStructure: true }]);
