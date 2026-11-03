@@ -169,8 +169,10 @@ export interface VoiceFx {
   drive: number;
   // How much of the clean (filtered) voice.
   dry: number;
-  // A radio squelch click at the start and end of each line.
+  // A radio squelch click keying each line in (and out, if the voice has no sign-off sound).
   squelch: boolean;
+  // How loud the sign-off sound after each line plays (vo/<voice>/vo_end.mp3), against the voice.
+  endGain: number;
   // How far the effects dip while the announcer speaks.
   duck: number;
   // The voice's overall level (1 as recorded).
@@ -182,7 +184,7 @@ export const VOICE_FX: Record<Voice, VoiceFx> = {
   vanta: {
     lowCut: 110, highCut: 10500, presenceHz: 3200, presenceDb: 1.5, shelfHz: 7000, shelfDb: 3,
     doubling: [{ ms: 3.5, gain: 0.16 }, { ms: 7, gain: 0.08 }], ringHz: 180, ring: 0.04, crushLevels: 48, crush: 0,
-    drive: 1, dry: 0.9, squelch: false, duck: 0.5, gain: 1,
+    drive: 1, dry: 0.9, squelch: false, endGain: 0.55, duck: 0.5, gain: 1,
   },
   // A sat-link radio: a narrow comms band, a push in the mids, light saturation and a squelch
   // click keying each transmission in and out.
@@ -190,11 +192,15 @@ export const VOICE_FX: Record<Voice, VoiceFx> = {
     lowCut: 320, highCut: 3900, presenceHz: 1800, presenceDb: 4, shelfHz: 6000, shelfDb: 0,
     doubling: [{ ms: 11, gain: 0.1 }], ringHz: 90, ring: 0.06, crushLevels: 28, crush: 0.07,
     // A little quieter than Vanta's: his recordings and the saturation make him sit forward.
-    drive: 2.2, dry: 0.85, squelch: true, duck: 0.5, gain: 0.75,
+    drive: 2.2, dry: 0.85, squelch: true, endGain: 0.8, duck: 0.5, gain: 0.75,
   },
 };
 
 const MANIFESTS: Record<Voice, string> = { vanta: 'vo/vanta/manifest.json', tokugen: 'vo/tokugen/manifest.json' };
+// Each voice's sign-off after every line: Vanta's a soft, glassy chime closing a secure channel,
+// Tokugen's a radio squelch tail and roger beep.
+export const SIGN_OFFS: Record<Voice, string> = { vanta: 'vo/vanta/vo_end.mp3', tokugen: 'vo/tokugen/vo_end.mp3' };
+const signOffs: Partial<Record<Voice, AudioBuffer>> = {};
 // Each voice's recordings of each line, with the words said in each (the manifest's "lines"),
 // for the call window's transcript.
 const takes: Record<Voice, Partial<Record<VoKey, AudioBuffer[]>>> = { vanta: {}, tokugen: {} };
@@ -203,7 +209,7 @@ const lastTake: Partial<Record<string, number>> = {};
 const queue = new AnnouncerQueue();
 let voice: Voice = 'vanta';
 let chain: { ctx: AudioContext; inputs: Record<Voice, AudioNode>; squelch: AudioBuffer } | null = null;
-let playing: { src: AudioBufferSourceNode; gain: GainNode } | null = null;
+let playing: { src: AudioBufferSourceNode; gain: GainNode; tail?: AudioBufferSourceNode } | null = null;
 let wake: ReturnType<typeof setTimeout> | undefined;
 const assetUrl = (path: string) => `${(import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/'}${path}`;
 
@@ -215,6 +221,13 @@ export const announcerVoice = (): Voice => voice;
 
 // The recordings load as soon as the audio starts, both voices (a spectator can switch sides).
 onAudioReady(c => {
+  for (const v of Object.keys(SIGN_OFFS) as Voice[]) {
+    fetch(assetUrl(SIGN_OFFS[v]))
+      .then(r => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`${r.status}`))))
+      .then(data => c.decodeAudioData(data))
+      .then(buffer => { signOffs[v] = buffer; })
+      .catch(e => console.warn(`the ${v} announcer's sign-off didn't load:`, e));
+  }
   for (const v of Object.keys(MANIFESTS) as Voice[]) {
     fetch(assetUrl(MANIFESTS[v]))
       .then(r => (r.ok ? r.json() as Promise<Record<string, { files: string[]; lines?: string[] }>> : Promise.reject(new Error(`${r.status}`))))
@@ -385,6 +398,8 @@ function speak(key: VoKey, interrupt: boolean): void {
     const old = playing;
     old.gain.gain.setTargetAtTime(0, c.currentTime, 0.03);
     old.src.stop(c.currentTime + 0.12);
+    // Its sign-off, if it hasn't played yet, never does.
+    old.tail?.stop(c.currentTime + 0.05);
   }
   const takeKey = `${v}:${key}`;
   let pick = Math.floor(Math.random() * options.length);
@@ -400,14 +415,24 @@ function speak(key: VoKey, interrupt: boolean): void {
   const at = c.currentTime + (interrupt ? 0.1 : 0.01) + lead;
   src.start(at);
   if (fx.squelch) {
-    for (const when of [at - lead, at + buffer.duration + 0.02]) {
-      const click = c.createBufferSource();
-      click.buffer = ch.squelch;
-      click.connect(input);
-      click.start(when);
-    }
+    const click = c.createBufferSource();
+    click.buffer = ch.squelch;
+    click.connect(input);
+    click.start(at - lead);
   }
-  playing = { src, gain };
+  // Signing off: the voice's sign-off sound just after the last word (or, without one, a squelch
+  // click keying out).
+  const end = signOffs[v] ?? (fx.squelch ? ch.squelch : undefined);
+  let tail: AudioBufferSourceNode | undefined;
+  if (end) {
+    tail = c.createBufferSource();
+    tail.buffer = end;
+    const level = c.createGain();
+    level.gain.value = signOffs[v] ? fx.endGain : 1;
+    tail.connect(level).connect(input);
+    tail.start(at + buffer.duration + 0.03);
+  }
+  playing = { src, gain, tail };
   // The call window shows this line from when it starts until it ends (only this line's end
   // closes it: a line cut off by another hands the window straight over).
   const line: Transmission = { voice: v, key, text: words[v][key]?.[pick] ?? '', priority: LINES[key].priority, startedAt: 0, durationMs: buffer.duration * 1000 };
@@ -418,7 +443,8 @@ function speak(key: VoKey, interrupt: boolean): void {
   setTimeout(() => { if (playing?.src === src) { line.startedAt = performance.now(); emit(line); } }, Math.max(0, (at - c.currentTime) * 1000));
   duckEffects(fx.duck, at, at + buffer.duration);
   if ((import.meta as { env?: { DEV?: boolean } }).env?.DEV) ((window as unknown as { __VO?: string[] }).__VO ??= []).push(`${v}:${key}`);
-  const ms = (buffer.duration + lead) * 1000 + (interrupt ? 100 : 10);
+  // The next line waits for the sign-off too.
+  const ms = (buffer.duration + lead + (signOffs[v] ? 0.03 + signOffs[v]!.duration * 0.6 : 0)) * 1000 + (interrupt ? 100 : 10);
   queue.started(key, performance.now(), ms);
   // When it is done, the line waiting (if any) gets its turn.
   clearTimeout(wake);

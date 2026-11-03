@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { existsSync, readFileSync } from 'fs';
 import { resolve } from 'path';
-import { AnnouncerQueue, announcerVoice, BUILDING_LINES, LINES, onTransmission, PRIORITY, setAnnouncerSide, showTransmission, SIDE_VOICE, STALE_MS, VOICE_FX, VoKey } from './announcer';
+import { AnnouncerQueue, announcerVoice, BUILDING_LINES, LINES, onTransmission, PRIORITY, setAnnouncerSide, showTransmission, SIDE_VOICE, SIGN_OFFS, STALE_MS, VOICE_FX, VoKey } from './announcer';
 import { STRUCTURE_INFO } from '../constants';
 
 describe('the announcer queue', () => {
@@ -61,6 +61,10 @@ describe('the voice lines', () => {
       }
     });
   }
+
+  it("gives each side's announcer a sign-off after every line", () => {
+    for (const file of Object.values(SIGN_OFFS)) expect(existsSync(resolve(__dirname, '../public', file)), file).toBe(true);
+  });
 
   it('gives each side its own announcer, each with its own treatment', () => {
     expect(SIDE_VOICE).toEqual({ blue: 'vanta', red: 'tokugen' });
