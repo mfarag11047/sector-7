@@ -173,6 +173,8 @@ export interface VoiceFx {
   squelch: boolean;
   // How far the effects dip while the announcer speaks.
   duck: number;
+  // The voice's overall level (1 as recorded).
+  gain: number;
 }
 export const VOICE_FX: Record<Voice, VoiceFx> = {
   // Crystalline and expensive: a wide, clean band, a faint high shimmer and a very short glassy
@@ -180,14 +182,15 @@ export const VOICE_FX: Record<Voice, VoiceFx> = {
   vanta: {
     lowCut: 110, highCut: 10500, presenceHz: 3200, presenceDb: 1.5, shelfHz: 7000, shelfDb: 3,
     doubling: [{ ms: 3.5, gain: 0.16 }, { ms: 7, gain: 0.08 }], ringHz: 180, ring: 0.04, crushLevels: 48, crush: 0,
-    drive: 1, dry: 0.9, squelch: false, duck: 0.5,
+    drive: 1, dry: 0.9, squelch: false, duck: 0.5, gain: 1,
   },
   // A sat-link radio: a narrow comms band, a push in the mids, light saturation and a squelch
   // click keying each transmission in and out.
   tokugen: {
     lowCut: 320, highCut: 3900, presenceHz: 1800, presenceDb: 4, shelfHz: 6000, shelfDb: 0,
     doubling: [{ ms: 11, gain: 0.1 }], ringHz: 90, ring: 0.06, crushLevels: 28, crush: 0.07,
-    drive: 2.2, dry: 0.85, squelch: true, duck: 0.5,
+    // A little quieter than Vanta's: his recordings and the saturation make him sit forward.
+    drive: 2.2, dry: 0.85, squelch: true, duck: 0.5, gain: 0.75,
   },
 };
 
@@ -307,6 +310,7 @@ function voiceChain() {
 // rendered offline through it, to hear the treatment outside a match.
 export function buildVoiceChain(c: BaseAudioContext, out: AudioNode, fx: VoiceFx = VOICE_FX.vanta): AudioNode {
   const input = c.createGain();
+  input.gain.value = fx.gain;
   const low = c.createBiquadFilter();
   low.type = 'highpass';
   low.frequency.value = fx.lowCut;
