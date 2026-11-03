@@ -79,6 +79,8 @@ import { DRONE_AIR_Y, MicrodroneSwarm } from './MicrodroneSwarm';
 import { canisterSpots, HE, WARHEAD_LIST, WP, wpGasDamage } from '../sim/warheads';
 import { heroBlocker, heroOf } from '../sim/heroes';
 import { freshSentinelNet, sentinelBlocker, sentinelNetTick } from '../sim/sentinelNet';
+import { salvageTick, type Wreck, wreckOf } from '../sim/salvage';
+import Wrecks from './Wrecks';
 import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade, upgradeDef, upgradeTitle, type UpgradeId } from '../sim/upgrades';
 import { FireballFx, fireballLifeMs } from './FireballFx';
 import { baseCentreOf, padKindOf, spawnTile, teamPads } from '../sim/baseLayout';
@@ -2255,6 +2257,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           buildingsRef.current = take(buildingsRef.current);
           setBuildings(take);
       },
+      // Wrecks lying for Heavy Metal to salvage (sim/salvage.ts).
+      wrecks: () => wrecksRef.current,
       // Units still playing their death (components/FallenUnits.tsx).
       fallen: () => [...fallenRef.current.values()],
       state: () => ({ units: unitsRef.current, structures: structuresRef.current, buildings: buildingsRef.current, economy: economyRef.current, selected: [...selectedUnitIdsRef.current], smoke: smokeRef.current, swarm: swarmRef.current }),
@@ -3128,6 +3132,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   const spawnCounterRef = useRef(0);
   // Netrunner's Sentinel Net: each server node's next defender (sim/sentinelNet.ts).
   const sentinelNetRef = useRef(freshSentinelNet());
+  // Wrecks for Heavy Metal to salvage (sim/salvage.ts): the tick's copy, and the drawn one.
+  const wrecksRef = useRef<Wreck[]>([]);
+  const [wrecks, setWrecks] = useState<Wreck[]>([]);
+  const wrecksDrawnRef = useRef<Wreck[]>([]);
   // Why the last ability order was refused, for a single notice after a group order.
   const lastAbilityRefusalRef = useRef('');
   const newId = (prefix: string) => `${prefix}-${Date.now()}-${++spawnCounterRef.current}`;
@@ -4362,6 +4370,29 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           // Infantry capture buildings and core nodes (sim/capture.ts).
           setBuildings(prev => captureTick(prev, unitsRef.current));
 
+          // Heavy Metal's Salvage: wrecks stripped for cores and patching (sim/salvage.ts).
+          if (wrecksRef.current.length > 0 || wrecksDrawnRef.current.length > 0) {
+              const salvage = salvageTick(wrecksRef.current, unitsRef.current, t => aiHelpersRef.current.doctrines?.[t]?.selected ?? null, now, TICK_RATE);
+              wrecksRef.current = salvage.wrecks;
+              // Redrawn only when a wreck comes, goes or is being stripped.
+              const drawn = wrecksDrawnRef.current;
+              if (drawn.length !== salvage.wrecks.length || salvage.wrecks.some((w, i) => w !== drawn[i])) {
+                  wrecksDrawnRef.current = salvage.wrecks;
+                  setWrecks(salvage.wrecks);
+              }
+              if (salvage.payouts.length > 0) {
+                  const pay = (e: Economy) => salvage.payouts.reduce((acc, p) => ({ ...acc, [p.team]: { ...acc[p.team], cores: acc[p.team].cores + p.cores, lifetimeIncome: acc[p.team].lifetimeIncome + p.cores } }), e);
+                  economyRef.current = pay(economyRef.current);
+                  setEconomy(pay);
+                  for (const p of salvage.payouts) if (p.team === playerTeamRef.current) onNoticeRef.current?.(`Wreck salvaged: +${p.cores} cores`);
+              }
+              if (salvage.repairs.size > 0) {
+                  const patch = (list: UnitData[]) => list.map(u => { const hp = salvage.repairs.get(u.id); return hp && u.health > 0 ? { ...u, health: Math.min(u.maxHealth, u.health + hp) } : u; });
+                  unitsRef.current = patch(unitsRef.current);
+                  setUnits(patch);
+              }
+          }
+
           // Netrunner's Sentinel Net: cracking the code, hacking neutral guards, server node
           // defenders (sim/sentinelNet.ts).
           {
@@ -4708,6 +4739,9 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       if (u.health > 0 || diedRef.current.has(u.id)) continue;
                       diedRef.current.add(u.id);
                       deathsRef.current.push({ type: u.type, at: { ...u.gridPos } });
+                      // Vehicles leave wrecks for Heavy Metal to salvage (sim/salvage.ts).
+                      const wreck = wreckOf(u.type, u.gridPos, now, `wreck-${u.id}`);
+                      if (wreck) wrecksRef.current = [...wrecksRef.current, wreck];
                   }
                   // Units with a death animation fall where they were drawn, if the player could see
                   // them. Keyed by unit, so a second run of this updater changes nothing.
@@ -4722,7 +4756,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   }
                   // Cloaking Fields (sim/cloak.ts): who is hidden after this tick's fire.
                   const living = nextUnits.filter(u => u.health > 0);
-                  const finalUnits = applyFieldCloak(living, fieldCloakedIds(living, now));
+                  const finalUnits = applyFieldCloak(living, fieldCloakedIds(living, now, team => (team === 'blue' || team === 'red') ? aiHelpersRef.current.doctrines?.[team]?.selected : null));
 
                   // Identity check. Every changed unit is a new object, so there is no need to
                   // serialise the whole army to text twice a tick to find out.
@@ -4884,6 +4918,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
         {/* The energy grid made visible: each side's conduits, and the streetlights it powers. */}
         <Craters craters={craters} />
+        <Wrecks wrecks={wrecks} tileSize={CITY_CONFIG.tileSize} offset={offset} />
         <DecayStreets roadTiles={roadTiles} gridSize={gridSize} tileSize={tileSize} offset={offset} />
         <StreetFurniture roadTiles={roadTiles} buildings={initialBuildings} gridSize={gridSize} tileSize={tileSize} offset={offset} />
         <EstateGrounds roadTiles={roadTiles} buildings={initialBuildings} gridSize={gridSize} tileSize={tileSize} offset={offset} />

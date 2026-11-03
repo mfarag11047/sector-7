@@ -26,6 +26,7 @@ import { bombardTick } from './bombard';
 import { baseCentreOf, spawnTile } from './baseLayout';
 import { captureTick } from './capture';
 import { freshSentinelNet, SentinelNet, sentinelNetTick } from './sentinelNet';
+import { salvageTick, type Wreck, wreckOf } from './salvage';
 import { applyCiwsState, ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
 import { damageDrones, emptySwarm, shieldWasps, Swarm, swarmThreats, swarmTick } from './microdrones';
 import type { GridPos, Team } from './commands';
@@ -99,6 +100,8 @@ export interface HeadlessMatch {
   nextId: number;
   // Netrunner's Sentinel Net (sim/sentinelNet.ts).
   sentinelNet: SentinelNet;
+  // Wrecks for Heavy Metal to salvage (sim/salvage.ts).
+  wrecks: Wreck[];
   // Seeded, so the same options always play out the same match.
   random: () => number;
   // Static map data.
@@ -142,6 +145,7 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     swarm: emptySwarm(),
     nextId: 0,
     sentinelNet: freshSentinelNet(),
+    wrecks: [],
     random: seededRandom(opts.seed ^ 0x5eed),
     thinkRandom: seededRandom(opts.seed ^ 0x7a1c),
     gridSize,
@@ -206,7 +210,7 @@ export function stepMatch(m: HeadlessMatch): void {
   };
   m.units = m.units.map(u => advanceMover(u, MOVE_TICK_MS, env));
   // Kage's Optical Camo hides him (sim/cloak.ts; Cloaking Fields aren't modelled here).
-  m.units = applyFieldCloak(m.units, fieldCloakedIds(m.units, now));
+  m.units = applyFieldCloak(m.units, fieldCloakedIds(m.units, now, team => (team === 'blue' || team === 'red') ? m.opts.doctrine[team] : null));
 
   // Combat.
   const reloaded = <T extends { id: string; lastAttackTime?: number }>(x: T): T => {
@@ -388,7 +392,19 @@ export function stepMatch(m: HeadlessMatch): void {
   });
   // A Battery Mule with the Volt Core goes critical where it dies (sim/voltCore.ts).
   m.volt.push(...armMules(m.units, team => hasUpgrade(m.economy[team], 'volt_core'), now));
+  // Vehicles leave wrecks for Heavy Metal to salvage (sim/salvage.ts).
+  for (const u of m.units) {
+    if (u.health > 0) continue;
+    const w = wreckOf(u.type, u.gridPos, now, `wreck-${++m.nextId}`);
+    if (w) m.wrecks.push(w);
+  }
   m.units = m.units.filter(u => u.health > 0);
+  if (m.wrecks.length > 0) {
+    const salvage = salvageTick(m.wrecks, m.units, team => m.opts.doctrine[team], now, MOVE_TICK_MS);
+    m.wrecks = salvage.wrecks;
+    for (const p of salvage.payouts) m.economy = { ...m.economy, [p.team]: { ...m.economy[p.team], cores: m.economy[p.team].cores + p.cores, lifetimeIncome: m.economy[p.team].lifetimeIncome + p.cores } };
+    if (salvage.repairs.size > 0) m.units = m.units.map(u => { const hp = salvage.repairs.get(u.id); return hp ? { ...u, health: Math.min(u.maxHealth, u.health + hp) } : u; });
+  }
 
   // Once a second: income and victory.
   if (now % 1000 === 0) {

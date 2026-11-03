@@ -350,7 +350,7 @@ export const DOCTRINE_CONFIG: Record<DoctrineType, {
 }> = {
   heavy_metal: {
     label: "Heavy Metal",
-    tier1_passive: "Mechanized Repair: Guardians and your base repair armor units 50% faster. Tier 2: armor also repairs itself (5 HP/s) after 5 s out of combat.",
+    tier1_passive: "Salvage & Repair: every vehicle destroyed, yours or theirs, leaves a burning wreck for 60 s. Park any of your ground units at one, uncontested, for 4 s to strip it: 30% of the vehicle's cost in cores, and your vehicles there patched up by a quarter of their health. Guardians and your base also repair armour 50% faster, and from Tier 2 armour repairs itself (5 HP/s) after 5 s out of combat.",
     tier2_cost: 500,
     tier2_cooldown: 120000,
     tier2_name: "Orbital Drop",
@@ -362,7 +362,7 @@ export const DOCTRINE_CONFIG: Record<DoctrineType, {
   },
   shadow_ops: {
     label: "Shadow Ops",
-    tier1_passive: "Signal Masking: Stealth units gain +20% speed.",
+    tier1_passive: "Going Dark: your infantry and light vehicles cloak whenever they hold still and haven't fought for 6 s. The enemy can't see or target them (an Aegis radar shows a blip). Moving, firing or being hit shows them, and any shot from a cloak, a Cloaking Field's too, is an ambush for +50% damage.",
     tier2_cost: 400,
     tier2_cooldown: 60000,
     tier2_name: "Phantom Decoys",

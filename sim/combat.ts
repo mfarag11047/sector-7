@@ -15,6 +15,7 @@ import { isScreened, SMOKE } from './titan';
 import { damageMultiplier, damageTakenMultiplier, fireRateMultiplier, hasBuff, isEmpDisabled, rangeBonus } from './unitAbilities';
 import { ArmorClass, canHit, DamageType, shotDamage, STRUCTURE_RULES, UNIT_RULES, Weapon } from './units';
 import { isBeingHacked } from './sentinelNet';
+import { AMBUSH_DARK } from './cloak';
 
 export type DamageMap = Map<string, number>;
 
@@ -246,10 +247,13 @@ export function resolveAttacks(
     // A Sentinel being hacked holds its fire (sim/sentinelNet.ts).
     if (!base || base.indirect || base.ciws || u.health <= 0 || u.decoyActive || u.isStunned || isEmpDisabled(u) || inNanoCloud(u.gridPos) || isBeingHacked(u)) continue;
     // Ability buffs (sim/unitAbilities.ts): range, damage and, for Flak Barrage, air splash.
-    const weapon: Weapon = u.buffs?.length ? {
+    // Firing from a cloak (Going Dark, a Cloaking Field) is an ambush (sim/cloak.ts); Kage's own
+    // camo has its double in damageMultiplier.
+    const ambush = u.fieldCloaked && !hasBuff(u, 'shadow_cloak') ? AMBUSH_DARK : 1;
+    const weapon: Weapon = u.buffs?.length || ambush > 1 ? {
       ...base,
       range: base.range + rangeBonus(u),
-      damage: base.damage * damageMultiplier(u),
+      damage: base.damage * damageMultiplier(u) * ambush,
       ...(hasBuff(u, 'barrage') ? { splash: 1.5, splashFactor: 0.5 } : {}),
     } : base;
     const fromAir = UNIT_RULES[u.type].armor === 'air';

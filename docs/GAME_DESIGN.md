@@ -1324,6 +1324,28 @@ The Banshee is the electronic-warfare vehicle (`sim/jamming.ts`).
   a leash within 8 tiles, and **cannot be jammed**. Pick a tethered drone again to let it go, or
   Disconnect to drop them all. Another Banshee taking a drone takes it off the first one's line.
 
+## Heavy Metal passive: Salvage & Repair
+
+`sim/salvage.ts`, `components/Wrecks.tsx`. Every vehicle destroyed, either side's (light or heavy
+armour; not infantry, aircraft or the small drones), leaves a burning wreck where it died for 60 s:
+a scorched, burnt-out hull with embers and smoke. A Heavy Metal ground unit within 1.5 tiles of
+it, with no other side's unit that close, strips it over 4 s (a ring fills in the side's colour):
+the side gets 30% of the vehicle's cost in cores (a dropped Titan counts as a tank), and each of
+its vehicles at the wreck is patched up by a quarter of its maximum health. Walk off or be
+contested and it stalls. Heavy Metal keeps Mechanized Repair too: Guardians and its base repair
+armour 50% faster, and from Tier 2 armour repairs itself (5 HP/s) after 5 s out of combat.
+Fighting where its armour can reach the wrecks pays for the next tank.
+
+## Shadow Ops passive: Going Dark
+
+`sim/cloak.ts` (`goesDark`). Shadow Ops' infantry and light vehicles on the ground cloak whenever
+they hold still and haven't fired or been hit for 6 s: the same cloak as a Cloaking Field (the
+enemy can neither see nor target them; blasts and shelling still hurt; an Aegis radar shows a
+blip). Moving, firing or being hit shows them. A shot from any cloak but Kage's own (which
+doubles) is an ambush for +50% damage (`AMBUSH_DARK`, sim/combat.ts). A Shadow Ops army waiting in
+position is invisible, and opens the fight on its own terms. (It replaced Signal Masking, +20%
+speed for stealth units.)
+
 ## Netrunner passive: the Sentinel Net
 
 `sim/sentinelNet.ts`. Netrunner turns the server nodes' Sentinels to its side.

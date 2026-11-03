@@ -295,11 +295,6 @@ export function slowTick(prevUnits: UnitData[], ctx: SlowTickContext): UnitData[
 
     const doctrine = ctx.doctrineOf(unit.team);
 
-    // Shadow Ops: Ghosts and stealthed units move faster.
-    if (doctrine === 'shadow_ops' && (unit.type === 'ghost' || unit.isStealthed) && !unit.activeBuffs?.includes('speed')) {
-      unit = { ...unit, activeBuffs: [...(unit.activeBuffs || []), 'speed'] };
-      changed = true;
-    }
 
     if (unit.isStunned && unit.stunDuration) {
       unit = unit.stunDuration <= 0
