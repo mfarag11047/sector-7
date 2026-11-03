@@ -97,9 +97,12 @@ export interface UnitAbilityCommand { type: 'UNIT_ABILITY'; unitIds: string[]; a
 export interface SelectDoctrineCommand { type: 'SELECT_DOCTRINE'; doctrine: DoctrineType }
 // Tier 2 and 3 powers. Every power except Shadow Ops tier 3 (Global EMP) needs a target.
 export interface DoctrinePowerCommand { type: 'DOCTRINE_POWER'; tier: 2 | 3; target?: GridPos }
+// Take one of the two options at a rank of the doctrine track (sim/doctrineTrack.ts).
+export interface PickDoctrineCommand { type: 'PICK_DOCTRINE'; rank: 1 | 2 | 3 | 4; option: string }
 
 export type PlayerCommand =
   | MoveCommand
+  | PickDoctrineCommand
   | PlaceStructureCommand
   | TrainUnitCommand
   | SetRallyCommand
@@ -230,6 +233,7 @@ const CHECKS: Record<CommandType, (c: Fields) => boolean> = {
   UNIT_ABILITY: c => isIdList(c.unitIds) && typeof c.ability === 'string' && c.ability.length <= 32 && (c.target === undefined || isTile(c.target)) && (c.targetUnitId === undefined || isId(c.targetUnitId)),
   SELECT_DOCTRINE: c => oneOf(DOCTRINES, c.doctrine),
   DOCTRINE_POWER: c => (c.tier === 2 || c.tier === 3) && (c.target === undefined || isTile(c.target)),
+  PICK_DOCTRINE: c => (c.rank === 1 || c.rank === 2 || c.rank === 3 || c.rank === 4) && typeof c.option === 'string' && c.option.length > 0 && c.option.length <= 32,
 };
 
 export const COMMAND_TYPES = Object.keys(CHECKS) as CommandType[];

@@ -833,7 +833,7 @@ const Unit: React.FC<UnitProps> = ({
             <meshBasicMaterial color={TEAM_COLORS[hackProgress.team]} transparent opacity={0.2} toneMapped={false} depthWrite={false} />
           </mesh>
           <mesh raycast={() => null}>
-            <ringGeometry args={[tileSize * 0.85, tileSize * 1.05, 48, 1, Math.PI / 2, -Math.PI * 2 * Math.min(1, hackProgress.ms / SENTINEL_NET.hackMs)]} />
+            <ringGeometry args={[tileSize * 0.85, tileSize * 1.05, 48, 1, Math.PI / 2, -Math.PI * 2 * Math.min(1, hackProgress.ms / (hackProgress.of ?? SENTINEL_NET.hackMs))]} />
             <meshBasicMaterial color={TEAM_COLORS[hackProgress.team]} transparent opacity={hackProgress.active ? 0.9 : 0.45} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
           </mesh>
         </group>

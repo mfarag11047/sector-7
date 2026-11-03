@@ -79,6 +79,7 @@ import { DRONE_AIR_Y, MicrodroneSwarm } from './MicrodroneSwarm';
 import { canisterSpots, HE, WARHEAD_LIST, WP, wpGasDamage } from '../sim/warheads';
 import { heroBlocker, heroOf } from '../sim/heroes';
 import { freshSentinelNet, sentinelBlocker, sentinelNetTick } from '../sim/sentinelNet';
+import { advanceTrack, hasPower, perk, powersOf, TRACK, trackCombatPerks, trackPowerCost, trackPowerCooldown } from '../sim/doctrineTrack';
 import { salvageTick, type Wreck, wreckOf } from '../sim/salvage';
 import Wrecks from './Wrecks';
 import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade, upgradeDef, upgradeTitle, type UpgradeId } from '../sim/upgrades';
@@ -1956,7 +1957,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           if (team === playerTeam) {
               playUiSound('tier_up');
               announce(tier === 3 ? 'vo_tier_3' : 'vo_tier_2', { delayMs: 1200 });
-              onNotice?.(`Tier ${tier} researched: new units and doctrine powers unlocked; research their upgrades at Advanced Research`);
+              onNotice?.(`Tier ${tier} researched: new units unlocked; research their upgrades at Advanced Research`);
           } else onNotice?.(`The enemy has reached Tier ${tier}`, 'warn');
       }
   }, [economy.blue.tier, economy.red.tier, playerTeam]);
@@ -2713,17 +2714,18 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               return false;
           };
           if (aiHelpersRef.current.doctrines?.[team]?.selected !== doctrine) return refuse('that is not your doctrine');
-          if (economyRef.current[team].tier < tier) return refuse(`needs Tier ${tier}: research it at your HQ`);
           const key = tier === 2 ? 'tier2' : 'tier3';
+          // Which powers a side has is up to its doctrine track (sim/doctrineTrack.ts).
+          if (!hasPower(economyRef.current[team], doctrine, key)) return refuse('choose it on your doctrine track first');
           const now = Date.now();
           if (doctrineReadyAtRef.current[team][key] > now) return refuse(`recharging (${Math.ceil((doctrineReadyAtRef.current[team][key] - now) / 1000)}s)`);
           // Pay against the live economy, so a power the team can no longer afford never fires.
-          const cost = doctrinePowerCost(doctrine, tier);
+          const cost = trackPowerCost(economyRef.current[team], doctrine, key);
           const paid = spend(economyRef.current, team, cost);
           if (!paid) return refuse('not enough cores');
           economyRef.current = paid;
           setEconomy(prev => spend(prev, team, cost) ?? prev);
-          doctrineReadyAtRef.current[team][key] = now + (tier === 2 ? DOCTRINE_CONFIG[doctrine].tier2_cooldown : DOCTRINE_CONFIG[doctrine].tier3_cooldown);
+          doctrineReadyAtRef.current[team][key] = now + trackPowerCooldown(economyRef.current[team], doctrine, key);
 
           if (type === 'HEAVY_METAL_TIER2') {
               // Spawn Orbital Drop Titan
@@ -2887,6 +2889,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           setUnits(prevUnits => slowTick(prevUnits, {
               findPath, findScatteredSpawn, isWalkable, createCrawler, now, random: Math.random,
               doctrineOf: team => (team === 'blue' || team === 'red') ? doctrines?.[team]?.selected : null,
+              silentRunning: team => (team === 'blue' || team === 'red') && perk.silentRunning(economyRef.current[team]),
           }));
       }, SLOW_TICK_MS);
       return () => clearInterval(interval);
@@ -3183,6 +3186,15 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       // Tier research takes a while: it unlocks when done (the tier effect below says so).
       if (command.type === 'RESEARCH_TIER' && team === playerTeam) {
           onNotice?.(`Researching Tier ${command.tier}: ready in ${TIER_RESEARCH_MS[command.tier] / 1000}s`);
+      }
+      // A doctrine track option taken (sim/doctrineTrack.ts).
+      if (command.type === 'PICK_DOCTRINE' && team === playerTeam) {
+          const doctrine = aiHelpersRef.current.doctrines?.[team]?.selected;
+          const option = doctrine ? TRACK[doctrine][command.rank - 1]?.find(o => o.id === command.option) : null;
+          if (option) {
+              onNotice?.(`Doctrine rank ${command.rank}: ${option.name}${option.power ? ' (in your team panel)' : option.hero ? ' (train it at Advanced Research)' : ''}`);
+              playUiSound('research_complete');
+          }
       }
       if (fx.unitUpdates.size > 0) setUnits(prev => applyOrderToUnits(prev, fx));
       if (fx.structureUpdates.size > 0 || fx.newStructures.length > 0 || fx.removeStructures?.length) setStructuresState(prev => applyOrderToStructures(prev, fx));
@@ -3678,7 +3690,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
   useEffect(() => {
     const timer = setInterval(() => {
       // Income, and tier research under way (sim/economy.ts).
-      setEconomy(prev => advanceTierResearch(payIncome(prev, buildingsRef.current, incomeMultipliers(matchRef.current), structuresRef.current), structuresRef.current, ECONOMY_TICK_MS).economy);
+      // And the doctrine track's points (sim/doctrineTrack.ts).
+      setEconomy(prev => advanceTrack(advanceTierResearch(payIncome(prev, buildingsRef.current, incomeMultipliers(matchRef.current), structuresRef.current), structuresRef.current, ECONOMY_TICK_MS).economy, buildingsRef.current, ECONOMY_TICK_MS));
     }, ECONOMY_TICK_MS);
     return () => clearInterval(timer);
   }, []);
@@ -3770,7 +3783,10 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
     const now = Date.now();
     for (const [team, s] of [['blue', blue], ['red', red]] as const) {
         const ready = doctrineReadyAtRef.current[team];
-        s.doctrine = { ...s.doctrine!, cooldowns: { tier2: Math.max(0, ready.tier2 - now), tier3: Math.max(0, ready.tier3 - now) } };
+        // The doctrine track's powers and what they cost this side (sim/doctrineTrack.ts).
+        const chosen = aiHelpersRef.current.doctrines?.[team]?.selected ?? null;
+        const track = s.doctrine?.track && chosen ? { ...s.doctrine.track, powers: powersOf(economy[team], chosen), powerCosts: { tier2: trackPowerCost(economy[team], chosen, 'tier2'), tier3: trackPowerCost(economy[team], chosen, 'tier3') } } : s.doctrine?.track;
+        s.doctrine = { ...s.doctrine!, cooldowns: { tier2: Math.max(0, ready.tier2 - now), tier3: Math.max(0, ready.tier3 - now) }, track };
     }
     onStatsUpdate({ blue, red });
   }, [economy, onStatsUpdate]);
@@ -3968,6 +3984,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               pos => isPointInCloud(pos, nanoClouds, 'nano'),
               shieldOf,
               cover,
+              trackCombatPerks(team => economyRef.current[team]),
           );
           attacks.shieldDamage.forEach((n, id) => addShieldHit(shieldHits, id, n));
           attacks.fired.forEach((_, id) => lastShotRef.current.set(id, now));
@@ -4372,7 +4389,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
           // Heavy Metal's Salvage: wrecks stripped for cores and patching (sim/salvage.ts).
           if (wrecksRef.current.length > 0 || wrecksDrawnRef.current.length > 0) {
-              const salvage = salvageTick(wrecksRef.current, unitsRef.current, t => aiHelpersRef.current.doctrines?.[t]?.selected ?? null, now, TICK_RATE);
+              const salvage = salvageTick(wrecksRef.current, unitsRef.current, t => aiHelpersRef.current.doctrines?.[t]?.selected ?? null, now, TICK_RATE, t => perk.salvageMultiplier(economyRef.current[t]));
               wrecksRef.current = salvage.wrecks;
               // Redrawn only when a wreck comes, goes or is being stripped.
               const drawn = wrecksDrawnRef.current;
@@ -4398,7 +4415,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           {
               const doctrineOf = (t: 'blue' | 'red') => aiHelpersRef.current.doctrines?.[t]?.selected ?? null;
               if (doctrineOf('blue') === 'netrunner' || doctrineOf('red') === 'netrunner') {
-                  const net = sentinelNetTick(sentinelNetRef.current, unitsRef.current, buildingsRef.current, doctrineOf, t => !!economyRef.current[t].sentinelCode, now, TICK_RATE, () => `sn-${now}-${++spawnCounterRef.current}`);
+                  const net = sentinelNetTick(sentinelNetRef.current, unitsRef.current, buildingsRef.current, doctrineOf, t => !!economyRef.current[t].sentinelCode, now, TICK_RATE, () => `sn-${now}-${++spawnCounterRef.current}`, { hackMsOf: t => perk.hackMs(economyRef.current[t]), defenderAfterOf: t => perk.defenderAfterMs(economyRef.current[t]) });
                   sentinelNetRef.current = net.net;
                   const before = new Map(unitsRef.current.map(u => [u.id, u]));
                   const changed = new Map(net.units.filter(u => before.has(u.id) && before.get(u.id) !== u).map(u => [u.id, u]));
@@ -4583,7 +4600,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   if (landed !== activeUnits) { activeUnits = landed; unitsChanged = true; }
 
                   // Guardians and the base block are the only healing (sim/support.ts).
-                  const repair = repairTick(activeUnits, TICK_RATE, teamBasesRef.current, team => (team === 'blue' || team === 'red') ? doctrines?.[team]?.selected : null, team => economyRef.current[team].tier, now);
+                  const repair = repairTick(activeUnits, TICK_RATE, teamBasesRef.current, team => (team === 'blue' || team === 'red') ? doctrines?.[team]?.selected : null, team => economyRef.current[team].tier, now, team => perk.welders(economyRef.current[team]));
 
                   const chargers = activeUnits.filter(u => u.type === 'helios');
                   
@@ -4756,7 +4773,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   }
                   // Cloaking Fields (sim/cloak.ts): who is hidden after this tick's fire.
                   const living = nextUnits.filter(u => u.health > 0);
-                  const finalUnits = applyFieldCloak(living, fieldCloakedIds(living, now, team => (team === 'blue' || team === 'red') ? aiHelpersRef.current.doctrines?.[team]?.selected : null));
+                  const finalUnits = applyFieldCloak(living, fieldCloakedIds(living, now, team => (team === 'blue' || team === 'red') ? aiHelpersRef.current.doctrines?.[team]?.selected : null, team => (team === 'blue' || team === 'red') ? perk.darkAfterMs(economyRef.current[team]) : null));
 
                   // Identity check. Every changed unit is a new object, so there is no need to
                   // serialise the whole army to text twice a tick to find out.
@@ -4994,6 +5011,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                 compute={s.type === 'research_lab' && (playerTeam === 'blue' || playerTeam === 'red') ? economy[playerTeam].compute : undefined}
                 upgradesUnderway={s.type === 'research_lab' ? upgradesUnderway : undefined}
                 doctrine={s.type === 'research_lab' || s.type === 'support' ? playerDoctrine : undefined}
+                sentinelFoundry={s.type === 'support' && (playerTeam === 'blue' || playerTeam === 'red') && perk.sentinelFoundry(economy[playerTeam])}
                 heroBlocked={s.type === 'research_lab' && depotMenuOpenId === s.id ? playerHeroBlocked : s.type === 'support' && depotMenuOpenId === s.id ? playerSentinelBlocked : undefined}
                 income={s.type === 'refinery' && depotMenuOpenId === s.id && s.team === playerTeam ? incomeBreakdown(buildings, playerTeam, structuresState) : undefined}
                 refineryShare={s.type === 'refinery' && depotMenuOpenId === s.id ? refineryMultiplier(s, structuresState, coreNodeTiles) : undefined}

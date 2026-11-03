@@ -621,7 +621,7 @@ const EconomyTab: React.FC = () => (
       <Item label="Population">Starts at {POP_BASE}. Each core node held adds {POP_PER_CORE_NODE}, and every {GRID_TILES_PER_POP} tiles of energy grid your captured buildings cover add 1 more, so spreading across the city raises it bit by bit. Up to {POP_MAX}. Hover Pop in your team panel for the breakdown. Queued units reserve their population.</Item>
       <H>Compute and tiers</H>
       <Item label="Compute">Each server node you hold makes {COMPUTE_PER_SERVER_NODE} compute a second; your HQ adds {HQ_COMPUTE}. Spend it on Research in your team panel or the HQ menu.</Item>
-      <Item label="Tiers">Tier 2 costs {TIER_RESEARCH_COST[2]} compute, Tier 3 {TIER_RESEARCH_COST[3]}. A researched tier is yours for good. Tiers unlock units, unit abilities, doctrine powers and longer artillery range.</Item>
+      <Item label="Tiers">Tier 2 costs {TIER_RESEARCH_COST[2]} compute, Tier 3 {TIER_RESEARCH_COST[3]}. A researched tier is yours for good. Tiers unlock units, unit abilities and longer artillery range.</Item>
     </div>
     <div>
       <H>Server nodes</H>
@@ -675,7 +675,7 @@ const CombatTab: React.FC = () => (
 
 const DoctrinesTab: React.FC = () => (
   <div>
-    <p className="text-slate-400 text-xs mb-4">Pick one doctrine per match when you set it up; it and its powers sit in your team panel. Its passive is always on; its powers unlock with your tiers and cost cores to use.</p>
+    <p className="text-slate-400 text-xs mb-4">Pick one doctrine per match when you set it up. Its passive is always on. Doctrine points come with time (faster while you hold server nodes); spend them on the doctrine track (the Track button in your team panel): four ranks at 0, 4, 8 and 12 minutes, one of two options at each, for good. Powers you take cost cores to use and appear in your team panel.</p>
     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
       {(Object.keys(DOCTRINE_CONFIG) as DoctrineType[]).map(d => {
         const c = DOCTRINE_CONFIG[d];

@@ -19,6 +19,7 @@ import { builtCost, canDismantle, cancelledWork, isUnfinished, startDismantling 
 import { BUILDING_PADS, freePadsFor, isPad, padKindOf, TURRET_PADS } from './baseLayout';
 import { fliesOver, isAirType, popCap, popUsed, STRUCTURE_RULES, Tier, UNIT_RULES } from './units';
 import { sentinelBlocker } from './sentinelNet';
+import { FOUNDRY_SENTINEL, perk, pickBlocker, type Rank, takePick } from './doctrineTrack';
 import { tetheredIds, unjammedIds } from './jamming';
 import { heroBlocker, isHeroType } from './heroes';
 
@@ -45,9 +46,9 @@ export const isOperational = (s: StructureData) => !s.isBlueprint && !((s.buildR
 
 // --- Commands ---
 
-export type OrderCommand = Extract<PlayerCommand, { type: 'MOVE' | 'TRAIN_UNIT' | 'PLACE_STRUCTURE' | 'SET_RALLY' | 'RESEARCH_TIER' | 'BUILD_BASE' | 'BUILD_WARHEAD' | 'RESEARCH_UPGRADE' | 'UPGRADE_REFINERY' | 'DISASSEMBLE_STRUCTURE' }>;
+export type OrderCommand = Extract<PlayerCommand, { type: 'MOVE' | 'TRAIN_UNIT' | 'PLACE_STRUCTURE' | 'SET_RALLY' | 'RESEARCH_TIER' | 'PICK_DOCTRINE' | 'BUILD_BASE' | 'BUILD_WARHEAD' | 'RESEARCH_UPGRADE' | 'UPGRADE_REFINERY' | 'DISASSEMBLE_STRUCTURE' }>;
 export const isOrderCommand = (c: PlayerCommand): c is OrderCommand =>
-  c.type === 'MOVE' || c.type === 'TRAIN_UNIT' || c.type === 'PLACE_STRUCTURE' || c.type === 'SET_RALLY' || c.type === 'RESEARCH_TIER' || c.type === 'BUILD_BASE' || c.type === 'BUILD_WARHEAD' || c.type === 'RESEARCH_UPGRADE' || c.type === 'UPGRADE_REFINERY' || c.type === 'DISASSEMBLE_STRUCTURE';
+  c.type === 'MOVE' || c.type === 'TRAIN_UNIT' || c.type === 'PLACE_STRUCTURE' || c.type === 'SET_RALLY' || c.type === 'RESEARCH_TIER' || c.type === 'PICK_DOCTRINE' || c.type === 'BUILD_BASE' || c.type === 'BUILD_WARHEAD' || c.type === 'RESEARCH_UPGRADE' || c.type === 'UPGRADE_REFINERY' || c.type === 'DISASSEMBLE_STRUCTURE';
 
 export interface OrdersView {
   units: readonly UnitData[];
@@ -103,6 +104,7 @@ export function orderEffects(view: OrdersView, team: Team, command: OrderCommand
     case 'PLACE_STRUCTURE': return placeOrder(view, team, command.structureType, command.at, ctx, command.run);
     case 'SET_RALLY': return rallyOrder(view, team, command.structureId, command.at, ctx);
     case 'RESEARCH_TIER': return researchOrder(view, team, command.tier);
+    case 'PICK_DOCTRINE': return pickOrder(view, team, command.rank, command.option);
     case 'BUILD_WARHEAD': return warheadOrder(view, team, command.structureId, command.warhead);
     case 'RESEARCH_UPGRADE': return upgradeOrder(view, team, command.structureId, command.upgrade);
     case 'UPGRADE_REFINERY': return refineryUpgradeOrder(view, team, command.structureId);
@@ -178,6 +180,14 @@ function refineryUpgradeOrder(view: OrdersView, team: Team, structureId: string)
   });
 }
 
+// An option on the doctrine track (sim/doctrineTrack.ts).
+function pickOrder(view: OrdersView, team: Team, rank: Rank, option: string): OrderOutcome {
+  const doctrine = view.doctrines?.[team];
+  const blocked = pickBlocker(view.economy[team], doctrine, rank, option);
+  if (blocked || !doctrine) return reject(blocked ?? 'no doctrine');
+  return effects({ economy: e => ({ ...e, [team]: takePick(e[team], doctrine, rank, option) }) });
+}
+
 function researchOrder(view: OrdersView, team: Team, tier: 2 | 3): OrderOutcome {
   const e = view.economy[team];
   if (tier <= e.tier) return reject(`Tier ${tier} is already researched`);
@@ -214,13 +224,16 @@ function trainOrder(view: OrdersView, team: Team, structureId: string, unitType:
   if ((s.queue?.length || 0) >= MAX_QUEUE) return reject('queue full');
   const cap = view.unlimitedPop ? Infinity : teamPopCap(view.buildings, team);
   if (popUsed(view.units, view.structures, team) + rules.pop > cap) return reject(`population cap reached (${cap}); spread your grid or hold more core nodes`);
-  const cost = unitCost(unitType);
+  // Netrunner's Sentinel Foundry (sim/doctrineTrack.ts) builds them cheaper and quicker.
+  const foundry = unitType === 'defense_drone' && perk.sentinelFoundry(view.economy[team]);
+  const cost = foundry ? FOUNDRY_SENTINEL.cost : unitCost(unitType);
+  const buildMs = foundry ? FOUNDRY_SENTINEL.buildTimeMs : rules.buildTimeMs;
   if (!spend(view.economy, team, cost)) return reject('not enough cores');
   return effects({
     economy: e => spend(e, team, cost),
     structureUpdates: new Map([[s.id, x => ({
       ...x,
-      queue: [...(x.queue || []), { unitType, remainingMs: rules.buildTimeMs, totalMs: rules.buildTimeMs }],
+      queue: [...(x.queue || []), { unitType, remainingMs: buildMs, totalMs: buildMs }],
     })]]),
   });
 }

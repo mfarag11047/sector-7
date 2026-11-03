@@ -218,6 +218,8 @@ export function researchBlocker(
   const def = upgradeDef(id);
   if (!def) return 'unknown upgrade';
   if (def.doctrine && def.doctrine !== doctrine) return `${def.name} is only for its own doctrine`;
+  // A hero is unlocked on the doctrine track, not researched (sim/doctrineTrack.ts).
+  if (/^hero_.*_unlock$/.test(id)) return 'unlocked by choosing the hero on the doctrine track';
   const e = economy[team];
   if (hasUpgrade(e, id)) return `${def.name} is already researched`;
   if (structures.some(s => s.team === team && s.research?.upgrade === id)) return `${def.name} is already being researched`;

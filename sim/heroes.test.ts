@@ -40,12 +40,12 @@ describe('doctrine heroes', () => {
     expect(upgradeClasses().flatMap(c => c.units).some(u => u.startsWith('hero_'))).toBe(false);
   });
 
-  it('can only be researched by a side with that doctrine', () => {
+  it('is unlocked on the doctrine track, not researched, and only for its own doctrine', () => {
     const e = econ(1);
-    expect(researchBlocker(e, 'blue', [], 'hero_heavy_metal_unlock', 'heavy_metal')).toBeNull();
+    expect(researchBlocker(e, 'blue', [], 'hero_heavy_metal_unlock', 'heavy_metal')).toMatch(/doctrine track/);
     expect(researchBlocker(e, 'blue', [], 'hero_netrunner_unlock', 'heavy_metal')).toMatch(/own doctrine/);
     expect(researchBlocker(e, 'blue', [], 'hero_heavy_metal_unlock', null)).toMatch(/own doctrine/);
-    expect(study(view(e), 'hero_heavy_metal_unlock')).toBeNull();
+    expect(study(view(e), 'hero_heavy_metal_unlock')).toMatch(/doctrine track/);
     expect(study(view(e), 'hero_shadow_ops_unlock')).toMatch(/own doctrine/);
   });
 

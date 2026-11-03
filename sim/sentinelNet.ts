@@ -68,7 +68,11 @@ export function sentinelNetTick(
   now: number,
   dtMs: number,
   newId: () => string,
+  // A side's own timings from its doctrine track (sim/doctrineTrack.ts): Brute Force, Hardened Nodes.
+  tuning: { hackMsOf?: (team: Team) => number | null; defenderAfterOf?: (team: Team) => number | null } = {},
 ): SentinelNetResult {
+  const hackMs = (t: Team) => tuning.hackMsOf?.(t) ?? SENTINEL_NET.hackMs;
+  const defenderAfter = (t: Team) => tuning.defenderAfterOf?.(t) ?? SENTINEL_NET.defenderAfterMs;
   const netrunner = (t: Team) => doctrineOf(t) === 'netrunner';
   const servers = buildings.filter(b => b.type === 'server_node' && !b.destroyed);
   const cracked: Team[] = [];
@@ -94,11 +98,11 @@ export function sentinelNetTick(
       const contested = team ? near(team === 'blue' ? 'red' : 'blue', SENTINEL_NET.contestRange) : true;
       if (team && !contested) {
         const ms = (prev && prev.team === team ? prev.ms : 0) + dtMs;
-        if (ms >= SENTINEL_NET.hackMs) {
+        if (ms >= hackMs(team)) {
           hacked.push({ id: u.id, team });
           return { ...u, team, hackProgress: undefined, sentinelPost: u.sentinelPost ?? postAt(u), path: [], combatTargetId: null };
         }
-        return { ...u, hackProgress: { team, ms, active: true } };
+        return { ...u, hackProgress: { team, ms, active: true, of: hackMs(team) } };
       }
       if (!prev) return u;
       const ms = prev.ms - dtMs * SENTINEL_NET.hackDecay;
@@ -114,11 +118,11 @@ export function sentinelNetTick(
     const team = s.owner;
     if (!team || !netrunner(team)) continue;
     let post = net.posts[s.id];
-    if (!post || post.team !== team) post = { team, readyAt: now + SENTINEL_NET.defenderAfterMs, defenderId: null };
+    if (!post || post.team !== team) post = { team, readyAt: now + defenderAfter(team), defenderId: null };
     // A Sentinel already posted here for the side (a hacked guard) counts as its defender.
     const guard = next.find(u => u.health > 0 && u.team === team && isSentinel(u) && u.sentinelPost === s.id);
     if (guard) post = { ...post, defenderId: guard.id };
-    else if (post.defenderId) post = { team, readyAt: now + SENTINEL_NET.defenderAfterMs, defenderId: null };
+    else if (post.defenderId) post = { team, readyAt: now + defenderAfter(team), defenderId: null };
     else if (now >= post.readyAt) {
       const id = newId();
       spawned.push({

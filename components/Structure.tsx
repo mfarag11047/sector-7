@@ -1,5 +1,6 @@
 
 import StructureStatus from './StructureStatus';
+import { FOUNDRY_SENTINEL } from '../sim/doctrineTrack';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Edges, Html } from '@react-three/drei';
@@ -60,6 +61,8 @@ interface StructureProps {
   // Why the side's doctrine unit here can't be trained: its hero at Advanced Research, Netrunner's
   // Sentinel at the Comm Link (sim/sentinelNet.ts).
   heroBlocked?: string | null;
+  // Netrunner's Sentinel Foundry (sim/doctrineTrack.ts): Sentinels cheaper and quicker here.
+  sentinelFoundry?: boolean;
   // The side's income, for a Core Refinery's menu (sim/economy.ts incomeBreakdown).
   income?: IncomeBreakdown;
   // A Core Refinery's own share of node income, from its base's distance to a core node.
@@ -185,7 +188,7 @@ const DismantleFrame = ({ height, tileSize }: { height: number; tileSize: number
 const wallSpan = (tileSize: number) => tileSize * 0.97;
 
 
-const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES, income, refineryShare, doctrine, heroBlocked, ciwsAims, targetWorldOf, wallJoins, facing }) => {
+const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightClick, onDoubleClick, onClick, menuOpen, onAction, hasMason, resources = 0, compute = 0, warheadStock, tier = 1, popUsed = 0, popCap = 0, upgrades = NO_UPGRADES, upgradesUnderway = NO_UPGRADES, income, refineryShare, doctrine, heroBlocked, sentinelFoundry, ciwsAims, targetWorldOf, wallJoins, facing }) => {
   // Advanced Research menu: a unit class, then a unit, then its upgrades.
   const [labClass, setLabClass] = React.useState<UnitClass | null>(null);
   // Disassemble asks twice.
@@ -446,7 +449,9 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                             {buildableUnits.map(uType => {
                                 const stats = UNIT_STATS[uType];
                                 const rules = UNIT_RULES[uType];
-                                const cost = stats.cost || 0;
+                                const foundry = uType === 'defense_drone' && sentinelFoundry;
+                                const cost = foundry ? FOUNDRY_SENTINEL.cost : stats.cost || 0;
+                                const buildSec = (foundry ? FOUNDRY_SENTINEL.buildTimeMs : rules.buildTimeMs) / 1000;
                                 const locked = rules.tier > tier;
                                 const full = queue.length >= MAX_QUEUE || popUsed + rules.pop > popCap;
                                 const heroReason = isHeroType(uType) || uType === 'defense_drone' ? heroBlocked ?? null : null;
@@ -470,7 +475,7 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
                                                 {queued > 0 && <span className="text-cyan-300">×{queued}</span>}
                                             </div>
                                             <span className="text-[9px] text-slate-500 pl-5">
-                                                {locked ? `🔒 ${TIER_REQUIREMENT[rules.tier]}` : heroReason ? `🔒 ${heroReason}` : `${rules.buildTimeMs / 1000}s · ${rules.pop} pop`}
+                                                {locked ? `🔒 ${TIER_REQUIREMENT[rules.tier]}` : heroReason ? `🔒 ${heroReason}` : `${buildSec}s · ${rules.pop} pop`}
                                             </span>
                                         </div>
                                         <span>{cost}</span>

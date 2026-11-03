@@ -11,6 +11,7 @@ import type { DoctrineType, StructureData, UnitData } from '../types';
 import type { GridPos, Warhead } from './commands';
 import { productionStep } from './economy';
 import { addToInventory } from './warheads';
+import { UNIT_RULES } from './units';
 
 export type FindPath = (from: GridPos, to: GridPos) => string[];
 
@@ -84,6 +85,8 @@ export function repairTick(
   doctrineOf: (team: UnitData['team']) => DoctrineType | null | undefined,
   tierOf: (team: 'blue' | 'red') => number = () => 1,
   now = 0,
+  // Heavy Metal's Field Welders (sim/doctrineTrack.ts): self-repair from the start, twice as fast.
+  welders: (team: 'blue' | 'red') => boolean = () => false,
 ) {
   const { assignments, heal } = guardianRepair(units, tickMs);
   const add = (id: string, n: number) => heal.set(id, (heal.get(id) || 0) + n);
@@ -98,9 +101,11 @@ export function repairTick(
     if (u && heavyMetalArmour(u)) heal.set(id, amount * 1.5);
   }
   for (const u of units) {
-    if (u.health <= 0 || u.health >= u.maxHealth || (u.team !== 'blue' && u.team !== 'red') || !heavyMetalArmour(u) || tierOf(u.team) < 2) continue;
+    if (u.health <= 0 || u.health >= u.maxHealth || (u.team !== 'blue' && u.team !== 'red') || !heavyMetalArmour(u)) continue;
+    const welded = welders(u.team);
+    if (tierOf(u.team) < 2 && !welded) continue;
     const quiet = now - Math.max(u.lastAttackTime ?? -Infinity, u.lastDamageTime ?? -Infinity) >= BASE_REPAIR.outOfCombatMs;
-    if (quiet) add(u.id, BASE_REPAIR.heavyMetalSelfRepair * (tickMs / 1000));
+    if (quiet) add(u.id, BASE_REPAIR.heavyMetalSelfRepair * (welded ? 2 : 1) * (tickMs / 1000));
   }
   return { assignments, heal };
 }
@@ -226,6 +231,8 @@ export interface SlowTickContext {
   isWalkable: (x: number, z: number) => boolean;
   createCrawler: (host: UnitData, at: GridPos, suffix: string | number) => UnitData;
   doctrineOf: (team: UnitData['team']) => DoctrineType | null | undefined;
+  // Shadow Ops' Silent Running (sim/doctrineTrack.ts): its infantry and light vehicles move faster.
+  silentRunning?: (team: UnitData['team']) => boolean;
   now: number;
   random: () => number;
 }
@@ -293,7 +300,11 @@ export function slowTick(prevUnits: UnitData[], ctx: SlowTickContext): UnitData[
       }
     }
 
-    const doctrine = ctx.doctrineOf(unit.team);
+    // Shadow Ops' Silent Running: infantry and light vehicles move 20% faster.
+    if (ctx.silentRunning?.(unit.team) && (UNIT_RULES[unit.type].armor === 'infantry' || UNIT_RULES[unit.type].armor === 'light') && !unit.activeBuffs?.includes('speed')) {
+      unit = { ...unit, activeBuffs: [...(unit.activeBuffs || []), 'speed'] };
+      changed = true;
+    }
 
 
     if (unit.isStunned && unit.stunDuration) {

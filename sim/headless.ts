@@ -27,6 +27,7 @@ import { baseCentreOf, spawnTile } from './baseLayout';
 import { captureTick } from './capture';
 import { freshSentinelNet, SentinelNet, sentinelNetTick } from './sentinelNet';
 import { salvageTick, type Wreck, wreckOf } from './salvage';
+import { advanceTrack, hasPower, perk, trackCombatPerks, trackPowerCooldown, trackPowerCost } from './doctrineTrack';
 import { applyCiwsState, ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
 import { damageDrones, emptySwarm, shieldWasps, Swarm, swarmThreats, swarmTick } from './microdrones';
 import type { GridPos, Team } from './commands';
@@ -210,7 +211,7 @@ export function stepMatch(m: HeadlessMatch): void {
   };
   m.units = m.units.map(u => advanceMover(u, MOVE_TICK_MS, env));
   // Kage's Optical Camo hides him (sim/cloak.ts; Cloaking Fields aren't modelled here).
-  m.units = applyFieldCloak(m.units, fieldCloakedIds(m.units, now, team => (team === 'blue' || team === 'red') ? m.opts.doctrine[team] : null));
+  m.units = applyFieldCloak(m.units, fieldCloakedIds(m.units, now, team => (team === 'blue' || team === 'red') ? m.opts.doctrine[team] : null, team => (team === 'blue' || team === 'red') ? perk.darkAfterMs(m.economy[team]) : null));
 
   // Combat.
   const reloaded = <T extends { id: string; lastAttackTime?: number }>(x: T): T => {
@@ -222,7 +223,7 @@ export function stepMatch(m: HeadlessMatch): void {
   m.units = markScreened(m.units, m.smoke, now);
   // City buildings and enemy walls stop direct fire (sim/cover.ts).
   const cover = coverMap(m.buildings, m.structures, m.landmarkTiles);
-  const attacks = resolveAttacks(m.units.map(reloaded), m.structures.map(reloaded) as never, now, () => false, undefined, cover);
+  const attacks = resolveAttacks(m.units.map(reloaded), m.structures.map(reloaded) as never, now, () => false, undefined, cover, trackCombatPerks(team => m.economy[team]));
   attacks.fired.forEach((_, id) => m.lastShot.set(id, now));
   m.structures = applyStructureCombat(m.structures, attacks, now);
   // Artillery: new shells go up, and the ones whose flight is over come down.
@@ -318,7 +319,7 @@ export function stepMatch(m: HeadlessMatch): void {
   // Capture.
   m.buildings = captureTick(m.buildings, m.units);
   // Netrunner's Sentinel Net: the code, hacking neutral guards, defenders (sim/sentinelNet.ts).
-  const net = sentinelNetTick(m.sentinelNet, m.units, m.buildings, team => m.opts.doctrine[team], team => !!m.economy[team].sentinelCode, now, MOVE_TICK_MS, () => `sn-${++m.nextId}`);
+  const net = sentinelNetTick(m.sentinelNet, m.units, m.buildings, team => m.opts.doctrine[team], team => !!m.economy[team].sentinelCode, now, MOVE_TICK_MS, () => `sn-${++m.nextId}`, { hackMsOf: t => perk.hackMs(m.economy[t]), defenderAfterOf: t => perk.defenderAfterMs(m.economy[t]) });
   m.units = net.units;
   m.sentinelNet = net.net;
   for (const team of net.cracked) m.economy = { ...m.economy, [team]: { ...m.economy[team], sentinelCode: true } };
@@ -357,7 +358,7 @@ export function stepMatch(m: HeadlessMatch): void {
   // A Battery Mule reaches further once its side has its last upgrade (sim/energy.ts).
   const muleRangeOf = (mule: UnitData) => muleRange(mule.team === 'blue' || mule.team === 'red' ? m.economy[mule.team] : undefined);
   const power = chargeSources(m.units, muleRangeOf);
-  const repair = repairTick(m.units, MOVE_TICK_MS, bases, team => (team === 'blue' || team === 'red') ? m.opts.doctrine[team] : null, team => m.economy[team].tier, now);
+  const repair = repairTick(m.units, MOVE_TICK_MS, bases, team => (team === 'blue' || team === 'red') ? m.opts.doctrine[team] : null, team => m.economy[team].tier, now, team => perk.welders(m.economy[team]));
   const helios = m.units.filter(u => u.type === 'helios');
   // Helios in Microwave mode cook the enemies around them (sim/helios.ts).
   const microwave = microwaveDamage(m.units, MOVE_TICK_MS);
@@ -400,7 +401,7 @@ export function stepMatch(m: HeadlessMatch): void {
   }
   m.units = m.units.filter(u => u.health > 0);
   if (m.wrecks.length > 0) {
-    const salvage = salvageTick(m.wrecks, m.units, team => m.opts.doctrine[team], now, MOVE_TICK_MS);
+    const salvage = salvageTick(m.wrecks, m.units, team => m.opts.doctrine[team], now, MOVE_TICK_MS, team => perk.salvageMultiplier(m.economy[team]));
     m.wrecks = salvage.wrecks;
     for (const p of salvage.payouts) m.economy = { ...m.economy, [p.team]: { ...m.economy[p.team], cores: m.economy[p.team].cores + p.cores, lifetimeIncome: m.economy[p.team].lifetimeIncome + p.cores } };
     if (salvage.repairs.size > 0) m.units = m.units.map(u => { const hp = salvage.repairs.get(u.id); return hp ? { ...u, health: Math.min(u.maxHealth, u.health + hp) } : u; });
@@ -408,7 +409,7 @@ export function stepMatch(m: HeadlessMatch): void {
 
   // Once a second: income and victory.
   if (now % 1000 === 0) {
-    m.economy = payIncome(m.economy, m.buildings, m.opts.income ?? {}, m.structures);
+    m.economy = advanceTrack(payIncome(m.economy, m.buildings, m.opts.income ?? {}, m.structures), m.buildings, 1000);
     // Tier research under way (sim/economy.ts).
     m.economy = advanceTierResearch(m.economy, m.structures, 1000).economy;
     const victory = checkVictory(m.structures);
@@ -469,11 +470,11 @@ function think(m: HeadlessMatch, team: Team, paths: ReturnType<typeof pathfinder
     } else if (action.kind === 'doctrine') {
       // Only Orbital Drop is modelled here: a Titan lands at the target.
       const doctrine = m.opts.doctrine[team];
-      if (doctrine !== 'heavy_metal' || action.tier !== 2) continue;
-      const cfg = DOCTRINE_CONFIG[doctrine];
-      if (readyAt.tier2 > m.now || m.economy[team].cores < cfg.tier2_cost) continue;
-      m.economy = { ...m.economy, [team]: { ...m.economy[team], cores: m.economy[team].cores - cfg.tier2_cost } };
-      readyAt.tier2 = m.now + cfg.tier2_cooldown;
+      if (doctrine !== 'heavy_metal' || action.tier !== 2 || !hasPower(m.economy[team], doctrine, 'tier2')) continue;
+      const cost = trackPowerCost(m.economy[team], doctrine, 'tier2');
+      if (readyAt.tier2 > m.now || m.economy[team].cores < cost) continue;
+      m.economy = { ...m.economy, [team]: { ...m.economy[team], cores: m.economy[team].cores - cost } };
+      readyAt.tier2 = m.now + trackPowerCooldown(m.economy[team], doctrine, 'tier2');
       const titan = createUnit('titan_dropped', team, `drop-${++m.nextId}`, action.target);
       m.units.push(titan);
       m.log.push(`${Math.round(m.now / 1000)}s ${team} orbital drop`);

@@ -45,8 +45,8 @@ export const isHidden = (u: Pick<UnitData, 'decoyActive' | 'fieldCloaked'>) => !
 // same cloak whenever they hold still and haven't fought for CLOAK_FIELD.revealMs. Moving, firing
 // or being hit shows them. A Shadow Ops army waiting in position can't be seen, and its first shots
 // from the dark are an ambush (AMBUSH_DARK, sim/combat.ts).
-export const goesDark = (u: UnitData, now: number) =>
-  u.health > 0 && u.path.length === 0 && !revealedByCombat(u, now)
+export const goesDark = (u: UnitData, now: number, afterMs = CLOAK_FIELD.revealMs) =>
+  u.health > 0 && u.path.length === 0 && now - Math.max(u.lastAttackTime ?? -Infinity, u.lastDamageTime ?? -Infinity, u.ciwsLastFiredAt || -Infinity, u.railgunFiredAt ?? -Infinity) >= afterMs
   && (UNIT_RULES[u.type].armor === 'infantry' || UNIT_RULES[u.type].armor === 'light')
   && u.type !== 'courier' && u.type !== 'defense_drone';
 // A strike from any cloak but Kage's own (which doubles, sim/unitAbilities.ts) does this much more.
@@ -56,11 +56,16 @@ export const AMBUSH_DARK = 1.5;
 // haven't given themselves away, the generator among them. Kage's Optical Camo (sim/shadowHero.ts)
 // cloaks him the same way, field or not, until it runs out or he strikes. And Shadow Ops' units
 // gone dark (goesDark).
-export function fieldCloakedIds(units: readonly UnitData[], now: number, doctrineOf: (team: UnitData['team']) => DoctrineType | null | undefined = () => null): Set<string> {
+export function fieldCloakedIds(
+  units: readonly UnitData[], now: number,
+  doctrineOf: (team: UnitData['team']) => DoctrineType | null | undefined = () => null,
+  // Shadow Ops' Quick Fade (sim/doctrineTrack.ts): how soon after a fight its units go dark.
+  darkAfterOf: (team: UnitData['team']) => number | null = () => null,
+): Set<string> {
   const fields = units.filter(isCloakFieldUp);
   const cloaked = new Set<string>();
   for (const u of units) if (u.health > 0 && hasBuff(u, 'shadow_cloak')) cloaked.add(u.id);
-  for (const u of units) if (u.team !== 'neutral' && doctrineOf(u.team) === 'shadow_ops' && goesDark(u, now)) cloaked.add(u.id);
+  for (const u of units) if (u.team !== 'neutral' && doctrineOf(u.team) === 'shadow_ops' && goesDark(u, now, darkAfterOf(u.team) ?? CLOAK_FIELD.revealMs)) cloaked.add(u.id);
   if (fields.length === 0) return cloaked;
   for (const u of units) {
     // The generator hides inside its own field too.

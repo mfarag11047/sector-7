@@ -34,7 +34,7 @@ The intended arc:
 - **Mid game:** taking the guarded server node in your own half starts compute flowing toward
   Tier 2. Then come fights over the four outer core nodes and the contested flank and centre
   server nodes, which speed research toward Tier 3.
-- **Late game:** Tier 3 units and doctrine powers, Bombardment Drones opening lanes through blocks,
+- **Late game:** Tier 3 units, the last ranks of the doctrine track, Bombardment Drones opening lanes through blocks,
   and the push on the HQ.
 
 ## Economy
@@ -198,8 +198,8 @@ which stay unlocked for good.
 | Tier | Research cost | Research time | Unlocks |
 |---|---|---|---|
 | T1 | Start | | Scout RC Cars (from the HQ), Troopers, Ghosts, Razorbacks, Thunderheads, Battery Mules, Drones, Guardians, Helios, Masons |
-| T2 | 120 compute | 45 s | Lancers, Titans, Aegis, Wasps, Hornets, Banshees, Field Fabricators, Swarm Hosts, T2 doctrine powers |
-| T3 | 360 compute | 60 s | Bombardment Drones, Ballistas, T3 doctrine powers |
+| T2 | 120 compute | 45 s | Lancers, Titans, Aegis, Wasps, Hornets, Banshees, Field Fabricators, Swarm Hosts |
+| T3 | 360 compute | 60 s | Bombardment Drones, Ballistas |
 
 Research from the button in your team panel or the HQ build menu. The compute is paid when you
 start; the tier unlocks when the research is done (`TIER_RESEARCH_MS` in `sim/units.ts`,
@@ -260,7 +260,7 @@ everything, so what you research commits you to the units you mean to build.
 ### Doctrine heroes
 
 Each doctrine has one unique **hero** unit, and only a side that picked that doctrine at the start
-of the match can research or train it (`sim/heroes.ts`). Netrunner's is still a placeholder: stats
+of the match can unlock or train it (`sim/heroes.ts`). Netrunner's is still a placeholder: stats
 only, no abilities, and the generic unit model with a gold halo.
 
 | Doctrine | Hero | Class | Health | Speed | Weapon |
@@ -296,8 +296,9 @@ models** below): he idles in a sword stance, runs, slashes on every cut, and fal
   the ambush. His **first strike from cloak deals double damage** and drops the cloak.
 - He turns to face what he is cutting. The computer cloaks him as enemies come within 7 tiles.
 
-- **Unlock (Tier 1):** research **Hero Unlock** at Advanced Research (300 cores + 25 compute, 25 s).
-  It gives no stat bonus; it lets the hero be trained there.
+- **Unlock:** take the hero at **rank 3 of the doctrine track** (8:00 at the earliest; see The
+  doctrine track). It gives no stat bonus; it lets the hero be trained at Advanced Research. A side
+  that takes the other rank 3 option has no hero that match.
 - **Train it at Advanced Research.** Its menu lists only your own doctrine's hero. **One hero at a
   time:** while yours is alive or in training, another can't be queued. When it falls, train another.
 - **Upgrade to Tier 3:** **Hero Mk II** (Tier 2, 250 cores + 50 compute, 30 s, needs the unlock) and
@@ -840,13 +841,40 @@ may start, and everything runs through a compressor, so a big fight stays a din 
 of noise. Audio starts on the player's first click or key press, as browsers require. The speaker
 button under the match clock mutes it, remembered between visits.
 
+### The doctrine track
+
+`sim/doctrineTrack.ts`. A doctrine grows over the match, the way a leader's powers do in a
+console RTS: a side earns **doctrine points** in the background, one every 90 s of match time,
+a quarter faster for every server node it holds (two nodes: one every 60 s), starting with one.
+The track has **four ranks**, opening at 0:00, 4:00, 8:00 and 12:00 and costing 1, 2, 3 and 4
+points. At each rank the side takes **one of two options**, for good; the other is gone. Ranks go
+in order. Holding server nodes gets a side to the top sooner; without them rank 4 comes at about
+16 minutes.
+
+| Rank | Heavy Metal | Shadow Ops | Netrunner |
+|---|---|---|---|
+| 1 | Scrap Haulers (wrecks worth double) / Field Welders (armour self-repair from the start, 10 HP/s) | Silent Running (infantry and light vehicles +20% speed) / Killing Ground (ambush ×2 instead of ×1.5) | Brute Force (hack in 3 s) / Sentinel Foundry (Sentinels 180 cores, 12 s) |
+| 2 | Orbital Drop / Bulwark Force Field | Phantom Decoys / Cloaking Field | Nano-Cloud / Black Wall Infect |
+| 3 | Goliath / Hardened Plate (vehicles take 15% less damage) | Kage / Quick Fade (go dark 2 s after a fight) | Netrunner Hero / Hardened Nodes (defenders after 45 s) |
+| 4 | Arsenal (the other power too) / Overdrive (powers at half cost and cooldown) | the same | the same |
+
+- The powers still cost cores and recharge; the track decides which a side has (no longer the
+  researched tier). Taking the hero unlocks it for training at Advanced Research; its Mk II and
+  Mk III refits are still researched there. Passing it up means no hero that match.
+- The team panel shows the side's points (◆, with a bar to the next) and a Track / Choose button
+  (pulsing when a rank can be taken) that opens the track sheet: the passive, then each rank's two
+  options, taken, passed up, open, or what they wait on. Its powers appear as buttons once taken.
+- A pick is an order (`PICK_DOCTRINE`, sim/orders.ts), checked like any other, so the computer is
+  held to the same track.
+
 ### Doctrine in the team panel
 
 A side's doctrine sits in its team panel under the corporation's name: the doctrine's name (the
-player's own opens the doctrine sheet, its passive and powers) and, for the player, its two powers
-as buttons. Each shows its cost in cores, or its cooldown in seconds, or a padlock until the tier
-it needs is researched; hovering gives the power's description and what it is waiting on. Click
-one, then the map, to use it. There is no separate doctrine panel or button any more.
+player's own opens the doctrine track), its doctrine points (◆, a bar filling to the next, and a
+Track button that reads Choose and pulses when a rank can be taken), and, for the player, the
+powers taken on the track as buttons. Each shows its cost in cores or its cooldown in seconds;
+hovering gives the power's description. Click one, then the map, to use it. Before rank 2 there
+is a line saying when the first power can be chosen.
 
 ### HUD size
 
@@ -1633,7 +1661,9 @@ same kind of economy.
      reach): parked artillery, an unescorted tank column. A strike levels city buildings and hurts
      units, but leaves structures standing, and a drone sent over a defended base is shot down, so
      they never go for the enemy base.
-7. **Powers:** Doctrine powers on Normal (T2) and Hard (T2 and T3): Orbital
+7. **Powers and the doctrine track:** it takes each rank of its doctrine track as soon as it opens
+   and it has the points, one of the two options at a coin's toss (leaning 60/40 to its hero at
+   rank 3). It uses the powers it chose: none on Easy, one on Normal, both on Hard: Orbital
    Drop into a fight, a Force Field over its army in a big fight, Decoys on an attack, EMP in a big fight, a Nano Cloud
    over a retreat, a Black Wall Infect bomb on a big enemy cluster.
 

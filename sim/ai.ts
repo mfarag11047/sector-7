@@ -37,6 +37,7 @@ import { freePadsFor } from './baseLayout';
 import { abilityUnlocked, artilleryTierOf, researchBlocker, UPGRADES, type UpgradeId } from './upgrades';
 import { REFINERY, upgradeBlocker } from './refinery';
 import { heroBlocker, heroOf, isHeroType } from './heroes';
+import { nextOpenRank, powersOf, TRACK, trackPowerCost } from './doctrineTrack';
 import { baseMoves, ESCORTS, SCOUT_REPLACE_MS, specialistAbilities, specialistMoves, specialistPick, SPECIALIST_MOVERS } from './aiSpecialists';
 import { freshStrategyMemory, lossTypeMix, STRATEGY_PLANS, StrategyMemory, updateStrategy } from './aiStrategy';
 import { blendMix, EnemyMix, matchup, typeMix } from './counters';
@@ -605,8 +606,17 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   });
   actions.push(...base.actions);
   cores -= base.spent;
-  const power = ctx.doctrine ? doctrineMove(ctx.doctrine, profile, tier, cores, ctx.doctrineCooldowns, mode, objective, armyUnits, theirs) : null;
+  const power = ctx.doctrine ? doctrineMove(ctx.doctrine, profile, view.economy[team], cores, ctx.doctrineCooldowns, mode, objective, armyUnits, theirs) : null;
   if (power) actions.push(power);
+
+  // The doctrine track (sim/doctrineTrack.ts): it takes each rank as soon as it opens and it has
+  // the points, picking one of the two options at a coin's toss, leaning to its hero.
+  const rank = nextOpenRank(view.economy[team], ctx.doctrine);
+  if (rank && ctx.doctrine) {
+    const [a, b] = TRACK[ctx.doctrine][rank - 1];
+    const option = rank === 3 ? (ctx.random() < 0.6 ? a : b) : (ctx.random() < 0.5 ? a : b);
+    actions.push({ kind: 'order', command: { type: 'PICK_DOCTRINE', rank, option: option.id } });
+  }
 
   return { actions, memory: mem };
 }
@@ -849,7 +859,7 @@ function findBuildSpot(view: AiView, team: Team, ctx: AiContext, type: Structure
 }
 
 function doctrineMove(
-  doctrine: DoctrineType, profile: AiProfile, tier: Tier, cores: number, cooldowns: { tier2: number; tier3: number },
+  doctrine: DoctrineType, profile: AiProfile, economy: TeamEconomy, cores: number, cooldowns: { tier2: number; tier3: number },
   mode: AiMemory['mode'], objective: GridPos, army: readonly UnitData[], enemies: readonly UnitData[],
 ): AiAction | null {
   const config = DOCTRINE_CONFIG[doctrine];
@@ -858,9 +868,11 @@ function doctrineMove(
   const cluster = densestCluster(enemies, 3);
   const engaged = enemies.filter(e => dist(e.gridPos, front) <= 7).reduce((s, u) => s + valueOf(u), 0);
 
-  for (const t of [...profile.doctrineTiers].sort((a, b) => b - a) as (2 | 3)[]) {
-    if (tier < t) continue;
-    const cost = t === 2 ? config.tier2_cost : config.tier3_cost;
+  // The powers it chose on its doctrine track, as many as its difficulty uses (Easy none, Normal
+  // one, Hard both), the bigger first.
+  const usable = powersOf(economy, doctrine).slice(0, profile.doctrineTiers.length).map(k => (k === 'tier2' ? 2 : 3) as 2 | 3);
+  for (const t of usable.sort((a, b) => b - a)) {
+    const cost = trackPowerCost(economy, doctrine, t === 2 ? 'tier2' : 'tier3');
     const wait = t === 2 ? cooldowns.tier2 : cooldowns.tier3;
     // Keep a little in the bank for units.
     if (wait > 0 || cores < cost + 200) continue;

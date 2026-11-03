@@ -11,6 +11,7 @@ import { COMPUTE_PER_SERVER_NODE, HQ_COMPUTE, popCap, popUsed, Tier, TIER_RESEAR
 import { gridTiles } from './energy';
 import { refineryIncome, type RefineryIncome } from './refinery';
 import type { UpgradeId } from './upgrades';
+import { freshTrack, POINT_EVERY_MS, pointRate, type TeamTrack } from './doctrineTrack';
 
 export const STARTING_CORES = 2500;
 // Income is paid once per economy tick.
@@ -35,13 +36,15 @@ export interface TeamEconomy {
   upgrades: UpgradeId[];
   // Netrunner: has held a server node, cracking the Sentinels' code (sim/sentinelNet.ts).
   sentinelCode?: boolean;
+  // The doctrine track: points and picks (sim/doctrineTrack.ts).
+  track?: TeamTrack;
 }
 
 export type Economy = Record<Team, TeamEconomy>;
 
 export const TEAMS: readonly Team[] = ['blue', 'red'];
 
-const freshTeam = (cores: number): TeamEconomy => ({ cores, lifetimeIncome: 0, stockpile: { emp: 0, he: 0, wp: 0 }, compute: 0, lifetimeCompute: 0, tier: 1, upgrades: [] });
+const freshTeam = (cores: number): TeamEconomy => ({ cores, lifetimeIncome: 0, stockpile: { emp: 0, he: 0, wp: 0 }, compute: 0, lifetimeCompute: 0, tier: 1, upgrades: [], track: freshTrack() });
 
 export const createEconomy = (startingCores = STARTING_CORES): Economy => ({
   blue: freshTeam(startingCores),
@@ -245,8 +248,15 @@ export function teamStats(
     units: units.filter(u => u.team === team && u.health > 0).length,
     buildings: owned,
     stockpile: { ...economy[team].stockpile },
-    // The selected doctrine and its cooldowns live in App; only the tier comes from here.
-    // Doctrine powers unlock with the researched tech tier.
-    doctrine: { selected: null, unlockedTiers: economy[team].tier, cooldowns: { tier2: 0, tier3: 0 } },
+    // The selected doctrine and its cooldowns live in App; the track comes from here (its powers
+    // and their costs are filled in by CityMap, which knows the doctrine).
+    doctrine: { selected: null, unlockedTiers: economy[team].tier, cooldowns: { tier2: 0, tier3: 0 }, track: trackView(economy[team], buildings, team) },
   };
+}
+
+// The doctrine track for the HUD (types.ts DoctrineState.track); powers filled in by the caller.
+function trackView(e: TeamEconomy, buildings: readonly BuildingData[], team: Team) {
+  const t = e.track ?? freshTrack();
+  const servers = buildings.filter(b => b.type === 'server_node' && !b.destroyed && b.owner === team).length;
+  return { points: t.points, nextPoint: t.progressMs / POINT_EVERY_MS, pointRate: pointRate(servers), elapsedMs: t.elapsedMs, picks: [...t.picks], powers: [] as ('tier2' | 'tier3')[], powerCosts: { tier2: 0, tier3: 0 } };
 }

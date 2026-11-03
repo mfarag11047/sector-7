@@ -154,6 +154,9 @@ export function resolveAttacks(
   inNanoCloud: (pos: GridPos) => boolean,
   shieldOf: (team: UnitData['team'], from: GridPos, to: GridPos) => ShieldBlock | null = () => null,
   cover: CoverMap | null = null,
+  // Doctrine track edges (sim/doctrineTrack.ts): damage a unit takes (Hardened Plate), and a side's
+  // ambush from the dark (Killing Ground).
+  perks: { damageTaken?: (u: UnitData) => number; ambushOf?: (team: UnitData['team']) => number | null } = {},
 ): AttackResult {
   const result: AttackResult = { unitDamage: new Map(), structureDamage: new Map(), buildingDamage: new Map(), shieldDamage: new Map(), fired: new Map(), aiming: new Map(), shots: [] };
   const blocked = (team: UnitData['team'], from: GridPos, to: GridPos) => shieldOf(team, from, to) !== null;
@@ -202,7 +205,7 @@ export function resolveAttacks(
   };
 
   // Nano-Weave and the like reduce what a unit takes.
-  const takenBy = new Map(unitTargets.map(t => [t.id, damageTakenMultiplier(t)]));
+  const takenBy = new Map(unitTargets.map(t => [t.id, damageTakenMultiplier(t) * (perks.damageTaken?.(t) ?? 1)]));
   const hitUnit = (id: string, damage: number) => addDamage(result.unitDamage, id, damage * (takenBy.get(id) ?? 1));
   // Aircraft do half damage to a unit in a Smoke Screen.
   const screenedIds = new Set(unitTargets.filter(isScreened).map(t => t.id));
@@ -249,7 +252,7 @@ export function resolveAttacks(
     // Ability buffs (sim/unitAbilities.ts): range, damage and, for Flak Barrage, air splash.
     // Firing from a cloak (Going Dark, a Cloaking Field) is an ambush (sim/cloak.ts); Kage's own
     // camo has its double in damageMultiplier.
-    const ambush = u.fieldCloaked && !hasBuff(u, 'shadow_cloak') ? AMBUSH_DARK : 1;
+    const ambush = u.fieldCloaked && !hasBuff(u, 'shadow_cloak') ? perks.ambushOf?.(u.team) ?? AMBUSH_DARK : 1;
     const weapon: Weapon = u.buffs?.length || ambush > 1 ? {
       ...base,
       range: base.range + rangeBonus(u),

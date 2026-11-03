@@ -16,6 +16,7 @@ import type { Notice } from '../App';
 import { dampenedUnits } from '../sim/ghost';
 import { FACTION_GLOW, FACTION_TEXT, inkOn, teamName } from './factions';
 import { CommsCall } from './CommsCall';
+import { RANK_COST, RANK_OPENS_MS, TRACK } from '../sim/doctrineTrack';
 
 const EditableStat: React.FC<{
   value: number;
@@ -168,7 +169,7 @@ const TeamPanel: React.FC<{
       {/* The side's doctrine, and for the player its powers. */}
       <DoctrineBar
         type={stats.doctrine?.selected ?? null}
-        tier={stats.tier ?? 1}
+        track={stats.doctrine?.track}
         resources={stats.resources}
         cooldowns={stats.doctrine?.cooldowns}
         onTrigger={isVisible ? onDoctrine : undefined}
@@ -199,7 +200,7 @@ const TeamPanel: React.FC<{
           <button
             disabled={!ready}
             onClick={(e) => { e.stopPropagation(); onResearch(next); }}
-            title={next === 2 ? 'Tier 2: Ghosts, Lancers, Titans, Aegis, Wasps, Hornets, Banshees, Field Fabricators and T2 doctrine powers' : 'Tier 3: Bombardment Drones, Ballistas and T3 doctrine powers'}
+            title={next === 2 ? 'Tier 2: Ghosts, Lancers, Titans, Aegis, Wasps, Hornets, Banshees and Field Fabricators' : 'Tier 3: Bombardment Drones and Ballistas'}
             className={`relative z-10 w-full flex items-center justify-between px-2 py-1 rounded border font-mono text-[11px] pointer-events-auto transition-colors ${ready ? 'border-blue-300 bg-blue-500/20 text-white hover:bg-blue-500/40 animate-pulse' : 'border-slate-700 text-slate-400 cursor-not-allowed'}`}
           >
             <span>RESEARCH TIER {next}</span>
@@ -409,15 +410,28 @@ const DOCTRINE_THEME: Record<DoctrineType, { border: string; text: string; bg: s
     netrunner: { border: 'border-cyan-300/70', text: 'text-cyan-200', bg: 'bg-cyan-500/10' },
 };
 
+type TrackView = NonNullable<DoctrineState['track']>;
+const mmss = (ms: number) => `${Math.floor(ms / 60_000)}:${String(Math.floor((ms % 60_000) / 1000)).padStart(2, '0')}`;
+
+// The next rank: whether it can be chosen now, or what it waits on.
+function nextRankState(type: DoctrineType, track: TrackView) {
+    const rank = track.picks.length + 1;
+    if (rank > TRACK[type].length) return { rank: null as number | null, ready: false, wait: 'track complete' };
+    const opensAt = RANK_OPENS_MS[rank - 1], cost = RANK_COST[rank - 1];
+    if (track.elapsedMs < opensAt) return { rank, ready: false, wait: `rank ${rank} opens ${mmss(opensAt)}` };
+    if (track.points < cost) return { rank, ready: false, wait: `rank ${rank}: ${track.points}/${cost} pts` };
+    return { rank, ready: true, wait: `rank ${rank} ready` };
+}
+
 const DoctrineBar: React.FC<{
     type: DoctrineType | null;
-    tier: number;
+    track?: TrackView;
     resources: number;
     cooldowns?: { tier2: number; tier3: number };
     // The player's own side: the powers can be used. Otherwise only the name shows.
     onTrigger?: (type: string, tier: 2 | 3, cost: number) => void;
     onDetails?: () => void;
-}> = ({ type, tier, resources, cooldowns, onTrigger, onDetails }) => {
+}> = ({ type, track, resources, cooldowns, onTrigger, onDetails }) => {
     if (!type) {
         return onDetails ? (
             <button
@@ -430,46 +444,117 @@ const DoctrineBar: React.FC<{
     }
     const config = DOCTRINE_CONFIG[type];
     const theme = DOCTRINE_THEME[type];
-    const power = (t: 2 | 3) => {
+    const powers = track?.powers ?? [];
+    const power = (key: 'tier2' | 'tier3') => {
+        const t = key === 'tier2' ? 2 : 3;
         const name = t === 2 ? config.tier2_name : config.tier3_name;
-        const cost = t === 2 ? config.tier2_cost : config.tier3_cost;
+        const cost = track?.powerCosts[key] ?? (t === 2 ? config.tier2_cost : config.tier3_cost);
         const desc = t === 2 ? config.tier2_desc : config.tier3_desc;
-        const wait = Math.ceil(((t === 2 ? cooldowns?.tier2 : cooldowns?.tier3) || 0) / 1000);
-        const unlocked = tier >= t;
+        const wait = Math.ceil((cooldowns?.[key] || 0) / 1000);
         const affordable = resources >= cost;
-        const ready = unlocked && affordable && wait === 0;
-        const status = wait > 0 ? `${wait}s` : `${cost}`;
+        const ready = affordable && wait === 0;
         return (
             <button
-                key={t}
+                key={key}
                 disabled={!ready}
                 onClick={(e) => { e.stopPropagation(); onTrigger?.(`${type}_tier${t}`, t, cost); }}
-                title={`${name}: ${desc}\n${!unlocked ? `Needs Tier ${t}.` : wait > 0 ? `Ready in ${wait}s.` : `${cost} cores${affordable ? '' : ` (you have ${Math.floor(resources)})`}.`}`}
+                title={`${name}: ${desc}\n${wait > 0 ? `Ready in ${wait}s.` : `${cost} cores${affordable ? '' : ` (you have ${Math.floor(resources)})`}.`}`}
                 className={`flex-1 min-w-0 flex items-center justify-between gap-2 px-2 py-1 rounded border font-mono text-[11px] pointer-events-auto transition-colors ${
-                    ready ? `${theme.border} ${theme.bg} text-white hover:bg-white/15 cursor-pointer`
-                    : unlocked ? 'border-slate-700 text-slate-400 cursor-not-allowed'
-                    : 'border-slate-800 text-slate-600 cursor-not-allowed'
+                    ready ? `${theme.border} ${theme.bg} text-white hover:bg-white/15 cursor-pointer` : 'border-slate-700 text-slate-400 cursor-not-allowed'
                 }`}
             >
-                <span className="truncate"><span className="opacity-60">T{t}</span> {name.toUpperCase()}</span>
-                <span className={`shrink-0 ${unlocked && wait === 0 && !affordable ? 'text-red-400' : ready ? 'hud-glow-amber' : ''}`}>
-                    {unlocked ? status : '🔒'}
-                </span>
+                <span className="truncate">{name.toUpperCase()}</span>
+                <span className={`shrink-0 ${wait === 0 && !affordable ? 'text-red-400' : ready ? 'hud-glow-amber' : ''}`}>{wait > 0 ? `${wait}s` : cost}</span>
             </button>
         );
     };
+    const next = track ? nextRankState(type, track) : null;
     return (
         <div className="relative z-10 flex flex-col gap-1">
-            <button
-                onClick={(e) => { e.stopPropagation(); onDetails?.(); }}
-                disabled={!onDetails}
-                title={`Doctrine: ${config.label}. Passive: ${config.tier1_passive}`}
-                className={`self-start flex items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-widest ${theme.text} ${onDetails ? 'hover:text-white pointer-events-auto' : ''}`}
-            >
-                <DoctrineIcon type={type} className="text-sm" />
-                {config.label} doctrine
-            </button>
-            {onTrigger && <div className="flex gap-1.5">{power(2)}{power(3)}</div>}
+            <div className="flex items-center justify-between gap-2">
+                <button
+                    onClick={(e) => { e.stopPropagation(); onDetails?.(); }}
+                    disabled={!onDetails}
+                    title={`Doctrine: ${config.label}. Passive: ${config.tier1_passive}`}
+                    className={`flex items-center gap-1.5 font-mono text-[11px] font-bold uppercase tracking-widest ${theme.text} ${onDetails ? 'hover:text-white pointer-events-auto' : ''}`}
+                >
+                    <DoctrineIcon type={type} className="text-sm" />
+                    {config.label} doctrine
+                </button>
+                {/* Doctrine points and the next one coming; the track opens from here. */}
+                {track && onTrigger && next && (
+                    <button
+                        onClick={(e) => { e.stopPropagation(); onDetails?.(); }}
+                        title={`Doctrine points: ${track.points}. The next in ${Math.ceil((1 - track.nextPoint) * 90 / track.pointRate)}s${track.pointRate > 1 ? ` (×${track.pointRate.toFixed(2).replace(/0$/, '')} from your server nodes)` : ''}. ${next.wait}.`}
+                        className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded border font-mono text-[10px] uppercase pointer-events-auto ${next.ready ? `${theme.border} ${theme.bg} text-white animate-pulse` : 'border-slate-700 text-slate-300 hover:text-white'}`}
+                    >
+                        <span className={theme.text}>◆{track.points}</span>
+                        <span className="w-8 h-1 bg-slate-800 rounded-sm overflow-hidden"><span className={`block h-1 ${theme.bg.replace('/10', '/80')}`} style={{ width: `${Math.round(track.nextPoint * 100)}%` }} /></span>
+                        <span>{next.ready ? 'Choose' : 'Track'}</span>
+                    </button>
+                )}
+            </div>
+            {onTrigger && (powers.length > 0
+                ? <div className="flex gap-1.5">{powers.map(power)}</div>
+                : <div className="text-[10px] font-mono text-slate-500 px-0.5">Your first power is chosen at rank 2 of the track ({mmss(RANK_OPENS_MS[1])}).</div>)}
+        </div>
+    );
+};
+
+// The doctrine track (sim/doctrineTrack.ts): the passive, then four ranks of two options each.
+// A rank opens at its time and costs its points; taking one option closes the other for good.
+const TrackSheet: React.FC<{ type: DoctrineType; track: TrackView; onPick?: (rank: 1 | 2 | 3 | 4, option: string) => void }> = ({ type, track, onPick }) => {
+    const config = DOCTRINE_CONFIG[type];
+    const theme = DOCTRINE_THEME[type];
+    const next = nextRankState(type, track);
+    return (
+        <div className="relative flex flex-col gap-3">
+            <div className={`p-3 rounded border ${theme.border} bg-black/30`}>
+                <div className={`text-[10px] uppercase font-bold mb-1 ${theme.text}`}>Passive · always on</div>
+                <p className="text-xs leading-relaxed text-slate-200">{config.tier1_passive}</p>
+            </div>
+            <div className="flex items-center justify-between font-mono text-[11px] text-slate-300 px-1">
+                <span><span className={theme.text}>◆ {track.points}</span> doctrine point{track.points === 1 ? '' : 's'} · one every {Math.round(90 / track.pointRate)}s{track.pointRate > 1 ? ' (server nodes speed it up)' : ' (hold server nodes to speed it up)'}</span>
+                <span>Match {mmss(track.elapsedMs)}</span>
+            </div>
+            {TRACK[type].map((options, i) => {
+                const rank = (i + 1) as 1 | 2 | 3 | 4;
+                const taken = track.picks[i];
+                const isNext = next.rank === rank;
+                const label = taken ? 'Chosen' : isNext ? (next.ready ? 'Choose one' : next.wait) : track.picks.length < i ? `Opens ${mmss(RANK_OPENS_MS[i])} · ${RANK_COST[i]} pts` : '';
+                return (
+                    <div key={rank} className="flex gap-3 items-stretch">
+                        <div className="w-24 shrink-0 flex flex-col justify-center font-mono">
+                            <span className={`text-xs font-bold uppercase ${theme.text}`}>Rank {rank}</span>
+                            <span className="text-[10px] text-slate-400">{mmss(RANK_OPENS_MS[i])} · {RANK_COST[i]} pt{RANK_COST[i] === 1 ? '' : 's'}</span>
+                            <span className="text-[10px] text-slate-500 leading-tight mt-0.5">{label}</span>
+                        </div>
+                        {options.map(o => {
+                            const mine = taken === o.id, passed = !!taken && !mine;
+                            const can = !taken && isNext && next.ready && !!onPick;
+                            return (
+                                <button
+                                    key={o.id}
+                                    disabled={!can}
+                                    onClick={() => can && onPick!(rank, o.id)}
+                                    className={`flex-1 text-left p-2.5 rounded border transition-colors ${
+                                        mine ? `${theme.border} ${theme.bg} text-white`
+                                        : passed ? 'border-slate-800 text-slate-600 line-through decoration-slate-600'
+                                        : can ? `border-white/30 hover:${theme.border} hover:bg-white/10 text-slate-100 cursor-pointer`
+                                        : 'border-slate-800 text-slate-400 cursor-not-allowed'
+                                    }`}
+                                >
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="text-xs font-bold font-mono uppercase">{o.name}</span>
+                                        <span className="text-[9px] font-mono uppercase opacity-70">{o.power ? 'Power' : o.hero ? 'Hero' : 'Edge'}{mine ? ' ✓' : ''}</span>
+                                    </div>
+                                    <p className="text-[11px] leading-snug mt-1 opacity-90 no-underline">{o.description}</p>
+                                </button>
+                            );
+                        })}
+                    </div>
+                );
+            })}
         </div>
     );
 };
@@ -561,6 +646,8 @@ interface UIOverlayProps {
     cameraStateRef?: React.MutableRefObject<{ x: number, y: number, z: number, yaw: number }>;
     onSelectDoctrine: (team: 'blue' | 'red', doctrine: DoctrineType) => void;
     onTriggerDoctrine?: (team: 'blue' | 'red', type: string, tier: 2 | 3, cost: number) => void;
+    // An option on the doctrine track (sim/doctrineTrack.ts).
+    onPickDoctrine?: (rank: 1 | 2 | 3 | 4, option: string) => void;
     interactionMode?: 'select' | 'target';
     match?: MatchConfig | null;
     matchInfo?: MatchInfo | null;
@@ -588,7 +675,7 @@ const clockText = (ms: number) => {
   return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 };
 
-const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef, onSelectDoctrine, onTriggerDoctrine, interactionMode, match, matchInfo, notices = [], onResearch, armyState, armyControlsRef, onPacing }) => {
+const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, setPlayerTeam, cameraStateRef, onSelectDoctrine, onTriggerDoctrine, onPickDoctrine, interactionMode, match, matchInfo, notices = [], onResearch, armyState, armyControlsRef, onPacing }) => {
   const sandbox = match?.mode === 'sandbox';
   // AI vs AI: the viewer sees the whole map.
   const spectate = match?.mode === 'spectate';
@@ -778,9 +865,9 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
             <div className="relative flex justify-between items-center mb-8 border-b border-slate-600/60 pb-4">
                 <div>
                     <h2 className="text-3xl font-bold text-white font-mono tracking-widest uppercase mb-1">
-                        Faction Doctrine
+                        {activeDoctrine ? `${DOCTRINE_CONFIG[activeDoctrine].label} Doctrine` : 'Faction Doctrine'}
                     </h2>
-                    <p className="text-slate-400 text-sm">{activeDoctrine ? 'Your doctrine: its passive, and the two powers in your team panel.' : 'Select a strategic specialization. Protocols are permanent once initialized.'}</p>
+                    <p className="text-slate-400 text-sm">{activeDoctrine ? 'Doctrine points come with time, faster while you hold server nodes. At each rank take one of two options, for good; your powers appear in your team panel.' : 'Select a strategic specialization. Protocols are permanent once initialized.'}</p>
                 </div>
                 <button 
                     onClick={() => setIsDoctrineOpen(false)}
@@ -790,6 +877,9 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                 </button>
             </div>
 
+            {activeDoctrine && activeStats.doctrine?.track ? (
+              <TrackSheet type={activeDoctrine} track={activeStats.doctrine.track} onPick={spectate ? undefined : onPickDoctrine} />
+            ) : (
             <div className="relative grid grid-cols-1 md:grid-cols-3 gap-6">
                 {(Object.keys(DOCTRINE_CONFIG) as DoctrineType[]).map((key) => (
                     <DoctrineCard 
@@ -807,6 +897,7 @@ const UIOverlay: React.FC<UIOverlayProps> = ({ stats, minimapData, playerTeam, s
                     />
                 ))}
             </div>
+            )}
           </div>
         </div>
       )}

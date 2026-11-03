@@ -67,6 +67,8 @@ export function salvageTick(
   doctrineOf: (team: Team) => DoctrineType | null | undefined,
   now: number,
   dtMs: number,
+  // Heavy Metal's Scrap Haulers (sim/doctrineTrack.ts): what a wreck is worth to the side, times this.
+  valueMultiplier: (team: Team) => number = () => 1,
 ): SalvageTick {
   const payouts: SalvageTick['payouts'] = [];
   const repairs = new Map<string, number>();
@@ -80,7 +82,7 @@ export function salvageTick(
     if (team && doctrineOf(team) === 'heavy_metal') {
       const ms = (w.progress?.team === team ? w.progress.ms : 0) + dtMs;
       if (ms >= SALVAGE.ms) {
-        payouts.push({ team, cores: w.value, wreckId: w.id, at: w.at });
+        payouts.push({ team, cores: Math.round(w.value * valueMultiplier(team)), wreckId: w.id, at: w.at });
         for (const u of at) {
           const armor = UNIT_RULES[u.type].armor;
           if (u.team === team && (armor === 'light' || armor === 'heavy')) repairs.set(u.id, u.maxHealth * SALVAGE.repair);

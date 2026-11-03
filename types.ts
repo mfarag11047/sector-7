@@ -116,7 +116,7 @@ export interface UnitData {
   // the node's id. Posted Sentinels take no population (sim/sentinelNet.ts).
   sentinelPost?: string;
   // A neutral Sentinel being hacked by a Netrunner side, and whether the hack is going on now.
-  hackProgress?: { team: 'blue' | 'red'; ms: number; active: boolean };
+  hackProgress?: { team: 'blue' | 'red'; ms: number; active: boolean; of?: number };
   stunDuration?: number;
   isStealthed?: boolean;
   activeBuffs?: ('speed' | 'damage' | 'regen')[];
@@ -297,6 +297,17 @@ export interface DoctrineState {
   cooldowns: {
     tier2: number;
     tier3: number;
+  };
+  // The doctrine track (sim/doctrineTrack.ts): points, progress to the next (0..1), match time,
+  // the options taken, and the powers they give with what each costs.
+  track?: {
+    points: number;
+    nextPoint: number;
+    pointRate: number;
+    elapsedMs: number;
+    picks: string[];
+    powers: ('tier2' | 'tier3')[];
+    powerCosts: { tier2: number; tier3: number };
   };
 }
 

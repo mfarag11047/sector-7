@@ -23,7 +23,7 @@ const CORE_INCOME = BUILDING_VALUES.core_node.income;
 describe('spending', () => {
   it('starts both teams with the same cores and empty stockpiles', () => {
     const e = createEconomy();
-    expect(e.blue).toEqual({ cores: STARTING_CORES, lifetimeIncome: 0, stockpile: { emp: 0, he: 0, wp: 0 }, compute: 0, lifetimeCompute: 0, tier: 1, upgrades: [] });
+    expect(e.blue).toEqual({ cores: STARTING_CORES, lifetimeIncome: 0, stockpile: { emp: 0, he: 0, wp: 0 }, compute: 0, lifetimeCompute: 0, tier: 1, upgrades: [], track: { points: 1, progressMs: 0, elapsedMs: 0, picks: [] } });
     expect(e.red).toEqual(e.blue);
   });
 

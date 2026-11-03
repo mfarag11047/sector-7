@@ -96,6 +96,7 @@ function App() {
   const [armyState, setArmyState] = useState<{ selection: SelectionSummary; armies: ArmyInfo[] }>({ selection: { types: [], focused: null, total: 0 }, armies: [] });
   const handleArmyUpdate = useCallback((selection: SelectionSummary, armies: ArmyInfo[]) => setArmyState({ selection, armies }), []);
   const handleResearch = useCallback((tier: 2 | 3) => { commandRef.current?.({ type: 'RESEARCH_TIER', tier }); }, []);
+  const handlePickDoctrine = useCallback((rank: 1 | 2 | 3 | 4, option: string) => { commandRef.current?.({ type: 'PICK_DOCTRINE', rank, option }); }, []);
   const noticeIdRef = useRef(0);
   const [stats, setStats] = useState<GameStats>(INITIAL_STATS);
   const [playerTeam, setPlayerTeam] = useState<'blue' | 'red'>(match?.playerTeam ?? 'blue');
@@ -349,6 +350,7 @@ function App() {
         matchInfo={matchInfo}
         notices={notices}
         onResearch={handleResearch}
+        onPickDoctrine={handlePickDoctrine}
         armyState={armyState}
         armyControlsRef={armyControlsRef}
         onPacing={match.mode !== 'sandbox' ? () => setShowPacing(true) : undefined}
