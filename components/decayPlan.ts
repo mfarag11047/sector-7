@@ -10,7 +10,7 @@
 //                   grime streaked down its walls
 //   redevelopment   people living in the ruins: shipping containers stacked into homes on the
 //                   roofs, lean-to shacks of sheet metal and tarps against the ground floors
-// Devastation, the fourth state, isn't laid out: it's what the fighting leaves (ruins.ts).
+// Devastation, the fourth state, isn't laid out: it's what the fighting leaves (ruinsPlan.ts).
 //
 // The poor edge of the map decays most; midtown a little; the corporate core and downtown and
 // the bases not at all. Picked per block so a block and its twin across the map are the same.

@@ -1,4 +1,4 @@
-// The city's decay (decay.ts), drawn.
+// The city's decay (decayPlan.ts), drawn.
 //
 // On buildings (placed by FootprintBuilding.tsx):
 //   buildFrame   the bare upper floors of a building stopped mid-build: concrete columns and
@@ -18,7 +18,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { RoadTileData } from '../types';
 import { canvas } from './corpoFacades';
-import { decayProps } from './decay';
+import { decayProps } from './decayPlan';
 import type { Rect } from './eras';
 
 // --- Merging pieces by material ---

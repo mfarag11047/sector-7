@@ -1,4 +1,4 @@
-// The energy grid made visible (layout in powerGrid.ts): the streets each side's captured buildings
+// The energy grid made visible (layout in powerGridPlan.ts): the streets each side's captured buildings
 // power outside its base carry a line in its colour, as far as that power reaches and in to the
 // base's edge (none inside the base), and the streetlights are lit by whoever holds the power
 // there, brightest by their HQ, with an indicator light on top in that side's colour.
@@ -14,7 +14,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { TEAM_COLORS } from '../constants';
 import type { BuildingData, CloudData, RoadTileData } from '../types';
-import { gridRoadLines, lampStates, streetLamps, type GridLine, type Lamp, type LampSide } from './powerGrid';
+import { gridRoadLines, lampStates, streetLamps, type GridLine, type Lamp, type LampSide } from './powerGridPlan';
 
 type Team = 'blue' | 'red';
 type Pos = { x: number; z: number };

@@ -1,4 +1,4 @@
-// Ruins and craters (layout and rules in ruins.ts).
+// Ruins and craters (layout and rules in ruinsPlan.ts).
 //
 // RuinTile: what a destroyed building tile shows. Its broken wall stubs in the building's own
 // colour gone dark with soot, rubble slabs and rebar, each kind merged into one mesh, over a
@@ -14,7 +14,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { CITY_CONFIG } from '../constants';
 import type { BuildingData } from '../types';
 import { lookOf } from './midtownLooks';
-import { CRATER, ruinLayout, type Crater, type RuinPiece, type Side } from './ruins';
+import { CRATER, ruinLayout, type Crater, type RuinPiece, type Side } from './ruinsPlan';
 
 // How long the embers and smoke last after a building falls, in seconds.
 const BURN_S = 45;

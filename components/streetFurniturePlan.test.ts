@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CITY_CONFIG, TEAM_BASES } from '../constants';
 import { generateCity } from '../sim/mapgen';
 import { districtAt } from '../sim/districts';
-import { RULERS, streetFurniture } from './streetFurniture';
+import { RULERS, streetFurniture } from './streetFurniturePlan';
 
 const N = CITY_CONFIG.gridSize;
 const city = generateCity({ gridSize: N, tileSize: CITY_CONFIG.tileSize, blueBase: TEAM_BASES.blue, redBase: TEAM_BASES.red });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { addCraters, CRATER, craterOf, RUIN, ruinLayout, type Crater } from './ruins';
+import { addCraters, CRATER, craterOf, RUIN, ruinLayout, type Crater } from './ruinsPlan';
 
 describe('ruins', () => {
   it('are laid out the same every time for a tile', () => {

@@ -1,4 +1,4 @@
-// Everyday rulers on the pavements (layout in streetFurniture.ts): benches, vending machines,
+// Everyday rulers on the pavements (layout in streetFurniturePlan.ts): benches, vending machines,
 // dumpsters and bollards at the foot of the tall buildings, each kind one or two instanced
 // meshes. Scenery only: nothing here blocks movement or takes clicks.
 
@@ -7,7 +7,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { BuildingData, RoadTileData } from '../types';
 import { SCENE } from './scenePalette';
-import { type FurnitureKind, streetFurniture } from './streetFurniture';
+import { type FurnitureKind, streetFurniture } from './streetFurniturePlan';
 
 // The pavement's top.
 const PAVEMENT_Y = 0.5;

@@ -12,7 +12,7 @@
 //   pavilion   (4)  a round glass pavilion with champagne trim, a few dark trees round it
 //   pool       (4)  a rooftop pool, lit from inside, on a travertine deck with two loungers and a
 //                   parasol
-//   shanty          not an era's: where people live in the ruins (decay.ts), shipping containers
+//   shanty          not an era's: where people live in the ruins (decayPlan.ts), shipping containers
 //                   stacked into homes, a lit window, a tarp between them and a ladder up
 //
 // The colours keep to the scenery palette (scenePalette.ts): no cyan, amber, white or green.
@@ -210,7 +210,7 @@ export function buildRetrofit(kind: RoofPiece, span: number, faceZ: 1 | -1, seed
   return k.build();
 }
 
-// On a dead building (decay.ts) nothing on the roof is lit or running, but for the windows of a
+// On a dead building (decayPlan.ts) nothing on the roof is lit or running, but for the windows of a
 // shanty, where people live.
 const unlit = std('#25272b', 0.5, 0.6);
 export const RetrofitPiece: React.FC<{ kind: RoofPiece; span: number; faceZ: 1 | -1; seed: number; position: [number, number, number]; dead?: boolean }> = ({ kind, span, faceZ, seed, position, dead }) => {

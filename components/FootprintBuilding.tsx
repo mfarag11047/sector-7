@@ -19,7 +19,7 @@
 // (eras.ts): its outside corners square (era 1), rounded (era 2) or chamfered (era 3), and a
 // retrofit bolted onto its roof (Retrofits.tsx); its ground storey done up in one era and,
 // over its middle floors, corporate panel cladding or bolted-on conduit (Frontage.tsx). And the
-// state of ruin its block has fallen into (decay.ts, Decay.tsx): stopped mid-build, its upper
+// state of ruin its block has fallen into (decayPlan.ts, Decay.tsx): stopped mid-build, its upper
 // floors a bare frame with a crane left standing over it; squatted, containers stacked on its
 // roof and shacks against its ground floor; or let go, grime streaked down its walls.
 
@@ -38,7 +38,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { ARC_STEPS, CORNER_CUT, CORNER_OUT, type Corner, type CornerKey, eraStackOf, outline, type Rect, retrofitTile } from './eras';
 import { RetrofitPiece } from './Retrofits';
 import { claddingMaterial, CLADDING_REPEAT, Conduit, FRONTAGE_HEIGHT, FrontageFace } from './Frontage';
-import { type Decay, decayAt, finishedHeight, strengthOf, UNFINISHED } from './decay';
+import { type Decay, decayAt, finishedHeight, strengthOf, UNFINISHED } from './decayPlan';
 import { Frame, GRIME_REPEAT, grimeMaterial, LeanTo } from './Decay';
 import { CITY_CONFIG } from '../constants';
 import { centerpieceOf } from '../sim/centerpieces';
@@ -126,7 +126,7 @@ const neonMaterial = (color: string) => {
 
 // The brushed-steel trim along a corporate tower's setbacks.
 const steelTrim = new THREE.MeshStandardMaterial({ color: '#4a5260', metalness: 0.9, roughness: 0.3 });
-// A dead building's neon (decay.ts): the tubes still there, dark, nothing lit.
+// A dead building's neon (decayPlan.ts): the tubes still there, dark, nothing lit.
 const deadNeon = new THREE.MeshStandardMaterial({ color: '#25272b', metalness: 0.5, roughness: 0.6 });
 // Its windows: the same panes, almost all dark (squatters keep a few lit).
 const dimMaterials = new Map<string, THREE.MeshBasicMaterial>();
@@ -539,7 +539,7 @@ const FootprintSegmentView: React.FC<{
   const kind = data.type as Kind;
   const style = STYLE[kind];
   const f = data.footprint;
-  // Its block's decay (decay.ts): all its buildings show the block's primary state, some of them
+  // Its block's decay (decayPlan.ts): all its buildings show the block's primary state, some of them
   // its secondary one. The corporate towers never decay.
   const decay = useMemo(() => (data.type === 'commercial' ? null : decayAt(data.gridX, data.gridZ, CITY_CONFIG.gridSize)), [data.type, data.gridX, data.gridZ]);
   const decayed = (state: Decay) => { const k = strengthOf(decay, state); return k > 0 && tileHash(f.x, f.z, 50 + state.length) < k; };

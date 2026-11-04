@@ -1824,7 +1824,7 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   plaza (`components/DowntownDressing.tsx`): polished dark granite along the streets with a
   thin, dim indigo line inlaid at the kerb, plaza stone laid in a two-tone diamond lattice inside
   each block, and long planters with dark clipped hedges along the foot of every tower.
-- **The energy grid made visible** (`components/powerGrid.ts`, drawn by `components/PowerGrid.tsx`).
+- **The energy grid made visible** (`components/powerGridPlan.ts`, drawn by `components/PowerGrid.tsx`).
   Each side's grid shows in the city itself, so who holds what reads without the minimap:
   - **Grid lines on the streets**: every street a side's captured buildings power outside its
     base carries a line in the side's colour along the road, just off its centre line, running on
@@ -1895,7 +1895,7 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
     the towers lets the eye rest and the towers' own lights, the billboards and the objectives
     stand out.
 - **The estates** (`sim/districts.ts`; looks in `components/residentialLooks.ts`, `components/eras.ts`,
-  grounds in `components/estateGrounds.ts` drawn by `components/EstateGrounds.tsx`). Round each of
+  grounds in `components/estateGroundsPlan.ts` drawn by `components/EstateGrounds.tsx`). Round each of
   the two outer core nodes, in the corners away from the bases, the ultra-rich live behind
   synthetic nature. Before, the blocks round each of these nodes were kept empty; now they're
   villas in their grounds, real city buildings like any other (captured and destroyed tile by
@@ -1936,13 +1936,13 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   heights differ (set in map generation, so shots and missiles meet them where they're drawn),
   kept below the core's towers so the camera can still come down low over them. They're never
   layered with eras, left unfinished or squatted.
-- **Everyday rulers** (`components/streetFurniture.ts`, drawn by
+- **Everyday rulers** (`components/streetFurniturePlan.ts`, drawn by
   `components/StreetFurniture.tsx`). Things everyone knows the size of, set on the pavement at the
   foot of every building at least 34 high so the towers read as huge against them: benches and
   bollards beside the corporate towers of the core and downtown (now and then a vending machine),
   benches, vending machines with their fronts lit and dumpsters (dull blue or rust) beside the
   other tall buildings. A piece or two to each stretch of pavement, the same every time.
-- **Decay** (`components/decay.ts`, drawn by `components/Decay.tsx` and
+- **Decay** (`components/decayPlan.ts`, drawn by `components/Decay.tsx` and
   `components/FootprintBuilding.tsx`). Each city block of the poor edge and a few in midtown has
   fallen into one state of ruin, sometimes with traces of a second (a block's primary state
   shows on all its buildings, its secondary on about a third):
@@ -1970,7 +1970,7 @@ clouds, doctrine powers other than Orbital Drop, or Masons.
   bases and the corporate towers never. **Devastation**, the fourth state, isn't laid out: it's
   what the fighting leaves (ruins and craters, below). Picked per block, a block and its twin
   across the map the same.
-- **Ruins and craters** (`components/ruins.ts`, drawn by `components/Ruins.tsx`). A match leaves
+- **Ruins and craters** (`components/ruinsPlan.ts`, drawn by `components/Ruins.tsx`). A match leaves
   its mark on the city:
   - **Ruins**: a destroyed building tile is a ruin rather than a bare patch: the broken
     ground-floor slab, jagged wall stubs in the building's own colour gone dark with soot (14% to

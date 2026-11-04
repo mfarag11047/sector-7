@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BuildingData, RoadTileData } from '../types';
 import { ABILITY_CONFIG } from '../constants';
-import { gridRoadLines, LIGHT, lampLevels, lampStates, streetLamps } from './powerGrid';
+import { gridRoadLines, LIGHT, lampLevels, lampStates, streetLamps } from './powerGridPlan';
 
 const building = (id: string, x: number, z: number, owner: BuildingData['owner'], type: BuildingData['type'] = 'residential'): BuildingData =>
   ({ id, gridX: x, gridZ: z, owner, type, destroyed: false, position: [0, 0, 0] } as unknown as BuildingData);

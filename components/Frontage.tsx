@@ -28,7 +28,7 @@ const REPEAT = { shutters: 8, shops: 8, lobby: 6, marble: 10, cladding: 14 };
 
 // --- Textures, drawn once ---
 
-// `shut`: every shutter down, no light behind any (a dead building's, decay.ts).
+// `shut`: every shutter down, no light behind any (a dead building's, decayPlan.ts).
 const shutterMats = new Map<boolean, THREE.MeshBasicMaterial>();
 const shutterMaterial = (shut = false) => shutterMats.get(shut) ?? (shutterMats.set(shut, new THREE.MeshBasicMaterial({
   map: canvas(128, (g, rnd) => {
@@ -202,7 +202,7 @@ function plane(width: number, height: number, u0: number, repeat: number, vRepea
 // z = 0 with +z out to the street, from the ground up. `start` is where the face starts along
 // the wall in world units (for lining up the textures); `hash` in [0, 1) varies its details, and
 // `tone` in [0, 1) picks the building's awning colour, the same on all its faces.
-// `dead`: a dead building's (decay.ts): its shutters all down and its lamp out.
+// `dead`: a dead building's (decayPlan.ts): its shutters all down and its lamp out.
 export const FrontageFace: React.FC<{ era: Era; width: number; start: number; hash: number; tone: number; dead?: boolean }> = ({ era, width, start, hash, tone, dead }) => {
   const H = FRONTAGE_HEIGHT[era];
   const geometry = useMemo(() => {

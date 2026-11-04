@@ -1,4 +1,4 @@
-// The estates' synthetic nature (layout in estateGrounds.ts): palms, clipped hedges and lit pools
+// The estates' synthetic nature (layout in estateGroundsPlan.ts): palms, clipped hedges and lit pools
 // on the open ground round the villas. Each kind a couple of instanced meshes. Scenery only:
 // nothing here blocks movement or takes clicks.
 //
@@ -11,7 +11,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import type { BuildingData, RoadTileData } from '../types';
 import { canvas } from './corpoFacades';
-import { estateGrounds } from './estateGrounds';
+import { estateGrounds } from './estateGroundsPlan';
 
 // The lots' ground.
 const GROUND_Y = 0.2;

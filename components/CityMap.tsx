@@ -32,7 +32,7 @@ import { Craters } from './Ruins';
 import { DecayStreets } from './Decay';
 import StreetFurniture from './StreetFurniture';
 import EstateGrounds from './EstateGrounds';
-import { addCraters, craterOf, type Crater } from './ruins';
+import { addCraters, craterOf, type Crater } from './ruinsPlan';
 import { MOVE_TICK_MS, Mover, MovementEnv, advanceMover, arriveAtNextTile } from '../sim/movement';
 import { positionKey, publishMotion, recordTick, simClock, stampPosition } from './glide';
 import { ArmyControls, ArmyInfo, MAX_ARMIES, SelectionSummary } from './ArmyPanel';
@@ -1687,7 +1687,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           heard.add(e.id);
           const kind = explosionSound(e);
           if (kind) playSound(kind, e.position.x, e.position.z, e.radius / 4);
-          // Heavy blasts on the ground leave a crater that stays (components/ruins.ts).
+          // Heavy blasts on the ground leave a crater that stays (components/ruinsPlan.ts).
           const crater = craterOf(e);
           if (crater) scorched.push(crater);
       }

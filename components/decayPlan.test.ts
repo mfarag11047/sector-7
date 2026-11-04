@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { CITY_CONFIG, TEAM_BASES } from '../constants';
 import { generateCity } from '../sim/mapgen';
 import { blocksAcross, districtOfBlock } from '../sim/districts';
-import { decayAt, decayOfBlock, decayProps, finishedHeight, UNFINISHED, type Decay } from './decay';
+import { decayAt, decayOfBlock, decayProps, finishedHeight, UNFINISHED, type Decay } from './decayPlan';
 
 const N = CITY_CONFIG.gridSize;
 const n = blocksAcross(N), last = n - 1;
