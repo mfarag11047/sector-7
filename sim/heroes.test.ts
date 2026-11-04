@@ -58,7 +58,7 @@ describe('doctrine heroes', () => {
   });
 
   it('is trained at Advanced Research once unlocked, only for its own doctrine', () => {
-    expect(train(view(econ(1)), 'hero_heavy_metal')).toMatch(/unlock it/);
+    expect(train(view(econ(1)), 'hero_heavy_metal')).toMatch(/doctrine track/);
     const unlocked = view(econ(1, ['hero_heavy_metal_unlock']));
     expect(train(unlocked, 'hero_heavy_metal')).toBeNull();
     expect(train(view(econ(1, ['hero_heavy_metal_unlock'])), 'hero_netrunner')).toMatch(/own doctrine/);

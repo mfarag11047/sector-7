@@ -19,6 +19,7 @@
 import { UNIT_STATS } from '../constants';
 import type { BuildingData, DoctrineType, UnitData } from '../types';
 import type { Team } from './commands';
+import { UPLINK } from './netrunnerHero';
 
 export const SENTINEL_NET = {
   hackRange: 2,
@@ -91,13 +92,15 @@ export function sentinelNetTick(
     next = units.map(u => {
       if (!isSentinel(u) || u.team !== 'neutral' || u.health <= 0) return u;
       const near = (team: Team, r: number) => others.some(o => o.team === team && tiles(o.gridPos, u.gridPos) <= r);
-      const hackers = (['blue', 'red'] as const).filter(t => hasCode(t) && near(t, SENTINEL_NET.hackRange));
+      // A Netrunner hero hacks from further off, and faster (Uplink, sim/netrunnerHero.ts).
+      const uplinked = (team: Team) => others.some(o => o.team === team && o.type === 'hero_netrunner' && tiles(o.gridPos, u.gridPos) <= UPLINK.range);
+      const hackers = (['blue', 'red'] as const).filter(t => hasCode(t) && (near(t, SENTINEL_NET.hackRange) || uplinked(t)));
       const prev = u.hackProgress;
       // One side at it, the other nowhere near: the hack goes on.
       const team = hackers.length === 1 ? hackers[0] : null;
       const contested = team ? near(team === 'blue' ? 'red' : 'blue', SENTINEL_NET.contestRange) : true;
       if (team && !contested) {
-        const ms = (prev && prev.team === team ? prev.ms : 0) + dtMs;
+        const ms = (prev && prev.team === team ? prev.ms : 0) + dtMs * (uplinked(team) ? UPLINK.rate : 1);
         if (ms >= hackMs(team)) {
           hacked.push({ id: u.id, team });
           return { ...u, team, hackProgress: undefined, sentinelPost: u.sentinelPost ?? postAt(u), path: [], combatTargetId: null };

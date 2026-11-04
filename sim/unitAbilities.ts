@@ -13,6 +13,7 @@
 // Orders arrive as UNIT_ABILITY commands and are checked here like every other ability:
 // the sender's units, the right type, the tier and upgrade researched, off cooldown, in range.
 
+import { OVERRIDE, overrideTarget, seize } from './netrunnerHero';
 import { UNIT_STATS } from '../constants';
 import type { UnitData, UnitType } from '../types';
 import type { GridPos, Team } from './commands';
@@ -27,7 +28,7 @@ import type { SmokeScreen } from './titan';
 export type BuffKind = 'stim' | 'nanoweave' | 'overcharge' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'emp' | 'smoke' | 'piercing_round' | 'shadow_cloak';
 export interface Buff { kind: BuffKind; until: number }
 
-export type UnitAbilityId = 'stim' | 'nanoweave' | 'overcharge' | 'emp_rocket' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'hellfire' | 'smoke_screen' | 'piercing_round' | 'shadow_cloak';
+export type UnitAbilityId = 'stim' | 'nanoweave' | 'overcharge' | 'emp_rocket' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'hellfire' | 'smoke_screen' | 'piercing_round' | 'shadow_cloak' | 'override';
 
 export interface UnitAbilityDef {
   id: UnitAbilityId;
@@ -76,6 +77,10 @@ export const UNIT_ABILITIES: readonly UnitAbilityDef[] = [
   // Kage, the Shadow Ops hero (sim/shadowHero.ts).
   { id: 'shadow_cloak', unit: 'hero_shadow_ops', name: 'Optical Camo', tier: 1, cooldownMs: 25_000, durationMs: 15_000,
     description: 'Cloaks himself for 15s: the enemy can\'t see or target him, though blasts still hurt. His first strike from cloak deals double damage and drops it.' },
+
+  // Cipher, the Netrunner hero (sim/netrunnerHero.ts).
+  { id: 'override', unit: 'hero_netrunner', name: 'Override', tier: 1, cooldownMs: 40_000, durationMs: OVERRIDE.durationMs, targeted: { range: OVERRIDE.range, radius: OVERRIDE.radius },
+    description: 'Seizes the nearest enemy light vehicle or aircraft at the target for 15s: it is yours to order and fights for you, then goes back to its owner. Not infantry, heavy armour or heroes.' },
 ];
 
 // The orbital-drop Titan is a main battle tank, with the tank's abilities.
@@ -197,6 +202,14 @@ export function unitAbilityEffects(
   // Firing an aimed strike gives the caster away (a Cloaking Field drops, sim/cloak.ts).
   for (const c of inRange) updates.set(c.id, u => ({ ...ready(u), lastAttackTime: now }));
 
+  // Override (sim/netrunnerHero.ts): the nearest enemy machine at the spot is the side's for a while.
+  if (def.id === 'override') {
+    const victim = overrideTarget(units, team, target);
+    if (!victim) return { ok: false, reason: 'no enemy light vehicle or aircraft there to override' };
+    if (!canSee(victim)) return { ok: false, reason: 'no line of sight to it' };
+    updates.set(victim.id, v => seize(v, team, now));
+    return { ok: true, updates };
+  }
   // The EMP rocket flies (sim/empRocket.ts); its pulse goes off where it lands.
   if (def.id === 'emp_rocket') {
     const rockets = inRange.map((c): EmpRocket => ({

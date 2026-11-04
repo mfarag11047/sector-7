@@ -27,6 +27,7 @@ import { baseCentreOf, spawnTile } from './baseLayout';
 import { captureTick } from './capture';
 import { freshSentinelNet, SentinelNet, sentinelNetTick } from './sentinelNet';
 import { salvageTick, type Wreck, wreckOf } from './salvage';
+import { releaseOverrides } from './netrunnerHero';
 import { advanceTrack, hasPower, perk, trackCombatPerks, trackPowerCooldown, trackPowerCost } from './doctrineTrack';
 import { applyCiwsState, ciwsTick, ORDNANCE_INTEGRITY } from './ciws';
 import { damageDrones, emptySwarm, shieldWasps, Swarm, swarmThreats, swarmTick } from './microdrones';
@@ -210,6 +211,8 @@ export function stepMatch(m: HeadlessMatch): void {
     shut: u => heldAtGate(m.structures, u.team, u.path),
   };
   m.units = m.units.map(u => advanceMover(u, MOVE_TICK_MS, env));
+  // Machines seized by Override go back when their time is up (sim/netrunnerHero.ts).
+  m.units = releaseOverrides(m.units, now);
   // Kage's Optical Camo hides him (sim/cloak.ts; Cloaking Fields aren't modelled here).
   m.units = applyFieldCloak(m.units, fieldCloakedIds(m.units, now, team => (team === 'blue' || team === 'red') ? m.opts.doctrine[team] : null, team => (team === 'blue' || team === 'red') ? perk.darkAfterMs(m.economy[team]) : null));
 

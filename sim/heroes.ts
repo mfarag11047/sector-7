@@ -52,7 +52,7 @@ export function heroBlocker(
   const def = heroDefFor(type);
   if (!def) return null;
   if (doctrine !== def.doctrine) return 'only for its own doctrine';
-  if (!upgrades.includes(def.unlock)) return 'unlock it at Advanced Research first';
+  if (!upgrades.includes(def.unlock)) return 'choose it at rank 3 of the doctrine track first';
   if (heroFielded(units, structures, team, type)) return 'one hero at a time';
   return null;
 }

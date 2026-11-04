@@ -260,14 +260,13 @@ everything, so what you research commits you to the units you mean to build.
 ### Doctrine heroes
 
 Each doctrine has one unique **hero** unit, and only a side that picked that doctrine at the start
-of the match can unlock or train it (`sim/heroes.ts`). Netrunner's is still a placeholder: stats
-only, no abilities, and the generic unit model with a gold halo.
+of the match can unlock or train it (`sim/heroes.ts`).
 
 | Doctrine | Hero | Class | Health | Speed | Weapon |
 |---|---|---|---|---|---|
 | Heavy Metal | Goliath | Armour (heavy) | 1400 | 0.8 | Heavy MG, 16 dmg / 0.3 s, range 5, hits air; grenades |
 | Shadow Ops | Kage | Infantry (captures ×2) | 650 | 1.4 | Katana (melee), 60 blade dmg / 0.8 s, range 1.3, ground only; Optical Camo |
-| Netrunner | Netrunner Hero | Support (light) | 800 | 1.0 | MG, 14 dmg / 0.5 s, range 4, hits air |
+| Netrunner | Cipher | Support (light) | 800 | 1.0 | Smart SMG, 14 dmg / 0.5 s, range 4, hits air |
 
 All cost 600 cores, 4 population and 40 s to train.
 
@@ -295,6 +294,23 @@ models** below): he idles in a sword stance, runs, slashes on every cut, and fal
   still hurt, and an Aegis radar shows a blip. Cloaked, he doesn't charge on his own: you pick
   the ambush. His **first strike from cloak deals double damage** and drops the cloak.
 - He turns to face what he is cutting. The computer cloaks him as enemies come within 7 tiles.
+
+**Cipher (Netrunner)** is an intrusion operative who fights with the network
+(`sim/netrunnerHero.ts`, `components/models/CipherModel.tsx`, built from the unit kit): a long dark
+coat with a team-colour hem, a deep hood over a black faceplate with a cyan visor and three lens
+dots, a cyberdeck on the back cabled to a holo-screen over the left forearm, a compact smart SMG,
+and a small hack drone circling over the shoulder.
+- **Smart SMG:** light, decent against everything, hits aircraft.
+- **Override** (its ability, from Tier 1; 40 s cooldown): aimed at a spot up to 7 tiles away (in
+  sight), it seizes the nearest enemy light vehicle or aircraft within 2 tiles of it (not
+  infantry, heavy armour, heroes, generators or couriers) for 15 s: the machine is the side's own,
+  to order about and fight with, then goes back to its owner wherever it is. A seized machine
+  wears a ring in its new side's colour that drains as the hold runs out, and a spinning glyph;
+  Cipher's holo-screen flares and its drone sends out a ring as it casts. The computer seizes the
+  most valuable machine in reach.
+- **Uplink** (passive): once the side has the Sentinels' code, Cipher hacks neutral Sentinels from
+  5 tiles rather than 2, three times as fast (under 3 s), with the usual check that no enemy is
+  contesting it.
 
 - **Unlock:** take the hero at **rank 3 of the doctrine track** (8:00 at the earliest; see The
   doctrine track). It gives no stat bonus; it lets the hero be trained at Advanced Research. A side
@@ -855,7 +871,7 @@ in order. Holding server nodes gets a side to the top sooner; without them rank 
 |---|---|---|---|
 | 1 | Scrap Haulers (wrecks worth double) / Field Welders (armour self-repair from the start, 10 HP/s) | Silent Running (infantry and light vehicles +20% speed) / Killing Ground (ambush ×2 instead of ×1.5) | Brute Force (hack in 3 s) / Sentinel Foundry (Sentinels 180 cores, 12 s) |
 | 2 | Orbital Drop / Bulwark Force Field | Phantom Decoys / Cloaking Field | Nano-Cloud / Black Wall Infect |
-| 3 | Goliath / Hardened Plate (vehicles take 15% less damage) | Kage / Quick Fade (go dark 2 s after a fight) | Netrunner Hero / Hardened Nodes (defenders after 45 s) |
+| 3 | Goliath / Hardened Plate (vehicles take 15% less damage) | Kage / Quick Fade (go dark 2 s after a fight) | Cipher / Hardened Nodes (defenders after 45 s) |
 | 4 | Arsenal (the other power too) / Overdrive (powers at half cost and cooldown) | the same | the same |
 
 - The powers still cost cores and recharge; the track decides which a side has (no longer the

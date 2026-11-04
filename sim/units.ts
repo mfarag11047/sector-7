@@ -104,7 +104,7 @@ export const UNIT_RULES: Record<UnitType, UnitRules> = {
   hero_heavy_metal: { armor: 'heavy', weapon: { damage: 16, cooldownMs: 300, range: 5, type: 'mg', hitsGround: true, hitsAir: true }, pop: 4, tier: 1, producer: 'research_lab', buildTimeMs: 40000, role: 'Heavy Metal\'s hero. A full-borg juggernaut: heavy machine gun, and grenade volleys from his back every 8s.' },
   // Kage: melee only, a katana that can't reach aircraft, and a self-cloak (sim/shadowHero.ts).
   hero_shadow_ops: { armor: 'infantry', weapon: { damage: 60, cooldownMs: 800, range: 1.3, type: 'blade', hitsGround: true, hitsAir: false }, pop: 4, tier: 1, producer: 'research_lab', buildTimeMs: 40000, role: 'Shadow Ops\' hero. A cloaking assassin with a katana: melee only, can\'t hit aircraft. Striking from cloak deals double damage.' },
-  hero_netrunner: { armor: 'light', weapon: { damage: 14, cooldownMs: 500, range: 4, type: 'mg', hitsGround: true, hitsAir: true }, pop: 4, tier: 1, producer: 'research_lab', buildTimeMs: 40000, role: 'Netrunner\'s hero (placeholder). Hits ground and air alike.' },
+  hero_netrunner: { armor: 'light', weapon: { damage: 14, cooldownMs: 500, range: 4, type: 'mg', hitsGround: true, hitsAir: true }, pop: 4, tier: 1, producer: 'research_lab', buildTimeMs: 40000, role: 'Netrunner\'s hero. An intrusion operative: a smart SMG for ground and air, Override seizes an enemy vehicle or drone for 15s, and Uplink hacks neutral Sentinels from 5 tiles, three times as fast.' },
 
   // The server nodes' guards, hostile to everyone; Netrunner alone can build its own at the Comm
   // Link once it has held a server node, and hack the neutral ones (sim/sentinelNet.ts).

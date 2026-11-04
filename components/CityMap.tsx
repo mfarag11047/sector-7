@@ -81,6 +81,7 @@ import { heroBlocker, heroOf } from '../sim/heroes';
 import { freshSentinelNet, sentinelBlocker, sentinelNetTick } from '../sim/sentinelNet';
 import { advanceTrack, hasPower, perk, powersOf, TRACK, trackCombatPerks, trackPowerCost, trackPowerCooldown } from '../sim/doctrineTrack';
 import { salvageTick, type Wreck, wreckOf } from '../sim/salvage';
+import { releaseOverrides } from '../sim/netrunnerHero';
 import Wrecks from './Wrecks';
 import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade, upgradeDef, upgradeTitle, type UpgradeId } from '../sim/upgrades';
 import { FireballFx, fireballLifeMs } from './FireballFx';
@@ -4386,6 +4387,12 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
 
           // Infantry capture buildings and core nodes (sim/capture.ts).
           setBuildings(prev => captureTick(prev, unitsRef.current));
+
+          // Machines seized by Override go back to their owners when the hold runs out (sim/netrunnerHero.ts).
+          if (unitsRef.current.some(u => u.overriddenBy && u.overriddenBy.until <= now)) {
+              unitsRef.current = releaseOverrides(unitsRef.current, now);
+              setUnits(prev => releaseOverrides(prev, now));
+          }
 
           // Heavy Metal's Salvage: wrecks stripped for cores and patching (sim/salvage.ts).
           if (wrecksRef.current.length > 0 || wrecksDrawnRef.current.length > 0) {

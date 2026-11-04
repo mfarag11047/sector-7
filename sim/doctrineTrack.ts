@@ -96,7 +96,7 @@ export const TRACK: Record<DoctrineType, [TrackOption, TrackOption][]> = {
     ],
     [power('netrunner', 'tier2'), power('netrunner', 'tier3')],
     [
-      { id: 'nr_hero', hero: true, name: 'Netrunner Hero', description: 'Unlocks the Netrunner hero for training at Advanced Research.' },
+      { id: 'nr_hero', hero: true, name: 'Cipher', description: 'Unlocks Cipher, the intrusion operative, for training at Advanced Research: seizes enemy vehicles and drones with Override, hacks Sentinels from afar.' },
       { id: 'nr_fortress', name: 'Hardened Nodes', description: 'Your server nodes gain a Sentinel defender after 45 s held instead of 2 minutes.' },
     ],
     capstones('netrunner'),

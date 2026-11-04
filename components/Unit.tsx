@@ -5,7 +5,7 @@ import { Edges, Float, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { TEAM_COLORS, UNIT_CLASSES, ABILITY_CONFIG, UNIT_STATS } from '../constants';
 import { UnitType, UnitClass, UnitData } from '../types';
-import { abilitiesFor } from '../sim/unitAbilities';
+import { abilitiesFor, abilityDef } from '../sim/unitAbilities';
 import { roleBadgeTexture, UNIT_ROLE } from './unitIcons';
 
 // A unit's role badge: its size on screen (a share of the view's height, about 40 px on a 1080 px
@@ -30,7 +30,9 @@ import { CLOAK_FIELD } from '../sim/cloak';
 import { FORCE_FIELD } from '../sim/forcefield';
 import { BlackwallExposure, BlackwallInfection } from './BlackwallFx';
 import { Batched } from './kit/Batched';
+import { CipherModel } from './models/CipherModel';
 import { SENTINEL_NET } from '../sim/sentinelNet';
+import { OVERRIDE } from '../sim/netrunnerHero';
 import { follow, motionOf, positionKey, predictPosition, simSecondsSince, stampOf, walkAlong } from './glide';
 import { MAX_TETHERS } from '../sim/jamming';
 import { JamRange, JamStatic } from './JamStatic';
@@ -177,6 +179,8 @@ interface UnitProps {
   id: string;
   // A neutral Sentinel being hacked by a Netrunner side (sim/sentinelNet.ts).
   hackProgress?: UnitData['hackProgress'];
+  // Seized by Cipher's Override (sim/netrunnerHero.ts).
+  overriddenBy?: UnitData['overriddenBy'];
   type: UnitType;
   unitClass: UnitClass;
   team: 'blue' | 'red' | 'neutral';
@@ -302,8 +306,36 @@ interface UnitProps {
   isInNanoCloud?: boolean;
 }
 
+// The mark on a machine Cipher has seized: a ring whose arc drains as the hold runs out.
+const OverrideMark: React.FC<{ until: number; color: string; groundY: number; tileSize: number }> = ({ until, color, groundY, tileSize }) => {
+  const arc = useRef<THREE.Mesh>(null);
+  const glyph = useRef<THREE.Mesh>(null);
+  const geometry = useRef<THREE.RingGeometry | null>(null);
+  useFrame(({ clock }) => {
+    const left = Math.max(0, Math.min(1, (until - Date.now()) / OVERRIDE.durationMs));
+    if (arc.current) {
+      geometry.current?.dispose();
+      geometry.current = new THREE.RingGeometry(tileSize * 0.55, tileSize * 0.65, 40, 1, Math.PI / 2, -Math.PI * 2 * left);
+      arc.current.geometry = geometry.current;
+    }
+    if (glyph.current) { glyph.current.rotation.y = clock.elapsedTime * 3; glyph.current.position.y = 4 + Math.sin(clock.elapsedTime * 4) * 0.2; }
+  });
+  useEffect(() => () => geometry.current?.dispose(), []);
+  return (
+    <group>
+      <mesh ref={arc} position={[0, groundY, 0]} rotation={[-Math.PI / 2, 0, 0]} raycast={() => null}>
+        <meshBasicMaterial color={color} transparent opacity={0.85} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh ref={glyph} raycast={() => null}>
+        <octahedronGeometry args={[0.55, 0]} />
+        <meshBasicMaterial color="#7df9ff" wireframe toneMapped={false} />
+      </mesh>
+    </group>
+  );
+};
+
 const Unit: React.FC<UnitProps> = ({ 
-  id, hackProgress, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, grenadeAt, faceAt, turretAt, railgunFiredAt, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, ciwsSpunMs, ciwsAims, anchoredAt, artilleryTarget, artilleryAim,
+  id, hackProgress, overriddenBy, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, grenadeAt, faceAt, turretAt, railgunFiredAt, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, ciwsSpunMs, ciwsAims, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -713,6 +745,7 @@ const Unit: React.FC<UnitProps> = ({
     if (isAegis) return <AegisModel teamColor={teamColor} moving={moving} firing={!!ciwsTargetId} aimOf={() => ciwsAims?.current.get(id)} />;
     if (isHornet) return <HornetModel teamColor={teamColor} rockets={upgrades.includes('hunter_rockets')} aimRef={turretAimRef} flashRef={flashRef} />;
     if (type === 'hero_shadow_ops') return <KageRig teamColor={teamColor} lastAttackTime={lastAttackTime} moving={moving} />;
+    if (type === 'hero_netrunner') return <CipherModel teamColor={teamColor} lastAttackTime={lastAttackTime} moving={moving} flashRef={flashRef} castAt={cipherCastAt} />;
     if (type === 'hero_heavy_metal') return <GoliathRig teamColor={teamColor} flashRef={flashRef} grenadeAt={grenadeAt} lastAttackTime={lastAttackTime} moving={moving} />;
     if (isDefenseDrone) return <SentinelDroneModel aimOf={sentinelAimOf} teamColor={team === 'neutral' ? undefined : teamColor} />;
 
@@ -751,16 +784,17 @@ const Unit: React.FC<UnitProps> = ({
                 <mesh position={[0, -0.9, 0]}><boxGeometry args={[0.6, 0.15, 2.4]} /><meshStandardMaterial color="#1e293b" /></mesh>
                 <mesh position={[0, -0.9, 0]} rotation={[0, Math.PI / 2, 0]}><boxGeometry args={[0.6, 0.15, 2.4]} /><meshStandardMaterial color="#1e293b" /></mesh>
                 {/* Doctrine heroes (placeholders, sim/heroes.ts): a gold halo marks them out. */}
-                {isHero && <mesh position={[0, 2.1, 0]} rotation={[Math.PI / 2, 0, 0]}><torusGeometry args={[0.9, 0.08, 6, 24]} /><meshBasicMaterial color="#fbbf24" toneMapped={false} /></mesh>}
                 <mesh ref={flashRef} position={[0, 0, 1]} visible={false} raycast={() => null}><sphereGeometry args={[0.3, 8, 6]} /><meshBasicMaterial color="#fbbf24" transparent opacity={0.85} toneMapped={false} depthWrite={false} /></mesh>
             </group>
         </Float>
     );
   };
+  // Cipher's last Override, for its flare (CipherModel.tsx).
+  const cipherCastAt = type === 'hero_netrunner' && abilityReadyAt?.override ? abilityReadyAt.override - (abilityDef('override')?.cooldownMs ?? 0) : 0;
   const model = useMemo(renderModel, [
     type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
     isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, courierPayload, constructionTargetId, ciwsTargetId,
-    grenadeAt, isHero || isLancer || isTrooper || isGhost ? lastAttackTime : 0, isHero || isLancer || isTrooper || isGhost || isMule || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback || isScoutCar || isSwarmHost || isCrawler ? moving : false, isTank ? railgunFiredAt : 0,
+    grenadeAt, cipherCastAt, isHero || isLancer || isTrooper || isGhost ? lastAttackTime : 0, isHero || isLancer || isTrooper || isGhost || isMule || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback || isScoutCar || isSwarmHost || isCrawler ? moving : false, isTank ? railgunFiredAt : 0,
     isBallista ? Math.floor((loadingProgress || 0) / 10) : 0,
     isBanshee ? `${!!jammerActive && battery > 0}|${tetherTargetIds?.length ?? 0}` : 0,
     isHornet && upgrades.includes('hunter_rockets'),
@@ -838,6 +872,10 @@ const Unit: React.FC<UnitProps> = ({
           </mesh>
         </group>
       )}
+
+      {/* Seized by Override: a ring on the ground in the seizing side's colour, its arc running
+          down as the hold does, and a spinning glyph over the machine (sim/netrunnerHero.ts). */}
+      {overriddenBy && <OverrideMark until={overriddenBy.until} color={teamColor} groundY={-hoverHeight + 0.3} tileSize={tileSize} />}
 
       {/* Hitbox */}
       <mesh position={[0, 0, 0]} visible={true}>

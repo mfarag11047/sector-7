@@ -117,6 +117,8 @@ export interface UnitData {
   sentinelPost?: string;
   // A neutral Sentinel being hacked by a Netrunner side, and whether the hack is going on now.
   hackProgress?: { team: 'blue' | 'red'; ms: number; active: boolean; of?: number };
+  // Seized by a Netrunner hero's Override (sim/netrunnerHero.ts): its real owner, and when it goes back.
+  overriddenBy?: { team: 'blue' | 'red'; until: number };
   stunDuration?: number;
   isStealthed?: boolean;
   activeBuffs?: ('speed' | 'damage' | 'regen')[];
