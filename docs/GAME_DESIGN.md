@@ -1423,13 +1423,23 @@ speed for stealth units.)
 passive (below; it replaced the old +10% production Overclock) and Nano-Cloud (Tier 2). Its Tier 3 power (1100 cores, 300 s cooldown) is Black Wall
 Infect: a virus bomb that falls for 1.2 s and goes off in a 1.5-tile blast.
 - Every enemy unit in the blast loses 25% of its maximum health at once and is infected.
-- An infected unit burns 2.5% of its maximum health a second until it dies (30 s from 75%).
-  Nothing cures it.
+- An infected unit burns 2.5% of its maximum health a second for 25 s (`BLACKWALL.durationMs`),
+  62.5% in all, then the virus wears off. A unit hit at full health comes through with an eighth
+  of it; anything already wounded dies unless it is repaired through the burn (a Guardian's
+  15 HP/s holds a tank's 600 level and outheals anything lighter; the base's 4%/s outheals all). So the answer to it is repair, a Bulwark dome (which
+  stops the bomb) or spreading out.
 - The virus spreads within the infected unit's own side: a unit that stays within 2 tiles of an
-  infected friend for 6 s catches it. Leaving range before that resets the exposure. It never
-  jumps to the other side or to the neutral Sentinels.
+  infected friend for 6 s catches it, with its own 25 s. Leaving range before that resets the
+  exposure. It never jumps to the other side or to the neutral Sentinels.
+- A unit that has shaken it off can't catch it from a friend for 30 s (`BLACKWALL.immuneMs`), so a
+  clumped army doesn't pass it back and forth for ever. A fresh bomb infects it all the same, and
+  restarts the 25 s on a unit already burning.
 - Infected units crawl with Blackwall glitch (red, magenta and blue scanlines, a jittering split
-  cage and a red ring on the ground); a unit catching it shows a magenta ring filling up.
+  cage and a red ring on the ground that runs down with the time left); a unit catching it shows a
+  magenta ring filling up.
+- **Why the timer:** it used to burn until the unit died, with no cure, so the only answer was not
+  to be under the bomb. In player-against-player that is a power with no counterplay. The hit and
+  the spread stay as they were; the timer gives repair and shields something to do.
 
 ## Netrunner Tier 2: Nano-Cloud
 

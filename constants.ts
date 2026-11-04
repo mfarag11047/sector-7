@@ -382,7 +382,7 @@ export const DOCTRINE_CONFIG: Record<DoctrineType, {
     tier3_cost: 1100,
     tier3_cooldown: 300000,
     tier3_name: "Black Wall Infect",
-    tier3_desc: "Drops a Black Wall virus bomb. Enemies in its small blast lose 25% of their max health and are infected: they slowly burn until they die, and any friend who stays within 2 tiles of them for 6 s catches it too.",
+    tier3_desc: "Drops a Black Wall virus bomb. Enemies in its small blast lose 25% of their max health and are infected: they burn for 25 s (another 62.5%), so the wounded die unless repaired through it, and any friend who stays within 2 tiles of them for 6 s catches it too. A unit that shakes it off can't catch it again from a friend for 30 s.",
   }
 };
 

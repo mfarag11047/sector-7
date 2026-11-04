@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { UnitData } from '../types';
-import { BLACKWALL, blackwallImpact, blackwallTick, isInfected } from './blackwall';
+import { BLACKWALL, blackwallImpact, blackwallTick, infectionLeft, isInfected } from './blackwall';
 
 const unit = (id: string, patch: Partial<UnitData> = {}): UnitData => ({
   id, type: 'tank', unitClass: 'armor', team: 'red', gridPos: { x: 10, z: 10 }, path: [], visionRange: 4,
@@ -35,12 +35,46 @@ describe('Black Wall virus bomb', () => {
 });
 
 describe('Black Wall infection', () => {
-  it('burns an infected unit down until it dies', () => {
+  it('burns an infected unit for its time, then wears off', () => {
     const sick = unit('sick', { blackwallInfectedAt: 0, health: 300 });
     const after10s = run([sick], 10_000)[0];
     expect(after10s.health).toBeCloseTo(300 - 400 * BLACKWALL.burnPerSecond * 10);
+    expect(infectionLeft(after10s, 10_000)).toBeCloseTo(1 - 10_000 / BLACKWALL.durationMs);
+    // Hit at full health by the bomb (75% left), it comes through with an eighth.
     const later = run([sick], 60_000)[0];
-    expect(later.health).toBe(0);
+    expect(isInfected(later)).toBe(false);
+    expect(later.health).toBeCloseTo(300 - 400 * BLACKWALL.burnPerSecond * BLACKWALL.durationMs / 1000);
+    expect(later.health).toBeGreaterThan(0);
+  });
+
+  it('still kills a unit that was already wounded, unless it is repaired through it', () => {
+    const wounded = unit('w', { blackwallInfectedAt: 0, health: 200 });
+    expect(run([wounded], 30_000)[0].health).toBe(0);
+    // A Guardian's 15 HP a second on a 400 HP tank burning 10 a second keeps it up.
+    let list = [wounded];
+    for (let t = 100; t <= 30_000; t += 100) list = apply(list, blackwallTick(list, 100, t)).map(u => ({ ...u, health: Math.min(u.maxHealth, u.health + 1.5) }));
+    expect(list[0].health).toBeGreaterThan(0);
+    expect(isInfected(list[0])).toBe(false);
+  });
+
+  it('a unit that shook it off cannot catch it again from a friend for a while', () => {
+    // Two clumped units infected 6 s apart, as a spread would leave them.
+    const units = [unit('a', { blackwallInfectedAt: 0 }), unit('b', { gridPos: { x: 11, z: 10 }, blackwallInfectedAt: 6000 })];
+    const cured = run(units, BLACKWALL.durationMs + 100);
+    expect(isInfected(cured[0])).toBe(false);
+    expect(isInfected(cured[1])).toBe(true);
+    // b is still burning next to a for well over the 6 s it takes to catch it: a stays clear.
+    const later = run(cured, BLACKWALL.spreadMs + 2000, BLACKWALL.durationMs + 100);
+    expect(isInfected(later[0])).toBe(false);
+    expect(later[0].blackwallExposureMs).toBeUndefined();
+  });
+
+  it('a fresh bomb infects even an immune unit and starts its time again', () => {
+    const units = [unit('a', { blackwallImmuneUntil: 50_000 }), unit('b', { blackwallInfectedAt: 1000, gridPos: { x: 10.5, z: 10 } })];
+    const [a, b] = apply(units, blackwallImpact(units, { x: 10, z: 10 }, 'blue', 20_000));
+    expect(a.blackwallInfectedAt).toBe(20_000);
+    expect(a.blackwallImmuneUntil).toBeUndefined();
+    expect(b.blackwallInfectedAt).toBe(20_000);
   });
 
   it('spreads to a friend who stays within two tiles for 2.5 s', () => {

@@ -29,6 +29,7 @@ import { BOMBARD } from '../sim/bombard';
 import { CLOAK_FIELD } from '../sim/cloak';
 import { FORCE_FIELD } from '../sim/forcefield';
 import { BlackwallExposure, BlackwallInfection } from './BlackwallFx';
+import { BLACKWALL } from '../sim/blackwall';
 import { Batched } from './kit/Batched';
 import { CipherModel } from './models/CipherModel';
 import { SENTINEL_NET } from '../sim/sentinelNet';
@@ -1068,9 +1069,10 @@ const Unit: React.FC<UnitProps> = ({
           <RadarSweep radius={radarRange * tileSize} y={0} strong={isSelected || !!actionMenuOpen} />
         </group>
       )}
-      {/* Infected with the Black Wall virus: glitching red and blue code crawling over it. A unit
-          catching it from a nearby carrier shows a ring filling up. */}
-      {blackwallInfectedAt !== undefined && health > 0 && <BlackwallInfection size={hoverHeight > 20 ? 5 : 3.2} seed={blackwallInfectedAt} />}
+      {/* Infected with the Black Wall virus: glitching red and blue code crawling over it, with a
+          ring running down to when it wears off. A unit catching it from a nearby carrier shows a
+          ring filling up. */}
+      {blackwallInfectedAt !== undefined && health > 0 && <BlackwallInfection size={hoverHeight > 20 ? 5 : 3.2} seed={blackwallInfectedAt} left={Math.max(0, 1 - (Date.now() - blackwallInfectedAt) / BLACKWALL.durationMs)} />}
       {blackwallInfectedAt === undefined && (blackwallExposureMs ?? 0) > 0 && <BlackwallExposure size={hoverHeight > 20 ? 5 : 3.2} exposureMs={blackwallExposureMs!} />}
       {/* Knocked out by an EMP: a shell of blue static flickering over the machine. */}
       {buffs?.some(b => b.kind === 'emp') && <EmpStatic size={hoverHeight > 20 ? 5 : 4} />}

@@ -196,14 +196,16 @@ export interface UnitData {
   // Bombardment Drone munitions (sim/bombard.ts): drops left (undefined = a full load), when it
   // last dropped, flying home empty, and when it started rearming at a base.
   bombardMunitions?: number;
-  // Black Wall virus (sim/blackwall.ts): when it was infected, and how long it has stood near an
-  // infected friend without catching it yet.
   // Bulwark Force Field generator (sim/forcefield.ts): the shield's health left, and while it
   // reboots after being battered down, when it comes back.
   fieldShieldHp?: number;
   fieldDownUntil?: number;
+  // Black Wall virus (sim/blackwall.ts): when it was infected, and how long it has stood near an
+  // infected friend without catching it yet.
   blackwallInfectedAt?: number;
   blackwallExposureMs?: number;
+  // Until when it can't catch the virus from a friend, having just shaken it off.
+  blackwallImmuneUntil?: number;
   bombardLastStrikeAt?: number;
   bombardReturning?: boolean;
   bombardRearmStartedAt?: number;

@@ -70,8 +70,9 @@ const noRaycast = () => null;
 // --- Infection ---
 
 // Wrapped round an infected unit: a column of glitching scanlines, a jittering wireframe cage in
-// red and blue, and slices of static that jump about.
-export const BlackwallInfection: React.FC<{ size: number; seed: number }> = ({ size, seed }) => {
+// red and blue, and slices of static that jump about. The red ring on the ground is the time left:
+// it runs down as the virus wears off (`left`, 1 to 0).
+export const BlackwallInfection: React.FC<{ size: number; seed: number; left: number }> = ({ size, seed, left }) => {
   const shell = useGlitchMaterial(seed % 97, 1.6);
   const cage = useRef<THREE.Group>(null);
   const slices = useRef<THREE.Group>(null);
@@ -115,9 +116,9 @@ export const BlackwallInfection: React.FC<{ size: number; seed: number }> = ({ s
           </mesh>
         ))}
       </group>
-      {/* A red ring on the ground marking the carrier. */}
+      {/* A red ring on the ground marking the carrier, running down with the time it has left. */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.15, 0]} raycast={noRaycast}>
-        <ringGeometry args={[size * 0.9, size * 1.05, 32]} />
+        <ringGeometry args={[size * 0.9, size * 1.05, 32, 1, Math.PI / 2, -Math.max(0.02, left) * Math.PI * 2]} />
         <meshBasicMaterial color={RED} transparent opacity={0.8} toneMapped={false} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
     </group>
