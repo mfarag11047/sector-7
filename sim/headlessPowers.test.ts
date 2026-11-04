@@ -6,6 +6,7 @@ import type { GridPos, Team } from './commands';
 import { activeFields } from './forcefield';
 import { castPower, createHeadlessMatch, HeadlessMatch, stepMatch } from './headless';
 import { createUnit } from './production';
+import { HOLOGRAM } from './hologram';
 
 // A quiet match: the two doctrines, plenty of cores, the computer players asleep and the field
 // cleared, so only what a test puts down is on the map.
@@ -76,17 +77,36 @@ describe('doctrine powers in headless matches', () => {
     expect(unit(m, hidden)!.fieldCloaked).toBe(true);
   });
 
-  it('Nano-Cloud stops all fire inside it until it clears', () => {
+  it('Nano-Cloud blinds the enemy inside it while the casting side fires out unseen, until it clears', () => {
     const m = quiet({ blue: 'netrunner' }, { blue: ['nr_brute', 'netrunner_tier2'] });
     castPower(m, 'blue', 2, at);
     const a = put(m, 'trooper', 'blue', at);
     const b = put(m, 'trooper', 'red', { x: at.x + 1, z: at.z });
-    steps(m, 5000);
+    const drone = put(m, 'attack_drone', 'red', { x: at.x - 1, z: at.z });
+    steps(m, 3000);
+    // Red can't fire inside blue's cloud, and can't see blue there to aim at; blue fires freely.
     expect(unit(m, a)!.health).toBe(unit(m, a)!.maxHealth);
-    expect(unit(m, b)!.health).toBe(unit(m, b)!.maxHealth);
+    expect(unit(m, b)?.health ?? 0).toBeLessThan(unit(m, a)!.maxHealth);
+    // Red's drone in the cloud has lost its link.
+    expect(unit(m, drone)?.isJammed).toBe(true);
     steps(m, ABILITY_CONFIG.NANO_CLOUD_DURATION);
     expect(m.nanoClouds).toHaveLength(0);
-    expect((unit(m, a)?.health ?? 0) < 120 || (unit(m, b)?.health ?? 0) < 120).toBe(true);
+  });
+
+  it('Phantom Decoys put up holograms of the nearest units, which draw the enemy fire and then fade', () => {
+    const m = quiet({ blue: 'shadow_ops' }, { blue: ['so_silent', 'shadow_ops_tier2'] });
+    put(m, 'razorback', 'blue', { x: at.x - 6, z: at.z });
+    const enemy = put(m, 'trooper', 'red', { x: at.x + 2, z: at.z });
+    castPower(m, 'blue', 2, at);
+    const holos = m.units.filter(u => u.hologramUntil !== undefined);
+    expect(holos).toHaveLength(HOLOGRAM.count);
+    expect(holos.every(h => h.type === 'razorback' && h.team === 'blue')).toBe(true);
+    steps(m, 2000);
+    // The enemy shoots at the holograms; they shoot back for nothing.
+    expect(m.units.filter(u => u.hologramUntil !== undefined).some(h => h.health < h.maxHealth)).toBe(true);
+    expect(unit(m, enemy)!.health).toBe(unit(m, enemy)!.maxHealth);
+    steps(m, HOLOGRAM.lifeMs);
+    expect(m.units.some(u => u.hologramUntil !== undefined)).toBe(false);
   });
 
   it('Black Wall Infect falls, takes a quarter of the health of the enemies under it and infects them', () => {

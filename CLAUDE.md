@@ -61,7 +61,7 @@ merges a model's still parts for speed; materials need `userData.mergeSafe` to m
   software rendering).
 - `window.GAME_CHEATS` (defined in `CityMap.tsx`) drives the game from a script: `spawn(type,
   team, {x, z})`, `state()`, `focus({x, z})`, `order(cmd, team)`, `ability(cmd, team)`,
-  `setResources`, `setCompute`, `spawnStructure`, `capture`, `screenOf`, `probe()` (scene, camera,
+  `setResources`, `setCompute`, `power(type, target, team)`, `setTrackPicks(team, picks)` (doctrine powers without waiting for ranks), `spawnStructure`, `capture`, `screenOf`, `probe()` (scene, camera,
   renderer), `drawnAt(id)`.
 - Playwright works for screenshots; headless Chromium needs `--use-gl=swiftshader
   --enable-unsafe-swiftshader`. `index.html` loads Tailwind and fonts from CDNs; offline, route

@@ -50,14 +50,16 @@ export function salvageValue(type: UnitType): number {
   return Math.round(cost * SALVAGE.share);
 }
 
-export function wreckOf(type: UnitType, at: GridPos, now: number, id: string, team?: UnitData['team']): Wreck | null {
+export function wreckOf(type: UnitType, at: GridPos, now: number, id: string, team?: UnitData['team'], hologram = false): Wreck | null {
+  // A Phantom Decoys hologram (sim/hologram.ts) leaves nothing behind.
+  if (hologram) return null;
   const value = salvageValue(type);
   if (value <= 0) return null;
   return { id, type, at: { x: at.x, z: at.z }, value, diedAt: now, ...(team === 'blue' || team === 'red' ? { team } : {}) };
 }
 
 const tiles = (a: GridPos, b: GridPos) => Math.hypot(a.x - b.x, a.z - b.z);
-const salvager = (u: UnitData) => u.health > 0 && u.team !== 'neutral' && UNIT_RULES[u.type].armor !== 'air' && u.type !== 'defense_drone';
+const salvager = (u: UnitData) => u.health > 0 && u.hologramUntil === undefined && u.team !== 'neutral' && UNIT_RULES[u.type].armor !== 'air' && u.type !== 'defense_drone';
 
 export interface SalvageTick {
   wrecks: Wreck[];

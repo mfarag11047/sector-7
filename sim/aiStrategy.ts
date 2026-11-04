@@ -186,7 +186,8 @@ export function updateStrategy(memory: StrategyMemory, input: StrategyInput): St
     for (const k of Object.keys(byType) as UnitType[]) byType[k]! /= total;
     mem.losses.push({ atMs: nowMs, value: last.value, by: blame, byType });
   }
-  for (const u of input.mine) mem.seen[u.id] = { type: u.type, at: { ...u.gridPos }, value: UNIT_STATS[u.type].cost || 0 };
+  // Its own Phantom Decoys holograms (sim/hologram.ts) fade without being lost.
+  for (const u of input.mine) if (u.hologramUntil === undefined) mem.seen[u.id] = { type: u.type, at: { ...u.gridPos }, value: UNIT_STATS[u.type].cost || 0 };
   mem.losses = mem.losses.filter(l => nowMs - l.atMs <= LOSS_WINDOW_MS);
 
   // Time to change course?

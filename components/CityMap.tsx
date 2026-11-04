@@ -79,9 +79,10 @@ import { DRONE_AIR_Y, MicrodroneSwarm } from './MicrodroneSwarm';
 import { canisterSpots, HE, WARHEAD_LIST, WP, wpGasDamage } from '../sim/warheads';
 import { heroBlocker, heroOf } from '../sim/heroes';
 import { freshSentinelNet, sentinelBlocker, sentinelNetTick } from '../sim/sentinelNet';
-import { advanceTrack, hasPower, perk, powersOf, TRACK, trackCombatPerks, trackPowerCost, trackPowerCooldown } from '../sim/doctrineTrack';
+import { advanceTrack, freshTrack, hasPower, perk, powersOf, TRACK, trackCombatPerks, trackPowerCost, trackPowerCooldown } from '../sim/doctrineTrack';
 import { salvageTick, type Wreck, wreckOf } from '../sim/salvage';
 import { releaseOverrides } from '../sim/netrunnerHero';
+import { fadeHolograms, spawnHolograms } from '../sim/hologram';
 import Wrecks from './Wrecks';
 import { addUpgrades, advanceResearch, applyResearch, applyUpgradeBonuses, artilleryTierOf, hasUpgrade, upgradeDef, upgradeTitle, type UpgradeId } from '../sim/upgrades';
 import { FireballFx, fireballLifeMs } from './FireballFx';
@@ -105,6 +106,7 @@ import { titanMuzzle } from './models/TitanTankModel';
 import { blocksPath, compoundStructures, heldAtGate, hostileGateAt, isCompoundPiece } from '../sim/compound';
 import { bulwarkJoins, isBuildableWall, otherRun, snapRun, type WallRun } from '../sim/walls';
 import { jammingUpdates, MAX_TETHERS } from '../sim/jamming';
+import { nanoCheck, nanoJammed, type NanoCloudArea } from '../sim/nanoCloud';
 import { dampenedUnits } from '../sim/ghost';
 import { heliosBeams, microwaveDamage } from '../sim/helios';
 import { freshPacing, pacingTick, PacingRecord, recordArea, recordStrategies, recordVictory, recordWeaponHits } from '../sim/pacing';
@@ -115,16 +117,8 @@ import { teamName } from './factions';
 installMatrixWalk();
 
 
-// Helper to check if a grid position is inside any cloud of a specific type (optional)
-const isPointInCloud = (pos: {x: number, z: number}, clouds: CloudData[], type?: string): boolean => {
-    return clouds.some(c => {
-        if (type && c.type !== type) return false;
-        // Use cloud's gridPos directly
-        const dx = pos.x - c.gridPos.x;
-        const dz = pos.z - c.gridPos.z;
-        return Math.sqrt(dx * dx + dz * dz) <= c.radius;
-    });
-};
+// A Nano-Cloud as the rules see it (sim/nanoCloud.ts).
+const nanoArea = (c: CloudData): NanoCloudArea => ({ team: c.team, at: c.gridPos, radius: c.radius });
 
 // New Component: StreetLights
 // Renders discrete orange light fixtures along edges of street tiles
@@ -2236,6 +2230,8 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
       },
       // A doctrine power, e.g. power('SHADOW_OPS_TIER3', { x, z }, 'blue'), with the usual checks.
       power: (type: string, target: { x: number; z: number }, team: 'blue' | 'red') => runDoctrinePowerRef.current({ type, target, team }),
+      // Sets a side's doctrine-track picks outright, for testing powers without waiting for ranks.
+      setTrackPicks: (team: 'blue' | 'red', picks: string[]) => setEconomy(prev => ({ ...prev, [team]: { ...prev[team], track: { ...(prev[team].track ?? freshTrack()), picks } } })),
       resetPowerCooldowns: () => { doctrineReadyAtRef.current = { blue: { tier2: 0, tier3: 0 }, red: { tier2: 0, tier3: 0 } }; },
       // Where a tile's centre (at height y) is on screen, in page pixels, for tests that click the map.
       screenOf: (at: { x: number; z: number }, y = 0.6) => {
@@ -2773,18 +2769,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               }]);
           }
           else if (type === 'SHADOW_OPS_TIER2') {
-              // Spawn Decoys
-              const newDecoys: DecoyData[] = [];
-              const offsets = [{x:0, z:0}, {x:1, z:1}, {x:-1, z:-1}];
-              offsets.forEach((off, i) => {
-                  newDecoys.push({
-                      id: `decoy-doc-${Date.now()}-${i}`,
-                      team: team as 'blue' | 'red',
-                      gridPos: { x: target.x + off.x, z: target.z + off.z },
-                      createdAt: Date.now()
-                  });
-              });
-              setDecoys(prev => [...prev, ...newDecoys]);
+              // Phantom Decoys: holograms of the side's nearest units come up at the target, real
+              // units to the enemy until they break or fade (sim/hologram.ts).
+              const holograms = spawnHolograms(unitsRef.current, team as 'blue' | 'red', target, Date.now(), () => `holo-${Date.now()}-${++spawnCounterRef.current}`, isWalkable);
+              unitsRef.current = [...unitsRef.current, ...holograms];
+              setUnits(prev => [...prev, ...holograms]);
           }
           else if (type === 'SHADOW_OPS_TIER3') {
               // Cloaking Field: a generator comes down in a drop pod (sim/cloak.ts). It lands
@@ -3982,7 +3971,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               currentUnitsRef.map(reloaded),
               structuresRef.current.map(reloaded) as CombatStructure[],
               now,
-              pos => isPointInCloud(pos, nanoClouds, 'nano'),
+              nanoCheck(nanoClouds.map(nanoArea)),
               shieldOf,
               cover,
               trackCombatPerks(team => economyRef.current[team]),
@@ -4009,7 +3998,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               const t = railShotRef.current.get(u.id);
               return t && t > (u.railgunFiredAt ?? -Infinity) ? { ...u, railgunFiredAt: t } : u;
           };
-          const rail = fireRailguns(currentUnitsRef.map(railReady), structuresRef.current, now, pos => isPointInCloud(pos, nanoClouds, 'nano'), shieldOf, aiHelpersRef.current.isWalkable, cover);
+          const rail = fireRailguns(currentUnitsRef.map(railReady), structuresRef.current, now, nanoCheck(nanoClouds.map(nanoArea)), shieldOf, aiHelpersRef.current.isWalkable, cover);
           // What the buildings in the way took.
           rail.buildingDamage.forEach((n, id) => attacks.buildingDamage.set(id, (attacks.buildingDamage.get(id) || 0) + n));
           if (attacks.buildingDamage.size > 0) {
@@ -4295,9 +4284,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
               }
           }
           // Banshee jamming (sim/jamming.ts): enemy drones inside an active jammer lose their link
-          // and take no new orders until they are out of it; hardlined drones are immune.
+          // and take no new orders until they are out of it; hardlined drones are immune. Enemy
+          // Nano-Clouds jam the remote units inside them too (sim/nanoCloud.ts).
           {
-              const jam = jammingUpdates(unitsRef.current);
+              const liveNano = cloudsRef.current.filter(c => c.type === 'nano' && now - c.createdAt < c.duration).map(nanoArea);
+              const jam = jammingUpdates(unitsRef.current, nanoJammed(unitsRef.current, liveNano));
               if (jam.size > 0) {
                   const apply = (list: UnitData[]) => list.map(u => jam.get(u.id)?.(u) ?? u);
                   unitsRef.current = apply(unitsRef.current);
@@ -4392,6 +4383,11 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           if (unitsRef.current.some(u => u.overriddenBy && u.overriddenBy.until <= now)) {
               unitsRef.current = releaseOverrides(unitsRef.current, now);
               setUnits(prev => releaseOverrides(prev, now));
+          }
+          // Phantom Decoys holograms fade when their time is up (sim/hologram.ts).
+          if (unitsRef.current.some(u => u.hologramUntil !== undefined && now >= u.hologramUntil)) {
+              unitsRef.current = fadeHolograms(unitsRef.current, now);
+              setUnits(prev => fadeHolograms(prev, now));
           }
 
           // Heavy Metal's Salvage: wrecks stripped for cores and patching (sim/salvage.ts).
@@ -4612,7 +4608,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   const chargers = activeUnits.filter(u => u.type === 'helios');
                   
                   // Clouds for visual obscuration logic (Charging & Targeting)
-                  const activeClouds = cloudsRef.current.filter(c => c.type === 'nano');
+                  const blinding = nanoCheck(cloudsRef.current.filter(c => c.type === 'nano' && now - c.createdAt < c.duration).map(nanoArea));
 
                   const bombardDamage = bombardUnitDamage(activeUnits, strikes, fields);
                   // Enemies standing inside a force field are shocked; spent generators burn out.
@@ -4726,7 +4722,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                           units: activeUnits,
                           sources: power,
                           onGrid: isInsideEnergyGrid(u.gridPos, u.team, buildingsRef.current, teamBasesRef.current.blue, teamBasesRef.current.red, blackouts),
-                          inNanoCloud: isPointInCloud(u.gridPos, activeClouds, 'nano'),
+                          inNanoCloud: blinding(u.gridPos, u.team, 'firing'),
                           helios: chargers,
                           muleRangeOf,
                       })) uChanged = true;
@@ -4764,7 +4760,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       diedRef.current.add(u.id);
                       deathsRef.current.push({ type: u.type, at: { ...u.gridPos } });
                       // Vehicles leave wrecks for Heavy Metal to salvage (sim/salvage.ts).
-                      const wreck = wreckOf(u.type, u.gridPos, now, `wreck-${u.id}`, u.team);
+                      const wreck = wreckOf(u.type, u.gridPos, now, `wreck-${u.id}`, u.team, u.hologramUntil !== undefined);
                       if (wreck) wrecksRef.current = [...wrecksRef.current, wreck];
                   }
                   // Units with a death animation fall where they were drawn, if the player could see
@@ -5050,6 +5046,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
              const turretAt = (u.type === 'tank' || u.type === 'titan_dropped' || u.type === 'razorback' || u.type === 'hornet') && u.combatTargetId
                  ? (units.find(t => t.id === u.combatTargetId) ?? structuresState.find(t => t.id === u.combatTargetId))?.gridPos ?? null : null;
              const ownJammer = u.type === 'banshee' && u.team === playerTeam;
+             const ownHologram = u.hologramUntil !== undefined && u.team === playerTeam;
              const selected = selectedUnitIds.has(u.id);
              const isTargetingMode = !!targetingSourceId;
              const showTetherRange = u.type === 'banshee' && ((u.tetherTargetIds?.length ?? 0) > 0 || (targetingSourceId === u.id && targetingAbility === 'TETHER'));
@@ -5058,13 +5055,13 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
              const isBatteryLinkCandidate = !!batteryTargetingSource && isBatteryLinkable(u) && u.team === batteryTargetingSource.team && Math.hypot(u.gridPos.x - batteryTargetingSource.gridPos.x, u.gridPos.z - batteryTargetingSource.gridPos.z) <= muleRangeOf(batteryTargetingSource);
              const warheadStock = u.team === playerTeam && (playerTeam === 'blue' || playerTeam === 'red') ? stockpile[playerTeam] : undefined;
              const cores = menuOpen && (u.team === 'blue' || u.team === 'red') ? teamResources[u.team] : 0;
-             const deps = [teamCompute, upgrades, radarRange, ownJammer, selected, isVisible, menuOpen, isTargetingMode, showTetherRange, showBatteryRange, isLockCandidate, isTetherCandidate, isBatteryLinkCandidate, warheadStock, atOrdnanceFab, ballistaInRange, cores];
+             const deps = [teamCompute, upgrades, radarRange, ownJammer, ownHologram, selected, isVisible, menuOpen, isTargetingMode, showTetherRange, showBatteryRange, isLockCandidate, isTetherCandidate, isBatteryLinkCandidate, warheadStock, atOrdnanceFab, ballistaInRange, cores];
              // The same element as last render when nothing it shows changed (see unitElementCache).
              const hit = unitElementCache.current.get(u.id);
              if (hit && sameUnitForRender(hit.u, u) && hit.deps.every((d, i) => d === deps[i])) { liveUnitIds.add(u.id); return hit.el; }
              // Motion (moveProgress and friends) goes through the motion registry, not props, and the
              // battery to whole points: both change every tick, and either re-rendered every moving unit.
-             const el = ( <Unit key={u.id} {...u} moveProgress={undefined} moveTarget={undefined} moveSpeed={undefined} battery={Math.round(u.battery)} teamCompute={teamCompute} upgrades={upgrades} radarRange={radarRange} ownJammer={ownJammer} isSelected={selected} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={menuOpen} onAction={stableUnitAction} isTargetingMode={isTargetingMode} showTetherRange={showTetherRange} showBatteryRange={showBatteryRange} isLockCandidate={isLockCandidate} isTetherCandidate={isTetherCandidate} isBatteryLinkCandidate={isBatteryLinkCandidate} warheadStock={warheadStock} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={cores} faceAt={faceAt} turretAt={turretAt} ciwsAims={ciwsAimsRef} /> );
+             const el = ( <Unit key={u.id} {...u} moveProgress={undefined} moveTarget={undefined} moveSpeed={undefined} battery={Math.round(u.battery)} teamCompute={teamCompute} upgrades={upgrades} radarRange={radarRange} ownJammer={ownJammer} ownHologram={ownHologram} isSelected={selected} onSelect={stableUnitSelect} tileSize={CITY_CONFIG.tileSize} offset={offset} onDoubleClick={stableDoubleClick} visible={isVisible} actionMenuOpen={menuOpen} onAction={stableUnitAction} isTargetingMode={isTargetingMode} showTetherRange={showTetherRange} showBatteryRange={showBatteryRange} isLockCandidate={isLockCandidate} isTetherCandidate={isTetherCandidate} isBatteryLinkCandidate={isBatteryLinkCandidate} warheadStock={warheadStock} atOrdnanceFab={atOrdnanceFab} ballistaInRange={ballistaInRange} cores={cores} faceAt={faceAt} turretAt={turretAt} ciwsAims={ciwsAimsRef} /> );
              unitElementCache.current.set(u.id, { u, deps, el });
              liveUnitIds.add(u.id);
              return el;

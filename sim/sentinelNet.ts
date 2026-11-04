@@ -88,7 +88,8 @@ export function sentinelNetTick(
   const hacked: SentinelNetResult['hacked'] = [];
   let next: UnitData[] = units as UnitData[];
   if (anyCode) {
-    const others = units.filter(u => u.health > 0 && u.team !== 'neutral' && !isSentinel(u));
+    // Phantom Decoys holograms (sim/hologram.ts) hack nothing.
+    const others = units.filter(u => u.health > 0 && u.team !== 'neutral' && !isSentinel(u) && u.hologramUntil === undefined);
     next = units.map(u => {
       if (!isSentinel(u) || u.team !== 'neutral' || u.health <= 0) return u;
       const near = (team: Team, r: number) => others.some(o => o.team === team && tiles(o.gridPos, u.gridPos) <= r);

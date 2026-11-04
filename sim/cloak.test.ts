@@ -53,7 +53,9 @@ describe('Cloaking Field', () => {
     const shooter = { ...unit('tank', 'blue', 's', 1), lastAttackTime: NOW - 1000 };
     const hit = { ...unit('tank', 'blue', 'h', 1, 1), lastDamageTime: NOW - 1000 };
     expect([...fieldCloakedIds([gen, shooter, hit], NOW)]).toEqual(['g']);
-    expect([...fieldCloakedIds([gen, shooter, hit], NOW - 1000 + CLOAK_FIELD.revealMs)]).toEqual(['g', 's', 'h']);
+    expect([...fieldCloakedIds([gen, shooter, hit], NOW - 1000 + CLOAK_FIELD.fieldRevealMs)]).toEqual(['g', 's', 'h']);
+    // Quicker than a unit gone dark outside a field.
+    expect(CLOAK_FIELD.fieldRevealMs).toBeLessThan(CLOAK_FIELD.revealMs);
   });
 
   it('cloaked units are never picked as a target', () => {

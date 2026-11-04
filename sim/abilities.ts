@@ -114,15 +114,21 @@ function ownUnit(view: AbilityView, team: Team, id: string, types: readonly Unit
   return u;
 }
 
+const HOLOGRAM_REASON = 'a hologram has no abilities';
+
 export function abilityEffects(view: AbilityView, team: Team, command: AbilityCommand, ctx: AbilityContext): AbilityOutcome {
   // A jammed unit can't be reached: it takes no ability orders (sim/jamming.ts). From a group,
   // the rest still act.
+  // Phantom Decoys holograms (sim/hologram.ts) have no abilities.
+  const holograms = new Set(view.units.filter(u => u.hologramUntil !== undefined).map(u => u.id));
   if ('unitIds' in command) {
-    const reachable = unjammedIds(view.units, command.unitIds);
+    const reachable = unjammedIds(view.units, command.unitIds.filter(id => !holograms.has(id)));
     if ('reason' in reachable) return reject(reachable.reason);
+    if (reachable.ids.length === 0 && command.unitIds.length > 0) return reject(HOLOGRAM_REASON);
     command = { ...command, unitIds: reachable.ids };
   } else if ('unitId' in command) {
     const actor = (command as { unitId: string }).unitId;
+    if (holograms.has(actor)) return reject(HOLOGRAM_REASON);
     if (view.units.some(u => u.id === actor && u.isJammed)) return reject(JAMMED_REASON);
   }
   switch (command.type) {

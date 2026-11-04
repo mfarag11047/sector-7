@@ -16,6 +16,8 @@ import { damageMultiplier, damageTakenMultiplier, fireRateMultiplier, hasBuff, i
 import { ArmorClass, canHit, DamageType, shotDamage, STRUCTURE_RULES, UNIT_RULES, Weapon } from './units';
 import { isBeingHacked } from './sentinelNet';
 import { AMBUSH_DARK } from './cloak';
+import type { NanoCheck } from './nanoCloud';
+import { HOLOGRAM, isHologram } from './hologram';
 
 export type DamageMap = Map<string, number>;
 
@@ -151,7 +153,8 @@ export function resolveAttacks(
   units: readonly UnitData[],
   structures: readonly CombatStructure[],
   now: number,
-  inNanoCloud: (pos: GridPos) => boolean,
+  // Netrunner Nano-Clouds (sim/nanoCloud.ts): who is blinded, and who is hidden.
+  inNanoCloud: NanoCheck,
   shieldOf: (team: UnitData['team'], from: GridPos, to: GridPos) => ShieldBlock | null = () => null,
   cover: CoverMap | null = null,
   // Doctrine track edges (sim/doctrineTrack.ts): damage a unit takes (Hardened Plate), and a side's
@@ -164,7 +167,7 @@ export function resolveAttacks(
   const coverOf = (shooter: UnitData | null, team: UnitData['team'], from: GridPos, fromAir: boolean, target: { id: string; gridPos: GridPos }, toAir: boolean) =>
     cover && coverApplies(shooter, fromAir, byId.get(target.id) ?? null, toAir) ? coverBetween(cover, team, from, target.gridPos) : null;
 
-  const unitTargets = units.filter(u => u.health > 0 && !isHidden(u) && !inNanoCloud(u.gridPos));
+  const unitTargets = units.filter(u => u.health > 0 && !isHidden(u) && !inNanoCloud(u.gridPos, u.team, 'target'));
   const structureTargets = structures.filter(s => s.health > 0);
 
   // Ground shooters can't pick out a unit in a friendly Smoke Screen (sim/titan.ts); aircraft can.
@@ -205,8 +208,10 @@ export function resolveAttacks(
   };
 
   // Nano-Weave and the like reduce what a unit takes.
-  const takenBy = new Map(unitTargets.map(t => [t.id, damageTakenMultiplier(t) * (perks.damageTaken?.(t) ?? 1)]));
-  const hitUnit = (id: string, damage: number) => addDamage(result.unitDamage, id, damage * (takenBy.get(id) ?? 1));
+  // A Phantom Decoys hologram (sim/hologram.ts) breaks after a few hits.
+  const takenBy = new Map(unitTargets.map(t => [t.id, damageTakenMultiplier(t) * (perks.damageTaken?.(t) ?? 1) * (isHologram(t) ? HOLOGRAM.damageTaken : 1)]));
+  // A harmless shot (a hologram's) leaves no mark, not even a hit that would show a cloaked unit.
+  const hitUnit = (id: string, damage: number) => { if (damage > 0) addDamage(result.unitDamage, id, damage * (takenBy.get(id) ?? 1)); };
   // Aircraft do half damage to a unit in a Smoke Screen.
   const screenedIds = new Set(unitTargets.filter(isScreened).map(t => t.id));
   const fromAirOn = (id: string, fromAir: boolean) => (fromAir && screenedIds.has(id) ? SMOKE.airDamage : 1);
@@ -248,15 +253,17 @@ export function resolveAttacks(
   for (const u of units) {
     const base = UNIT_RULES[u.type].weapon;
     // A Sentinel being hacked holds its fire (sim/sentinelNet.ts).
-    if (!base || base.indirect || base.ciws || u.health <= 0 || u.decoyActive || u.isStunned || isEmpDisabled(u) || inNanoCloud(u.gridPos) || isBeingHacked(u)) continue;
+    if (!base || base.indirect || base.ciws || u.health <= 0 || u.decoyActive || u.isStunned || isEmpDisabled(u) || inNanoCloud(u.gridPos, u.team, 'firing') || isBeingHacked(u)) continue;
     // Ability buffs (sim/unitAbilities.ts): range, damage and, for Flak Barrage, air splash.
     // Firing from a cloak (Going Dark, a Cloaking Field) is an ambush (sim/cloak.ts); Kage's own
     // camo has its double in damageMultiplier.
     const ambush = u.fieldCloaked && !hasBuff(u, 'shadow_cloak') ? perks.ambushOf?.(u.team) ?? AMBUSH_DARK : 1;
-    const weapon: Weapon = u.buffs?.length || ambush > 1 ? {
+    // A hologram fires like the real thing, but its shots do nothing.
+    const harmless = isHologram(u);
+    const weapon: Weapon = u.buffs?.length || ambush > 1 || harmless ? {
       ...base,
       range: base.range + rangeBonus(u),
-      damage: base.damage * damageMultiplier(u) * ambush,
+      damage: harmless ? 0 : base.damage * damageMultiplier(u) * ambush,
       ...(hasBuff(u, 'barrage') ? { splash: 1.5, splashFactor: 0.5 } : {}),
     } : base;
     const fromAir = UNIT_RULES[u.type].armor === 'air';

@@ -214,8 +214,8 @@ export const ABILITY_CONFIG = {
   WARHEAD_BUILD_TIME_WP: 17000,
   
   // Nano Cloud
-  NANO_CLOUD_RADIUS: 5,
-  NANO_CLOUD_DURATION: 30000,
+  NANO_CLOUD_RADIUS: 3,
+  NANO_CLOUD_DURATION: 15000,
 
   // Ballistic Missile Physics
   MISSILE_LAUNCH_HEIGHT: 80,
@@ -351,10 +351,10 @@ export const DOCTRINE_CONFIG: Record<DoctrineType, {
   heavy_metal: {
     label: "Heavy Metal",
     tier1_passive: "Salvage & Repair: every vehicle destroyed, yours or theirs, leaves a burning wreck for 60 s. Park any of your ground units at one, uncontested, for 4 s to strip it: 15% of the vehicle's cost in cores, and your vehicles there patched up by a tenth of their health. Guardians and your base also repair armour 50% faster, and from Tier 2 armour repairs itself (5 HP/s) after 5 s out of combat.",
-    tier2_cost: 500,
+    tier2_cost: 800,
     tier2_cooldown: 120000,
     tier2_name: "Orbital Drop",
-    tier2_desc: "Deploys a Titan tank directly to the target location.",
+    tier2_desc: "Drops a Titan straight onto the target: a heavier tank than your Factory's, taking no population.",
     tier3_cost: 1200,
     tier3_cooldown: 300000,
     tier3_name: "Bulwark Force Field",
@@ -363,14 +363,14 @@ export const DOCTRINE_CONFIG: Record<DoctrineType, {
   shadow_ops: {
     label: "Shadow Ops",
     tier1_passive: "Going Dark: your infantry and light vehicles cloak whenever they hold still and haven't fought for 6 s. The enemy can't see or target them (an Aegis radar shows a blip). Moving, firing or being hit shows them, and any shot from a cloak, a Cloaking Field's too, is an ambush for +50% damage.",
-    tier2_cost: 400,
+    tier2_cost: 300,
     tier2_cooldown: 60000,
     tier2_name: "Phantom Decoys",
-    tier2_desc: "Spawns holographic units to distract enemy fire.",
-    tier3_cost: 1000,
+    tier2_desc: "Holograms of your nearest units come up at the target, 6 of them. The enemy sees and shoots them as real units; you move them like your own. Their shots do nothing, a few hits break one, and they fade after 20 s. They capture nothing and take no population.",
+    tier3_cost: 800,
     tier3_cooldown: 240000,
     tier3_name: "Cloaking Field",
-    tier3_desc: "Air-drops a Cloaking Field Generator. Friendly units within 3 tiles are hidden from the enemy until they fire or are hit. Runs on battery (indefinitely inside your grid); one per side, a new drop destroys the old.",
+    tier3_desc: "Air-drops a Cloaking Field Generator. Friendly units within 3 tiles are hidden from the enemy; firing or being hit shows a unit for only 2 s before it slips back under. Runs on battery (indefinitely inside your grid); one per side, a new drop destroys the old.",
   },
   netrunner: {
     label: "Netrunner",
@@ -378,7 +378,7 @@ export const DOCTRINE_CONFIG: Record<DoctrineType, {
     tier2_cost: 600,
     tier2_cooldown: 90000,
     tier2_name: "Nano-Cloud",
-    tier2_desc: "Deploys a dense smoke screen at target area.",
+    tier2_desc: "Drops a cloud of nanites (3 tiles, 15 s) that works for your side: enemies inside can't fire and their drones are jammed, while your units inside can't be targeted and fire out as normal.",
     tier3_cost: 1100,
     tier3_cooldown: 300000,
     tier3_name: "Black Wall Infect",

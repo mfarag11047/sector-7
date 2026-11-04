@@ -50,9 +50,11 @@ export function jammedUnits(units: readonly UnitData[]): Set<string> {
   return jammed;
 }
 
-// Updates that set or clear isJammed on every unit whose state changed.
-export function jammingUpdates(units: readonly UnitData[]) {
+// Updates that set or clear isJammed on every unit whose state changed. Enemy Nano-Clouds jam
+// remote units inside them too (sim/nanoCloud.ts nanoJammed, passed in as alsoJammed).
+export function jammingUpdates(units: readonly UnitData[], alsoJammed: ReadonlySet<string> = new Set()) {
   const jammed = jammedUnits(units);
+  for (const id of alsoJammed) jammed.add(id);
   const updates = new Map<string, (u: UnitData) => UnitData>();
   for (const u of units) {
     const now = jammed.has(u.id);

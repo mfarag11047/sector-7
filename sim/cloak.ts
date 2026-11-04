@@ -24,8 +24,11 @@ export const CLOAK_FIELD = {
   radius: 3,
   // Battery spent per 100 ms tick while the field is up (about 75 s on a full charge).
   drainPerTick: 0.13,
-  // How long firing or being hit shows a unit.
+  // How long firing or being hit shows a unit gone dark (Shadow Ops' passive).
   revealMs: 6000,
+  // Inside a Cloaking Field a unit slips back under this soon after firing or being hit, so a
+  // fight inside the field flickers: the enemy gets only moments to shoot back.
+  fieldRevealMs: 2000,
 };
 
 export const isCloakGenerator = (u: Pick<UnitData, 'type'>) => u.type === 'cloak_generator';
@@ -35,8 +38,8 @@ export const isCloakFieldUp = (g: UnitData) =>
   isCloakGenerator(g) && !g.cloakFieldOff && g.health > 0 && g.battery > 0 && !g.isStunned && !isEmpDisabled(g);
 
 // Fired or was hit recently.
-export const revealedByCombat = (u: UnitData, now: number) =>
-  now - Math.max(u.lastAttackTime ?? -Infinity, u.lastDamageTime ?? -Infinity, u.ciwsLastFiredAt || -Infinity, u.railgunFiredAt ?? -Infinity) < CLOAK_FIELD.revealMs;
+export const revealedByCombat = (u: UnitData, now: number, revealMs = CLOAK_FIELD.fieldRevealMs) =>
+  now - Math.max(u.lastAttackTime ?? -Infinity, u.lastDamageTime ?? -Infinity, u.ciwsLastFiredAt || -Infinity, u.railgunFiredAt ?? -Infinity) < revealMs;
 
 // Units the enemy can neither see nor target: a Ghost under Phantom Decoy, or anything in a field.
 export const isHidden = (u: Pick<UnitData, 'decoyActive' | 'fieldCloaked'>) => !!u.decoyActive || !!u.fieldCloaked;
@@ -46,7 +49,8 @@ export const isHidden = (u: Pick<UnitData, 'decoyActive' | 'fieldCloaked'>) => !
 // or being hit shows them. A Shadow Ops army waiting in position can't be seen, and its first shots
 // from the dark are an ambush (AMBUSH_DARK, sim/combat.ts).
 export const goesDark = (u: UnitData, now: number, afterMs = CLOAK_FIELD.revealMs) =>
-  u.health > 0 && u.path.length === 0 && now - Math.max(u.lastAttackTime ?? -Infinity, u.lastDamageTime ?? -Infinity, u.ciwsLastFiredAt || -Infinity, u.railgunFiredAt ?? -Infinity) >= afterMs
+  // A Phantom Decoys hologram (sim/hologram.ts) is there to be seen.
+  u.health > 0 && u.hologramUntil === undefined && u.path.length === 0 && now - Math.max(u.lastAttackTime ?? -Infinity, u.lastDamageTime ?? -Infinity, u.ciwsLastFiredAt || -Infinity, u.railgunFiredAt ?? -Infinity) >= afterMs
   && (UNIT_RULES[u.type].armor === 'infantry' || UNIT_RULES[u.type].armor === 'light')
   && u.type !== 'courier' && u.type !== 'defense_drone';
 // A strike from any cloak but Kage's own (which doubles, sim/unitAbilities.ts) does this much more.

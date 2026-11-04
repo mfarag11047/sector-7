@@ -139,6 +139,9 @@ export interface UnitData {
   // A Cloaking Field Generator its owner has switched off.
   cloakFieldOff?: boolean;
   
+  // A Phantom Decoys hologram (sim/hologram.ts): when it fades.
+  hologramUntil?: number;
+
   // New Decoy Fields
   decoyActive?: boolean;
   decoyStartTime?: number;

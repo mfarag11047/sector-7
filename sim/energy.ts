@@ -199,6 +199,7 @@ export interface PowerContext {
   units: readonly UnitData[]; // Living units this tick
   sources: ChargeSources;
   onGrid: boolean;
+  // Inside an enemy Nano-Cloud (sim/nanoCloud.ts): a Helios can't charge it.
   inNanoCloud: boolean;
   helios: readonly UnitData[];
   // How far each Battery Mule reaches (muleRange); the base range if not given.

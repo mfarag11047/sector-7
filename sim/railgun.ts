@@ -25,6 +25,7 @@ import { isHidden } from './cloak';
 import { CoverMap, coverApplies, coverBetween, hitCover } from './cover';
 import { damageTakenMultiplier, upgradeDamage, hasBuff, isEmpDisabled } from './unitAbilities';
 import { isScreened, PIERCE } from './titan';
+import { NO_NANO, type NanoCheck } from './nanoCloud';
 import { ArmorClass, shotDamage, UNIT_RULES, Weapon } from './units';
 
 export const RAILGUN = {
@@ -54,7 +55,7 @@ export function fireRailguns(
   units: readonly UnitData[],
   structures: readonly StructureData[],
   now: number,
-  inNanoCloud: (pos: GridPos) => boolean = () => false,
+  inNanoCloud: NanoCheck = NO_NANO,
   // An enemy force field in the way (sim/forcefield.ts): targets behind one come last, and a shot
   // at one hits the dome instead.
   shieldOf: (team: UnitData['team'], from: GridPos, to: GridPos) => ShieldBlock | null = () => null,
@@ -83,10 +84,11 @@ export function fireRailguns(
   };
   for (const u of units) {
     if (!hasRailgun(u) || u.health <= 0 || u.isStunned || isEmpDisabled(u) || u.battery < RAILGUN.batteryCost) continue;
-    if (!railgunReady(u, now) || inNanoCloud(u.gridPos)) continue;
+    // A Phantom Decoys hologram (sim/hologram.ts) has no real gun.
+    if (!railgunReady(u, now) || u.hologramUntil !== undefined || inNanoCloud(u.gridPos, u.team, 'firing')) continue;
     let best: { t: UnitData; key: number } | null = null;
     for (const t of units) {
-      if (t.team === u.team || t.health <= 0 || isHidden(t) || isScreened(t) || inNanoCloud(t.gridPos)) continue;
+      if (t.team === u.team || t.health <= 0 || isHidden(t) || isScreened(t) || inNanoCloud(t.gridPos, t.team, 'target')) continue;
       const armor = UNIT_RULES[t.type].armor;
       if (armor === 'air') continue;
       const d = tiles(u.gridPos, t.gridPos);

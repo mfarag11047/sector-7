@@ -74,7 +74,7 @@ export const TRACK: Record<DoctrineType, [TrackOption, TrackOption][]> = {
     [power('heavy_metal', 'tier2'), power('heavy_metal', 'tier3')],
     [
       { id: 'hm_hero', heroAbility: 'juggernaut', name: 'Juggernaut', description: 'Goliath\'s big ability (50 s cooldown): for 8 s he takes 70% less damage, fires twice as fast and shrugs off EMP.' },
-      { id: 'hm_plate', name: 'Hardened Plate', description: 'Your vehicles take 10% less damage.' },
+      { id: 'hm_plate', name: 'Hardened Plate', description: 'Your vehicles take 5% less damage.' },
     ],
     capstones('heavy_metal'),
   ],
@@ -183,7 +183,7 @@ export const EDGES = {
   // Scrap Haulers: what a stripped wreck pays, times this.
   scrapMultiplier: 2,
   // Hardened Plate: share of damage a vehicle still takes.
-  plateDamageTaken: 0.9,
+  plateDamageTaken: 0.95,
 };
 export const perk = {
   salvageMultiplier: (e?: TeamEconomy) => (hasPick(e, 'hm_scrap') ? EDGES.scrapMultiplier : 1),

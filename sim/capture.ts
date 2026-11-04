@@ -31,7 +31,8 @@ function captureStep(b: BuildingData, units: readonly UnitData[]): BuildingData 
   let bluePower = 0;
   let redPower = 0;
   for (const u of units) {
-    if (u.team === 'neutral') continue;
+    // Phantom Decoys holograms (sim/hologram.ts) capture nothing.
+    if (u.team === 'neutral' || u.hologramUntil !== undefined) continue;
     if (Math.abs(u.gridPos.x - b.gridX) > CAPTURE_RANGE || Math.abs(u.gridPos.z - b.gridZ) > CAPTURE_RANGE) continue;
     const stats = UNIT_STATS[u.type];
     // Buildings and core nodes are captured by infantry only.

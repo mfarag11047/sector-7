@@ -200,8 +200,9 @@ export const TIER_REQUIREMENT: Record<Tier, string> = {
 // Living units plus everything queued, which reserves its population when ordered.
 export function popUsed(units: readonly UnitData[], structures: readonly StructureData[], team: UnitData['team']): number {
   let used = 0;
-  // A Sentinel posted at a server node (a defender or a hacked guard) is free.
-  for (const u of units) if (u.team === team && u.health > 0 && !u.sentinelPost) used += UNIT_RULES[u.type].pop;
+  // A Sentinel posted at a server node (a defender or a hacked guard) is free, and so is a
+  // Phantom Decoys hologram (sim/hologram.ts).
+  for (const u of units) if (u.team === team && u.health > 0 && !u.sentinelPost && u.hologramUntil === undefined) used += UNIT_RULES[u.type].pop;
   for (const s of structures) if (s.team === team) for (const q of s.queue || []) used += UNIT_RULES[q.unitType].pop;
   return used;
 }

@@ -5,9 +5,8 @@
 // It is also a first draft of the authoritative game server: everything here runs on the
 // sim/ modules alone, including warhead production and Ballista loading, and every doctrine power
 // (castPower). Not yet included: projectiles and unit abilities other than Titan smoke, warhead
-// clouds, Masons and walls, and breaching. Phantom Decoys are paid for but do nothing here: no gun
-// picks a decoy (sim/combat.ts), so in the game they only fool the minimap and soak stray
-// projectiles, which aren't flown here.
+// clouds, Masons and walls, and breaching. Phantom Decoys put up their holograms as in the game
+// (sim/hologram.ts).
 
 import { ABILITY_CONFIG, CITY_CONFIG, STRUCTURE_INFO, TEAM_BASES } from '../constants';
 import type { BuildingData, DoctrineType, RoadType, StructureData, UnitData } from '../types';
@@ -57,6 +56,8 @@ import { kageCharges } from './shadowHero';
 import { checkVictory, Victory } from './victory';
 import { DOCTRINE_CONFIG } from '../constants';
 import { jammingUpdates } from './jamming';
+import { nanoCheck, nanoJammed } from './nanoCloud';
+import { fadeHolograms, spawnHolograms } from './hologram';
 import { heliosBeams, microwaveDamage } from './helios';
 import { freshPacing, pacingTick, PacingRecord, recordStrategies, recordVictory, recordWeaponHits } from './pacing';
 
@@ -110,7 +111,7 @@ export interface HeadlessMatch {
   sentinelNet: SentinelNet;
   // Wrecks for Heavy Metal to salvage (sim/salvage.ts).
   wrecks: Wreck[];
-  // Netrunner Nano-Clouds on the ground: nothing inside fires or is fired at.
+  // Netrunner Nano-Clouds on the ground (sim/nanoCloud.ts).
   nanoClouds: NanoCloud[];
   // Black Wall virus bombs on their way down (sim/blackwall.ts).
   virusBombs: VirusBomb[];
@@ -202,8 +203,10 @@ export function stepMatch(m: HeadlessMatch): void {
   const paths = pathfinder(m);
   const bases = { blue: TEAM_BASES.blue, red: TEAM_BASES.red };
 
-  // Banshee jamming: mark who can't take orders before anyone sends any (sim/jamming.ts).
-  const jam = jammingUpdates(m.units);
+  // Banshee jamming, and enemy Nano-Clouds over remote units: mark who can't take orders before
+  // anyone sends any (sim/jamming.ts, sim/nanoCloud.ts).
+  m.nanoClouds = m.nanoClouds.filter(c => c.until > m.now);
+  const jam = jammingUpdates(m.units, nanoJammed(m.units, m.nanoClouds));
   if (jam.size > 0) m.units = m.units.map(u => jam.get(u.id)?.(u) ?? u);
 
   // Computer players think and send their commands through the normal checks.
@@ -229,8 +232,9 @@ export function stepMatch(m: HeadlessMatch): void {
     shut: u => heldAtGate(m.structures, u.team, u.path),
   };
   m.units = m.units.map(u => advanceMover(u, MOVE_TICK_MS, env));
-  // Machines seized by Override go back when their time is up (sim/netrunnerHero.ts).
-  m.units = releaseOverrides(m.units, now);
+  // Machines seized by Override go back when their time is up (sim/netrunnerHero.ts), and
+  // Phantom Decoys holograms fade (sim/hologram.ts).
+  m.units = fadeHolograms(releaseOverrides(m.units, now), now);
   // Kage's Optical Camo, Cloaking Fields and Shadow Ops going dark hide their units (sim/cloak.ts).
   m.units = applyFieldCloak(m.units, fieldCloakedIds(m.units, now, team => (team === 'blue' || team === 'red') ? m.opts.doctrine[team] : null, team => (team === 'blue' || team === 'red') ? perk.darkAfterMs(m.economy[team]) : null));
 
@@ -246,9 +250,8 @@ export function stepMatch(m: HeadlessMatch): void {
     const f = absorbingField(fields, team, at, from);
     if (f) addShieldHit(shieldHits, f.id, damage);
   };
-  // Netrunner Nano-Clouds: nothing inside fires or is fired at.
-  m.nanoClouds = m.nanoClouds.filter(c => c.until > now);
-  const inNanoCloud = (p: GridPos) => m.nanoClouds.some(c => Math.hypot(p.x - c.at.x, p.z - c.at.z) <= c.radius);
+  // Netrunner Nano-Clouds (sim/nanoCloud.ts): enemies inside are blinded, the caster's units hidden.
+  const inNanoCloud = nanoCheck(m.nanoClouds);
 
   // Combat.
   const reloaded =<T extends { id: string; lastAttackTime?: number }>(x: T): T => {
@@ -454,7 +457,7 @@ export function stepMatch(m: HeadlessMatch): void {
     if (draft.health > 0) {
       ballistaLoadStep(u, draft, MOVE_TICK_MS);
       powerTick(u, draft, {
-        units: living, sources: power, helios, inNanoCloud: inNanoCloud(u.gridPos), muleRangeOf,
+        units: living, sources: power, helios, inNanoCloud: inNanoCloud(u.gridPos, u.team, 'firing'), muleRangeOf,
         onGrid: isInsideEnergyGrid(u.gridPos, u.team, m.buildings, bases.blue, bases.red),
       });
     }
@@ -465,7 +468,7 @@ export function stepMatch(m: HeadlessMatch): void {
   // Vehicles leave wrecks for Heavy Metal to salvage (sim/salvage.ts).
   for (const u of m.units) {
     if (u.health > 0) continue;
-    const w = wreckOf(u.type, u.gridPos, now, `wreck-${++m.nextId}`, u.team);
+    const w = wreckOf(u.type, u.gridPos, now, `wreck-${++m.nextId}`, u.team, u.hologramUntil !== undefined);
     if (w) m.wrecks.push(w);
   }
   m.units = m.units.filter(u => u.health > 0);
@@ -568,12 +571,15 @@ export function castPower(m: HeadlessMatch, team: Team, tier: 2 | 3, target: Gri
     // Cloaking Field: one generator per side, the old one blows.
     const old = new Set(generatorsReplacedBy(m.units, team));
     m.units = [...m.units.filter(u => !old.has(u.id)), createUnit('cloak_generator', team, `cloakgen-${++m.nextId}`, at)];
+  } else if (power === 'shadow_ops_tier2') {
+    // Phantom Decoys: holograms of its nearest units come up at the target (sim/hologram.ts).
+    const { walkable } = pathfinder(m);
+    m.units.push(...spawnHolograms(m.units, team, at, m.now, () => `holo-${++m.nextId}`, walkable));
   } else if (power === 'netrunner_tier2') {
     m.nanoClouds.push({ team, at, radius: ABILITY_CONFIG.NANO_CLOUD_RADIUS, until: m.now + ABILITY_CONFIG.NANO_CLOUD_DURATION });
   } else if (power === 'netrunner_tier3') {
     m.virusBombs.push({ team, at, landAt: m.now + BLACKWALL.fallMs });
   }
-  // shadow_ops_tier2, Phantom Decoys: nothing in this sim targets decoys (see the header).
   m.powersCast.push({ team, doctrine, key, at: m.now });
   m.log.push(`${Math.round(m.now / 1000)}s ${team} ${power}`);
   return true;

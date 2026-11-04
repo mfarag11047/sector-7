@@ -211,7 +211,8 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const theirs = view.units.filter(u => u.team === enemy && alive(u));
   const myStructures = view.structures.filter(s => s.team === team);
   const tier = teamTier(view.economy, team);
-  const armyUnits = mine.filter(u => isFighter(u) && u.type !== 'defense_drone');
+  // Its own Phantom Decoys holograms (sim/hologram.ts) march with the army but don't count as strength.
+  const armyUnits = mine.filter(u => isFighter(u) && u.type !== 'defense_drone' && u.hologramUntil === undefined);
   const armyValue = armyUnits.reduce((sum, u) => sum + valueOf(u), 0);
   // The army strategy: picked at the start, changed when losses call for it.
   mem.plan = updateStrategy(memory.plan ?? freshStrategyMemory(), {
@@ -956,9 +957,7 @@ export function powerSaving(
 ): number {
   if (!AI_DOCTRINE.savePowers || mode === 'gather' || mode === 'expand') return 0;
   const ready = usablePowers(doctrine, profile, economy)
-    .filter(t => (t === 2 ? cooldowns.tier2 : cooldowns.tier3) <= 0)
-    // Phantom Decoys only soak a few shots: not worth holding units back for.
-    .filter(t => !(doctrine === 'shadow_ops' && t === 2));
+    .filter(t => (t === 2 ? cooldowns.tier2 : cooldowns.tier3) <= 0);
   return ready.length === 0 ? 0 : Math.min(...ready.map(t => trackPowerCost(economy, doctrine, t === 2 ? 'tier2' : 'tier3')));
 }
 
@@ -971,7 +970,6 @@ function doctrineMove(
   // The densest enemy cluster within reach of the fight.
   const cluster = densestCluster(enemies, 3);
   const engaged = enemies.filter(e => dist(e.gridPos, front) <= 7).reduce((s, u) => s + valueOf(u), 0);
-  const armyValue = army.reduce((s, u) => s + valueOf(u), 0);
   const fighting = mode === 'attack' || mode === 'defend' || mode === 'tech';
 
   // The powers it chose on its doctrine track, the bigger first. Production keeps their price
@@ -985,13 +983,17 @@ function doctrineMove(
       // Bulwark Force Field over its own army once it is locked in a real fight.
       if (t === 3 && army.length >= 4 && engaged >= 600 && (mode === 'attack' || mode === 'defend')) return { kind: 'doctrine', tier: 3, target: front };
     } else if (doctrine === 'shadow_ops') {
-      if (t === 2 && mode === 'attack') return { kind: 'doctrine', tier: 2, target: objective };
+      // Phantom Decoys among its army as a fight opens: holograms of its own units, which march
+      // with it and draw the enemy's fire (sim/hologram.ts).
+      if (t === 2 && fighting && army.length >= 3 && engaged >= 200) return { kind: 'doctrine', tier: 2, target: front };
       // Cloaking Field over the army as it moves in, before the shooting gives it away.
       if (t === 3 && army.length >= 4 && fighting) return { kind: 'doctrine', tier: 3, target: front };
     } else if (doctrine === 'netrunner') {
-      // Nano clouds stop all fire inside them: cover a retreat, or an army caught in a fight it
-      // is losing, until help comes or it can pull out.
-      if (t === 2 && army.length >= 4 && (mode === 'retreat' || (fighting && engaged >= armyValue))) return { kind: 'doctrine', tier: 2, target: front };
+      // A Nano-Cloud blinds the enemies inside it and hides its own units (sim/nanoCloud.ts):
+      // over the thick of the enemy it is fighting, or over its own army to cover a retreat.
+      const nearby = densestCluster(enemies.filter(e => dist(e.gridPos, front) <= 7), ABILITY_CONFIG.NANO_CLOUD_RADIUS);
+      if (t === 2 && fighting && nearby && nearby.value >= 400) return { kind: 'doctrine', tier: 2, target: nearby.at };
+      if (t === 2 && mode === 'retreat' && army.length >= 4) return { kind: 'doctrine', tier: 2, target: front };
       // Black Wall Infect into the thick of the enemy, where the virus has the most friends to jump to.
       if (t === 3 && fighting && cluster && cluster.value >= 500) return { kind: 'doctrine', tier: 3, target: cluster.at };
     }

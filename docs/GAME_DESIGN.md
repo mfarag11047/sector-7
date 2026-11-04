@@ -854,7 +854,7 @@ in order. Holding server nodes gets a side to the top sooner; without them rank 
 |---|---|---|---|
 | 1 | Scrap Haulers (wrecks worth double: 30%) / Field Welders (armour self-repair from the start, 10 HP/s) | Silent Running (infantry and light vehicles +20% speed) / Killing Ground (ambush ×2 instead of ×1.5) | Brute Force (hack in 3 s) / Sentinel Foundry (Sentinels 180 cores, 12 s) |
 | 2 | Orbital Drop / Bulwark Force Field | Phantom Decoys / Cloaking Field | Nano-Cloud / Black Wall Infect |
-| 3 | Juggernaut (Goliath's big ability) / Hardened Plate (vehicles take 10% less damage) | Thousand Cuts (Kage's) / Quick Fade (go dark 2 s after a fight) | Botnet (Cipher's) / Hardened Nodes (defenders after 45 s) |
+| 3 | Juggernaut (Goliath's big ability) / Hardened Plate (vehicles take 5% less damage) | Thousand Cuts (Kage's) / Quick Fade (go dark 2 s after a fight) | Botnet (Cipher's) / Hardened Nodes (defenders after 45 s) |
 | 4 | Arsenal (the other power too) / Overdrive (powers at half cost and cooldown) | the same | the same |
 
 - The powers still cost cores and recharge; the track decides which a side has (no longer the
@@ -1271,6 +1271,13 @@ double against heavy armour). Once its side has researched Hunter-Killer Rockets
 Research) it also fires an anti-vehicle rocket on its own every 6 s at whatever its gun is shooting (AP 60, so 120 to heavy armour), drawn as an
 orange streak. The Hellfire Salvo (above) is its aimed Tier 3 area attack, also researched.
 
+## Heavy Metal Tier 2: Orbital Drop
+
+The Heavy Metal Tier 2 power (800 cores, 120 s cooldown) drops a Titan in a pod straight onto the
+target: a heavier tank than the Factory's (700 health, a 60-damage cannon) that takes no
+population. It was 500 cores, and was the strongest power in the game: in the doctrine sweep, sides
+that took it and cast it freely won 93% of their matches.
+
 ## Heavy Metal Tier 3: Bulwark Force Field
 
 `sim/forcefield.ts`. Replaces the Tactical Nuke, which wiped out whole groups. The power (1200
@@ -1421,6 +1428,21 @@ Infect: a virus bomb that falls for 1.2 s and goes off in a 1.5-tile blast.
 - Infected units crawl with Blackwall glitch (red, magenta and blue scanlines, a jittering split
   cage and a red ring on the ground); a unit catching it shows a magenta ring filling up.
 
+## Netrunner Tier 2: Nano-Cloud
+
+`sim/nanoCloud.ts`. The Netrunner Tier 2 power (600 cores, 90 s cooldown) drops a cloud of nanites,
+3 tiles across the radius, for 15 s. It works for the side that cast it:
+- Enemy units inside are blinded: they can't fire at all, their remote units (drones and other
+  uncrewed machines) lose their link and take no new orders, as under a Banshee's jammer, and a
+  Helios can't charge them.
+- The caster's own units inside can't be picked out by the enemy, and fire out of it as normal.
+- Blasts and shelling across an area still hurt everyone inside.
+
+Drop it on the enemy army to silence it while yours shoots, or over your own to cover a push or a
+retreat. The computer drops it on the thickest enemy group near its army in a fight, or over its
+own army as it retreats. (It was a 5-tile, 30 s smoke where nothing inside fired or was fired at,
+on either side: a stall that helped neither.)
+
 The Swarm Host is no longer part of any doctrine; it is now trained at the Ordnance Fab (Tier 2).
 
 ## Bombardment Drone strike cycle
@@ -1460,9 +1482,28 @@ selected.
   contacts: something is there, not what.
 - EMP-disabled or stunned drones are off the air.
 
+## Shadow Ops Tier 2: Phantom Decoys
+
+`sim/hologram.ts`. The Shadow Ops Tier 2 power (300 cores, 60 s cooldown) puts up holograms of the
+side's own units at the target: `HOLOGRAM.count` (6) copies of whatever of its army is within 8
+tiles of it, the dearest first (Troopers with nothing near).
+- To the enemy they are real units: on its map and minimap, picked by its guns like any other,
+  counted by the computer as army. Their owner sees them drawn see-through teal, and moves them
+  like any unit, so they can walk ahead of a push or round a flank to draw the fire.
+- They fight like the real thing, but their shots do nothing (no damage, not even a hit that would
+  show a cloaked unit). Every hit on one does 4× its damage (`HOLOGRAM.damageTaken`), so a few
+  shots break it. After 20 s they fade.
+- Only plain direct-fire units are copied (Trooper, Lancer, Razorback, Tank, Kestrel); anything
+  else is copied as the plain unit of its kind, so no copy has a rail gun, shells, a swarm or a
+  cloak. They capture nothing, hack nothing, salvage nothing, take no population, leave no wreck,
+  have no abilities and never go dark. The computer doesn't count its own as strength, nor their
+  fading as losses.
+- It replaced three decoy markers that no gun ever picked, which only soaked a few projectiles.
+  (The Ghost's own Phantom Decoy ability is separate and unchanged.)
+
 ## Shadow Ops Cloaking Field
 
-The Shadow Ops Tier 3 doctrine power (1000 cores, 240 s cooldown) air-drops a Cloaking Field
+The Shadow Ops Tier 3 doctrine power (800 cores, 240 s cooldown) air-drops a Cloaking Field
 Generator on a chosen tile, in a drop pod like the Orbital Drop Titan. Rules: `sim/cloak.ts`.
 
 - It can't move. While it has battery it projects a 3-tile field; every friendly unit inside
@@ -1470,7 +1511,10 @@ Generator on a chosen tile, in a drop pod like the Orbital Drop Titan. Rules: `s
   turret, CIWS, artillery battery or homing missile will pick it as a target. Area damage (shell
   splash and missile blasts) still hurts it.
 - A cloaked unit that fires (including an aimed ability or CIWS burst), or is hit, shows itself
-  for 6 s, then slips back under if it is still inside the field.
+  for only 2 s (`CLOAK_FIELD.fieldRevealMs`), then slips back under if it is still inside the
+  field. A fight inside the field flickers: the enemy gets moments to shoot back. (It was 6 s, as
+  for Shadow Ops units gone dark outside a field, and the field did little once the shooting
+  started; that rework came with the price cut from 1000.)
 - The field drains 0.13 battery per tick (about 75 s on a full charge). Inside your energy grid
   it recharges faster than it drains and holds indefinitely; a Battery Mule or Helios can keep a
   forward one going. A flat battery or an EMP drops the field until it recovers.
@@ -1478,7 +1522,7 @@ Generator on a chosen tile, in a drop pod like the Orbital Drop Titan. Rules: `s
 - Its owner can switch the field off and on again from the generator's menu
   (`TOGGLE_CLOAK_FIELD`). Switched off it spends no battery, and it and everything near it can
   be seen.
-- The generator is hidden by its own field while it is up (it shows itself for 6 s if hit, and
+- The generator is hidden by its own field while it is up (it shows itself for 2 s if hit, and
   whenever the field is down). Its owner sees a violet ring and dome at the field's edge, and
   cloaked friendlies, the generator included, drawn translucent violet.
 - Radar beats the field: an enemy Aegis picks up every cloaked unit within its 16-tile radar,
@@ -1676,9 +1720,9 @@ same kind of economy.
    ability at rank 3; it uses Juggernaut in a real fight, Thousand Cuts on two or more, Botnet on two
    or more machines). It uses the powers it chose: none on Easy, one on Normal, both on Hard: Orbital
    Drop into a fight, a Force Field over its army in a big fight, a Cloaking Field over its army in
-   a fight, Decoys on an attack, a Nano Cloud over a retreat or over its army in a fight it is
-   losing (the enemy near it worth as much as the army), a Black Wall Infect bomb on a big enemy
-   cluster. It casts only with 200 cores to spare for units (`AI_DOCTRINE.bank`).
+   a fight, Decoys among its army as a fight opens (holograms of its own units, which march with
+   it), a Nano Cloud on the thickest enemy group near its army in a fight or over its own army as
+   it retreats, a Black Wall Infect bomb on a big enemy cluster. It casts only with 200 cores to spare for units (`AI_DOCTRINE.bank`).
    - Two more ways to play the doctrines are written and tested but **switched off**
      (`AI_DOCTRINE` in sim/ai.ts), because the doctrine sweep found they made the balance worse:
      - **Saving up** (`savePowers`, `powerSaving`): while a power it uses is ready and its army
@@ -1740,8 +1784,7 @@ Bombardment Drones strike as in the game, levelling city blocks and hurting unit
 the computer's new bases can be tested here. All six doctrine powers are cast as in the game
 (`castPower`): Orbital Drop, the Bulwark Force Field (its dome stops direct fire, shells, rockets,
 bombs and the virus, and wears down), the Cloaking Field, Nano-Cloud and Black Wall Infect; drop
-pods land at once rather than falling. Phantom Decoys are paid for but do nothing here, since no
-gun picks a decoy and the projectiles they soak in the game aren't flown. The heroes' big
+pods land at once rather than falling. Phantom Decoys put up their holograms as in the game. The heroes' big
 abilities run through the same unit-ability rules as the game. It doesn't yet model projectiles,
 most other unit abilities, warhead clouds, or Masons.
 
@@ -1778,6 +1821,23 @@ Netrunner powers aren't worth their cores to the computer: saving up for the Clo
 ambush lost Shadow Ops ground: stopping short gives up the first move, and one shot at +50% doesn't
 repay it. So the next balance work is the powers (Orbital Drop down; Decoys, Nano-Cloud and the
 Cloaking Field up), then trying these switches again.
+
+**The power rework** (16 seeds, Normal). Orbital Drop went from 500 cores to 800; Phantom Decoys
+became holograms that draw fire (sim/hologram.ts); the Nano-Cloud became one-sided
+(sim/nanoCloud.ts); the Cloaking Field re-cloaks 2 s after firing and costs 800 (from 1000).
+
+| | Heavy Metal | Shadow Ops | Netrunner |
+|---|---|---|---|
+| before the rework | 70% | 36% | 44% |
+| the four reworks, 4 holograms, Decoys 400 | 70% | 33% | 47% |
+| + 6 holograms, Decoys 300, Hardened Plate 5% (from 10%) | 62% | 37% | 52% |
+| the same with the Cloaking Field at 600 | 62% | 38% | 50% |
+
+The third row is the game now. Within each doctrine the two rank 2 powers are now close (Orbital
+Drop 53% to the Bulwark's 69%; Nano-Cloud 48% to Black Wall's 54%; Decoys 42% to the Cloaking
+Field's 32%), where before Orbital Drop won 93% once cast freely. Shadow Ops is still short of 40%,
+and cheaper powers barely move it: the gap is its passive, going dark, which the computer gets
+little from (see the switches above). Heavy Metal is still the strongest at 62%.
 
 ## Map
 

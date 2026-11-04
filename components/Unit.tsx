@@ -177,6 +177,9 @@ const EmpStatic: React.FC<{ size: number }> = ({ size }) => {
 
 interface UnitProps {
   id: string;
+  // One of the viewer's own Phantom Decoys holograms (sim/hologram.ts): drawn see-through so its
+  // owner can tell it from the real thing. The enemy sees a plain unit.
+  ownHologram?: boolean;
   // A neutral Sentinel being hacked by a Netrunner side (sim/sentinelNet.ts).
   hackProgress?: UnitData['hackProgress'];
   // Seized by Cipher's Override (sim/netrunnerHero.ts).
@@ -335,7 +338,7 @@ const OverrideMark: React.FC<{ until: number; color: string; groundY: number; ti
 };
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, hackProgress, overriddenBy, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, grenadeAt, faceAt, turretAt, railgunFiredAt, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, ciwsSpunMs, ciwsAims, anchoredAt, artilleryTarget, artilleryAim,
+  id, hackProgress, overriddenBy, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, ownHologram, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, grenadeAt, faceAt, turretAt, railgunFiredAt, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, ciwsSpunMs, ciwsAims, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -475,9 +478,10 @@ const Unit: React.FC<UnitProps> = ({
   // when the cloak ends so the Ghost's materials come back solid.
   useLayoutEffect(() => {
     const root = bodyRef.current;
-    if (!root || (!decoyActive && !fieldCloaked)) return;
-    // Phantom Decoy tints cyan; a Cloaking Field (sim/cloak.ts) violet.
-    const [tint, glow] = decoyActive ? ['#7dd3fc', '#38bdf8'] : ['#d8b4fe', '#a855f7'];
+    if (!root || (!decoyActive && !fieldCloaked && !ownHologram)) return;
+    // Phantom Decoy tints cyan; a Cloaking Field (sim/cloak.ts) violet; one of your Phantom Decoys
+    // holograms teal.
+    const [tint, glow] = decoyActive ? ['#7dd3fc', '#38bdf8'] : fieldCloaked ? ['#d8b4fe', '#a855f7'] : ['#5eead4', '#2dd4bf'];
     // Tinted copies, never the materials themselves: models share materials between units
     // (components/kit), and a cloak must not tint every other unit's. A material marked
     // `cloakExempt` keeps its look (the Cloaking Field Generator's lights are the field itself).
@@ -504,7 +508,7 @@ const Unit: React.FC<UnitProps> = ({
   });
   // The tinted copies go when the cloak ends (the body remounts with its own materials).
   const cloakCopies = useRef<THREE.Material[]>([]);
-  const cloaked = !!decoyActive || !!fieldCloaked;
+  const cloaked = !!decoyActive || !!fieldCloaked || !!ownHologram;
   useEffect(() => {
     if (cloaked) return;
     cloakCopies.current.forEach(m => m.dispose());
