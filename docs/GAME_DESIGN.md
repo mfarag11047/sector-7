@@ -826,8 +826,10 @@ treatment is added live, the same on all its lines (`VOICE_FX`): Vanta's crystal
 (a wide clean band, a faint high shimmer, a very short glassy doubling), Tokugen's a sat-link radio
 (a narrow comms band with a push in the mids, light saturation, a little bit reduction, and a
 squelch click keying each transmission in). Each signs off after every line with its own sound
-(`public/vo/<side>/vo_end.mp3`, through the voice's treatment): KAMI-OS a soft, glassy chime of a
-secure channel closing, TAC-NET a walkie-talkie squelch tail with a roger beep. A line cut off by
+(`public/vo/vanta/vo_end.mp3`, `public/vo/tokugen/vo_end.wav`, through the voice's treatment):
+KAMI-OS a soft, glassy chime of a secure channel closing, TAC-NET the short key-up crackle and
+click of a military radio keyed off (the opening 0.7 s of its two-way radio recording; an earlier
+cut took the longer burst at the recording's end instead). A line cut off by
 a more urgent one never signs off, and the next line waits for the sign-off. Spectating, like the siren, the announcer
 stays quiet about attacks. Under it all, the city's own
 background, a night-time megacity bed looping for the whole match, the same everywhere on the map

@@ -171,7 +171,7 @@ export interface VoiceFx {
   dry: number;
   // A radio squelch click keying each line in (and out, if the voice has no sign-off sound).
   squelch: boolean;
-  // How loud the sign-off sound after each line plays (vo/<voice>/vo_end.mp3), against the voice.
+  // How loud the sign-off sound after each line plays (SIGN_OFFS), against the voice.
   endGain: number;
   // How far the effects dip while the announcer speaks.
   duck: number;
@@ -192,14 +192,16 @@ export const VOICE_FX: Record<Voice, VoiceFx> = {
     lowCut: 320, highCut: 3900, presenceHz: 1800, presenceDb: 4, shelfHz: 6000, shelfDb: 0,
     doubling: [{ ms: 11, gain: 0.1 }], ringHz: 90, ring: 0.06, crushLevels: 28, crush: 0.07,
     // A little quieter than Vanta's: his recordings and the saturation make him sit forward.
-    drive: 2.2, dry: 0.85, squelch: true, endGain: 0.8, duck: 0.5, gain: 0.75,
+    // The sign-off click well under the voice: its crackle is sharp, and at 0.8 it stood out.
+    drive: 2.2, dry: 0.85, squelch: true, endGain: 0.45, duck: 0.5, gain: 0.75,
   },
 };
 
 const MANIFESTS: Record<Voice, string> = { vanta: 'vo/vanta/manifest.json', tokugen: 'vo/tokugen/manifest.json' };
 // Each voice's sign-off after every line: Vanta's a soft, glassy chime closing a secure channel,
-// Tokugen's a radio squelch tail and roger beep.
-export const SIGN_OFFS: Record<Voice, string> = { vanta: 'vo/vanta/vo_end.mp3', tokugen: 'vo/tokugen/vo_end.mp3' };
+// Tokugen's the short key-up crackle and click that opens its two-way radio recording (0.12 to
+// 0.80 s of it, mixed to mono, faded at the ends): the radio being keyed off.
+export const SIGN_OFFS: Record<Voice, string> = { vanta: 'vo/vanta/vo_end.mp3', tokugen: 'vo/tokugen/vo_end.wav' };
 const signOffs: Partial<Record<Voice, AudioBuffer>> = {};
 // Each voice's recordings of each line, with the words said in each (the manifest's "lines"),
 // for the call window's transcript.
