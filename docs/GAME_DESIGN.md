@@ -1367,9 +1367,10 @@ Fighting where its armour can reach the wrecks pays for the next tank.
 Hardened Plate took 15% off vehicle damage. In the doctrine sweep (8 seeds) Heavy Metal then won
 83% of its matches; with no wrecks at all it fell to 59%, and both halves of salvage (the cores and
 the mid-fight patching) counted about equally. At 15%, a tenth and 10% it scores about 70% over 16
-seeds (Netrunner 44%, Shadow Ops 36%). The rest of the gap is largely the computer: Heavy Metal's
-passive works on its own in any fight, while going dark and the Sentinel Net need a side to play
-for them, so the next step is the computer's Shadow Ops and Netrunner play, not deeper cuts here.
+seeds (Netrunner 44%, Shadow Ops 36%). Heavy Metal's passive works on its own in any fight,
+while going dark and the Sentinel Net need a side to play for them, so the rest of the gap looked
+like the computer's play; teaching it to play them didn't close it, and the gap is mostly the
+doctrine powers (Doctrine balance sweep, below).
 A wreck of the salvaging side's own vehicle pays like an enemy's (`SALVAGE.ownFactor`, 1); the
 sweep found paying nothing for one's own made no clear difference.
 
@@ -1674,8 +1675,19 @@ same kind of economy.
    and it has the points, one of the two options at a coin's toss (leaning 60/40 to its hero's
    ability at rank 3; it uses Juggernaut in a real fight, Thousand Cuts on two or more, Botnet on two
    or more machines). It uses the powers it chose: none on Easy, one on Normal, both on Hard: Orbital
-   Drop into a fight, a Force Field over its army in a big fight, Decoys on an attack, EMP in a big fight, a Nano Cloud
-   over a retreat, a Black Wall Infect bomb on a big enemy cluster.
+   Drop into a fight, a Force Field over its army in a big fight, a Cloaking Field over its army in
+   a fight, Decoys on an attack, a Nano Cloud over a retreat or over its army in a fight it is
+   losing (the enemy near it worth as much as the army), a Black Wall Infect bomb on a big enemy
+   cluster. It casts only with 200 cores to spare for units (`AI_DOCTRINE.bank`).
+   - Two more ways to play the doctrines are written and tested but **switched off**
+     (`AI_DOCTRINE` in sim/ai.ts), because the doctrine sweep found they made the balance worse:
+     - **Saving up** (`savePowers`, `powerSaving`): while a power it uses is ready and its army
+       is out, production keeps the power's price in the bank (the cheaper of two; never for
+       Decoys), as a player saving for it would.
+     - **Waiting in the dark** (`ambushLookahead`, `ambushSpot`): a Shadow Ops infantry unit
+       or light vehicle that hasn't fought lately, closing on a ground enemy it can see within 4
+       tiles of its range, stops on a tile just inside its range, goes dark and opens fire from
+       the dark.
 
 Easier levels aren't just slower; they're less attentive, the way a person juggling a base and a
 fight is. They only go round their production structures every so often (and skip some), they leave a gap between
@@ -1746,6 +1758,26 @@ doctrine within 40–60%; `SWEEP_BALANCE=1 npx vitest run sim/doctrineBalance.te
 without editing code (`sim/tuning.ts` lists the tables it may change). With half the matches
 drawn, a doctrine's score moves about ±9 points by chance over 8 seeds: use 16 seeds before
 settling a number.
+
+**The computer's doctrine play** (16 seeds, Normal). The first guess was that Shadow Ops and
+Netrunner trail because the computer plays them badly: it spent every core on units, so Netrunner
+cast a power about once every two matches, and its Shadow Ops units fired from the dark on about
+1% of their shots. Trying the fixes (`AI_DOCTRINE`) showed the powers themselves are the problem:
+
+| Computer plays | Heavy Metal | Shadow Ops | Netrunner |
+|---|---|---|---|
+| as it does now | 70% | 36% | 44% |
+| + waits in the dark (Shadow Ops) | 74% | 27% | 49% |
+| + saves up for its power | 79% | 33% | 38% |
+| + casts without 200 cores to spare | 84% | 30% | 36% |
+
+Casting more often helps Heavy Metal most: Orbital Drop (a Titan for 500 cores) is the strongest
+power by far, and sides that took it scored 93% once they cast it freely. The Shadow Ops and
+Netrunner powers aren't worth their cores to the computer: saving up for the Cloaking Field
+(1000) or Black Wall (1100) cost those sides more in units than the power won back. And the
+ambush lost Shadow Ops ground: stopping short gives up the first move, and one shot at +50% doesn't
+repay it. So the next balance work is the powers (Orbital Drop down; Decoys, Nano-Cloud and the
+Cloaking Field up), then trying these switches again.
 
 ## Map
 

@@ -37,7 +37,8 @@ import { freePadsFor } from './baseLayout';
 import { abilityUnlocked, artilleryTierOf, researchBlocker, UPGRADES, type UpgradeId } from './upgrades';
 import { REFINERY, upgradeBlocker } from './refinery';
 import { heroBlocker, heroOf, isHeroType } from './heroes';
-import { nextOpenRank, powersOf, TRACK, trackPowerCost } from './doctrineTrack';
+import { nextOpenRank, perk, powersOf, TRACK, trackPowerCost } from './doctrineTrack';
+import { CLOAK_FIELD } from './cloak';
 import { OVERRIDE, overridable } from './netrunnerHero';
 import { baseMoves, ESCORTS, SCOUT_REPLACE_MS, specialistAbilities, specialistMoves, specialistPick, SPECIALIST_MOVERS } from './aiSpecialists';
 import { freshStrategyMemory, lossTypeMix, STRATEGY_PLANS, StrategyMemory, updateStrategy } from './aiStrategy';
@@ -422,6 +423,8 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   const joined = (u: UnitData) => dist(u.gridPos, staging) <= 8 || dist(u.gridPos, objective) <= dist(staging, objective) + 2;
 
   const anchorIds: string[] = [];
+  // How long Shadow Ops' units must be quiet to go dark (Quick Fade shortens it).
+  const darkAfter = perk.darkAfterMs(view.economy[team]) ?? CLOAK_FIELD.revealMs;
   // Thunderhead range grows with its shell upgrades (sim/upgrades.ts).
   const gunTier = artilleryTierOf(view.economy[team]);
   for (const u of mine) {
@@ -454,6 +457,12 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
     // Vehicles low on battery off the grid go back to recharge.
     if (needsGrid(u) && u.battery < u.maxBattery * 0.3 && !onGrid) {
       send(u, staging === objective ? gather : staging, false);
+      continue;
+    }
+    // Shadow Ops waits for the enemy from the dark rather than walking into it (ambushSpot).
+    const wait = ctx.doctrine === 'shadow_ops' && mode !== 'retreat' ? ambushSpot(u, theirs, now, darkAfter, ctx.isWalkable) : null;
+    if (wait) {
+      send(u, wait, false);
       continue;
     }
     if (capturerIds.has(u.id) && captureTarget && mode !== 'defend') {
@@ -500,7 +509,10 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   // Its doctrine hero first, at an idle Advanced Research (sim/heroes.ts): it saves up for it
   // rather than spending everything on units.
   let heroReserve = 0;
-  const spendable = () => cores - (threat ? 0 : reserve + saveForBase.cores + heroReserve);
+  // A doctrine power that is ready: it keeps the price in the bank, as a player saving for it
+  // would, instead of spending every core on units and never having enough to cast it.
+  const powerReserve = ctx.doctrine ? powerSaving(ctx.doctrine, profile, view.economy[team], ctx.doctrineCooldowns, mode) : 0;
+  const spendable = () => cores - (threat ? 0 : reserve + saveForBase.cores + heroReserve + powerReserve);
   let pop = popUsed(view.units, view.structures, team);
   const cap = teamPopCap(view.buildings, team);
   const hero = heroOf(ctx.doctrine);
@@ -886,6 +898,70 @@ function findBuildSpot(view: AiView, team: Team, ctx: AiContext, type: Structure
     .sort((a, b) => dist(a, home) - dist(b, home))[0] ?? null;
 }
 
+// The powers it uses, as many as its difficulty allows (Easy none, Normal one, Hard both).
+const usablePowers = (doctrine: DoctrineType, profile: AiProfile, economy: TeamEconomy): (2 | 3)[] =>
+  powersOf(economy, doctrine).slice(0, profile.doctrineTiers.length).map(k => (k === 'tier2' ? 2 : 3) as 2 | 3);
+
+// Shadow Ops' ambush (Going Dark, sim/cloak.ts): a unit that hasn't fought lately and is closing
+// on an enemy stops on a tile just inside its range of it, rather than walking on into the fight.
+// Standing still it goes dark, so its first shots are an ambush and it can't be shot back until
+// it fires. Null when there is nothing to wait for: it fought lately, it is already in range (it
+// fires as it is), or the enemy is still far off.
+//
+// Both this and saving up for powers (powerSaving) are switched off for now: in the doctrine sweep
+// the ambush cost Shadow Ops about 9 points (the stop costs it the first move more than the
+// opening shot repays), and saving up mostly made Orbital Drop, already the strongest power,
+// stronger still. They are kept to try again once the powers are rebalanced.
+// How the computer plays its doctrine, in one table so balance sweeps can try others (sim/tuning.ts).
+export const AI_DOCTRINE = {
+  // Shadow Ops waits for an enemy seen up to this many tiles beyond its range (0: never waits; 4 to try it).
+  ambushLookahead: 0,
+  // Keep a ready power's price in the bank while fighting (1), or not (0).
+  savePowers: 0,
+  // Cores it keeps for units after paying for a power.
+  bank: 200,
+};
+export function ambushSpot(
+  u: UnitData, enemies: readonly UnitData[], now: number, quietMs: number, isWalkable: (x: number, z: number) => boolean,
+): GridPos | null {
+  const armor = UNIT_RULES[u.type].armor;
+  const weapon = UNIT_RULES[u.type].weapon;
+  if ((armor !== 'infantry' && armor !== 'light') || u.type === 'courier' || !weapon || weapon.indirect || !weapon.hitsGround) return null;
+  if (now - Math.max(u.lastAttackTime ?? -Infinity, u.lastDamageTime ?? -Infinity) < quietMs) return null;
+  let nearest: UnitData | null = null;
+  for (const e of enemies) {
+    if (!alive(e) || UNIT_RULES[e.type].armor === 'air' || e.fieldCloaked || e.decoyActive) continue;
+    if (!nearest || dist(e.gridPos, u.gridPos) < dist(nearest.gridPos, u.gridPos)) nearest = e;
+  }
+  if (!nearest) return null;
+  const d = dist(nearest.gridPos, u.gridPos);
+  if (d <= weapon.range || d > weapon.range + AI_DOCTRINE.ambushLookahead) return null;
+  // Tiles on our side of the enemy, within range of it, nearest the unit first.
+  const e = nearest.gridPos;
+  const candidates: GridPos[] = [];
+  const r = Math.ceil(weapon.range);
+  for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+    const p = { x: Math.round(e.x) + dx, z: Math.round(e.z) + dz };
+    if (dist(p, e) <= weapon.range && dist(p, e) >= weapon.range - 1.5 && dist(p, u.gridPos) < d && isWalkable(p.x, p.z)) candidates.push(p);
+  }
+  candidates.sort((a, b) => dist(a, u.gridPos) - dist(b, u.gridPos));
+  return candidates[0] ?? null;
+}
+
+// Cores to keep back for a power off its cooldown, while the army is out fighting (when the
+// powers are cast): the cheapest of those it uses, so one of them is always within reach. At home
+// gathering it spends everything on the army.
+export function powerSaving(
+  doctrine: DoctrineType, profile: AiProfile, economy: TeamEconomy, cooldowns: { tier2: number; tier3: number }, mode: AiMemory['mode'],
+): number {
+  if (!AI_DOCTRINE.savePowers || mode === 'gather' || mode === 'expand') return 0;
+  const ready = usablePowers(doctrine, profile, economy)
+    .filter(t => (t === 2 ? cooldowns.tier2 : cooldowns.tier3) <= 0)
+    // Phantom Decoys only soak a few shots: not worth holding units back for.
+    .filter(t => !(doctrine === 'shadow_ops' && t === 2));
+  return ready.length === 0 ? 0 : Math.min(...ready.map(t => trackPowerCost(economy, doctrine, t === 2 ? 'tier2' : 'tier3')));
+}
+
 function doctrineMove(
   doctrine: DoctrineType, profile: AiProfile, economy: TeamEconomy, cores: number, cooldowns: { tier2: number; tier3: number },
   mode: AiMemory['mode'], objective: GridPos, army: readonly UnitData[], enemies: readonly UnitData[],
@@ -895,15 +971,15 @@ function doctrineMove(
   // The densest enemy cluster within reach of the fight.
   const cluster = densestCluster(enemies, 3);
   const engaged = enemies.filter(e => dist(e.gridPos, front) <= 7).reduce((s, u) => s + valueOf(u), 0);
+  const armyValue = army.reduce((s, u) => s + valueOf(u), 0);
+  const fighting = mode === 'attack' || mode === 'defend' || mode === 'tech';
 
-  // The powers it chose on its doctrine track, as many as its difficulty uses (Easy none, Normal
-  // one, Hard both), the bigger first.
-  const usable = powersOf(economy, doctrine).slice(0, profile.doctrineTiers.length).map(k => (k === 'tier2' ? 2 : 3) as 2 | 3);
-  for (const t of usable.sort((a, b) => b - a)) {
+  // The powers it chose on its doctrine track, the bigger first. Production keeps their price
+  // in the bank while they are ready (powerSaving).
+  for (const t of usablePowers(doctrine, profile, economy).sort((a, b) => b - a)) {
     const cost = trackPowerCost(economy, doctrine, t === 2 ? 'tier2' : 'tier3');
     const wait = t === 2 ? cooldowns.tier2 : cooldowns.tier3;
-    // Keep a little in the bank for units.
-    if (wait > 0 || cores < cost + 200) continue;
+    if (wait > 0 || cores < cost + AI_DOCTRINE.bank) continue;
     if (doctrine === 'heavy_metal') {
       if (t === 2 && (mode === 'attack' || mode === 'defend' || mode === 'tech')) return { kind: 'doctrine', tier: 2, target: front };
       // Bulwark Force Field over its own army once it is locked in a real fight.
@@ -911,12 +987,13 @@ function doctrineMove(
     } else if (doctrine === 'shadow_ops') {
       if (t === 2 && mode === 'attack') return { kind: 'doctrine', tier: 2, target: objective };
       // Cloaking Field over the army as it moves in, before the shooting gives it away.
-      if (t === 3 && army.length >= 4 && (mode === 'attack' || mode === 'defend')) return { kind: 'doctrine', tier: 3, target: front };
+      if (t === 3 && army.length >= 4 && fighting) return { kind: 'doctrine', tier: 3, target: front };
     } else if (doctrine === 'netrunner') {
-      // Nano clouds stop all fire inside them: cover a retreat.
-      if (t === 2 && mode === 'retreat' && army.length >= 4) return { kind: 'doctrine', tier: 2, target: front };
+      // Nano clouds stop all fire inside them: cover a retreat, or an army caught in a fight it
+      // is losing, until help comes or it can pull out.
+      if (t === 2 && army.length >= 4 && (mode === 'retreat' || (fighting && engaged >= armyValue))) return { kind: 'doctrine', tier: 2, target: front };
       // Black Wall Infect into the thick of the enemy, where the virus has the most friends to jump to.
-      if (t === 3 && (mode === 'attack' || mode === 'defend') && cluster && cluster.value >= 500) return { kind: 'doctrine', tier: 3, target: cluster.at };
+      if (t === 3 && fighting && cluster && cluster.value >= 500) return { kind: 'doctrine', tier: 3, target: cluster.at };
     }
   }
   return null;

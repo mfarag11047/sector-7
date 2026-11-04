@@ -11,8 +11,9 @@ import { SALVAGE } from './salvage';
 import { BASE_REPAIR } from './support';
 import { HERO_ULTS } from './unitAbilities';
 import { EDGES } from './doctrineTrack';
+import { AI_DOCTRINE } from './ai';
 
-export const TUNABLE: Record<string, object> = { ABILITY_CONFIG, DOCTRINE_CONFIG, BLACKWALL, CLOAK_FIELD, FORCE_FIELD, SALVAGE, BASE_REPAIR, HERO_ULTS, EDGES };
+export const TUNABLE: Record<string, object> = { ABILITY_CONFIG, DOCTRINE_CONFIG, BLACKWALL, CLOAK_FIELD, FORCE_FIELD, SALVAGE, BASE_REPAIR, HERO_ULTS, EDGES, AI_DOCTRINE };
 
 // Applies "TABLE.key.key=number;..." to the tables above. Throws on a path that doesn't name an
 // existing number, so a typo can't pass for a result.
