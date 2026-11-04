@@ -3193,7 +3193,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
           const doctrine = aiHelpersRef.current.doctrines?.[team]?.selected;
           const option = doctrine ? TRACK[doctrine][command.rank - 1]?.find(o => o.id === command.option) : null;
           if (option) {
-              onNotice?.(`Doctrine rank ${command.rank}: ${option.name}${option.power ? ' (in your team panel)' : option.hero ? ' (train it at Advanced Research)' : ''}`);
+              onNotice?.(`Doctrine rank ${command.rank}: ${option.name}${option.power ? ' (in your team panel)' : option.heroAbility ? ' (your hero\'s new ability)' : ''}`);
               playUiSound('research_complete');
           }
       }

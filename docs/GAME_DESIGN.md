@@ -312,17 +312,25 @@ and a small hack drone circling over the shoulder.
   5 tiles rather than 2, three times as fast (under 3 s), with the usual check that no enemy is
   contesting it.
 
-- **Unlock:** take the hero at **rank 3 of the doctrine track** (8:00 at the earliest; see The
-  doctrine track). It gives no stat bonus; it lets the hero be trained at Advanced Research. A side
-  that takes the other rank 3 option has no hero that match.
+- **No unlock:** a side with the doctrine trains its hero at **Advanced Research** (buildable from
+  Tier 1) as soon as it has the building and the 600 cores.
+- **Its big ability** comes from **rank 3 of the doctrine track** (8:00 at the earliest), against
+  an army-wide edge (see The doctrine track):
+  - **Juggernaut** (Goliath, 50 s cooldown): for 8 s he takes 70% less damage, fires twice as fast
+    and an EMP can't shut him down.
+  - **Thousand Cuts** (Kage, 30 s cooldown): every enemy ground unit within 2.5 tiles takes 120
+    blade damage (by armour, as his katana), double from Optical Camo or any cloak; it shows him.
+  - **Botnet** (Cipher, 90 s cooldown): Override at scale: aimed up to 7 tiles, it seizes up to 4
+    enemy light vehicles and aircraft within 3 tiles of the spot for 15 s.
 - **Train it at Advanced Research.** Its menu lists only your own doctrine's hero. **One hero at a
   time:** while yours is alive or in training, another can't be queued. When it falls, train another.
-- **Upgrade to Tier 3:** **Hero Mk II** (Tier 2, 250 cores + 50 compute, 30 s, needs the unlock) and
+- **Upgrade to Tier 3:** **Hero Mk II** (Tier 2, 250 cores + 50 compute, 30 s) and
   **Hero Mk III** (Tier 3, 400 + 100, 45 s, needs Mk II). Each gives the usual upgrade bonus
   (+20% health, +15% damage), so +40% / +30% at Mk III.
 - In the research menu the hero has its own **Doctrine Hero** row above the unit classes.
 - Orders check all of this (`trainOrder` and `upgradeOrder` in `sim/orders.ts`), so the AI is held to
-  it too. An AI with a doctrine researches its hero's unlock and refits at an idle Advanced Research
+  it too. An AI with a doctrine builds Advanced Research (at Tier 2, or after 5 minutes), saves up
+  for its hero and trains it first, researches its refits at an idle Advanced Research
   and keeps its hero in the field.
 
 ### The unit kit
@@ -871,12 +879,12 @@ in order. Holding server nodes gets a side to the top sooner; without them rank 
 |---|---|---|---|
 | 1 | Scrap Haulers (wrecks worth double) / Field Welders (armour self-repair from the start, 10 HP/s) | Silent Running (infantry and light vehicles +20% speed) / Killing Ground (ambush ×2 instead of ×1.5) | Brute Force (hack in 3 s) / Sentinel Foundry (Sentinels 180 cores, 12 s) |
 | 2 | Orbital Drop / Bulwark Force Field | Phantom Decoys / Cloaking Field | Nano-Cloud / Black Wall Infect |
-| 3 | Goliath / Hardened Plate (vehicles take 15% less damage) | Kage / Quick Fade (go dark 2 s after a fight) | Cipher / Hardened Nodes (defenders after 45 s) |
+| 3 | Juggernaut (Goliath's big ability) / Hardened Plate (vehicles take 15% less damage) | Thousand Cuts (Kage's) / Quick Fade (go dark 2 s after a fight) | Botnet (Cipher's) / Hardened Nodes (defenders after 45 s) |
 | 4 | Arsenal (the other power too) / Overdrive (powers at half cost and cooldown) | the same | the same |
 
 - The powers still cost cores and recharge; the track decides which a side has (no longer the
-  researched tier). Taking the hero unlocks it for training at Advanced Research; its Mk II and
-  Mk III refits are still researched there. Passing it up means no hero that match.
+  researched tier). The hero itself needs no pick (it is trained at Advanced Research); the rank 3
+  hero option gives it its big ability, and passing it up leaves the hero with its usual kit.
 - The team panel shows the side's points (◆, with a bar to the next) and a Track / Choose button
   (pulsing when a rank can be taken) that opens the track sheet: the passive, then each rank's two
   options, taken, passed up, open, or what they wait on. Its powers appear as buttons once taken.
@@ -1678,8 +1686,9 @@ same kind of economy.
      units, but leaves structures standing, and a drone sent over a defended base is shot down, so
      they never go for the enemy base.
 7. **Powers and the doctrine track:** it takes each rank of its doctrine track as soon as it opens
-   and it has the points, one of the two options at a coin's toss (leaning 60/40 to its hero at
-   rank 3). It uses the powers it chose: none on Easy, one on Normal, both on Hard: Orbital
+   and it has the points, one of the two options at a coin's toss (leaning 60/40 to its hero's
+   ability at rank 3; it uses Juggernaut in a real fight, Thousand Cuts on two or more, Botnet on two
+   or more machines). It uses the powers it chose: none on Easy, one on Normal, both on Hard: Orbital
    Drop into a fight, a Force Field over its army in a big fight, Decoys on an attack, EMP in a big fight, a Nano Cloud
    over a retreat, a Black Wall Infect bomb on a big enemy cluster.
 

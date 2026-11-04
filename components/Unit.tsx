@@ -90,7 +90,7 @@ const Rotor: React.FC = () => {
 // Ring colour while an ability's buff runs.
 const BUFF_COLORS: Record<NonNullable<UnitData['buffs']>[number]['kind'], string> = {
   stim: '#f43f5e', nanoweave: '#a3e635', overcharge: '#facc15', nitro: '#fb923c', overclock: '#f97316',
-  barrage: '#38bdf8', radar: '#22d3ee', afterburner: '#fb923c', emp: '#818cf8', smoke: '#94a3b8', piercing_round: '#e879f9', shadow_cloak: '#22c55e',
+  barrage: '#38bdf8', radar: '#22d3ee', afterburner: '#fb923c', emp: '#818cf8', smoke: '#94a3b8', piercing_round: '#e879f9', shadow_cloak: '#22c55e', juggernaut: '#f59e0b',
 };
 // Aegis air-search radar: a wide green circle. Selected, it also shows range rings and a sweeping
 // beam that leaves a fading trail. Flat on the ground under the vehicle.

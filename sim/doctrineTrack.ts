@@ -8,13 +8,13 @@
 //
 //   Rank 1  how its passive plays (sim/salvage.ts, sim/cloak.ts, sim/sentinelNet.ts)
 //   Rank 2  its first power: one of its two doctrine powers (DOCTRINE_CONFIG tier2 / tier3)
-//   Rank 3  its hero (sim/heroes.ts), or an army-wide edge instead
+//   Rank 3  its hero's big ability (sim/unitAbilities.ts), or an army-wide edge instead
 //   Rank 4  Arsenal (the power it passed up at rank 2 as well) or Overdrive (its powers at half
 //           the cost and half the cooldown)
 //
 // The powers still cost cores and recharge as before; the track decides which a side has. The
-// hero option unlocks the hero for training at Advanced Research (its Mk II and Mk III refits are
-// still researched there).
+// hero itself needs no pick: it is trained at Advanced Research (sim/heroes.ts); the rank 3 hero
+// option gives it its big ability.
 //
 // Pure: the economy carries each side's track (TeamEconomy.track); CityMap.tsx and sim/headless.ts
 // advance it once a second (advanceTrack); picks come in as PICK_DOCTRINE orders (sim/orders.ts).
@@ -39,9 +39,10 @@ export interface TrackOption {
   id: string;
   name: string;
   description: string;
-  // A doctrine power it unlocks, the hero it unlocks, or neither (an edge for the army).
+  // A doctrine power it unlocks, its hero's big ability (granted as an upgrade), or neither (an
+  // edge for the army).
   power?: PowerKey;
-  hero?: true;
+  heroAbility?: UpgradeId;
 }
 
 export interface TeamTrack {
@@ -72,7 +73,7 @@ export const TRACK: Record<DoctrineType, [TrackOption, TrackOption][]> = {
     ],
     [power('heavy_metal', 'tier2'), power('heavy_metal', 'tier3')],
     [
-      { id: 'hm_hero', hero: true, name: 'Goliath', description: 'Unlocks Goliath, the full-borg juggernaut, for training at Advanced Research.' },
+      { id: 'hm_hero', heroAbility: 'juggernaut', name: 'Juggernaut', description: 'Goliath\'s big ability (50 s cooldown): for 8 s he takes 70% less damage, fires twice as fast and shrugs off EMP.' },
       { id: 'hm_plate', name: 'Hardened Plate', description: 'Your vehicles take 15% less damage.' },
     ],
     capstones('heavy_metal'),
@@ -84,7 +85,7 @@ export const TRACK: Record<DoctrineType, [TrackOption, TrackOption][]> = {
     ],
     [power('shadow_ops', 'tier2'), power('shadow_ops', 'tier3')],
     [
-      { id: 'so_hero', hero: true, name: 'Kage', description: 'Unlocks Kage, the cloaking assassin, for training at Advanced Research.' },
+      { id: 'so_hero', heroAbility: 'thousand_cuts', name: 'Thousand Cuts', description: 'Kage\'s big ability (30 s cooldown): every enemy ground unit within 2.5 tiles takes 120 blade damage, double from a cloak.' },
       { id: 'so_fade', name: 'Quick Fade', description: 'Your units go dark 2 s after a fight instead of 6.' },
     ],
     capstones('shadow_ops'),
@@ -96,7 +97,7 @@ export const TRACK: Record<DoctrineType, [TrackOption, TrackOption][]> = {
     ],
     [power('netrunner', 'tier2'), power('netrunner', 'tier3')],
     [
-      { id: 'nr_hero', hero: true, name: 'Cipher', description: 'Unlocks Cipher, the intrusion operative, for training at Advanced Research: seizes enemy vehicles and drones with Override, hacks Sentinels from afar.' },
+      { id: 'nr_hero', heroAbility: 'botnet', name: 'Botnet', description: 'Cipher\'s big ability (90 s cooldown): Override at scale, seizing up to 4 enemy light vehicles and aircraft within 3 tiles of the target for 15 s.' },
       { id: 'nr_fortress', name: 'Hardened Nodes', description: 'Your server nodes gain a Sentinel defender after 45 s held instead of 2 minutes.' },
     ],
     capstones('netrunner'),
@@ -137,11 +138,11 @@ export function pickBlocker(e: TeamEconomy, doctrine: DoctrineType | null | unde
   return null;
 }
 
-// The economy with the option taken: points spent, and a hero unlock granted.
+// The economy with the option taken: points spent, and a hero's big ability granted.
 export function takePick(e: TeamEconomy, doctrine: DoctrineType, rank: Rank, optionId: string): TeamEconomy {
   const t = trackOf(e);
   const option = TRACK[doctrine][rank - 1].find(o => o.id === optionId)!;
-  const upgrades = option.hero ? [...e.upgrades, `hero_${doctrine}_unlock` as UpgradeId] : e.upgrades;
+  const upgrades = option.heroAbility ? [...e.upgrades, option.heroAbility] : e.upgrades;
   return { ...e, upgrades, track: { ...t, points: t.points - RANK_COST[rank - 1], picks: [...t.picks, optionId] } };
 }
 

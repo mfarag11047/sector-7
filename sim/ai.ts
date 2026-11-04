@@ -31,7 +31,7 @@ import { isInsideEnergyGrid } from './energy';
 import type { Difficulty } from './match';
 import { isOperational, MAX_QUEUE, OrderCommand, popUsed, teamPopCap, teamTier } from './orders';
 import { dps, Tier, UNIT_RULES, unitsProducedBy } from './units';
-import { abilitiesFor, abilityCooldownLeft, hasBuff } from './unitAbilities';
+import { abilitiesFor, abilityCooldownLeft, hasBuff, HERO_ULTS } from './unitAbilities';
 import { artilleryRange, inArtilleryReach } from './artillery';
 import { freePadsFor } from './baseLayout';
 import { abilityUnlocked, artilleryTierOf, researchBlocker, UPGRADES, type UpgradeId } from './upgrades';
@@ -245,9 +245,9 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   // A Core Refinery once the first producers are up (sim/refinery.ts), and on Hard a second at Tier 2.
   if (now > 90_000) wants.push('refinery');
   // Advanced Research, for the upgrades of the units it is committed to and its doctrine hero
-  // (unlocked on the track, trained there). Ahead of the Airpad and the extras, which would
-  // otherwise fill the last building pads before it.
-  if (tier >= 2 || (ctx.doctrine && (view.economy[team].upgrades ?? []).includes(`hero_${ctx.doctrine}_unlock` as UpgradeId))) wants.push('research_lab');
+  // (trained there, no unlock needed): at Tier 2, or a little sooner with a doctrine. Ahead of the
+  // Airpad and the extras, which would otherwise fill the last building pads before it.
+  if (tier >= 2 || (ctx.doctrine && now > 5 * 60_000)) wants.push('research_lab');
   if (tier >= 2 || plan.earlyAirpad) wants.push('air');
   if (tier >= 2 && profile.secondBarracks) wants.push('refinery');
   // The strategy's own extra production structure.
@@ -497,8 +497,8 @@ export function aiThink(view: AiView, team: Team, memory: AiMemory, ctx: AiConte
   // With a cleared block ready for a new base (sim/aiExpansion.ts), it saves up for the HQ:
   // production and research only spend what is over the base's price, unless it is under attack.
   const saveForBase = expansion.sites.length > 0 ? { cores: BASE_SITE.cores + 500, compute: BASE_SITE.compute } : { cores: 0, compute: 0 };
-  // Its doctrine hero, once unlocked, first, at an idle Advanced Research (sim/heroes.ts): it
-  // saves up for it rather than spending everything on units.
+  // Its doctrine hero first, at an idle Advanced Research (sim/heroes.ts): it saves up for it
+  // rather than spending everything on units.
   let heroReserve = 0;
   const spendable = () => cores - (threat ? 0 : reserve + saveForBase.cores + heroReserve);
   let pop = popUsed(view.units, view.structures, team);
@@ -663,6 +663,19 @@ export function unitAbilityMoves(
         case 'smoke_screen': if (near(u, 6).length > 0 && (u.health < u.maxHealth * 0.6 || near(u, 6).length >= 4)) want(d.id, u); break;
         // Kage: slip under Optical Camo as enemies come near, to strike from it.
         case 'shadow_cloak': if (!hasBuff(u, 'shadow_cloak') && near(u, 7, t => armorOf(t) !== 'air').length > 0) want(d.id, u); break;
+        // The heroes' big abilities: Goliath opens up in a real fight, Kage cuts into a crowd, Cipher
+        // seizes a group of machines.
+        case 'juggernaut': if (near(u, 6).length >= 3 || (hurt && near(u, 6).length > 0)) want(d.id, u); break;
+        case 'thousand_cuts': if (near(u, HERO_ULTS.cutsRadius, t => armorOf(t) !== 'air').length >= 2) want(d.id, u); break;
+        case 'botnet': {
+          let best: { at: GridPos; count: number } | null = null;
+          for (const t of near(u, OVERRIDE.range, x => overridable(x, u.team as Team))) {
+            const count = theirs.filter(o => overridable(o, u.team as Team) && dist(o.gridPos, t.gridPos) <= HERO_ULTS.botnetRadius).length;
+            if (!best || count > best.count) best = { at: { ...t.gridPos }, count };
+          }
+          if (best && best.count >= 2) aimed.push({ kind: 'ability', command: { type: 'UNIT_ABILITY', unitIds: [u.id], ability: d.id, target: best.at } });
+          break;
+        }
         // Cipher: seize the most valuable enemy machine in reach (sim/netrunnerHero.ts).
         case 'override': {
           const prize = near(u, OVERRIDE.range, t => overridable(t, u.team as Team)).sort((a, b) => valueOf(b) - valueOf(a))[0];

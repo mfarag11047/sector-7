@@ -22,10 +22,14 @@ export type UpgradeId =
   | 'overclock' | 'radar' | 'long_range_shells' | 'guided_shells'
   | 'hellfire' | 'hunter_rockets' | 'flechette_burst' | 'regen_shield' | 'piercing_round' | 'volt_core'
   | RefitId
-  | HeroUpgradeId;
+  | HeroUpgradeId
+  | HeroAbilityId;
 
-// A doctrine hero's unlock and its two refits (sim/heroes.ts).
-export type HeroUpgradeId = `hero_${DoctrineType}_${'unlock' | 'mk2' | 'mk3'}`;
+// A doctrine hero's two refits (sim/heroes.ts).
+export type HeroUpgradeId = `hero_${DoctrineType}_${'mk2' | 'mk3'}`;
+// A hero's big ability, taken at rank 3 of the doctrine track (sim/doctrineTrack.ts), never researched.
+export type HeroAbilityId = 'juggernaut' | 'thousand_cuts' | 'botnet';
+export const HERO_ABILITY_IDS: readonly HeroAbilityId[] = ['juggernaut', 'thousand_cuts', 'botnet'];
 
 // Stat-only refits, so every unit has two upgrades: no new ability (yet), just the upgrade bonus
 // of health and damage every upgrade gives (UPGRADE_BONUS). Mk II unlocks at Tier 2, Mk III at
@@ -87,12 +91,12 @@ const refit = (id: RefitId, unit: UnitType, tier: Tier, mk: 2 | 3): UpgradeDef =
   description: 'Refit: tougher and harder-hitting. No new ability.',
 });
 
-// A doctrine hero's research: the Tier 1 unlock that lets it be trained, then Mk II and Mk III.
+// A doctrine hero's refits: Mk II and Mk III. (The hero itself needs no unlock: it is trained at
+// Advanced Research by a side with its doctrine. Its big ability comes from the doctrine track.)
 const heroUpgrades = (doctrine: DoctrineType): UpgradeDef[] => {
   const unit = `hero_${doctrine}` as UnitType;
   return [
-    { id: `hero_${doctrine}_unlock`, unit, doctrine, unlock: true, name: 'Hero Unlock', tier: 1, cost: 300, compute: 25, researchMs: 25_000, description: 'Unlocks the doctrine hero for training here. One at a time.' },
-    { id: `hero_${doctrine}_mk2`, unit, doctrine, name: 'Hero Mk II', tier: 2, ...T2, requires: `hero_${doctrine}_unlock`, description: 'Refit: tougher and harder-hitting.' },
+    { id: `hero_${doctrine}_mk2`, unit, doctrine, name: 'Hero Mk II', tier: 2, ...T2, description: 'Refit: tougher and harder-hitting.' },
     { id: `hero_${doctrine}_mk3`, unit, doctrine, name: 'Hero Mk III', tier: 3, ...T3, requires: `hero_${doctrine}_mk2`, description: 'Refit: tougher and harder-hitting.' },
   ];
 };
@@ -171,8 +175,9 @@ export function upgradeClasses(): { unitClass: UnitClass; units: UnitType[] }[] 
 export const hasUpgrade = (team: Pick<TeamEconomy, 'upgrades'> | undefined, id: UpgradeId) => !!team?.upgrades?.includes(id);
 
 // A unit's ability needs research when it unlocks at a later tier than the unit itself.
+// A hero's big ability needs its pick on the doctrine track, which grants it as an upgrade.
 export const abilityUpgrade = (def: Pick<UnitAbilityDef, 'id' | 'unit' | 'tier'>): UpgradeId | null =>
-  def.tier > UNIT_RULES[def.unit].tier ? (def.id as UpgradeId) : null;
+  (HERO_ABILITY_IDS as readonly string[]).includes(def.id) || def.tier > UNIT_RULES[def.unit].tier ? (def.id as UpgradeId) : null;
 
 // Whether a side can use one of its units' abilities: the tier, and the research if it needs any.
 export function abilityUnlocked(def: Pick<UnitAbilityDef, 'id' | 'unit' | 'tier'>, team: Pick<TeamEconomy, 'tier' | 'upgrades'>): boolean {
@@ -181,7 +186,7 @@ export function abilityUnlocked(def: Pick<UnitAbilityDef, 'id' | 'unit' | 'tier'
   return !upgrade || hasUpgrade(team, upgrade);
 }
 
-// How many upgrades a side has researched for one unit type (a hero's unlock doesn't count).
+// How many upgrades a side has researched for one unit type.
 export const upgradeLevelOf = (team: Pick<TeamEconomy, 'upgrades'> | undefined, unit: UnitType) =>
   UPGRADES.filter(u => u.unit === unit && !u.unlock && hasUpgrade(team, u.id)).length;
 
@@ -218,8 +223,6 @@ export function researchBlocker(
   const def = upgradeDef(id);
   if (!def) return 'unknown upgrade';
   if (def.doctrine && def.doctrine !== doctrine) return `${def.name} is only for its own doctrine`;
-  // A hero is unlocked on the doctrine track, not researched (sim/doctrineTrack.ts).
-  if (/^hero_.*_unlock$/.test(id)) return 'unlocked by choosing the hero on the doctrine track';
   const e = economy[team];
   if (hasUpgrade(e, id)) return `${def.name} is already researched`;
   if (structures.some(s => s.team === team && s.research?.upgrade === id)) return `${def.name} is already being researched`;

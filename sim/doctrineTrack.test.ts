@@ -36,11 +36,11 @@ describe('ranks', () => {
     expect(pickBlocker(e, 'heavy_metal', 2, 'heavy_metal_tier2')).toBeNull();
   });
 
-  it('every doctrine has four ranks of two, rank 2 its two powers, rank 3 its hero or an edge', () => {
+  it('every doctrine has four ranks of two: rank 2 its two powers, rank 3 its hero ability or an edge', () => {
     for (const d of ['heavy_metal', 'shadow_ops', 'netrunner'] as const) {
       expect(TRACK[d].length).toBe(4);
       expect(TRACK[d][1].map(o => o.power)).toEqual(['tier2', 'tier3']);
-      expect(TRACK[d][2].filter(o => o.hero).length).toBe(1);
+      expect(TRACK[d][2].filter(o => o.heroAbility).length).toBe(1);
     }
   });
 
@@ -51,7 +51,7 @@ describe('ranks', () => {
     expect(powersOf(e, 'netrunner')).toEqual(['tier3']);
     expect(hasPower(e, 'netrunner', 'tier2')).toBe(false);
     const hero = takePick(e, 'netrunner', 3, 'nr_hero');
-    expect(hero.upgrades).toContain('hero_netrunner_unlock');
+    expect(hero.upgrades).toContain('botnet');
     const arsenal = takePick(hero, 'netrunner', 4, 'netrunner_arsenal');
     expect(powersOf(arsenal, 'netrunner')).toEqual(['tier2', 'tier3']);
     const over = takePick(hero, 'netrunner', 4, 'netrunner_overdrive');

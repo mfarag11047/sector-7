@@ -13,22 +13,22 @@
 // Orders arrive as UNIT_ABILITY commands and are checked here like every other ability:
 // the sender's units, the right type, the tier and upgrade researched, off cooldown, in range.
 
-import { OVERRIDE, overrideTarget, seize } from './netrunnerHero';
+import { OVERRIDE, overridable, overrideTarget, seize } from './netrunnerHero';
 import { UNIT_STATS } from '../constants';
 import type { UnitData, UnitType } from '../types';
 import type { GridPos, Team } from './commands';
 import type { EmpRocket } from './empRocket';
 import { MiniRocket, salvoFrom } from './hornet';
-import { shotDamage, Tier, UNIT_RULES } from './units';
+import { DAMAGE_MULTIPLIER, shotDamage, Tier, UNIT_RULES } from './units';
 import { abilityUnlocked, type UpgradeId } from './upgrades';
 import type { SmokeScreen } from './titan';
 
 // 'smoke': standing in a friendly Smoke Screen (sim/titan.ts). 'piercing_round': a tank's next rail
 // gun slug goes down the whole lane (sim/railgun.ts).
-export type BuffKind = 'stim' | 'nanoweave' | 'overcharge' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'emp' | 'smoke' | 'piercing_round' | 'shadow_cloak';
+export type BuffKind = 'stim' | 'nanoweave' | 'overcharge' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'emp' | 'smoke' | 'piercing_round' | 'shadow_cloak' | 'juggernaut';
 export interface Buff { kind: BuffKind; until: number }
 
-export type UnitAbilityId = 'stim' | 'nanoweave' | 'overcharge' | 'emp_rocket' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'hellfire' | 'smoke_screen' | 'piercing_round' | 'shadow_cloak' | 'override';
+export type UnitAbilityId = 'stim' | 'nanoweave' | 'overcharge' | 'emp_rocket' | 'nitro' | 'overclock' | 'barrage' | 'radar' | 'afterburner' | 'hellfire' | 'smoke_screen' | 'piercing_round' | 'shadow_cloak' | 'override' | 'juggernaut' | 'thousand_cuts' | 'botnet';
 
 export interface UnitAbilityDef {
   id: UnitAbilityId;
@@ -42,6 +42,9 @@ export interface UnitAbilityDef {
   targeted?: { range: number; radius: number };
   description: string;
 }
+
+// The heroes' big abilities' numbers.
+export const HERO_ULTS = { juggernautTaken: 0.3, cutsRadius: 2.5, cutsDamage: 120, botnetRadius: 3, botnetMax: 4 };
 
 export const UNIT_ABILITIES: readonly UnitAbilityDef[] = [
   { id: 'stim', unit: 'trooper', name: 'Stim Injector', tier: 1, cooldownMs: 30_000, durationMs: 6_000,
@@ -81,6 +84,14 @@ export const UNIT_ABILITIES: readonly UnitAbilityDef[] = [
   // Cipher, the Netrunner hero (sim/netrunnerHero.ts).
   { id: 'override', unit: 'hero_netrunner', name: 'Override', tier: 1, cooldownMs: 40_000, durationMs: OVERRIDE.durationMs, targeted: { range: OVERRIDE.range, radius: OVERRIDE.radius },
     description: 'Seizes the nearest enemy light vehicle or aircraft at the target for 15s: it is yours to order and fights for you, then goes back to its owner. Not infantry, heavy armour or heroes.' },
+
+  // The heroes' big abilities, each taken at rank 3 of the doctrine track (sim/doctrineTrack.ts).
+  { id: 'juggernaut', unit: 'hero_heavy_metal', name: 'Juggernaut', tier: 1, cooldownMs: 50_000, durationMs: 8_000,
+    description: 'Locks the frame and opens up: for 8s Goliath takes 70% less damage and fires twice as fast, and an EMP can\'t shut him down.' },
+  { id: 'thousand_cuts', unit: 'hero_shadow_ops', name: 'Thousand Cuts', tier: 1, cooldownMs: 30_000, durationMs: 0,
+    description: `A blur of blade strikes: every enemy ground unit within ${HERO_ULTS.cutsRadius} tiles of Kage takes ${HERO_ULTS.cutsDamage} blade damage, double from Optical Camo or any cloak. It shows him.` },
+  { id: 'botnet', unit: 'hero_netrunner', name: 'Botnet', tier: 1, cooldownMs: 90_000, durationMs: OVERRIDE.durationMs, targeted: { range: OVERRIDE.range, radius: HERO_ULTS.botnetRadius },
+    description: `Override at scale: seizes up to ${HERO_ULTS.botnetMax} enemy light vehicles and aircraft within ${HERO_ULTS.botnetRadius} tiles of the target for 15s.` },
 ];
 
 // The orbital-drop Titan is a main battle tank, with the tank's abilities.
@@ -97,7 +108,7 @@ export const hasBuff = (u: { buffs?: Buff[] }, kind: BuffKind) => !!u.buffs?.som
 
 // Weapon cooldowns are divided by this.
 export const fireRateMultiplier = (u: { buffs?: Buff[] }) =>
-  (hasBuff(u, 'stim') ? 1.5 : 1) * (hasBuff(u, 'overclock') ? 2 : 1) * (hasBuff(u, 'barrage') ? 2 : 1);
+  (hasBuff(u, 'stim') ? 1.5 : 1) * (hasBuff(u, 'overclock') ? 2 : 1) * (hasBuff(u, 'barrage') ? 2 : 1) * (hasBuff(u, 'juggernaut') ? 2 : 1);
 // Each upgrade researched for a unit's type adds this share of its base health and damage
 // (sim/upgrades.ts applyUpgradeBonuses keeps UnitData.upgradeLevel and the health up to date).
 export const UPGRADE_BONUS = { health: 0.2, damage: 0.15 };
@@ -106,13 +117,13 @@ export const upgradeDamage = (u: { upgradeLevel?: number }) => 1 + UPGRADE_BONUS
 const AMBUSH_MULTIPLIER = 2;
 export const damageMultiplier = (u: { buffs?: Buff[]; upgradeLevel?: number }) =>
   (hasBuff(u, 'overcharge') ? OVERCHARGE_MULTIPLIER : 1) * (hasBuff(u, 'shadow_cloak') ? AMBUSH_MULTIPLIER : 1) * upgradeDamage(u);
-export const damageTakenMultiplier = (u: { buffs?: Buff[] }) => (hasBuff(u, 'nanoweave') ? 0.5 : 1);
+export const damageTakenMultiplier = (u: { buffs?: Buff[] }) => (hasBuff(u, 'nanoweave') ? 0.5 : 1) * (hasBuff(u, 'juggernaut') ? HERO_ULTS.juggernautTaken : 1);
 export const speedBuffMultiplier = (u: { buffs?: Buff[] }) =>
   hasBuff(u, 'emp') ? 0 : (hasBuff(u, 'stim') ? 1.3 : 1) * (hasBuff(u, 'nitro') ? 1.8 : 1) * (hasBuff(u, 'afterburner') ? 1.7 : 1);
 export const rangeBonus = (u: { buffs?: Buff[] }) => (hasBuff(u, 'radar') ? 2 : 0);
 export const visionOf = (u: UnitData) => (hasBuff(u, 'radar') ? Math.max(u.visionRange, 14) : u.visionRange);
 // Shut down by an EMP: can neither move nor fire.
-export const isEmpDisabled = (u: { buffs?: Buff[] }) => hasBuff(u, 'emp');
+export const isEmpDisabled = (u: { buffs?: Buff[] }) => hasBuff(u, 'emp') && !hasBuff(u, 'juggernaut');
 
 // Units an EMP blast at `at` knocks out: the other side's living vehicles and aircraft, anything
 // that runs on a battery. Infantry shrug it off.
@@ -175,6 +186,22 @@ export function unitAbilityEffects(
     const smoke = casters.map((c): SmokeScreen => ({ id: `smoke-${c.id}-${now}`, team, at: { ...c.gridPos }, laidAt: now, until: now + def.durationMs }));
     return { ok: true, updates, smoke };
   }
+  // Thousand Cuts (Kage): every enemy ground unit about him is cut; from a cloak, twice as hard.
+  if (def.id === 'thousand_cuts') {
+    for (const c of casters) {
+      const cloaked = hasBuff(c, 'shadow_cloak') || !!c.fieldCloaked;
+      const damage = HERO_ULTS.cutsDamage * (cloaked ? 2 : 1);
+      for (const v of units) {
+        if (v.team === team || v.team === 'neutral' || v.health <= 0 || UNIT_RULES[v.type].armor === 'air') continue;
+        if (Math.hypot(v.gridPos.x - c.gridPos.x, v.gridPos.z - c.gridPos.z) > HERO_ULTS.cutsRadius) continue;
+        const prev = updates.get(v.id);
+        const cut = (x: UnitData): UnitData => ({ ...x, health: x.health - damage * DAMAGE_MULTIPLIER.blade[UNIT_RULES[x.type].armor], lastDamageTime: now });
+        updates.set(v.id, prev ? (x => cut(prev(x))) : cut);
+      }
+      updates.set(c.id, u => ({ ...ready(u), lastAttackTime: now, buffs: u.buffs?.filter(b => b.kind !== 'shadow_cloak') }));
+    }
+    return { ok: true, updates };
+  }
   if (!def.targeted) {
     for (const c of casters) {
       updates.set(c.id, u => {
@@ -202,6 +229,15 @@ export function unitAbilityEffects(
   // Firing an aimed strike gives the caster away (a Cloaking Field drops, sim/cloak.ts).
   for (const c of inRange) updates.set(c.id, u => ({ ...ready(u), lastAttackTime: now }));
 
+  // Botnet (Cipher): Override on every seizable machine about the spot, the nearest first.
+  if (def.id === 'botnet') {
+    const victims = units.filter(u => overridable(u, team) && canSee(u) && Math.hypot(u.gridPos.x - target.x, u.gridPos.z - target.z) <= HERO_ULTS.botnetRadius)
+      .sort((a, b) => Math.hypot(a.gridPos.x - target.x, a.gridPos.z - target.z) - Math.hypot(b.gridPos.x - target.x, b.gridPos.z - target.z))
+      .slice(0, HERO_ULTS.botnetMax);
+    if (victims.length === 0) return { ok: false, reason: 'no enemy light vehicles or aircraft there to seize' };
+    for (const v of victims) updates.set(v.id, x => seize(x, team, now));
+    return { ok: true, updates };
+  }
   // Override (sim/netrunnerHero.ts): the nearest enemy machine at the spot is the side's for a while.
   if (def.id === 'override') {
     const victim = overrideTarget(units, team, target);

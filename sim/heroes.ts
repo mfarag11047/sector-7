@@ -1,14 +1,14 @@
 // Doctrine heroes: each doctrine has one unique hero unit, and only a side that picked that
 // doctrine at the start of the match can have it.
 //
-// A hero is unlocked by research at Advanced Research (its Tier 1 unlock), then trained there.
+// A hero is trained at Advanced Research, from Tier 1, by a side with its doctrine: no unlock.
+// Its big ability is taken at rank 3 of the doctrine track (sim/doctrineTrack.ts).
 // A side has at most one hero at a time, alive or in training; when it falls, another can be
-// trained. It is refitted twice more at Advanced Research, to Mk II at Tier 2 and Mk III at Tier 3,
-// each giving the usual upgrade bonus of health and damage (sim/upgrades.ts). The unlock itself
-// gives no bonus.
+// trained. It is refitted at Advanced Research, to Mk II at Tier 2 and Mk III at Tier 3, each
+// giving the usual upgrade bonus of health and damage (sim/upgrades.ts).
 //
-// The heroes themselves are placeholders for now: their stats are in UNIT_STATS (constants.ts)
-// and UNIT_RULES (sim/units.ts), and they have no abilities yet.
+// Their stats are in UNIT_STATS (constants.ts) and UNIT_RULES (sim/units.ts); their abilities in
+// sim/heavyMetalHero.ts, sim/shadowHero.ts and sim/netrunnerHero.ts.
 
 import type { DoctrineType, StructureData, UnitData, UnitType } from '../types';
 import type { Team } from './commands';
@@ -16,15 +16,14 @@ import type { Team } from './commands';
 export interface HeroDef {
   doctrine: DoctrineType;
   unit: UnitType;
-  // The research that unlocks it, and its two refits.
-  unlock: `hero_${DoctrineType}_unlock`;
+  // Its two refits.
   mk2: `hero_${DoctrineType}_mk2`;
   mk3: `hero_${DoctrineType}_mk3`;
 }
 
 const hero = (doctrine: DoctrineType): HeroDef => ({
   doctrine, unit: `hero_${doctrine}` as UnitType,
-  unlock: `hero_${doctrine}_unlock`, mk2: `hero_${doctrine}_mk2`, mk3: `hero_${doctrine}_mk3`,
+  mk2: `hero_${doctrine}_mk2`, mk3: `hero_${doctrine}_mk3`,
 });
 
 export const HEROES: Record<DoctrineType, HeroDef> = {
@@ -52,7 +51,6 @@ export function heroBlocker(
   const def = heroDefFor(type);
   if (!def) return null;
   if (doctrine !== def.doctrine) return 'only for its own doctrine';
-  if (!upgrades.includes(def.unlock)) return 'choose it at rank 3 of the doctrine track first';
   if (heroFielded(units, structures, team, type)) return 'one hero at a time';
   return null;
 }

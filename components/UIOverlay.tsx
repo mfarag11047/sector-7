@@ -546,7 +546,7 @@ const TrackSheet: React.FC<{ type: DoctrineType; track: TrackView; onPick?: (ran
                                 >
                                     <div className="flex items-center justify-between gap-2">
                                         <span className="text-xs font-bold font-mono uppercase">{o.name}</span>
-                                        <span className="text-[9px] font-mono uppercase opacity-70">{o.power ? 'Power' : o.hero ? 'Hero' : 'Edge'}{mine ? ' ✓' : ''}</span>
+                                        <span className="text-[9px] font-mono uppercase opacity-70">{o.power ? 'Power' : o.heroAbility ? 'Hero ability' : 'Edge'}{mine ? ' ✓' : ''}</span>
                                     </div>
                                     <p className="text-[11px] leading-snug mt-1 opacity-90 no-underline">{o.description}</p>
                                 </button>

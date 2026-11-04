@@ -29,45 +29,34 @@ const study = (v: OrdersView, upgrade: UpgradeId) => {
 };
 
 describe('doctrine heroes', () => {
-  it('gives each doctrine its own hero, with an unlock and two refits up to Tier 3', () => {
+  it('gives each doctrine its own hero with two refits, Mk II at Tier 2 and Mk III at Tier 3', () => {
     for (const d of Object.keys(HEROES) as DoctrineType[]) {
       const ups = upgradesFor(HEROES[d].unit);
-      expect(ups.map(u => u.id)).toEqual([`hero_${d}_unlock`, `hero_${d}_mk2`, `hero_${d}_mk3`]);
-      expect(ups.map(u => u.tier)).toEqual([1, 2, 3]);
+      expect(ups.map(u => u.id)).toEqual([`hero_${d}_mk2`, `hero_${d}_mk3`]);
+      expect(ups.map(u => u.tier)).toEqual([2, 3]);
       expect(ups.every(u => u.doctrine === d)).toBe(true);
     }
     // Not listed with the ordinary unit classes.
     expect(upgradeClasses().flatMap(c => c.units).some(u => u.startsWith('hero_'))).toBe(false);
   });
 
-  it('is unlocked on the doctrine track, not researched, and only for its own doctrine', () => {
-    const e = econ(1);
-    expect(researchBlocker(e, 'blue', [], 'hero_heavy_metal_unlock', 'heavy_metal')).toMatch(/doctrine track/);
-    expect(researchBlocker(e, 'blue', [], 'hero_netrunner_unlock', 'heavy_metal')).toMatch(/own doctrine/);
-    expect(researchBlocker(e, 'blue', [], 'hero_heavy_metal_unlock', null)).toMatch(/own doctrine/);
-    expect(study(view(e), 'hero_heavy_metal_unlock')).toMatch(/doctrine track/);
-    expect(study(view(e), 'hero_shadow_ops_unlock')).toMatch(/own doctrine/);
+  it('refits only for its own doctrine, in order', () => {
+    expect(researchBlocker(econ(2), 'blue', [], 'hero_netrunner_mk2', 'heavy_metal')).toMatch(/own doctrine/);
+    expect(study(view(econ(1)), 'hero_heavy_metal_mk2')).toMatch(/Tier 2/);
+    expect(study(view(econ(2)), 'hero_heavy_metal_mk2')).toBeNull();
+    expect(study(view(econ(3)), 'hero_heavy_metal_mk3')).toMatch(/Mk II first/);
+    expect(study(view(econ(3, ['hero_heavy_metal_mk2'])), 'hero_heavy_metal_mk3')).toBeNull();
   });
 
-  it('refits in order, Mk II at Tier 2 and Mk III at Tier 3', () => {
-    expect(study(view(econ(1, ['hero_heavy_metal_unlock'])), 'hero_heavy_metal_mk2')).toMatch(/Tier 2/);
-    expect(study(view(econ(2)), 'hero_heavy_metal_mk2')).toMatch(/Unlock first/);
-    expect(study(view(econ(2, ['hero_heavy_metal_unlock'])), 'hero_heavy_metal_mk2')).toBeNull();
-    expect(study(view(econ(3, ['hero_heavy_metal_unlock'])), 'hero_heavy_metal_mk3')).toMatch(/Mk II first/);
-    expect(study(view(econ(3, ['hero_heavy_metal_unlock', 'hero_heavy_metal_mk2'])), 'hero_heavy_metal_mk3')).toBeNull();
-  });
-
-  it('is trained at Advanced Research once unlocked, only for its own doctrine', () => {
-    expect(train(view(econ(1)), 'hero_heavy_metal')).toMatch(/doctrine track/);
-    const unlocked = view(econ(1, ['hero_heavy_metal_unlock']));
-    expect(train(unlocked, 'hero_heavy_metal')).toBeNull();
-    expect(train(view(econ(1, ['hero_heavy_metal_unlock'])), 'hero_netrunner')).toMatch(/own doctrine/);
+  it('is trained at Advanced Research from the start, with no unlock, only for its own doctrine', () => {
+    expect(train(view(econ(1)), 'hero_heavy_metal')).toBeNull();
+    expect(train(view(econ(1)), 'hero_netrunner')).toMatch(/own doctrine/);
     // Without a doctrine, no hero at all.
-    expect(train(view(econ(1, ['hero_heavy_metal_unlock']), { doctrines: {} }), 'hero_heavy_metal')).toMatch(/own doctrine/);
+    expect(train(view(econ(1), { doctrines: {} }), 'hero_heavy_metal')).toMatch(/own doctrine/);
   });
 
   it('allows one hero at a time, alive or in training', () => {
-    const e = econ(1, ['hero_heavy_metal_unlock']);
+    const e = econ(1);
     const v = view(e);
     const o = orderEffects(v, 'blue', { type: 'TRAIN_UNIT', structureId: 'lab', unitType: 'hero_heavy_metal' }, ctx);
     if ('reason' in o) throw new Error(o.reason);
@@ -81,11 +70,11 @@ describe('doctrine heroes', () => {
     expect(heroBlocker('hero_heavy_metal', 'blue', 'heavy_metal', e.blue.upgrades, [{ ...hero, team: 'red' }], [])).toBeNull();
   });
 
-  it('gets the upgrade bonus from its refits, not from the unlock', () => {
-    expect(upgradeLevelOf({ upgrades: ['hero_shadow_ops_unlock'] }, 'hero_shadow_ops')).toBe(0);
-    expect(upgradeLevelOf({ upgrades: ['hero_shadow_ops_unlock', 'hero_shadow_ops_mk2', 'hero_shadow_ops_mk3'] }, 'hero_shadow_ops')).toBe(2);
+  it('gets the upgrade bonus from its refits, not from its track ability', () => {
+    expect(upgradeLevelOf({ upgrades: ['thousand_cuts'] }, 'hero_shadow_ops')).toBe(0);
+    expect(upgradeLevelOf({ upgrades: ['thousand_cuts', 'hero_shadow_ops_mk2', 'hero_shadow_ops_mk3'] }, 'hero_shadow_ops')).toBe(2);
     const e = createEconomy(0);
-    e.blue = { ...e.blue, upgrades: ['hero_shadow_ops_unlock', 'hero_shadow_ops_mk2'] };
+    e.blue = { ...e.blue, upgrades: ['hero_shadow_ops_mk2'] };
     const hero = createUnit('hero_shadow_ops', 'blue', 'h1', { x: 5, z: 5 });
     const [up] = applyUpgradeBonuses([hero], e);
     expect(up.upgradeLevel).toBe(1);
