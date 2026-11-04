@@ -180,6 +180,9 @@ interface UnitProps {
   // One of the viewer's own Phantom Decoys holograms (sim/hologram.ts): drawn see-through so its
   // owner can tell it from the real thing. The enemy sees a plain unit.
   ownHologram?: boolean;
+  // A Sentinel standing guard at a server node (sim/sentinelNet.ts): only these look slowly round
+  // when idle; one built for an army faces the way it is going.
+  sentinelPost?: string;
   // A neutral Sentinel being hacked by a Netrunner side (sim/sentinelNet.ts).
   hackProgress?: UnitData['hackProgress'];
   // Seized by Cipher's Override (sim/netrunnerHero.ts).
@@ -338,7 +341,7 @@ const OverrideMark: React.FC<{ until: number; color: string; groundY: number; ti
 };
 
 const Unit: React.FC<UnitProps> = ({ 
-  id, hackProgress, overriddenBy, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, ownHologram, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, grenadeAt, faceAt, turretAt, railgunFiredAt, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, ciwsSpunMs, ciwsAims, anchoredAt, artilleryTarget, artilleryAim,
+  id, sentinelPost, hackProgress, overriddenBy, type, unitClass, team, gridPos, isSelected, onSelect, tileSize, offset, path, moveProgress, moveTarget, moveSpeed, onDoubleClick, visionRange, visible = true, surveillance, isDampenerActive, isDeployed, actionMenuOpen, onAction, isDecoy, ownHologram, decoyActive, fieldCloaked, cloakFieldOff, health, maxHealth, battery, maxBattery, secondaryBattery, maxSecondaryBattery, chargingStatus, cooldowns, repairTargetId, repairTargetIds, repairTargetPos, hackerPos, cargo, constructionTargetId, isTargetingMode, showTetherRange, showBatteryRange, isTetherCandidate, isLockCandidate, isBatteryLinkCandidate, ammoState, loadedAmmo, missileInventory, ordnanceMaterial, fabrication, atOrdnanceFab, ballistaInRange, cores, warheadStock, loadingProgress, courierPayload, bombardmentTarget, bombardMunitions, bombardReturning, bombardRearmStartedAt, blackwallInfectedAt, blackwallExposureMs, fieldShieldHp, fieldDownUntil, jammerActive, tetherTargetIds, batteryTetherIds, isJammed, ownJammer, heliosMode, isHacked, hackType, firingLaserAt, lastAttackTime, combatTargetId, buffs, abilityReadyAt, teamCompute = 1, upgrades = NO_UPGRADES, regenShield, grenadeAt, faceAt, turretAt, railgunFiredAt, radarRange = 0, ciwsUsedMs, ciwsReloadUntil, ciwsTargetId, ciwsSpunMs, ciwsAims, anchoredAt, artilleryTarget, artilleryAim,
   isStunned, activeBuffs, isAnchored, isInNanoCloud
 }) => {
   const meshRef = useRef<THREE.Group>(null);
@@ -751,7 +754,7 @@ const Unit: React.FC<UnitProps> = ({
     if (type === 'hero_shadow_ops') return <KageModel teamColor={teamColor} lastAttackTime={lastAttackTime} moving={moving} />;
     if (type === 'hero_netrunner') return <CipherModel teamColor={teamColor} lastAttackTime={lastAttackTime} moving={moving} flashRef={flashRef} castAt={cipherCastAt} />;
     if (type === 'hero_heavy_metal') return <GoliathModel teamColor={teamColor} flashRef={flashRef} grenadeAt={grenadeAt} lastAttackTime={lastAttackTime} moving={moving} />;
-    if (isDefenseDrone) return <SentinelDroneModel aimOf={sentinelAimOf} teamColor={team === 'neutral' ? undefined : teamColor} />;
+    if (isDefenseDrone) return <SentinelDroneModel aimOf={sentinelAimOf} teamColor={team === 'neutral' ? undefined : teamColor} lookAround={sentinelGuarding} />;
 
     if (isTank) return <TitanTankModel teamColor={teamColor} moving={moving} railFiredAt={railgunFiredAt} aimRef={turretAimRef} flashRef={flashRef} decoy={isDecoy} />;
 
@@ -793,10 +796,13 @@ const Unit: React.FC<UnitProps> = ({
         </Float>
     );
   };
+  // A Sentinel guarding a server node (the neutral guards, and posted defenders and hacked ones)
+  // looks slowly round when idle; one built for an army doesn't.
+  const sentinelGuarding = team === 'neutral' || !!sentinelPost;
   // Cipher's last Override, for its flare (CipherModel.tsx).
   const cipherCastAt = type === 'hero_netrunner' && abilityReadyAt?.override ? abilityReadyAt.override - (abilityDef('override')?.cooldownMs ?? 0) : 0;
   const model = useMemo(renderModel, [
-    type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
+    sentinelGuarding, type, teamColor, hoverHeight, tileSize, aimWorld, ammoState, loadedAmmo, isDeployed, isAnchored, radarShown, isSelected, isDecoy,
     isDampenerActive, powered, fieldGenActive, fieldUp, trophyCooling, carrying, courierPayload, constructionTargetId, ciwsTargetId,
     grenadeAt, cipherCastAt, isHero || isLancer || isTrooper || isGhost ? lastAttackTime : 0, isHero || isLancer || isTrooper || isGhost || isMule || isTank || isGuardian || isSunPlate || isHowitzer || isBallista || isAegis || isBanshee || isMason || isRazorback || isScoutCar || isSwarmHost || isCrawler ? moving : false, isTank ? railgunFiredAt : 0,
     isBallista ? Math.floor((loadingProgress || 0) / 10) : 0,

@@ -10,8 +10,8 @@
 //
 // It moves: it turns its whole body to look at what it is shooting (`aimOf`, a point in the
 // world) and fires its laser from the pupil, a white-hot core in a red glow with a flare at each
-// end, flickering as it burns. Idle, it turns slowly round, looking down over its node, the eye
-// dimmed.
+// end, flickering as it burns. Idle, a guard at a server node turns slowly round, looking down
+// over its node, the eye dimmed; one built for an army (`lookAround` false) settles facing ahead.
 //
 // Built facing +Z, about 4.2 across in its own units, and scaled up here.
 
@@ -75,7 +75,10 @@ export const SentinelDroneModel: React.FC<{
   // A side's own Sentinel (Netrunner's, sim/sentinelNet.ts) wears its colour on its belt; the
   // neutral guards are grey.
   teamColor?: string;
-}> = ({ aimOf, teamColor }) => {
+  // A guard at a server node turns slowly round when idle, looking over its node; one built for an
+  // army (false) settles facing the way it is going instead.
+  lookAround?: boolean;
+}> = ({ aimOf, teamColor, lookAround = true }) => {
   const shell = shellMaterial(), grey = kitMaterial('structGrey'), dark = kitMaterial('structDark'), black = kitMaterial('black'), steel = kitMaterial('steel');
   // The eye's lights, its own to brighten while it fires.
   const iris = useMemo(() => own(glow(RED)), []);
@@ -113,8 +116,9 @@ export const SentinelDroneModel: React.FC<{
     if (!y || !p || !root.current) return;
     const aim = aimOf?.();
     const k = 1 - Math.exp(-Math.min(delta, 0.05) * (aim ? 9 : 1.2));
-    // Onto the target; otherwise turning slowly round, looking down over its node.
-    let wantYaw = y.rotation.y + IDLE_TURN * delta, wantPitch = IDLE_PITCH;
+    // Onto the target; otherwise turning slowly round, looking down over its node, or (in an army)
+    // settling to face straight ahead.
+    let wantYaw = lookAround ? y.rotation.y + IDLE_TURN * delta : 0, wantPitch = IDLE_PITCH;
     if (aim) {
       const local = root.current.worldToLocal(scratch.aim.copy(aim));
       wantYaw = Math.atan2(local.x, local.z);
@@ -122,7 +126,7 @@ export const SentinelDroneModel: React.FC<{
     }
     let d = wantYaw - y.rotation.y;
     d = Math.atan2(Math.sin(d), Math.cos(d));
-    y.rotation.y += aim ? d * k : IDLE_TURN * delta;
+    y.rotation.y += aim || !lookAround ? d * k : IDLE_TURN * delta;
     p.rotation.x += (wantPitch - p.rotation.x) * k;
 
     // The eye burns bright while it fires; idle, a dim slow pulse. The mast tip blinks.

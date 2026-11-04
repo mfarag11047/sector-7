@@ -730,8 +730,9 @@ nothing reaches Tier 2 in about 8 minutes.
   tip, and a hover emitter glowing underneath. In front, the eye: a heavy dark rim under an
   armoured brow, a black socket ringed by eight shutter blades, a red iris round a white-hot pupil.
   It turns its whole body to look at what it is shooting and fires a flickering laser from the
-  pupil (a white-hot core in a red glow, with a flare at each end); idle, it turns slowly round,
-  looking down over its node, its eye dimmed.
+  pupil (a white-hot core in a red glow, with a flare at each end). Idle, a Sentinel guarding a
+  server node (a neutral guard, a defender or a hacked one) turns slowly round, looking down over
+  its node, its eye dimmed; one built at a Comm Link for an army settles facing the way it's going.
 
 Rough timings: holding just your own node, Tier 2 takes about 2 minutes of holding it, and Tier 3
 another 6. Holding three nodes gets you from Tier 2 to Tier 3 in about 2 minutes.
