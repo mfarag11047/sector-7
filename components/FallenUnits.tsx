@@ -1,14 +1,14 @@
 // Units with a death animation keep falling after the game has removed them: CityMap records each
 // one where and how it was drawn when it died, and this draws it there playing its death, then
-// sinks it into the ground and lets it go: Kage (components/KageRig.tsx) and Goliath
-// (components/GoliathRig.tsx).
+// sinks it into the ground and lets it go: Kage (components/models/KageModel.tsx) and Goliath
+// (components/models/GoliathModel.tsx).
 
 import React, { useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import type { UnitType } from '../types';
-import { KageRig } from './KageRig';
-import { GoliathRig } from './GoliathRig';
+import { KageModel } from './models/KageModel';
+import { GoliathModel } from './models/GoliathModel';
 
 export interface FallenUnit {
   id: string;
@@ -35,8 +35,8 @@ const Fallen: React.FC<{ unit: FallenUnit }> = ({ unit }) => {
   });
   return (
     <group ref={ref} position={unit.position} quaternion={unit.quaternion}>
-      {unit.type === 'hero_shadow_ops' && <KageRig teamColor={unit.teamColor} dead />}
-      {unit.type === 'hero_heavy_metal' && <GoliathRig teamColor={unit.teamColor} dead diedAt={unit.diedAt} />}
+      {unit.type === 'hero_shadow_ops' && <KageModel teamColor={unit.teamColor} dead diedAt={unit.diedAt} />}
+      {unit.type === 'hero_heavy_metal' && <GoliathModel teamColor={unit.teamColor} dead diedAt={unit.diedAt} />}
     </group>
   );
 };

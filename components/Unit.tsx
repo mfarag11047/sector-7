@@ -44,7 +44,7 @@ import { abilityUnlocked, artilleryTierOf, type UpgradeId } from '../sim/upgrade
 import { shieldMax } from '../sim/kestrel';
 import { WARHEAD_LABEL } from '../sim/warheads';
 import { isHeroType } from '../sim/heroes';
-import { GoliathRig } from './GoliathRig';
+import { GoliathModel } from './models/GoliathModel';
 import { BatteryMuleModel, BATTERY_MULE_LINK_Y } from './models/BatteryMuleModel';
 import { AegisModel } from './models/AegisModel';
 import { RazorbackModel } from './models/RazorbackModel';
@@ -62,7 +62,7 @@ import { ThunderheadModel } from './models/ThunderheadModel';
 import { GuardianModel, GUARDIAN_BEAM_ORIGIN_Y } from './models/GuardianModel';
 import { SentinelDroneModel } from './models/SentinelDroneModel';
 import { TitanTankModel } from './models/TitanTankModel';
-import { KageRig } from './KageRig';
+import { KageModel } from './models/KageModel';
 import { GOLIATH } from '../sim/heavyMetalHero';
 import { muleRange } from '../sim/energy';
 
@@ -729,7 +729,7 @@ const Unit: React.FC<UnitProps> = ({
   // A Helios works unless an EMP has knocked it out, or it is microwaving with a flat battery.
   const heliosWorking = isHelios && !buffs?.some(b => b.kind === 'emp') && (heliosMode !== 'burn' || battery > 0);
   const radarShown = radarRange > 0 || !!surveillance;
-  // Walking somewhere: rigged models play their run (KageRig).
+  // Walking somewhere: the models play their walk.
   const moving = path.length > 0;
   // The turret's target, kept in a ref so aiming never rebuilds the model.
   const turretAimRef = useRef<THREE.Vector3 | null>(null);
@@ -744,9 +744,9 @@ const Unit: React.FC<UnitProps> = ({
     if (isHowitzer) return <ThunderheadModel teamColor={teamColor} moving={moving} deployed={!!isDeployed} aim={aimWorld} />;
     if (isAegis) return <AegisModel teamColor={teamColor} moving={moving} firing={!!ciwsTargetId} aimOf={() => ciwsAims?.current.get(id)} />;
     if (isHornet) return <HornetModel teamColor={teamColor} rockets={upgrades.includes('hunter_rockets')} aimRef={turretAimRef} flashRef={flashRef} />;
-    if (type === 'hero_shadow_ops') return <KageRig teamColor={teamColor} lastAttackTime={lastAttackTime} moving={moving} />;
+    if (type === 'hero_shadow_ops') return <KageModel teamColor={teamColor} lastAttackTime={lastAttackTime} moving={moving} />;
     if (type === 'hero_netrunner') return <CipherModel teamColor={teamColor} lastAttackTime={lastAttackTime} moving={moving} flashRef={flashRef} castAt={cipherCastAt} />;
-    if (type === 'hero_heavy_metal') return <GoliathRig teamColor={teamColor} flashRef={flashRef} grenadeAt={grenadeAt} lastAttackTime={lastAttackTime} moving={moving} />;
+    if (type === 'hero_heavy_metal') return <GoliathModel teamColor={teamColor} flashRef={flashRef} grenadeAt={grenadeAt} lastAttackTime={lastAttackTime} moving={moving} />;
     if (isDefenseDrone) return <SentinelDroneModel aimOf={sentinelAimOf} teamColor={team === 'neutral' ? undefined : teamColor} />;
 
     if (isTank) return <TitanTankModel teamColor={teamColor} moving={moving} railFiredAt={railgunFiredAt} aimRef={turretAimRef} flashRef={flashRef} decoy={isDecoy} />;

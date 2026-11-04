@@ -4372,7 +4372,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                   fx.push({
                       id: `shot-${now}-${i}`, kind, createdAt: now,
                       attackerId: shot.attackerId, targetId: shot.targetId,
-                      from: sentry ? sentryMuzzle(base, to) : { ...base, y: shot.fromAir ? 74 : structure ? 4 : goliath ? 4.6 : infantry ? 1.6 : 2.4 },
+                      from: sentry ? sentryMuzzle(base, to) : { ...base, y: shot.fromAir ? 74 : structure ? 4 : goliath ? 3.9 : infantry ? 1.6 : 2.4 },
                       to,
                       flashSize: structure ? 3.5 : shot.fromAir ? 2.6 : infantry ? 1.6 : 2.6,
                   });

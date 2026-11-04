@@ -271,7 +271,7 @@ of the match can unlock or train it (`sim/heroes.ts`).
 All cost 600 cores, 4 population and 40 s to train.
 
 **Goliath (Heavy Metal)** is a towering full-borg heavy (`sim/heavyMetalHero.ts`,
-`components/GoliathRig.tsx`, from three 3D models; see **Rigged models** below): a pale skull face with red eyes and a steel jaw, huge pauldrons,
+`components/models/GoliathModel.tsx`, built from the unit kit; see **The heroes' models** below): a pale skull face with red eyes and a steel jaw, huge pauldrons,
 red muscle cabling under black plate, and clawed feet. He carries a **heavy machine gun** in both
 hands: a machine gun's damage type, decent against everything and able to hit aircraft. On his
 back, an arm curls over his right shoulder holding a box **grenade launcher**: every **8 s**, while
@@ -282,9 +282,9 @@ Salvo rockets, so enemy force fields stop them. He turns to face what he is shoo
 armour, AP weapons are his counter: a few Titans take him apart.
 
 **Kage (Shadow Ops)** is a cloaking assassin (`sim/shadowHero.ts`): a dark armoured suit with a
-four-lens night-vision helmet glowing green, red tags, and a **black katana** in his left hand. He is
-the first unit drawn from a rigged, animated 3D model rather than code-built shapes (see **Rigged
-models** below): he idles in a sword stance, runs, slashes on every cut, and falls when he dies.
+four-lens night-vision helmet glowing green, red tags, and a **black katana** in his left hand
+(`components/models/KageModel.tsx`, built from the unit kit; see **The heroes' models** below): he
+stands in a low sword stance, runs, slashes on every cut, and falls when he dies.
 - **Melee only.** His katana has its own damage type, **blade**: ×1.3 against infantry, ×0.9 light
   vehicles, ×0.6 heavy, ×0.5 buildings, and it **can't hit aircraft**. With a reach of 1.3 tiles he
   has to close in, so when he stands idle and uncloaked he **charges** any enemy ground unit he
@@ -686,57 +686,32 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   nose a collar ring glowing the colour of its warhead (EMP blue, HE red, WP white).
   A missile with no warhead yet is a bare body, open at the front, its ring unlit.
 
-### Rigged models
+### The heroes' models
 
-Most units are built from shapes in code. A unit can instead use a rigged `.glb` model (the asset
-spec covers what an artist delivers). Two do so far:
-- **Kage**: `public/models/kage.glb` with animation clips, and `katana.glb`, drawn by
-  `components/KageRig.tsx`.
-- **Goliath**: `public/models/goliath.glb` (rigged body, no clips), `goliath_gun.glb` and
-  `goliath_launcher.glb`, drawn by `components/GoliathRig.tsx`. Without clips he moves
-  procedurally: his arms hold the gun by two-bone IK every frame (right hand on the pistol grip,
-  left on the front grip, so the hands stay on it as it recoils); walking swings his legs and bobs
-  his hips; standing, his chest breathes; each shot kicks the gun back and each grenade volley kicks
-  the launcher; dead, he topples onto his back. The gun rides at his right hip and the launcher
-  sits on the socket in his back, arching over his right shoulder.
+All three doctrine heroes are built from the unit kit like every other unit, with their own
+procedural animation (they once used imported rigged `.glb` models; those are gone, so every unit
+shares one look):
+- **Goliath** (`components/models/GoliathModel.tsx`): about twice a trooper's height, gunmetal
+  plate over dark red muscle cabling (it shows at the waist, neck and joints), huge faceted
+  pauldrons in team colour, amber running lights, an armoured skirt and clawed feet. A pale skull
+  faceplate with red eyes and a steel jaw under a dark cowl, set low between the pauldrons. Both
+  hands on a heavy machine gun at his right hip: a receiver with an ammunition box, a perforated
+  shroud and a muzzle brake. A jointed arm from his back socket carries a six-tube box grenade
+  launcher over his right shoulder. He walks with a slow heavy stride, breathes standing, his gun
+  kicks back on each shot and the launcher kicks up on each grenade, and dead he topples onto his
+  back.
+- **Kage** (`components/models/KageModel.tsx`): lean and a head taller than a trooper, a black
+  undersuit under close dark plates, narrow team-colour shoulder guards and a team-colour sash with
+  tails behind, red tags, a close helmet with the four-lens night-vision rig glowing green, the
+  scabbard across his back and the black katana with a bright edge in his left hand. He is posed
+  limb by limb: a low sword stance, breathing; a forward-leaning run with the blade trailing; on
+  each cut a slash, wind-up over his head and a sweep down across; dead, he drops to his knees and
+  falls forward.
+- **Cipher**: see Doctrine heroes above.
 
-For models with clips:
-- **Clips** in the file: `idle` (loops), `run` (loops, in place: the game moves the unit), `attack`
-  (one strike, as long as the unit's time between hits) and `death` (holds the last pose). The unit's
-  state picks the clip: dead, then striking (within a cut's length of its last hit), then moving,
-  else idle, cross-fading over 0.15 s.
-- **Weapons** are separate models attached to a hand bone in code (Kage's katana on the left hand,
-  which is the hand his slash uses).
-- **Team colour** (`components/teamTint.ts`): the textures are painted with blue team markings. A
-  shader recolours clearly blue texels to the side's colour, keeping their shading, and makes the
-  model's lights glow: green ones for Kage's lenses, warm ones for Goliath's red eyes and amber lights
-  (his dark red cabling and yellow hazard stripes stay dull).
-- **Each instance** gets its own skeleton copy and materials. A cloak tints copies of a unit's
-  materials, never the shared ones.
-- **Death**: the game removes a unit the moment it dies, so units with a death clip leave a fallen
-  copy where they were drawn (`components/FallenUnits.tsx`). It plays the death, lies there for about
-  6 s, then sinks away. Only units the player could see leave one.
-
-**Tripo props and textures.** Tripo's props came in at around 100,000 triangles and every texture at
-4096², about 34 MB for Goliath's three parts. They were reduced with gltf-transform (run from a
-scratch folder, not a project dependency): parts joined, welded and simplified to about 7,000
-triangles each (the gun and launcher look the same at game size), and every texture resized to
-1024². Goliath is about 23,000 triangles and 3.7 MB in all.
-
-**Importing a Tripo model.** Tripo's FBX export (from its Blender conversion) needed several fixes,
-done once in the browser with three.js and saved as the `.glb`:
-- FBXLoader built 25 nested copies of the skeleton, one per armour piece. Keep the outermost copy,
-  drop the rest, and rebind every piece to it by bone name (all copies had the same bind data).
-- Replace the material (it came with a white emissive) with a standard one on the colour texture,
-  downscaled to 1024².
-- Every clip was padded to the scene length (4.96 s) and had sparse keys. Resample to one key per
-  frame, then cut: `attack` is the swing from wind-up to follow-through (0.4 to 2.0 s) at double
-  speed (0.8 s, Kage's time between cuts); `death` the first 2.8 s; `run` one 0.8 s cycle from the
-  steady middle of a start-run-stop animation, its last frames blended into its first so it loops;
-  `idle` the swing's opening stance with a slow breath added.
-- Root motion: the hips keep their height but stay over their starting spot in `run` and `attack`.
-- Copying these clips onto Tripo's separate `.glb` of the same model doesn't work: the Blender
-  round trip changed the bones' rest orientations. Use the FBX's own mesh and skeleton.
+**Death**: the game removes a unit the moment it dies, so Goliath and Kage leave a fallen copy
+where they were drawn (`components/FallenUnits.tsx`): it plays the fall, lies there for about 6 s,
+then sinks away. Only units the player could see leave one.
 
 **Why research and not "hold N nodes":** in the first version, your tier was however many server
 nodes you held right now. All four sat in the centre, so whoever won the middle got every tier and
