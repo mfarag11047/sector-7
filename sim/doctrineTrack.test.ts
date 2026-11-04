@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { BuildingData } from '../types';
 import { createEconomy, type TeamEconomy } from './economy';
-import { advanceTrack, hasPower, nextOpenRank, pickBlocker, POINT_EVERY_MS, powersOf, RANK_OPENS_MS, STARTING_POINTS, takePick, TRACK, trackPowerCooldown, trackPowerCost } from './doctrineTrack';
+import { advanceTrack, EDGES, hasPower, nextOpenRank, pickBlocker, POINT_EVERY_MS, powersOf, RANK_OPENS_MS, STARTING_POINTS, takePick, TRACK, trackPowerCooldown, trackPowerCost } from './doctrineTrack';
 import { DOCTRINE_CONFIG } from '../constants';
 import { orderEffects } from './orders';
 
@@ -74,7 +74,7 @@ describe('what the edges do', () => {
     const plated = { ...createEconomy().blue, track: { points: 0, progressMs: 0, elapsedMs: 0, picks: ['hm_welders', 'heavy_metal_tier2', 'hm_plate'] } };
     const killing = { ...createEconomy().red, track: { points: 0, progressMs: 0, elapsedMs: 0, picks: ['so_killing'] } };
     const perks = trackCombatPerks(t => (t === 'blue' ? plated : killing));
-    expect(perks.damageTaken({ type: 'tank', team: 'blue' } as never)).toBeCloseTo(0.85);
+    expect(perks.damageTaken({ type: 'tank', team: 'blue' } as never)).toBeCloseTo(EDGES.plateDamageTaken);
     expect(perks.damageTaken({ type: 'trooper', team: 'blue' } as never)).toBe(1);
     expect(perks.ambushOf('red')).toBe(2);
     expect(perks.ambushOf('blue')).toBeNull();

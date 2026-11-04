@@ -68,13 +68,13 @@ const capstones = (doctrine: DoctrineType): [TrackOption, TrackOption] => [
 export const TRACK: Record<DoctrineType, [TrackOption, TrackOption][]> = {
   heavy_metal: [
     [
-      { id: 'hm_scrap', name: 'Scrap Haulers', description: 'Wrecks you strip are worth twice as much: 60% of the vehicle\'s cost.' },
+      { id: 'hm_scrap', name: 'Scrap Haulers', description: 'Wrecks you strip are worth twice as much: 30% of the vehicle\'s cost.' },
       { id: 'hm_welders', name: 'Field Welders', description: 'Your armour repairs itself out of combat from the start, twice as fast (10 HP/s).' },
     ],
     [power('heavy_metal', 'tier2'), power('heavy_metal', 'tier3')],
     [
       { id: 'hm_hero', heroAbility: 'juggernaut', name: 'Juggernaut', description: 'Goliath\'s big ability (50 s cooldown): for 8 s he takes 70% less damage, fires twice as fast and shrugs off EMP.' },
-      { id: 'hm_plate', name: 'Hardened Plate', description: 'Your vehicles take 15% less damage.' },
+      { id: 'hm_plate', name: 'Hardened Plate', description: 'Your vehicles take 10% less damage.' },
     ],
     capstones('heavy_metal'),
   ],
@@ -178,10 +178,17 @@ export function nextOpenRank(e: TeamEconomy, doctrine: DoctrineType | null | und
 }
 
 // --- What the edges do, for the systems they touch ---
+// The edges' numbers, in one table so balance sweeps can try others (sim/tuning.ts).
+export const EDGES = {
+  // Scrap Haulers: what a stripped wreck pays, times this.
+  scrapMultiplier: 2,
+  // Hardened Plate: share of damage a vehicle still takes.
+  plateDamageTaken: 0.9,
+};
 export const perk = {
-  salvageMultiplier: (e?: TeamEconomy) => (hasPick(e, 'hm_scrap') ? 2 : 1),
+  salvageMultiplier: (e?: TeamEconomy) => (hasPick(e, 'hm_scrap') ? EDGES.scrapMultiplier : 1),
   welders: (e?: TeamEconomy) => hasPick(e, 'hm_welders'),
-  vehicleDamageTaken: (e?: TeamEconomy) => (hasPick(e, 'hm_plate') ? 0.85 : 1),
+  vehicleDamageTaken: (e?: TeamEconomy) => (hasPick(e, 'hm_plate') ? EDGES.plateDamageTaken : 1),
   silentRunning: (e?: TeamEconomy) => hasPick(e, 'so_silent'),
   ambush: (e?: TeamEconomy) => (hasPick(e, 'so_killing') ? 2 : null),
   darkAfterMs: (e?: TeamEconomy) => (hasPick(e, 'so_fade') ? 2000 : null),

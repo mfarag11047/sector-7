@@ -465,7 +465,7 @@ export function stepMatch(m: HeadlessMatch): void {
   // Vehicles leave wrecks for Heavy Metal to salvage (sim/salvage.ts).
   for (const u of m.units) {
     if (u.health > 0) continue;
-    const w = wreckOf(u.type, u.gridPos, now, `wreck-${++m.nextId}`);
+    const w = wreckOf(u.type, u.gridPos, now, `wreck-${++m.nextId}`, u.team);
     if (w) m.wrecks.push(w);
   }
   m.units = m.units.filter(u => u.health > 0);

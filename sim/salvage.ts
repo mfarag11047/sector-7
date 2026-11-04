@@ -22,16 +22,20 @@ export const SALVAGE = {
   lifeMs: 60_000,
   range: 1.5,
   ms: 4000,
-  share: 0.3,
-  repair: 0.25,
+  share: 0.15,
+  // A wreck of the salvaging side's own vehicle pays this much of what an enemy one would.
+  ownFactor: 1,
+  repair: 0.1,
 };
 
 export interface Wreck {
   id: string;
   type: UnitType;
   at: GridPos;
-  // Cores it's worth to the side that salvages it.
+  // Cores it's worth to the side that salvages it (times SALVAGE.ownFactor if that side lost it).
   value: number;
+  // Whose vehicle it was.
+  team?: Team;
   diedAt: number;
   // Salvage under way: by whom, and how far along (ms).
   progress?: { team: Team; ms: number; active: boolean };
@@ -46,9 +50,10 @@ export function salvageValue(type: UnitType): number {
   return Math.round(cost * SALVAGE.share);
 }
 
-export function wreckOf(type: UnitType, at: GridPos, now: number, id: string): Wreck | null {
+export function wreckOf(type: UnitType, at: GridPos, now: number, id: string, team?: UnitData['team']): Wreck | null {
   const value = salvageValue(type);
-  return value > 0 ? { id, type, at: { x: at.x, z: at.z }, value, diedAt: now } : null;
+  if (value <= 0) return null;
+  return { id, type, at: { x: at.x, z: at.z }, value, diedAt: now, ...(team === 'blue' || team === 'red' ? { team } : {}) };
 }
 
 const tiles = (a: GridPos, b: GridPos) => Math.hypot(a.x - b.x, a.z - b.z);
@@ -82,7 +87,8 @@ export function salvageTick(
     if (team && doctrineOf(team) === 'heavy_metal') {
       const ms = (w.progress?.team === team ? w.progress.ms : 0) + dtMs;
       if (ms >= SALVAGE.ms) {
-        payouts.push({ team, cores: Math.round(w.value * valueMultiplier(team)), wreckId: w.id, at: w.at });
+        const own = w.team === team ? SALVAGE.ownFactor : 1;
+        payouts.push({ team, cores: Math.round(w.value * own * valueMultiplier(team)), wreckId: w.id, at: w.at });
         for (const u of at) {
           const armor = UNIT_RULES[u.type].armor;
           if (u.team === team && (armor === 'light' || armor === 'heavy')) repairs.set(u.id, u.maxHealth * SALVAGE.repair);

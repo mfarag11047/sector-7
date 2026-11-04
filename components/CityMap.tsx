@@ -4764,7 +4764,7 @@ const CityMap: React.FC<CityMapProps> = ({ match, onStatsUpdate, onMapInit, onMi
                       diedRef.current.add(u.id);
                       deathsRef.current.push({ type: u.type, at: { ...u.gridPos } });
                       // Vehicles leave wrecks for Heavy Metal to salvage (sim/salvage.ts).
-                      const wreck = wreckOf(u.type, u.gridPos, now, `wreck-${u.id}`);
+                      const wreck = wreckOf(u.type, u.gridPos, now, `wreck-${u.id}`, u.team);
                       if (wreck) wrecksRef.current = [...wrecksRef.current, wreck];
                   }
                   // Units with a death animation fall where they were drawn, if the player could see

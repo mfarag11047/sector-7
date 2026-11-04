@@ -350,7 +350,7 @@ export const DOCTRINE_CONFIG: Record<DoctrineType, {
 }> = {
   heavy_metal: {
     label: "Heavy Metal",
-    tier1_passive: "Salvage & Repair: every vehicle destroyed, yours or theirs, leaves a burning wreck for 60 s. Park any of your ground units at one, uncontested, for 4 s to strip it: 30% of the vehicle's cost in cores, and your vehicles there patched up by a quarter of their health. Guardians and your base also repair armour 50% faster, and from Tier 2 armour repairs itself (5 HP/s) after 5 s out of combat.",
+    tier1_passive: "Salvage & Repair: every vehicle destroyed, yours or theirs, leaves a burning wreck for 60 s. Park any of your ground units at one, uncontested, for 4 s to strip it: 15% of the vehicle's cost in cores, and your vehicles there patched up by a tenth of their health. Guardians and your base also repair armour 50% faster, and from Tier 2 armour repairs itself (5 HP/s) after 5 s out of combat.",
     tier2_cost: 500,
     tier2_cooldown: 120000,
     tier2_name: "Orbital Drop",

@@ -10,6 +10,8 @@
 //   SWEEP_DIFFICULTY=normal
 //   SWEEP_JOBS=8         workers (default: cores less one)
 //   SWEEP_JSON=out.json  also write every match's result and the summary
+//   SWEEP_TUNE="SALVAGE.share=0.2;BASE_REPAIR.heavyMetalBoost=1"
+//                        try other numbers for this run only (sim/tuning.ts lists the tables)
 
 import { spawn } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
@@ -17,6 +19,7 @@ import { cpus } from 'node:os';
 import path from 'node:path';
 import { matchups, MatchResult, playMatchup, report, summarize } from '../sim/doctrineSweep';
 import type { Difficulty } from '../sim/match';
+import { applyTuning } from '../sim/tuning';
 
 const env = process.env;
 const seedsArg = env.SWEEP_SEEDS ?? '6';
@@ -24,6 +27,8 @@ const seeds = seedsArg.includes(',') ? seedsArg.split(',').map(Number) : Array.f
 const minutes = Number(env.SWEEP_MINUTES ?? 30);
 const difficulty = (env.SWEEP_DIFFICULTY ?? 'normal') as Difficulty;
 const all = matchups(seeds);
+// Checked in the parent too, so a bad path fails before any worker starts.
+const tuned = applyTuning(env.SWEEP_TUNE ?? '');
 
 if (env.SWEEP_SHARD) {
   // A worker: play every n-th matchup from k, one JSON line each.
@@ -36,6 +41,7 @@ if (env.SWEEP_SHARD) {
   const jobs = Math.max(1, Math.min(all.length, Number(env.SWEEP_JOBS ?? Math.max(1, cpus().length - 1))));
   const started = Date.now();
   console.log(`${all.length} matches (${seeds.length} seeds, ${minutes} min limit, ${difficulty}) on ${jobs} workers...`);
+  if (tuned.length > 0) console.log(`Tuned: ${tuned.join(', ')}`);
   const viteNode = path.resolve('node_modules/vite-node/vite-node.mjs');
   const results: MatchResult[] = [];
   const workers = Array.from({ length: jobs }, (_, k) => new Promise<void>((resolve, reject) => {
@@ -59,5 +65,5 @@ if (env.SWEEP_SHARD) {
   await Promise.all(workers);
   const summary = summarize(results);
   console.log(`\n${report(summary)}\n\n${Math.round((Date.now() - started) / 1000)} s`);
-  if (env.SWEEP_JSON) writeFileSync(env.SWEEP_JSON, JSON.stringify({ seeds, minutes, difficulty, results, summary }, null, 2));
+  if (env.SWEEP_JSON) writeFileSync(env.SWEEP_JSON, JSON.stringify({ seeds, minutes, difficulty, tuned, results, summary }, null, 2));
 }

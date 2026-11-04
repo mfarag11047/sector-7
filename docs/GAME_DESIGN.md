@@ -852,9 +852,9 @@ in order. Holding server nodes gets a side to the top sooner; without them rank 
 
 | Rank | Heavy Metal | Shadow Ops | Netrunner |
 |---|---|---|---|
-| 1 | Scrap Haulers (wrecks worth double) / Field Welders (armour self-repair from the start, 10 HP/s) | Silent Running (infantry and light vehicles +20% speed) / Killing Ground (ambush ×2 instead of ×1.5) | Brute Force (hack in 3 s) / Sentinel Foundry (Sentinels 180 cores, 12 s) |
+| 1 | Scrap Haulers (wrecks worth double: 30%) / Field Welders (armour self-repair from the start, 10 HP/s) | Silent Running (infantry and light vehicles +20% speed) / Killing Ground (ambush ×2 instead of ×1.5) | Brute Force (hack in 3 s) / Sentinel Foundry (Sentinels 180 cores, 12 s) |
 | 2 | Orbital Drop / Bulwark Force Field | Phantom Decoys / Cloaking Field | Nano-Cloud / Black Wall Infect |
-| 3 | Juggernaut (Goliath's big ability) / Hardened Plate (vehicles take 15% less damage) | Thousand Cuts (Kage's) / Quick Fade (go dark 2 s after a fight) | Botnet (Cipher's) / Hardened Nodes (defenders after 45 s) |
+| 3 | Juggernaut (Goliath's big ability) / Hardened Plate (vehicles take 10% less damage) | Thousand Cuts (Kage's) / Quick Fade (go dark 2 s after a fight) | Botnet (Cipher's) / Hardened Nodes (defenders after 45 s) |
 | 4 | Arsenal (the other power too) / Overdrive (powers at half cost and cooldown) | the same | the same |
 
 - The powers still cost cores and recharge; the track decides which a side has (no longer the
@@ -1357,11 +1357,21 @@ The Banshee is the electronic-warfare vehicle (`sim/jamming.ts`).
 armour; not infantry, aircraft or the small drones), leaves a burning wreck where it died for 60 s:
 a scorched, burnt-out hull with embers and smoke. A Heavy Metal ground unit within 1.5 tiles of
 it, with no other side's unit that close, strips it over 4 s (a ring fills in the side's colour):
-the side gets 30% of the vehicle's cost in cores (a dropped Titan counts as a tank), and each of
-its vehicles at the wreck is patched up by a quarter of its maximum health. Walk off or be
+the side gets 15% of the vehicle's cost in cores (a dropped Titan counts as a tank), and each of
+its vehicles at the wreck is patched up by a tenth of its maximum health. Walk off or be
 contested and it stalls. Heavy Metal keeps Mechanized Repair too: Guardians and its base repair
 armour 50% faster, and from Tier 2 armour repairs itself (5 HP/s) after 5 s out of combat.
 Fighting where its armour can reach the wrecks pays for the next tank.
+
+**Why these numbers:** salvage first paid 30% and patched a quarter of each vehicle's health, and
+Hardened Plate took 15% off vehicle damage. In the doctrine sweep (8 seeds) Heavy Metal then won
+83% of its matches; with no wrecks at all it fell to 59%, and both halves of salvage (the cores and
+the mid-fight patching) counted about equally. At 15%, a tenth and 10% it scores about 70% over 16
+seeds (Netrunner 44%, Shadow Ops 36%). The rest of the gap is largely the computer: Heavy Metal's
+passive works on its own in any fight, while going dark and the Sentinel Net need a side to play
+for them, so the next step is the computer's Shadow Ops and Netrunner play, not deeper cuts here.
+A wreck of the salvaging side's own vehicle pays like an enemy's (`SALVAGE.ownFactor`, 1); the
+sweep found paying nothing for one's own made no clear difference.
 
 ## Shadow Ops passive: Going Dark
 
@@ -1732,6 +1742,10 @@ powers cast, and the score of the matches each track option was taken in. The co
 options at a coin's toss, so over enough seeds every option is played. `SWEEP_SEEDS`,
 `SWEEP_MINUTES`, `SWEEP_DIFFICULTY`, `SWEEP_JOBS` and `SWEEP_JSON` tune it. The aim is every
 doctrine within 40–60%; `SWEEP_BALANCE=1 npx vitest run sim/doctrineBalance.test.ts` checks it.
+`SWEEP_TUNE="SALVAGE.share=0.2;EDGES.plateDamageTaken=0.9"` tries other numbers for one run
+without editing code (`sim/tuning.ts` lists the tables it may change). With half the matches
+drawn, a doctrine's score moves about ±9 points by chance over 8 seeds: use 16 seeds before
+settling a number.
 
 ## Map
 

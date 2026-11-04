@@ -35,6 +35,17 @@ describe('salvage', () => {
     expect(r.wrecks).toEqual([]);
   });
 
+  it('a wreck of the side\'s own vehicle pays its own share, and still patches its vehicles', () => {
+    const own = wreckOf('tank', { x: 10, z: 10 }, 0, 'w', 'blue')!;
+    expect(own.team).toBe('blue');
+    const r = run(SALVAGE.ms + 200, [own], [unit('hm', 'blue', { x: 11, z: 10 })], { blue: 'heavy_metal' });
+    expect(r.payouts).toEqual([expect.objectContaining({ team: 'blue', cores: Math.round(own.value * SALVAGE.ownFactor) })]);
+    expect(r.repairs.get('hm')).toBeCloseTo(200 * SALVAGE.repair);
+    // The enemy's wreck pays in full.
+    const theirs = wreckOf('tank', { x: 10, z: 10 }, 0, 'w', 'red')!;
+    expect(run(SALVAGE.ms + 200, [theirs], [unit('hm', 'blue', { x: 11, z: 10 })], { blue: 'heavy_metal' }).payouts[0].cores).toBe(theirs.value);
+  });
+
   it('not for another doctrine, nor while contested; it burns out in time', () => {
     const w = wreckOf('tank', { x: 10, z: 10 }, 0, 'w')!;
     expect(run(SALVAGE.ms * 2, [w], [unit('s', 'blue', { x: 11, z: 10 })], { blue: 'shadow_ops' }).payouts).toEqual([]);

@@ -60,6 +60,8 @@ export const BASE_REPAIR = {
   // fired nor been hit for outOfCombatMs.
   heavyMetalSelfRepair: 5,
   outOfCombatMs: 5000,
+  // Heavy Metal's Mechanized Repair: Guardians and its bases repair its armour this much faster.
+  heavyMetalBoost: 1.5,
   // The cleared pad around the HQ, which spills a tile past its block.
   padRadius: 3,
 };
@@ -98,7 +100,7 @@ export function repairTick(
   }
   for (const [id, amount] of heal) {
     const u = units.find(x => x.id === id);
-    if (u && heavyMetalArmour(u)) heal.set(id, amount * 1.5);
+    if (u && heavyMetalArmour(u)) heal.set(id, amount * BASE_REPAIR.heavyMetalBoost);
   }
   for (const u of units) {
     if (u.health <= 0 || u.health >= u.maxHealth || (u.team !== 'blue' && u.team !== 'red') || !heavyMetalArmour(u)) continue;
