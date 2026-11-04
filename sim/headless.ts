@@ -3,8 +3,11 @@
 //
 // Used to run computer-vs-computer matches in tests (sim/ai.test.ts) and for balance work.
 // It is also a first draft of the authoritative game server: everything here runs on the
-// sim/ modules alone, including warhead production and Ballista loading. Not yet included: projectiles and unit abilities other than Titan
-// smoke, clouds, doctrine powers other than Orbital Drop, Masons and walls, and breaching.
+// sim/ modules alone, including warhead production and Ballista loading, and every doctrine power
+// (castPower). Not yet included: projectiles and unit abilities other than Titan smoke, warhead
+// clouds, Masons and walls, and breaching. Phantom Decoys are paid for but do nothing here: no gun
+// picks a decoy (sim/combat.ts), so in the game they only fool the minimap and soak stray
+// projectiles, which aren't flown here.
 
 import { ABILITY_CONFIG, CITY_CONFIG, STRUCTURE_INFO, TEAM_BASES } from '../constants';
 import type { BuildingData, DoctrineType, RoadType, StructureData, UnitData } from '../types';
@@ -46,7 +49,10 @@ import { fliesOver } from './units';
 import { airPath, fastestPath, sentinelHazardOf } from './pathfinding';
 import { blocksPath, compoundGround, compoundStructures, heldAtGate, hostileGateAt } from './compound';
 import { hasBuff, spendOvercharge } from './unitAbilities';
-import { applyFieldCloak, fieldCloakedIds } from './cloak';
+import { applyFieldCloak, fieldCloakedIds, generatorsReplacedBy } from './cloak';
+import { absorbingField, activeFields, addShieldHit, FORCE_FIELD, generatorsOf, impactAbsorbed, shieldTick, shockDamage, shotBlocked, shotBlockedBy } from './forcefield';
+import { BLACKWALL, blackwallImpact, blackwallTick } from './blackwall';
+import type { PowerKey } from './doctrineTrack';
 import { kageCharges } from './shadowHero';
 import { checkVictory, Victory } from './victory';
 import { DOCTRINE_CONFIG } from '../constants';
@@ -104,6 +110,12 @@ export interface HeadlessMatch {
   sentinelNet: SentinelNet;
   // Wrecks for Heavy Metal to salvage (sim/salvage.ts).
   wrecks: Wreck[];
+  // Netrunner Nano-Clouds on the ground: nothing inside fires or is fired at.
+  nanoClouds: NanoCloud[];
+  // Black Wall virus bombs on their way down (sim/blackwall.ts).
+  virusBombs: VirusBomb[];
+  // Every doctrine power each side has cast, in order, for balance work.
+  powersCast: { team: Team; doctrine: DoctrineType; key: PowerKey; at: number }[];
   // Seeded, so the same options always play out the same match.
   random: () => number;
   // Static map data.
@@ -112,6 +124,9 @@ export interface HeadlessMatch {
   tileType: Record<string, string>;
   log: string[];
 }
+
+export interface NanoCloud { team: Team; at: GridPos; radius: number; until: number }
+export interface VirusBomb { team: Team; at: GridPos; landAt: number }
 
 const key = (x: number, z: number) => `${x},${z}`;
 
@@ -148,6 +163,9 @@ export function createHeadlessMatch(opts: HeadlessOptions): HeadlessMatch {
     nextId: 0,
     sentinelNet: freshSentinelNet(),
     wrecks: [],
+    nanoClouds: [],
+    virusBombs: [],
+    powersCast: [],
     random: seededRandom(opts.seed ^ 0x5eed),
     thinkRandom: seededRandom(opts.seed ^ 0x7a1c),
     gridSize,
@@ -213,11 +231,27 @@ export function stepMatch(m: HeadlessMatch): void {
   m.units = m.units.map(u => advanceMover(u, MOVE_TICK_MS, env));
   // Machines seized by Override go back when their time is up (sim/netrunnerHero.ts).
   m.units = releaseOverrides(m.units, now);
-  // Kage's Optical Camo hides him (sim/cloak.ts; Cloaking Fields aren't modelled here).
+  // Kage's Optical Camo, Cloaking Fields and Shadow Ops going dark hide their units (sim/cloak.ts).
   m.units = applyFieldCloak(m.units, fieldCloakedIds(m.units, now, team => (team === 'blue' || team === 'red') ? m.opts.doctrine[team] : null, team => (team === 'blue' || team === 'red') ? perk.darkAfterMs(m.economy[team]) : null));
 
+  // Heavy Metal force fields up this tick (sim/forcefield.ts): every weapon below checks them, and
+  // what they stop wears their shields down.
+  const fields = activeFields(m.units, now);
+  const shieldOf = (team: UnitData['team'], from: GridPos, to: GridPos) => {
+    const b = shotBlockedBy(fields, team, from, to);
+    return b ? { fieldId: b.field.id, at: b.at } : null;
+  };
+  const shieldHits = new Map<string, number>();
+  const absorbHit = (team: UnitData['team'], at: GridPos, damage: number, from?: GridPos) => {
+    const f = absorbingField(fields, team, at, from);
+    if (f) addShieldHit(shieldHits, f.id, damage);
+  };
+  // Netrunner Nano-Clouds: nothing inside fires or is fired at.
+  m.nanoClouds = m.nanoClouds.filter(c => c.until > now);
+  const inNanoCloud = (p: GridPos) => m.nanoClouds.some(c => Math.hypot(p.x - c.at.x, p.z - c.at.z) <= c.radius);
+
   // Combat.
-  const reloaded = <T extends { id: string; lastAttackTime?: number }>(x: T): T => {
+  const reloaded =<T extends { id: string; lastAttackTime?: number }>(x: T): T => {
     const shot = m.lastShot.get(x.id);
     return shot && shot > (x.lastAttackTime || 0) ? { ...x, lastAttackTime: shot } : x;
   };
@@ -226,14 +260,16 @@ export function stepMatch(m: HeadlessMatch): void {
   m.units = markScreened(m.units, m.smoke, now);
   // City buildings and enemy walls stop direct fire (sim/cover.ts).
   const cover = coverMap(m.buildings, m.structures, m.landmarkTiles);
-  const attacks = resolveAttacks(m.units.map(reloaded), m.structures.map(reloaded) as never, now, () => false, undefined, cover, trackCombatPerks(team => m.economy[team]));
+  const attacks = resolveAttacks(m.units.map(reloaded), m.structures.map(reloaded) as never, now, inNanoCloud, shieldOf, cover, trackCombatPerks(team => m.economy[team]));
+  attacks.shieldDamage.forEach((n, id) => addShieldHit(shieldHits, id, n));
   attacks.fired.forEach((_, id) => m.lastShot.set(id, now));
   m.structures = applyStructureCombat(m.structures, attacks, now);
   // Artillery: new shells go up, and the ones whose flight is over come down.
   const volley = fireArtillery(m.units.map(reloaded), m.structures, now, team => (team === 'neutral' ? 1 : artilleryTierOf(m.economy[team])), m.random, () => `shell-${++m.nextId}`);
   volley.fired.forEach((_, id) => { m.lastShot.set(id, now); attacks.fired.set(id, ''); });
   // Tank rail guns: long-range shots at what the side can see.
-  const rail = fireRailguns(m.units, m.structures, now, undefined, undefined, paths.walkable, cover);
+  const rail = fireRailguns(m.units, m.structures, now, inNanoCloud, shieldOf, paths.walkable, cover);
+  rail.shieldDamage.forEach((n, id) => addShieldHit(shieldHits, id, n));
   m.buildings = damageBuildings(damageBuildings(m.buildings, attacks.buildingDamage), rail.buildingDamage);
   const railFired = new Set(rail.shots.map(s => s.attackerId));
   if (railFired.size > 0) m.units = m.units.map(u => railFired.has(u.id) ? afterRailShot(u, now) : u);
@@ -262,8 +298,9 @@ export function stepMatch(m: HeadlessMatch): void {
     volt.damage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
     if (volt.structureDamage.size > 0) m.structures = applyStructureCombat(m.structures, { structureDamage: volt.structureDamage, fired: new Map(), aiming: new Map() }, now);
   }
-  const salvo = landSalvo(m.salvo, now, m.units, m.structures);
+  const salvo = landSalvo(m.salvo, now, m.units, m.structures, fields);
   m.salvo = salvo.flying;
+  salvo.absorbed.forEach(r => absorbHit(r.team, r.at, FORCE_FIELD.absorb.mini, r.from));
   for (const map of [hornets.unitDamage, salvo.unitDamage]) map.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
   for (const map of [hornets.structureDamage, salvo.structureDamage]) {
     if (map.size > 0) m.structures = applyStructureCombat(m.structures, { structureDamage: map, fired: new Map(), aiming: new Map() }, now);
@@ -281,8 +318,9 @@ export function stepMatch(m: HeadlessMatch): void {
   ciws.ordnanceDamage.forEach((n, id) => { if (shellIds.has(id)) m.shellHits.set(id, (m.shellHits.get(id) || 0) + n); });
   m.shells = m.shells.filter(s => (m.shellHits.get(s.id) || 0) < ORDNANCE_INTEGRITY.shell);
   m.units = applyCiwsState(m.units, ciws.updates);
-  const impact = landShells([...m.shells, ...volley.shells], now, m.units, m.structures);
+  const impact = landShells([...m.shells, ...volley.shells], now, m.units, m.structures, fields);
   m.shells = impact.flying;
+  impact.absorbed.forEach(s => absorbHit(s.team, s.at, FORCE_FIELD.absorb.shell, s.from));
   m.buildings = shellBuildings(m.buildings, impact.landed);
   impact.unitDamage.forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
   // Lancer EMP rockets: the ones that arrive go off.
@@ -298,11 +336,39 @@ export function stepMatch(m: HeadlessMatch): void {
   // the units under them; empty, they fly home to rearm (sim/bombard.ts), as in the game.
   const bombard = bombardTick(m.units, now, team => (team === 'blue' || team === 'red') ? commandPosts(m.structures, team, TEAM_BASES[team]) : [], paths.findAirPath);
   if (bombard.updates.size > 0) m.units = m.units.map(u => bombard.updates.get(u.id)?.(u) ?? u);
-  const strikes = bombard.strikes.map(s => ({ ...s, team: m.units.find(u => u.id === s.droneId)?.team ?? 'neutral' as const }));
+  // A drop over an enemy force field is absorbed by its dome.
+  const strikes = bombard.strikes.map(s => ({ ...s, team: m.units.find(u => u.id === s.droneId)?.team ?? 'neutral' as const })).filter(s => {
+    if (!impactAbsorbed(fields, s.team, s.at)) return true;
+    absorbHit(s.team, s.at, FORCE_FIELD.absorb.bombard);
+    return false;
+  });
   if (strikes.length > 0) {
     m.buildings = bombardBuildings(m.buildings, strikes.map(s => s.at));
     bombardUnitDamage(m.units, strikes).forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
   }
+  // Force fields shock the enemies standing inside them.
+  shockDamage(m.units, fields, MOVE_TICK_MS).forEach((n, id) => attacks.unitDamage.set(id, (attacks.unitDamage.get(id) || 0) + n));
+  // Black Wall virus bombs that land infect the enemies under them, unless a dome takes the bomb or
+  // stands between it and them; the infected burn and pass it on (sim/blackwall.ts).
+  const virus = blackwallTick(m.units, MOVE_TICK_MS, now);
+  const landedBombs = m.virusBombs.filter(b => b.landAt <= now);
+  if (landedBombs.length > 0) {
+    m.virusBombs = m.virusBombs.filter(b => b.landAt > now);
+    for (const b of landedBombs) {
+      if (impactAbsorbed(fields, b.team, b.at)) { absorbHit(b.team, b.at, FORCE_FIELD.absorb.virus); continue; }
+      const hits = blackwallImpact(m.units, b.at, b.team, now);
+      for (const id of [...hits.keys()]) {
+        const victim = m.units.find(u => u.id === id);
+        if (victim && shotBlocked(fields, b.team, b.at, victim.gridPos)) hits.delete(id);
+      }
+      mergeUnitUpdates(virus, hits);
+    }
+  }
+  if (virus.size > 0) m.units = m.units.map(u => virus.get(u.id)?.(u) ?? u);
+  // This tick's hits wear the domes down; one battered to nothing reboots (sim/forcefield.ts).
+  const shields = shieldTick(m.units, now, shieldHits);
+  if (shields.size > 0) m.units = m.units.map(u => shields.get(u.id)?.(u) ?? u);
+
   // Fire on the Wasps is taken first by their drones (sim/microdrones.ts).
   const shield = shieldWasps(m.swarm, attacks.unitDamage, m.units, now);
   m.swarm = shield.swarm;
@@ -388,7 +454,7 @@ export function stepMatch(m: HeadlessMatch): void {
     if (draft.health > 0) {
       ballistaLoadStep(u, draft, MOVE_TICK_MS);
       powerTick(u, draft, {
-        units: living, sources: power, helios, inNanoCloud: false, muleRangeOf,
+        units: living, sources: power, helios, inNanoCloud: inNanoCloud(u.gridPos), muleRangeOf,
         onGrid: isInsideEnergyGrid(u.gridPos, u.team, m.buildings, bases.blue, bases.red),
       });
     }
@@ -470,23 +536,47 @@ function think(m: HeadlessMatch, team: Team, paths: ReturnType<typeof pathfinder
         const silo = outcome.effects.structureUpdates;
         if (silo?.size) m.structures = m.structures.map(s => silo.get(s.id)?.(s) ?? s);
       }
-    } else if (action.kind === 'doctrine') {
-      // Only Orbital Drop is modelled here: a Titan lands at the target.
-      const doctrine = m.opts.doctrine[team];
-      if (doctrine !== 'heavy_metal' || action.tier !== 2 || !hasPower(m.economy[team], doctrine, 'tier2')) continue;
-      const cost = trackPowerCost(m.economy[team], doctrine, 'tier2');
-      if (readyAt.tier2 > m.now || m.economy[team].cores < cost) continue;
-      m.economy = { ...m.economy, [team]: { ...m.economy[team], cores: m.economy[team].cores - cost } };
-      readyAt.tier2 = m.now + trackPowerCooldown(m.economy[team], doctrine, 'tier2');
-      const titan = createUnit('titan_dropped', team, `drop-${++m.nextId}`, action.target);
-      m.units.push(titan);
-      m.log.push(`${Math.round(m.now / 1000)}s ${team} orbital drop`);
-    }
+    } else if (action.kind === 'doctrine') castPower(m, team, action.tier, action.target);
   }
   // Kage charges what he sees with his blade (sim/shadowHero.ts).
   for (const c of kageCharges(m.units)) {
     if (c.team === team) applyOrder(m, team, { type: 'MOVE', unitIds: [c.unitId], target: c.target, attackMove: true }, ctx);
   }
+}
+
+// A doctrine power, on the same checks as CityMap's runDoctrinePower: the side's doctrine, taken
+// on its track, off cooldown and paid for. Drop pods land at once here rather than falling.
+export function castPower(m: HeadlessMatch, team: Team, tier: 2 | 3, target: GridPos): boolean {
+  const doctrine = m.opts.doctrine[team];
+  const key: PowerKey = tier === 2 ? 'tier2' : 'tier3';
+  if (!doctrine || !hasPower(m.economy[team], doctrine, key)) return false;
+  const readyAt = m.doctrineReadyAt[team];
+  const cost = trackPowerCost(m.economy[team], doctrine, key);
+  if (readyAt[key] > m.now || m.economy[team].cores < cost) return false;
+  m.economy = { ...m.economy, [team]: { ...m.economy[team], cores: m.economy[team].cores - cost } };
+  readyAt[key] = m.now + trackPowerCooldown(m.economy[team], doctrine, key);
+  const at = { ...target };
+  const power = `${doctrine}_${key}`;
+  if (power === 'heavy_metal_tier2') {
+    // Orbital Drop: a Titan lands at the target.
+    m.units.push(createUnit('titan_dropped', team, `drop-${++m.nextId}`, at));
+  } else if (power === 'heavy_metal_tier3') {
+    // Bulwark Force Field: one generator per side, the old one goes.
+    const old = new Set(generatorsOf(m.units, team));
+    m.units = [...m.units.filter(u => !old.has(u.id)), createUnit('field_generator', team, `fieldgen-${++m.nextId}`, at)];
+  } else if (power === 'shadow_ops_tier3') {
+    // Cloaking Field: one generator per side, the old one blows.
+    const old = new Set(generatorsReplacedBy(m.units, team));
+    m.units = [...m.units.filter(u => !old.has(u.id)), createUnit('cloak_generator', team, `cloakgen-${++m.nextId}`, at)];
+  } else if (power === 'netrunner_tier2') {
+    m.nanoClouds.push({ team, at, radius: ABILITY_CONFIG.NANO_CLOUD_RADIUS, until: m.now + ABILITY_CONFIG.NANO_CLOUD_DURATION });
+  } else if (power === 'netrunner_tier3') {
+    m.virusBombs.push({ team, at, landAt: m.now + BLACKWALL.fallMs });
+  }
+  // shadow_ops_tier2, Phantom Decoys: nothing in this sim targets decoys (see the header).
+  m.powersCast.push({ team, doctrine, key, at: m.now });
+  m.log.push(`${Math.round(m.now / 1000)}s ${team} ${power}`);
+  return true;
 }
 
 function applyOrder(m: HeadlessMatch, team: Team, command: OrderCommand, ctx: OrdersContext) {

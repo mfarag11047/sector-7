@@ -358,7 +358,7 @@ export const DOCTRINE_CONFIG: Record<DoctrineType, {
     tier3_cost: 1200,
     tier3_cooldown: 300000,
     tier3_name: "Bulwark Force Field",
-    tier3_desc: "Drops a force field generator that raises a dome about a city block across for 60 s. Your units fire out through it; enemy shots and projectiles from outside are stopped. Enemies who walk in are shocked for slight damage every second.",
+    tier3_desc: "Drops a force field generator that raises a dome about a city block across, for as long as it has power (indefinitely inside your grid) or until its 6000-point shield is battered down. Your units fire out through it; enemy shots and projectiles from outside are stopped. Enemies who walk in are shocked for slight damage every second.",
   },
   shadow_ops: {
     label: "Shadow Ops",

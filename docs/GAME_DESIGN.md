@@ -1715,8 +1715,23 @@ same report (`m.pacing`), so pacing can be checked over many seeds in seconds.
 movement, combat, capture, batteries, victory) on the sim modules alone. A 15-minute match takes
 under 10 seconds. `sim/ai.test.ts` uses it; it is also a first draft of the authoritative server.
 Bombardment Drones strike as in the game, levelling city blocks and hurting units under them, so
-the computer's new bases can be tested here. It doesn't yet model projectiles, most unit abilities,
-clouds, doctrine powers other than Orbital Drop, or Masons.
+the computer's new bases can be tested here. All six doctrine powers are cast as in the game
+(`castPower`): Orbital Drop, the Bulwark Force Field (its dome stops direct fire, shells, rockets,
+bombs and the virus, and wears down), the Cloaking Field, Nano-Cloud and Black Wall Infect; drop
+pods land at once rather than falling. Phantom Decoys are paid for but do nothing here, since no
+gun picks a decoy and the projectiles they soak in the game aren't flown. The heroes' big
+abilities run through the same unit-ability rules as the game. It doesn't yet model projectiles,
+most other unit abilities, warhead clouds, or Masons.
+
+### Doctrine balance sweep
+
+`npm run sweep` (`tools/doctrineSweep.ts`, `sim/doctrineSweep.ts`) plays every doctrine against
+every other on several seeds, once from each side, as headless matches spread over the CPU's cores,
+and prints each doctrine's score (a win counts 1, a draw at the time limit ½), each matchup, the
+powers cast, and the score of the matches each track option was taken in. The computer takes
+options at a coin's toss, so over enough seeds every option is played. `SWEEP_SEEDS`,
+`SWEEP_MINUTES`, `SWEEP_DIFFICULTY`, `SWEEP_JOBS` and `SWEEP_JSON` tune it. The aim is every
+doctrine within 40–60%; `SWEEP_BALANCE=1 npx vitest run sim/doctrineBalance.test.ts` checks it.
 
 ## Map
 
