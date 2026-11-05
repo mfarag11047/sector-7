@@ -506,7 +506,9 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
 - **The Wasp** (`components/models/WaspModel.tsx`): a compact faceted VTOL body with a sensor
   face, a chin gun, a tail fin and stabilisers, and two lift jets under it. Long, swept wings
   carry its micro-drone launchers: two hex pods hung under each wing on pylons, their faces
-  clusters of tubes with a red-nosed micro drone in each, and team bands. Red and green wingtip lights.
+  clusters of tubes with a red-nosed micro drone in each, and team bands. Red and green wingtip lights. Drawn big
+  (about 13 across its wings) so it reads as the mothership over its micro drones, each about a quarter
+  of its span.
 - **The Bombardment Drone** (`components/models/BombardModel.tsx`, sim type `bombard`): an
   unmanned stealth flying wing: a cranked-kite planform with a sawtooth trailing edge, a low hump
   along the middle with a dorsal intake and flat exhaust slots, raised wing panels, team markings

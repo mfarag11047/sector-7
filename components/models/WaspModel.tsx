@@ -16,7 +16,9 @@ import * as THREE from 'three';
 import { glow, kitMaterial, own, PALETTE, teamPaint } from '../kit/materials';
 import { Plate, Prism, Strip, Turned } from '../kit/shapes';
 
-const SCALE = 2.0;
+// The swarm's mothership: drawn well over its micro drones (each about 3.6 across), about 13
+// across its wings.
+const SCALE = 4.4;
 // Body side profile: [forward, up], faceted fore and aft.
 const BODY: [number, number][] = [[-0.6, -0.06], [-0.64, 0.12], [-0.46, 0.2], [0.28, 0.2], [0.6, 0.04], [0.58, -0.1], [0.4, -0.2], [-0.42, -0.2]];
 const BODY_W = 0.44;
