@@ -597,6 +597,12 @@ the Guardian, the Battery Mule, the Thunderhead, the Ballista, the Aegis, the Ba
   markings) in toward the middle of their base, the nearest Command HQ of their side, squared to
   the nearest of the four headings. The Command HQ itself faces away from the middle of the map,
   toward the corner its owner's camera starts in.
+- **Size** (`baseScale` in `components/Structure.tsx`): the eight base buildings on the pads are
+  drawn a quarter taller than they're built, so they stand up among the city's blocks, and as much
+  wider as still fits their own 14-wide tile (each one's widest reach from its middle, measured
+  from its model, scaled out to at most 7): the Depot 19% wider, the Ordnance Fab and Core Refinery
+  11%, the Airpad 4%, the Comm Link and Factory 1%; the Barracks and Advanced Research already
+  fill their tile and only grow taller.
 - **The Barracks** (`components/models/BarracksModel.tsx`, structure type `infantry`): an L of
   two blocks on a raised, chamfered concrete pad with ramps. The two-storey main block holds the
   bays (two roll-up doors under awnings, weapon lockers, hooded windows; AC units, a pipe run and a

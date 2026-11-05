@@ -79,6 +79,22 @@ interface StructureProps {
 
 
 
+// The base buildings are drawn a quarter taller than they're built, to stand up among the city's
+// blocks, and as much wider as still fits their own 14-wide tile: each one's widest reach from its
+// middle (measured from the model, in world units), scaled out to at most 7. They only ever turn by
+// quarter turns, so that reach is what has to fit. The two already filling their tile only grow taller.
+const BASE_TALLER = 1.25;
+const TILE_HALF = 7;
+const BASE_REACH: Partial<Record<StructureType, number>> = {
+  support: 6.94, infantry: 7.8, armor: 6.9, air: 6.7, builder: 5.88, ordnance_fab: 6.32, refinery: 6.32, research_lab: 7.68,
+};
+const baseScale = (type: StructureType): [number, number, number] => {
+  const reach = BASE_REACH[type];
+  if (reach === undefined) return [1, 1, 1];
+  const wide = Math.max(1, Math.min(BASE_TALLER, TILE_HALF / reach));
+  return [wide, BASE_TALLER, wide];
+};
+
 const MunitionsModel = ({ color, teamColor }: { color: string, teamColor: string }) => {
   return (
     <group position={[0, 0, 0]}>
@@ -652,32 +668,32 @@ const Structure: React.FC<StructureProps> = ({ data, tileSize, offset, onRightCl
     if (isCompoundPiece(data.type)) return null;
     // 1. Custom Models
     if (data.type === 'support') {
-        return <group rotation={[0, face, 0]}><CommLinkModel teamColor={teamColor} /></group>;
+        return <group rotation={[0, face, 0]} scale={baseScale(data.type)}><CommLinkModel teamColor={teamColor} /></group>;
     }
     if (data.type === 'infantry') {
-        return <group rotation={[0, face, 0]}><BarracksModel teamColor={teamColor} /></group>;
+        return <group rotation={[0, face, 0]} scale={baseScale(data.type)}><BarracksModel teamColor={teamColor} /></group>;
     }
     if (data.type === 'armor') {
-        return <group rotation={[0, face, 0]}><FactoryModel teamColor={teamColor} /></group>;
+        return <group rotation={[0, face, 0]} scale={baseScale(data.type)}><FactoryModel teamColor={teamColor} /></group>;
     }
     if (data.type === 'ordnance') {
         return <group scale={[1.9, 1.9, 1.9]}><MunitionsModel color={config.color} teamColor={teamColor} /></group>;
     }
     if (data.type === 'air') {
-        return <group rotation={[0, face, 0]}><AirpadModel teamColor={teamColor} /></group>;
+        return <group rotation={[0, face, 0]} scale={baseScale(data.type)}><AirpadModel teamColor={teamColor} /></group>;
     }
     if (data.type === 'builder') {
         // At work while it has a Mason in training.
-        return <group rotation={[0, face, 0]}><DepotModel teamColor={teamColor} active={(data.queue?.length ?? 0) > 0} /></group>;
+        return <group rotation={[0, face, 0]} scale={baseScale(data.type)}><DepotModel teamColor={teamColor} active={(data.queue?.length ?? 0) > 0} /></group>;
     }
     if (data.type === 'ordnance_fab') {
-        return <group rotation={[0, face, 0]}><OrdnanceFabModel teamColor={teamColor} fabricating={data.production?.active ? data.production.item : null} siloReadyAt={data.siloReadyAt} /></group>;
+        return <group rotation={[0, face, 0]} scale={baseScale(data.type)}><OrdnanceFabModel teamColor={teamColor} fabricating={data.production?.active ? data.production.item : null} siloReadyAt={data.siloReadyAt} /></group>;
     }
     if (data.type === 'refinery') {
-        return <group rotation={[0, face, 0]}><RefineryModel teamColor={teamColor} level={data.refineryLevel === 2 ? 2 : 1} upgrading={!!data.refineryUpgrade} /></group>;
+        return <group rotation={[0, face, 0]} scale={baseScale(data.type)}><RefineryModel teamColor={teamColor} level={data.refineryLevel === 2 ? 2 : 1} upgrading={!!data.refineryUpgrade} /></group>;
     }
     if (data.type === 'research_lab') {
-        return <group rotation={[0, face, 0]}><ResearchLabModel teamColor={teamColor} active={!!data.research} /></group>;
+        return <group rotation={[0, face, 0]} scale={baseScale(data.type)}><ResearchLabModel teamColor={teamColor} active={!!data.research} /></group>;
     }
 
     // 2. Specialized Existing Models
